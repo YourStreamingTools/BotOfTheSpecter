@@ -12,16 +12,16 @@
     </header>
     <div class="container">
         <div class="bio">
-            <p>👻 Welcome to the spectral realm of BotOfTheSpecter! 👻</p>
-            <p>🌌 I'm your ghostly companion in the world of streaming, here to enhance your experience and assist you on your journey through the ethereal streams. 🌌</p>
-            <p>🔮 Chat Commands:</p>
+            <p><span class="icon">👻</span> Welcome to the spectral realm of BotOfTheSpecter! <span class="icon">👻</span></p>
+            <p><span class="icon">🌌</span> I'm your ghostly companion in the world of streaming, here to enhance your experience and assist you on your journey through the ethereal streams. <span class="icon">🌌</span></p>
+            <p><span class="icon">🔮</span> Chat Commands:</p>
                 <ul>
-                    <li>🌟 !help - Need assistance? Just ask!</li>
-                    <li>🌟 !commands - Discover my array of mystical commands.</li>
-                    <li>🌟 !spook - Feeling adventurous? Let's explore the spooky side of Twitch together!</li>
+                    <li><span class="icon">🌟</span> !help - Need assistance? Just ask!</li>
+                    <li><span class="icon">🌟</span> !commands - Discover my array of mystical commands.</li>
+                    <li><span class="icon">🌟</span> !spook - Feeling adventurous? Let's explore the spooky side of Twitch together!</li>
                 </ul>
-            <p>📜 My purpose is to ensure your streams are seamless and your chat is enchanted with fun and interactivity. Feel free to reach out if you need help, or just to share a spectral tale or two! 👻</p>
-            <p>🌠 Together, we'll create magical streaming moments. Join me in this otherworldly adventure! 🌠</p>
+            <p><span class="icon">📜</span> My purpose is to ensure your streams are seamless and your chat is enchanted with fun and interactivity. Feel free to reach out if you need help, or just to share a spectral tale or two! <span class="icon">👻</span></p>
+            <p><span class="icon">🌠</span> Together, we'll create magical streaming moments. Join me in this otherworldly adventure! <span class="icon">🌠</span></p>
         </div>
     </div>
 <footer>
