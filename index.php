@@ -21,7 +21,7 @@
                     <li><span class="icon">🌟</span> !spook - Feeling adventurous? Let's explore the spooky side of Twitch together!</li>
                 </ul>
             <p><span class="icon">📜</span> My purpose is to ensure your streams are seamless and your chat is enchanted with fun and interactivity. Feel free to reach out if you need help, or just to share a spectral tale or two! <span class="icon">👻</span></p>
-            <p><span class="icon">🌠</span> Together, we'll create magical streaming moments. Join me in this otherworldly adventure! <span class="icon">🌠</span></p>
+            <p><span class="icon">🌠</span> Together, we'll create magical streaming moments. I'll join you in this adventure! <span class="icon">🌠</span></p>
         </div>
     </div>
 <footer>
