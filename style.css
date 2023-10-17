@@ -1,29 +1,42 @@
-body {
-    background-color: #1a1a1a;
-    color: #fff;
-    font-family: Arial, sans-serif;
+/* Default Style */
+body, h1, p {
     margin: 0;
     padding: 0;
 }
 
+/* Body Style */
+body {
+    background-color: #0F0F0F;
+    color: #C0C0C0;
+    font-family: Arial, sans-serif;
+}
+
+/* Header Style */
 header {
     background-color: #333;
     text-align: center;
     padding: 20px;
 }
 
+/* Heading Style */
 h1 {
     font-size: 2em;
+    color: #fff;
 }
 
+/* Main content container Style */
 .container {
     padding: 20px;
 }
 
+/* Bio text Style */
 .bio {
     font-size: 1.2em;
+    text-align: left;
+    line-height: 1.5;
 }
 
+/* Footer Style */
 footer {
     background-color: #333;
     text-align: center;
@@ -31,7 +44,9 @@ footer {
     color: #fff;
 }
 
+/* Icon Style */
 .icon {
     font-size: 1.5em;
     margin: 0 5px;
+    vertical-align: middle;
 }
