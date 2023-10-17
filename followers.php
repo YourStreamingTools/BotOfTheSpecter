@@ -10,7 +10,6 @@ if (!isset($_SESSION['access_token'])) {
 
 // Connect to database
 require_once "db_connect.php";
-include 'database.php';
 
 // Default Timezone Settings
 $defaultTimeZone = 'Etc/UTC';
