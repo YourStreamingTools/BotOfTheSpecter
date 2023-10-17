@@ -1,0 +1,32 @@
+body {
+    background-color: #1a1a1a;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+header {
+    background-color: #333;
+    text-align: center;
+    padding: 20px;
+}
+
+h1 {
+    font-size: 2em;
+}
+
+.container {
+    padding: 20px;
+}
+
+.bio {
+    font-size: 1.2em;
+}
+
+footer {
+    background-color: #333;
+    text-align: center;
+    padding: 10px;
+    color: #fff;
+}
