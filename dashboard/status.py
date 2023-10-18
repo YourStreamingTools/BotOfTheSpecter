@@ -9,10 +9,14 @@ args = parser.parse_args()
 # Check if a process is running for the specified channel username
 channel_username = args.channel_username.lower()  # Convert to lowercase for consistent comparison
 
+# Define the expected command line for both bot versions
+expected_command_v1 = f"python /var/www/bot/bot.py -channel {channel_username}"
+expected_command_v2 = f"python bot.py -channel {channel_username}"
+
 # Iterate through all running processes
 for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
     process_cmdline = ' '.join(process.info['cmdline']).lower() if process.info['cmdline'] else ""
-    if f"python /var/www/bot/bot.py -channel {channel_username}" in process_cmdline:
+    if expected_command_v1 in process_cmdline or expected_command_v2 in process_cmdline:
         print(f"Bot is running with process ID: {process.info['pid']}")
         break
 else:
