@@ -10,6 +10,7 @@ import requests
 from datetime import datetime
 import logging
 import signal
+import aiohttp
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
