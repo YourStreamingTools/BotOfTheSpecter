@@ -31,6 +31,7 @@ signal.signal(signal.SIGINT, signal_handler)
 BOT_USERNAME = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
+TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
@@ -95,6 +96,70 @@ async def event_cheer(cheerer, message):
 @bot.event()
 async def event_subscribe(subscriber):
     print(f"{subscriber.display_name} just subscribed to the channel!")
+
+@bot.command(name='so')
+async def shoutout(ctx: commands.Context):
+    # Get the user to shout out
+    user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
+
+    # Fetch the user's Twitch ID using the API
+    user_id = await get_user_id(user_to_shoutout)
+
+    if user_id:
+        # Fetch the user's latest stream info to get the game they are currently playing
+        game = await get_latest_stream_game(user_id)
+
+        if game:
+            # Create the shoutout message
+            shoutout_message = (
+                f"Hey, did you know {user_to_shoutout} streams too? "
+                f"They're pretty fun to watch as well! You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_to_shoutout} where they were last playing: {game}"
+            )
+
+            # Send the shoutout message in the chat
+            await ctx.send(shoutout_message)
+        else:
+            await ctx.send(f"Sorry, I couldn't determine the last game {user_to_shoutout} played.")
+    else:
+        await ctx.send(f"Sorry, I couldn't find a user with the name {user_to_shoutout}.")
+
+# Function to get the user's Twitch ID using the API
+async def get_user_id(username):
+    url = f"https://api.twitch.tv/helix/users?login={username}"
+    headers = {
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    response = await fetch_json(url, headers)
+
+    if response and "data" in response:
+        return response["data"][0]["id"]
+
+    return None
+
+# Function to get the user's latest stream info
+async def get_latest_stream_game(user_id):
+    url = f"https://api.twitch.tv/helix/streams?user_id={user_id}"
+    headers = {
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    response = await fetch_json(url, headers)
+
+    if response and "data" in response:
+        return response["data"][0]["game_name"]
+
+    return None
+
+# Function to make a GET request and parse the response as JSON
+async def fetch_json(url, headers):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    return await response.json()
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+    return None
 
 # Run the bot
 bot.run()
