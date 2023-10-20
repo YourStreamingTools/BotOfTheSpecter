@@ -100,30 +100,34 @@ async def event_subscribe(subscriber):
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
-    # Get the user to shout out
-    user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
+    # Check if the user who executed the command is a moderator
+    if 'moderator' in ctx.author.badges:
+        # Get the user to shout out
+        user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
 
-    # Fetch the user's Twitch ID using the API
-    user_id = await get_user_id(user_to_shoutout)
+        # Fetch the user's Twitch ID using the API
+        user_id = await get_user_id(user_to_shoutout)
 
-    if user_id:
-        # Fetch the user's latest stream info to get the game they are currently playing
-        game = await get_latest_stream_game(user_id)
+        if user_id:
+            # Fetch the user's latest stream info to get the game they are currently playing
+            game = await get_latest_stream_game(user_id)
 
-        if game:
-            # Create the shoutout message
-            shoutout_message = (
-                f"Hey, did you know {user_to_shoutout} streams too? "
-                f"They're pretty fun to watch as well! You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_to_shoutout} where they were last playing: {game}"
-            )
+            if game:
+                # Create the shoutout message
+                shoutout_message = (
+                    f"Hey, did you know {user_to_shoutout} streams too? "
+                    f"They're pretty fun to watch as well! You should go give them a follow over at "
+                    f"https://www.twitch.tv/{user_to_shoutout} where they were last playing: {game}"
+                )
 
-            # Send the shoutout message in the chat
-            await ctx.send(shoutout_message)
+                # Send the shoutout message in the chat
+                await ctx.send(shoutout_message)
+            else:
+                await ctx.send(f"Sorry, I couldn't determine the last game {user_to_shoutout} played.")
         else:
-            await ctx.send(f"Sorry, I couldn't determine the last game {user_to_shoutout} played.")
+            await ctx.send(f"Sorry, I couldn't find a user with the name {user_to_shoutout}.")
     else:
-        await ctx.send(f"Sorry, I couldn't find a user with the name {user_to_shoutout}.")
+        await ctx.send("You must be a moderator to use the !so command.")
 
 # Function to get the user's Twitch ID using the API
 async def get_user_id(username):
