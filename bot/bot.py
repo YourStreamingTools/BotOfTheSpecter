@@ -60,6 +60,20 @@ for directory in [logs_directory, bot_logs]:
 log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
 logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# Logs for Chat
+chat_logger = logging.getLogger("chat")
+chat_log_file = os.path.join(webroot, chat_logs, f"{CHANNEL_NAME}.txt")
+chat_handler = logging.FileHandler(chat_log_file)
+chat_logger.setLevel(logging.INFO)
+chat_logger.addHandler(chat_handler)
+
+# Logs for Twitch
+twitch_logger = logging.getLogger("twitch")
+twitch_log_file = os.path.join(webroot, twitch_logs, f"{CHANNEL_NAME}.txt")
+twitch_handler = logging.FileHandler(twitch_log_file)
+twitch_logger.setLevel(logging.INFO)
+twitch_logger.addHandler(twitch_handler)
+
 # Create an instance of your Bot class
 bot_instance = bot
 
