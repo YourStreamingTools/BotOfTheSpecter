@@ -128,6 +128,7 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
       <li><a href="followers.php">View Followers</a></li>
       <li><a href="subscribers.php">View Subscribers</a></li>
       <li><a href="vips.php">View VIPs</a></li>
+      <li><a href="logs.php">View Logs</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
