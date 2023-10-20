@@ -254,5 +254,8 @@ async def event_message(ctx):
         else:
             await ctx.channel.send(f'No such command found: !{command}')
 
+def is_mod_or_broadcaster(user):
+    return 'moderator' in user.badges or user.is_mod
+
 # Run the bot
 bot.run()
