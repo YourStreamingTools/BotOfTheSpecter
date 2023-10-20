@@ -128,7 +128,7 @@ async def shoutout(ctx: commands.Context):
                 shoutout_message = (
                     f"Hey, did you know {user_to_shoutout} streams too? "
                     f"They're pretty fun to watch as well! You should go give them a follow over at "
-                    f"https://www.twitch.tv/{user_to_shoutout} where they were last playing: {game}"
+                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
                 )
 
                 # Send the shoutout message in the chat
