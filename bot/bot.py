@@ -216,23 +216,25 @@ async def remove_command(ctx: commands.Context):
         conn.commit()
         await ctx.send(f'Custom command removed: !{command}')
 
-@bot.command(name='execute')
-async def execute_command(ctx: commands.Context):
-    # Get the command to execute from the message
-    command = ctx.message.content.strip().split(' ')[1]
+@bot.event
+async def event_message(ctx):
+    # Get the message content
+    message_content = ctx.content.strip()
 
-    # Check if the command exists in the database
-    cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
-    result = cursor.fetchone()
+    # Check if the message starts with an exclamation mark
+    if message_content.startswith('!'):
+        # Extract the potential command (excluding the exclamation mark)
+        command = message_content[1:]
 
-    if result:
-        response = result[0]
-        await ctx.send(response)
-    else:
-        await ctx.send(f'Custom command !{command} not found.')
+        # Check if the command exists in the database
+        cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+        result = cursor.fetchone()
 
-def is_mod_or_broadcaster(user):
-    return 'moderator' in user.badges or user.is_mod
+        if result:
+            response = result[0]
+            await ctx.channel.send(response)
+        else:
+            await ctx.channel.send(f'No such command found: !{command}')
 
 # Run the bot
 bot.run()
