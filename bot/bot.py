@@ -111,21 +111,24 @@ async def start_bot(self, ctx: commands.Context):
 
 @bot.event()
 async def on_pubsub_channel_subscription(data):
+    twitch_logger.info(f"Channel subscription event: {data}")
     if data['type'] == 'stream.online':
         print(f"The stream is now online, {BOT_USERNAME} is ready!")
 
 @bot.event()
 async def event_new_follower(follower):
     print(f"New follower: {follower.name}")
+    twitch_logger.info(f"New follower: {follower.name}")
 
 @bot.event()
 async def event_cheer(cheerer, message):
     print(f"{cheerer.display_name} cheered {message.bits} bits!")
-
+    twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
     
 @bot.event()
 async def event_subscribe(subscriber):
     print(f"{subscriber.display_name} just subscribed to the channel!")
+    twitch_logger.info(f"{subscriber.display_name} just subscribed to the channel!")
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
@@ -234,7 +237,8 @@ async def remove_command(ctx: commands.Context):
 async def event_message(ctx):
     # Get the message content
     message_content = ctx.content.strip()
-
+    chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
+    
     # Check if the message starts with an exclamation mark
     if message_content.startswith('!'):
         # Extract the potential command (excluding the exclamation mark)
