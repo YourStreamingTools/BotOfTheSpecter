@@ -100,8 +100,19 @@ async def event_subscribe(subscriber):
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
-    # Check if the user who executed the command is a moderator
-    if 'moderator' in ctx.author.badges:
+    # Check if the user who executed the command is a moderator or the broadcaster
+    user = ctx.author
+    is_mod = False
+
+    # Check if the user is a moderator by examining their badges
+    if user.badges:
+        for badge in user.badges:
+            if badge == 'moderator':
+                is_mod = True
+                break
+
+    # Check if the user is a moderator or the broadcaster
+    if is_mod or user.is_mod:
         # Get the user to shout out
         user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
 
