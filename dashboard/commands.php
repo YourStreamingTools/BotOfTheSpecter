@@ -49,6 +49,8 @@ try {
   // Fetch all custom commands
   $getCommands = $db->query("SELECT * FROM custom_commands");
   $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+  echo 'Error: ' . $e->getMessage();
 }
 ?>
 <!DOCTYPE html>
@@ -79,7 +81,8 @@ try {
       <li><a href="followers.php">View Followers</a></li>
       <li><a href="subscribers.php">View Subscribers</a></li>
       <li><a href="vips.php">View VIPs</a></li>
-      <li class="is-active"><a href="logs.php">View Logs</a></li>
+      <li><a href="logs.php">View Logs</a></li>
+      <li class="is-active"><a href="commands.php">Bot Commands</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
