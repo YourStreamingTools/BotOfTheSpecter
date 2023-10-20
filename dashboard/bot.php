@@ -15,7 +15,6 @@ require_once "db_connect.php";
 $defaultTimeZone = 'Etc/UTC';
 $user_timezone = $defaultTimeZone;
 
-$webhookURL = '';
 // Fetch the user's data from the database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
@@ -43,16 +42,6 @@ if ($currentHour < 12) {
     $greeting = "Good afternoon";
 }
 
-$botSTMT = $conn->prepare("SELECT * FROM bot");
-$botSTMT->execute();
-$botResult = $botSTMT->get_result();
-$botData = $botResult->fetch_assoc();
-$botToken = $botData['access_token'];
-$botUsername = $botData['username'];
-$botDisplayName = $botData['display_name'];
-$botUserId = $botData['user_id'];
-$botProfileImageUrl = $botData['profile_image'];
-$botSTMT->close();
 $statusOutput = 'Bot Status: Unkown';
 $pid = '';
 include 'bot_control.php';
@@ -66,8 +55,8 @@ include 'bot_control.php';
     <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
     <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
     <script src="https://cdn.yourstreaming.tools/js/about.js"></script>
-  	<link rel="icon" href="https://cdn.yourstreaming.tools/img/logo.jpeg">
-  	<link rel="apple-touch-icon" href="https://cdn.yourstreaming.tools/img/logo.jpeg">
+  	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+  	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
   </head>
 <body>
