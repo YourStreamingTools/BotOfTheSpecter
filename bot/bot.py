@@ -145,12 +145,12 @@ async def get_user_id(username):
     url = f"https://api.twitch.tv/helix/users?login={username}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
     }
     response = await fetch_json(url, headers)
 
     if response and "data" in response:
         return response["data"][0]["id"]
-
     return None
 
 # Function to get the user's latest stream info
@@ -158,12 +158,12 @@ async def get_latest_stream_game(user_id):
     url = f"https://api.twitch.tv/helix/streams?user_id={user_id}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
     }
     response = await fetch_json(url, headers)
 
     if response and "data" in response:
         return response["data"][0]["game_name"]
-
     return None
 
 # Function to make a GET request and parse the response as JSON
