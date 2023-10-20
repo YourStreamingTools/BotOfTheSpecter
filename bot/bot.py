@@ -66,6 +66,21 @@ bot_instance = bot
 # Define the pubsub_client outside the class
 pubsub_client = pubsub.PubSubPool(bot_instance)
 
+# Create the database and table if it doesn't exist
+commands_directory = "/var/www/bot/commands"
+if not os.path.exists(commands_directory):
+    os.makedirs(commands_directory)
+database_file = os.path.join(commands_directory, f"{CHANNEL_NAME}_commands.db")
+conn = sqlite3.connect(database_file)
+cursor = conn.cursor()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS custom_commands (
+        command TEXT PRIMARY KEY,
+        response TEXT
+    )
+''')
+conn.commit()
+
 @bot.event
 async def event_ready():
     logging.info(f'Logged in as | {bot_instance.nick}')
@@ -176,6 +191,48 @@ async def fetch_json(url, headers):
     except Exception as e:
         print(f"Error fetching data: {e}")
     return None
+
+@bot.command(name='addcommand')
+async def add_command(ctx: commands.Context):
+    # Check if the user is a moderator or broadcaster
+    if is_mod_or_broadcaster(ctx.author):
+        # Parse the command and response from the message
+        command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+
+        # Insert the command and response into the database
+        cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
+        conn.commit()
+        await ctx.send(f'Custom command added: !{command}')
+
+@bot.command(name='removecommand')
+async def remove_command(ctx: commands.Context):
+    # Check if the user is a moderator or broadcaster
+    if is_mod_or_broadcaster(ctx.author):
+        # Parse the command to remove from the message
+        command = ctx.message.content.strip().split(' ')[1]
+
+        # Delete the command from the database
+        cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
+        conn.commit()
+        await ctx.send(f'Custom command removed: !{command}')
+
+@bot.command(name='execute')
+async def execute_command(ctx: commands.Context):
+    # Get the command to execute from the message
+    command = ctx.message.content.strip().split(' ')[1]
+
+    # Check if the command exists in the database
+    cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+    result = cursor.fetchone()
+
+    if result:
+        response = result[0]
+        await ctx.send(response)
+    else:
+        await ctx.send(f'Custom command !{command} not found.')
+
+def is_mod_or_broadcaster(user):
+    return 'moderator' in user.badges or user.is_mod
 
 # Run the bot
 bot.run()
