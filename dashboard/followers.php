@@ -162,6 +162,7 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
       <li class="is-active"><a href="followers.php">View Followers</a></li>
       <li><a href="subscribers.php">View Subscribers</a></li>
       <li><a href="vips.php">View VIPs</a></li>
+      <li><a href="logs.php">View Logs</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
