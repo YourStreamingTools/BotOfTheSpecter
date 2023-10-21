@@ -3,7 +3,7 @@ import asyncio
 import twitchio
 from twitchio.ext import commands
 from twitchio.ext import pubsub
-from twitchAPI.pubsub import PubSub
+from twitchio.ext import eventsub
 import twitchAPI
 from twitchAPI.oauth import UserAuthenticator
 import sqlite3
@@ -46,6 +46,7 @@ helix = twitchAPI.Twitch(CLIENT_ID, CLIENT_SECRET)
 auth = UserAuthenticator(helix, scope=["user:read:broadcast"])
 token, refresh_token = auth.authenticate_app()
 helix.set_user_authentication(token, [scope])
+client = twitchio.Client(token="{CHANNEL_AUTH}")
 
 # Create the bot instance
 bot = commands.Bot(
@@ -54,6 +55,19 @@ bot = commands.Bot(
     initial_channels=[CHANNEL_NAME],
     nick=BOT_USERNAME,
 )
+
+# Pubsub Topics
+async def main():
+    topics = [
+        pubsub.bits({CHANNEL_AUTH})[{CHANNEL_ID}],
+        pubsub.channel_subscriptions({CHANNEL_AUTH})[{CHANNEL_ID}],
+        pubsub.channel_points({CHANNEL_AUTH})[{CHANNEL_ID}],
+        pubsub.channel_follow({CHANNEL_AUTH})[{CHANNEL_ID}]
+        ]
+    await client.pubsub.subscribe_topics(topics)
+    await client.start()
+
+client.loop.run_until_complete(main())
 
 # Logs
 webroot = "/var/www/html"
@@ -86,7 +100,7 @@ twitch_logger.addHandler(twitch_handler)
 
 # Create an instance of your Bot class
 bot_instance = bot
-
+channel = bot.get_channel('{CHANNEL_NAME}')
 # Define the pubsub_client outside the class
 pubsub_client = pubsub.PubSubPool(bot_instance)
 
@@ -119,26 +133,49 @@ async def start_bot(self, ctx: commands.Context):
         current_time = int(time.time())  # Get current UNIX timestamp
         # Configure logging here if needed
 
-@bot.event()
+@client.event()
 async def on_pubsub_channel_subscription(data):
     twitch_logger.info(f"Channel subscription event: {data}")
     if data['type'] == 'stream.online':
         print(f"The stream is now online, {BOT_USERNAME} is ready!")
+        await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
-@bot.event()
+@client.event()
 async def event_new_follower(follower):
     print(f"New follower: {follower.name}")
     twitch_logger.info(f"New follower: {follower.name}")
+    await channel.send(f'New follower: {follower.name}')
 
-@bot.event()
+@client.event()
 async def event_cheer(cheerer, message):
     print(f"{cheerer.display_name} cheered {message.bits} bits!")
     twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
+    await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
     
-@bot.event()
+@client.event()
 async def event_subscribe(subscriber):
-    print(f"{subscriber.display_name} just subscribed to the channel!")
-    twitch_logger.info(f"{subscriber.display_name} just subscribed to the channel!")
+    streak = {subscriber.streak}
+    months = {subscriber.cumulative_months}
+    gift = {subscriber.is_gift}
+    giftanonymous = {subscriber.is_anonymous}
+    if gift == False:
+        print(f"{subscriber.display_name} just subscribed to the channel!")
+        if streak > 1:
+            await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
+            twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
+        if months > 2:
+            await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
+            twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
+        else:
+            await channel.send(f'{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!')
+            twitch_logger.info(f"{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!")
+    else:
+        if giftanonymous == True:
+            await channel.send(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
+            twitch_logger.info(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
+        else:
+            await channel.send(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
+            twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
