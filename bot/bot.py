@@ -3,6 +3,9 @@ import asyncio
 import twitchio
 from twitchio.ext import commands
 from twitchio.ext import pubsub
+from twitchAPI.pubsub import PubSub
+import twitchAPI
+from twitchAPI.oauth import UserAuthenticator
 import sqlite3
 import time
 import argparse
@@ -32,10 +35,17 @@ signal.signal(signal.SIGINT, signal_handler)
 BOT_USERNAME = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
+CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
+
+# Auth to Twitch API
+helix = twitchAPI.Twitch(CLIENT_ID, CLIENT_SECRET)
+auth = UserAuthenticator(helix, scope=["user:read:broadcast"])
+token, refresh_token = auth.authenticate_app()
+helix.set_user_authentication(token, [scope])
 
 # Create the bot instance
 bot = commands.Bot(
