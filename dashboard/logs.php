@@ -71,6 +71,7 @@ if ($currentHour < 12) {
       <li><a href="subscribers.php">View Subscribers</a></li>
       <li><a href="vips.php">View VIPs</a></li>
       <li class="is-active"><a href="logs.php">View Logs</a></li>
+      <li><a href="commands.php">Bot Commands</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
