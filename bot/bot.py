@@ -7,13 +7,14 @@ from twitchio.ext import eventsub
 import twitchAPI
 from twitchAPI.oauth import UserAuthenticator
 import sqlite3
-import time
 import argparse
 import requests
-from datetime import datetime
 import logging
 import signal
 import aiohttp
+import time
+from datetime import datetime
+from datetime import timedelta
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -176,6 +177,20 @@ async def event_subscribe(subscriber):
         else:
             await channel.send(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
             twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
+
+@bot.command(name='timer')
+async def start_timer(ctx: commands.Context):
+    content = ctx.message.content.strip()
+    try:
+        _, minutes = content.split(' ')
+        minutes = int(minutes)
+    except ValueError:
+        # Default to 5 minutes if the user didn't provide a valid value
+        minutes = 5
+
+    await ctx.send(f"Timer started for {minutes} minute(s).")
+    await asyncio.sleep(minutes * 60)  # Convert minutes to seconds
+    await ctx.send(f"@{ctx.author.name}, your {minutes} minute timer has ended!")
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
