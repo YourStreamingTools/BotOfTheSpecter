@@ -5,7 +5,9 @@ from twitchio.ext import commands
 from twitchio.ext import pubsub
 from twitchio.ext import eventsub
 import twitchAPI
-from twitchAPI.oauth import UserAuthenticator
+from twitchAPI.twitch import Twitch
+from twitchAPI.oauth import UserAuthenticator, refresh_access_token
+from twitchAPI.type import AuthScope
 import sqlite3
 import argparse
 import requests
@@ -41,13 +43,6 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
-
-# Auth to Twitch API
-helix = twitchAPI.Twitch(CLIENT_ID, CLIENT_SECRET)
-auth = UserAuthenticator(helix, scope=["user:read:broadcast"])
-token, refresh_token = auth.authenticate_app()
-helix.set_user_authentication(token, [scope])
-client = twitchio.Client(token="{CHANNEL_AUTH}")
 
 # Create the bot instance
 bot = commands.Bot(
