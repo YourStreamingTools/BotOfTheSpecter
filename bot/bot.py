@@ -6,7 +6,8 @@ from twitchio.ext import pubsub
 from twitchio.ext import eventsub
 import twitchAPI
 from twitchAPI.twitch import Twitch
-from twitchAPI.oauth import UserAuthenticator, refresh_access_token
+from twitchAPI.oauth import UserAuthenticator
+from twitchAPI.oauth import refresh_access_token
 from twitchAPI.type import AuthScope
 import sqlite3
 import argparse
@@ -52,18 +53,18 @@ bot = commands.Bot(
     nick=BOT_USERNAME,
 )
 
-# Pubsub Topics
-async def main():
-    topics = [
-        pubsub.bits({CHANNEL_AUTH})[{CHANNEL_ID}],
-        pubsub.channel_subscriptions({CHANNEL_AUTH})[{CHANNEL_ID}],
-        pubsub.channel_points({CHANNEL_AUTH})[{CHANNEL_ID}],
-        pubsub.channel_follow({CHANNEL_AUTH})[{CHANNEL_ID}]
-        ]
-    await client.pubsub.subscribe_topics(topics)
-    await client.start()
-
-client.loop.run_until_complete(main())
+# WILL FIX THIS, BUT TO GET THE BOT TO RUN WITHOUT ISSUES, I'VE COMMENTED THIS OUT #
+# client = twitchio.Client(token=CHANNEL_AUTH)
+# async def main():
+#     topics = [
+#         pubsub.bits(CHANNEL_AUTH)[CHANNEL_ID],
+#         pubsub.channel_subscriptions(CHANNEL_AUTH)[CHANNEL_ID],
+#         pubsub.channel_points(CHANNEL_AUTH)[CHANNEL_ID],
+#         pubsub.channel_follow(CHANNEL_AUTH)[CHANNEL_ID]
+#     ]
+#     await client.pubsub.subscribe_topics(topics)
+#     await client.start()
+# client.loop.run_until_complete(main())
 
 # Logs
 webroot = "/var/www/html"
@@ -121,34 +122,26 @@ async def event_ready():
     logging.info(f'User id is | {bot_instance.user_id}')
     await pubsub_client.pubsub_channel_subscribe(CLIENT_ID, f'channel.{CHANNEL_NAME}')
 
-@commands.command()
-async def start_bot(self, ctx: commands.Context):
-    requests_made = 0  # Initialize requests_made
-    start_time = time.time()  # Initialize start_time
-    while True:
-        current_time = int(time.time())  # Get current UNIX timestamp
-        # Configure logging here if needed
-
-@client.event()
+@bot.event()
 async def on_pubsub_channel_subscription(data):
     twitch_logger.info(f"Channel subscription event: {data}")
     if data['type'] == 'stream.online':
         print(f"The stream is now online, {BOT_USERNAME} is ready!")
         await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
-@client.event()
+@bot.event()
 async def event_new_follower(follower):
     print(f"New follower: {follower.name}")
     twitch_logger.info(f"New follower: {follower.name}")
     await channel.send(f'New follower: {follower.name}')
 
-@client.event()
+@bot.event()
 async def event_cheer(cheerer, message):
     print(f"{cheerer.display_name} cheered {message.bits} bits!")
     twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
     await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
     
-@client.event()
+@bot.event()
 async def event_subscribe(subscriber):
     streak = {subscriber.streak}
     months = {subscriber.cumulative_months}
