@@ -11,10 +11,6 @@ if (!isset($_SESSION['access_token'])) {
 // Connect to database
 require_once "db_connect.php";
 
-// Default Timezone Settings
-$defaultTimeZone = 'Etc/UTC';
-$user_timezone = $defaultTimeZone;
-
 // Fetch the user's data from the database based on the access_token
 $access_token = $_SESSION['access_token'];
 $stmt = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
@@ -30,6 +26,11 @@ $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $accessToken = $access_token;
 $user_timezone = $user['timezone'];
+
+if (!$user_timezone || !in_array($user_timezone, timezone_identifiers_list())) {
+    $user_timezone = 'Etc/UTC';
+}
+
 date_default_timezone_set($user_timezone);
 
 // Determine the greeting based on the user's local time
