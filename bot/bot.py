@@ -79,6 +79,8 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s -
 chat_logger = logging.getLogger("chat")
 chat_log_file = os.path.join(webroot, chat_logs, f"{CHANNEL_NAME}.txt")
 chat_handler = logging.FileHandler(chat_log_file)
+chat_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+chat_handler.setFormatter(chat_format)
 chat_logger.setLevel(logging.INFO)
 chat_logger.addHandler(chat_handler)
 
@@ -86,6 +88,8 @@ chat_logger.addHandler(chat_handler)
 twitch_logger = logging.getLogger("twitch")
 twitch_log_file = os.path.join(webroot, twitch_logs, f"{CHANNEL_NAME}.txt")
 twitch_handler = logging.FileHandler(twitch_log_file)
+twitch_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+twitch_handler.setFormatter(twitch_format)  # corrected this line
 twitch_logger.setLevel(logging.INFO)
 twitch_logger.addHandler(twitch_handler)
 
@@ -114,6 +118,9 @@ conn.commit()
 async def event_ready():
     logging.info(f'Logged in as | {bot_instance.nick}')
     logging.info(f'User id is | {bot_instance.user_id}')
+    chat_logger.info("Chat logger initialized.")
+    twitch_logger.info("Twitch logger initialized.")
+    
     await pubsub_client.pubsub_channel_subscribe(CLIENT_ID, f'channel.{CHANNEL_NAME}')
     # Send the message indicating the bot is ready
     await channel.send(f"Ready and waiting.")
