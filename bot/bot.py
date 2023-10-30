@@ -121,6 +121,8 @@ async def event_ready():
     logging.info(f'Logged in as | {bot_instance.nick}')
     logging.info(f'User id is | {bot_instance.user_id}')
     await pubsub_client.pubsub_channel_subscribe(CLIENT_ID, f'channel.{CHANNEL_NAME}')
+    # Send the message indicating the bot is ready
+    await channel.send(f"Ready and waiting.")
 
 @bot.event()
 async def on_pubsub_channel_subscription(data):
@@ -203,8 +205,8 @@ async def shoutout(ctx: commands.Context):
         return
 
     shoutout_message = (
-        f"Hey, did you know {user_to_shoutout} streams too? "
-        f"They're pretty fun to watch as well! You should go give them a follow over at "
+        f"Hey, huge shoutout to @{user_to_shoutout}! "
+        f"You should go give them a follow over at "
         f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
     )
     await ctx.send(shoutout_message)
