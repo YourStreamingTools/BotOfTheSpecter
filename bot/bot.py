@@ -182,60 +182,44 @@ async def start_timer(ctx: commands.Context):
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
-    # Check if the user who executed the command is a moderator or the broadcaster
     user = ctx.author
-    is_mod = False
+    is_mod = user.is_mod
 
-    # Check if the user is a moderator by examining their badges
-    if user.badges:
-        for badge in user.badges:
-            if badge == 'moderator':
-                is_mod = True
-                break
-
-    # Check if the user is a moderator or the broadcaster
-    if is_mod or user.is_mod:
-        # Get the user to shout out
-        user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
-
-        # Fetch the user's Twitch ID using the API
-        user_id = await get_user_id(user_to_shoutout)
-
-        if user_id:
-            # Fetch the user's latest stream info to get the game they are currently playing
-            game = await get_latest_stream_game(user_id)
-
-            if game:
-                # Create the shoutout message
-                shoutout_message = (
-                    f"Hey, did you know {user_to_shoutout} streams too? "
-                    f"They're pretty fun to watch as well! You should go give them a follow over at "
-                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-                )
-
-                # Send the shoutout message in the chat
-                await ctx.send(shoutout_message)
-            else:
-                await ctx.send(f"Sorry, I couldn't determine the last game {user_to_shoutout} played.")
-        else:
-            await ctx.send(f"Sorry, I couldn't find a user with the name {user_to_shoutout}.")
-    else:
+    if not is_mod:
         await ctx.send("You must be a moderator to use the !so command.")
+        return
 
-# Function to get the user's Twitch ID using the API
-async def get_user_id(username):
-    url = f"https://api.twitch.tv/helix/users?login={username}"
+    user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
+    user_id = await get_user_id(user_to_shoutout)
+
+    if not user_id:
+        await ctx.send(f"Sorry, I couldn't find a user with the name {user_to_shoutout}.")
+        return
+
+    game = await get_latest_stream_game(user_id)
+
+    if not game:
+        await ctx.send(f"Sorry, I couldn't determine the last game {user_to_shoutout} played.")
+        return
+
+    shoutout_message = (
+        f"Hey, did you know {user_to_shoutout} streams too? "
+        f"They're pretty fun to watch as well! You should go give them a follow over at "
+        f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+    )
+    await ctx.send(shoutout_message)
+
+async def get_user_id(user_to_shoutout):
+    url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}",
     }
     response = await fetch_json(url, headers)
-
     if response and "data" in response:
         return response["data"][0]["id"]
     return None
 
-# Function to get the user's latest stream info
 async def get_latest_stream_game(user_id):
     url = f"https://api.twitch.tv/helix/streams?user_id={user_id}"
     headers = {
@@ -243,12 +227,10 @@ async def get_latest_stream_game(user_id):
         "Authorization": f"Bearer {CHANNEL_AUTH}",
     }
     response = await fetch_json(url, headers)
-
     if response and "data" in response:
         return response["data"][0]["game_name"]
     return None
 
-# Function to make a GET request and parse the response as JSON
 async def fetch_json(url, headers):
     try:
         async with aiohttp.ClientSession() as session:
@@ -271,6 +253,9 @@ async def add_command(ctx: commands.Context):
         conn.commit()
         await ctx.send(f'Custom command added: !{command}')
 
+def is_mod_or_broadcaster(user):
+    return 'moderator' in user.badges or user.is_mod
+
 @bot.command(name='removecommand')
 async def remove_command(ctx: commands.Context):
     # Check if the user is a moderator or broadcaster
@@ -282,6 +267,9 @@ async def remove_command(ctx: commands.Context):
         cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
         conn.commit()
         await ctx.send(f'Custom command removed: !{command}')
+
+def is_mod_or_broadcaster(user):
+    return 'moderator' in user.badges or user.is_mod
 
 @bot.event
 async def event_message(ctx):
@@ -303,9 +291,6 @@ async def event_message(ctx):
             await ctx.channel.send(response)
         else:
             await ctx.channel.send(f'No such command found: !{command}')
-
-def is_mod_or_broadcaster(user):
-    return 'moderator' in user.badges or user.is_mod
 
 # Run the bot
 bot.run()
