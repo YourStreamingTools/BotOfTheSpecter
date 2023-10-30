@@ -136,18 +136,18 @@ async def event_ready():
 async def on_pubsub_channel_subscription(data):
     twitch_logger.info(f"Channel subscription event: {data}")
     if data['type'] == 'stream.online':
-        print(f"The stream is now online, {BOT_USERNAME} is ready!")
+        # print(f"The stream is now online, {BOT_USERNAME} is ready!")
         await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
 @bot.event()
 async def event_new_follower(follower):
-    print(f"New follower: {follower.name}")
+    # print(f"New follower: {follower.name}")
     twitch_logger.info(f"New follower: {follower.name}")
     await channel.send(f'New follower: {follower.name}')
 
 @bot.event()
 async def event_cheer(cheerer, message):
-    print(f"{cheerer.display_name} cheered {message.bits} bits!")
+    # print(f"{cheerer.display_name} cheered {message.bits} bits!")
     twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
     await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
 
@@ -158,7 +158,7 @@ async def event_subscribe(subscriber):
     gift = subscriber.is_gift
     giftanonymous = subscriber.is_anonymous
     if gift == False:
-        print(f"{subscriber.display_name} just subscribed to the channel!")
+        # print(f"{subscriber.display_name} just subscribed to the channel!")
         if streak > 1:
             await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
             twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
@@ -179,7 +179,7 @@ async def event_subscribe(subscriber):
 class Bot(commands.Bot):
     @bot.command(name='timer')
     async def start_timer(ctx: commands.Context):
-        chat_logger.info("Timer command ran.")
+        chat_logger.info(f"Timer command ran.")
         content = ctx.message.content.strip()
         try:
             _, minutes = content.split(' ')
@@ -194,7 +194,7 @@ class Bot(commands.Bot):
     
     @bot.command(name='ping')
     async def ping_command(ctx: commands.Context):
-        chat_logger.info("Ping command ran.")
+        chat_logger.info(f"Ping command ran.")
         # Using subprocess to run the ping command
         result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
     
@@ -204,6 +204,7 @@ class Bot(commands.Bot):
     
         if match:
             ping_time = match.group(1)
+            bot_logger.info(f"Pong: {ping_time} ms")
             await ctx.send(f'Pong: {ping_time} ms')
         else:
             await ctx.send(f'Error pinging')
@@ -233,37 +234,39 @@ class Bot(commands.Bot):
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
             await ctx.send(f'Custom command removed: !{command}')
-    
-    @bot.event
-    async def event_message(ctx):
-        if ctx.author.bot:
+
+async def event_message(ctx):
+    if ctx.author.bot:
+        return
+
+    # Get the message content
+    message_content = ctx.content.strip()
+    chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
+
+    # Check if the message starts with an exclamation mark
+    if message_content.startswith('!'):
+        # Split the message into command and its arguments
+        parts = message_content.split()
+        command = parts[0][1:]  # Extract the command without '!'
+        args = parts[1:]  # Remaining parts are arguments
+
+        # If the command is one of the built-in commands, process it using the bot's command processing
+        if command in builtin_commands:
+            await bot.process_commands(ctx)
             return
-    
-        # Get the message content
-        message_content = ctx.content.strip()
-        chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
-    
-        # Check if the message starts with an exclamation mark
-        if message_content.startswith('!'):
-            # Extract the potential command (excluding the exclamation mark)
-            command = message_content[1:]
-    
-            # If the command is one of the built-in commands, simply return and do nothing
-            if command in builtin_commands:
-                return
-    
-            # Check if the command exists in the database
-            cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
-            result = cursor.fetchone()
-    
-            if result:
-                response = result[0]
-                chat_logger.info(f"{command} command ran.")
-                await ctx.channel.send(response)
-            else:
-                chat_logger.info(f"{command} command not found.")
-                await ctx.channel.send(f'No such command found: !{command}')
-    
+
+        # Check if the command exists in the database
+        cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+        result = cursor.fetchone()
+
+        if result:
+            response = result[0]
+            chat_logger.info(f"{command} command ran.")
+            await ctx.channel.send(response)
+        else:
+            chat_logger.info(f"{command} command not found.")
+            await ctx.channel.send(f'No such command found: !{command}')
+
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
         try:
