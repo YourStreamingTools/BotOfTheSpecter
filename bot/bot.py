@@ -39,27 +39,6 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 builtin_commands = {"so", "ping", "timer", "addcommand", "removecommand"}
 
-# Create the bot instance
-bot = commands.Bot(
-    token=OAUTH_TOKEN,
-    prefix='!',
-    initial_channels=[CHANNEL_NAME],
-    nick=BOT_USERNAME,
-)
-
-# WILL FIX THIS, BUT TO GET THE BOT TO RUN WITHOUT ISSUES, I'VE COMMENTED THIS OUT #
-# client = twitchio.Client(token=CHANNEL_AUTH)
-# async def main():
-#     topics = [
-#         pubsub.bits(CHANNEL_AUTH)[CHANNEL_ID],
-#         pubsub.channel_subscriptions(CHANNEL_AUTH)[CHANNEL_ID],
-#         pubsub.channel_points(CHANNEL_AUTH)[CHANNEL_ID],
-#         pubsub.channel_follow(CHANNEL_AUTH)[CHANNEL_ID]
-#     ]
-#     await client.pubsub.subscribe_topics(topics)
-#     await client.start()
-# client.loop.run_until_complete(main())
-
 # Logs
 webroot = "/var/www/html"
 logs_directory = "logs"
@@ -92,6 +71,27 @@ twitch_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 twitch_handler.setFormatter(twitch_format)  # corrected this line
 twitch_logger.setLevel(logging.INFO)
 twitch_logger.addHandler(twitch_handler)
+
+# Create the bot instance
+bot = commands.Bot(
+    token=OAUTH_TOKEN,
+    prefix='!',
+    initial_channels=[CHANNEL_NAME],
+    nick=BOT_USERNAME,
+)
+
+# WILL FIX THIS, BUT TO GET THE BOT TO RUN WITHOUT ISSUES, I'VE COMMENTED THIS OUT #
+# client = twitchio.Client(token=CHANNEL_AUTH)
+# async def main():
+#     topics = [
+#         pubsub.bits(CHANNEL_AUTH)[CHANNEL_ID],
+#         pubsub.channel_subscriptions(CHANNEL_AUTH)[CHANNEL_ID],
+#         pubsub.channel_points(CHANNEL_AUTH)[CHANNEL_ID],
+#         pubsub.channel_follow(CHANNEL_AUTH)[CHANNEL_ID]
+#     ]
+#     await client.pubsub.subscribe_topics(topics)
+#     await client.start()
+# client.loop.run_until_complete(main())
 
 # Create an instance of your Bot class
 bot_instance = bot
