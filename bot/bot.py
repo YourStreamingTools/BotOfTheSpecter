@@ -153,10 +153,10 @@ async def event_cheer(cheerer, message):
 
 @bot.event()
 async def event_subscribe(subscriber):
-    streak = {subscriber.streak}
-    months = {subscriber.cumulative_months}
-    gift = {subscriber.is_gift}
-    giftanonymous = {subscriber.is_anonymous}
+    streak = subscriber.streak
+    months = subscriber.cumulative_months
+    gift = subscriber.is_gift
+    giftanonymous = subscriber.is_anonymous
     if gift == False:
         print(f"{subscriber.display_name} just subscribed to the channel!")
         if streak > 1:
@@ -292,15 +292,15 @@ class Bot(commands.Bot):
     
             if result:
                 response = result[0]
+                chat_logger.info(f"{command} command ran.")
                 await ctx.channel.send(response)
-                chat_logger.info("{command} command ran.")
             else:
+                chat_logger.info(f"{command} command not found.")
                 await ctx.channel.send(f'No such command found: !{command}')
-                chat_logger.info("{command} command not found.")
 
 def is_mod_or_broadcaster(user):
     twitch_logger.info(f"User {user} is Mod")
-    return 'moderator' in user.badges or 'broadcaster' in user.badges or user.is_mod
+    return 'moderator' in user.get('badges', {}) or 'broadcaster' in user.get('badges', {}) or user.is_mod
 
 async def get_latest_stream_game(user_to_shoutout):
     url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
@@ -318,6 +318,35 @@ async def get_latest_stream_game(user_to_shoutout):
     twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
     return None
 
+async def fetch_twitch_shoutout_user_id(user_to_shoutout):
+    url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
+    shoutout_user_id = await fetch_json(url)
+    return shoutout_user_id
+
+async def trigger_twitch_shoutout(to_broadcaster_id, moderator_id):
+    url = 'https://api.twitch.tv/helix/chat/shoutouts'
+    headers = {
+        "Authorization": f"Bearer {TWITCH_API_AUTH}",
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    payload = {
+        "from_broadcaster_id": CHANNEL_ID,
+        "to_broadcaster_id": to_broadcaster_id,
+        "moderator_id": moderator_id  # You can also hardcode or fetch this from somewhere if needed
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                    return None
+    except Exception as e:
+        twitch_logger.error(f"Error triggering shoutout: {e}")
+        return None
+
 async def fetch_json(url, headers=None):
     try:
         async with aiohttp.ClientSession() as session:
@@ -330,6 +359,29 @@ async def fetch_json(url, headers=None):
     except Exception as e:
         twitch_logger.error(f"Error fetching data: {e}")
     return None
+
+async def handle_shoutout_command(user, user_to_shoutout):
+    # Ensure user is a mod or broadcaster
+    if not is_mod_or_broadcaster(user):
+        twitch_logger.warning(f"User {user} is not allowed to use the shoutout command.")
+        return "Only mods or the broadcaster can use the shoutout command."
+
+    # Get latest game of the user to shoutout
+    game_name = await get_latest_stream_game(user_to_shoutout)
+    if not game_name:
+        return f"Could not fetch the latest game for {user_to_shoutout}."
+    
+    # Fetch the Twitch ID for the user to shoutout
+    shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
+    if not shoutout_user_id:
+        return f"Could not fetch the Twitch ID for {user_to_shoutout}."
+    
+    # Trigger the shoutout
+    result = await trigger_twitch_shoutout(shoutout_user_id, user.id)
+    if result:
+        return f"Shoutout to @{user_to_shoutout} who was last seen playing {game_name}!"
+    else:
+        return f"Failed to shoutout {user_to_shoutout}."
 
 # Run the bot
 bot.run()
