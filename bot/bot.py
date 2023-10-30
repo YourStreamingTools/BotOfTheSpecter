@@ -312,7 +312,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, ctx):
 
     url = 'https://api.twitch.tv/helix/chat/shoutouts'
     headers = {
-        "Authorization": f"Bearer {TWITCH_API_AUTH}",
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": TWITCH_API_CLIENT_ID,
     }
     payload = {
