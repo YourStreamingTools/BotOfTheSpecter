@@ -42,6 +42,9 @@ if ($currentHour < 12) {
     $greeting = "Good afternoon";
 }
 
+$db = new PDO("sqlite:/var/www/bot/commands/{$username}_commands.db");
+$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   if (isset($_POST['command']) && isset($_POST['response'])) {
       $newCommand = $_POST['command'];
