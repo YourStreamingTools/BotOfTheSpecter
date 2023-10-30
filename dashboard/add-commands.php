@@ -114,7 +114,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <input type="text" name="response" id="response" required>
         </div>
     </div>
-    <input type="submit" value="Add Command">
+    <input type="submit" class="defult-button" value="Add Command">
 </form>
 </div>
 </div>
