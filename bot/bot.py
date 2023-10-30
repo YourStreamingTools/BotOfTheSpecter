@@ -21,7 +21,6 @@ from datetime import timedelta
 import subprocess
 import re
 
-
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
 parser.add_argument("-channel", dest="target_channel", required=True, help="Target Twitch channel name")
@@ -93,7 +92,6 @@ twitch_logger.setLevel(logging.INFO)
 twitch_logger.addHandler(twitch_handler)
 
 # Create an instance of your Bot class
-running = True
 bot_instance = bot
 channel = bot.get_channel('{CHANNEL_NAME}')
 # Define the pubsub_client outside the class
@@ -308,15 +306,4 @@ async def event_message(ctx):
             await ctx.channel.send(f'No such command found: !{command}')
 
 # Run the bot
-if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    
-    try:
-        loop.run_until_complete(bot.start())
-        while running:
-            loop.run_until_complete(asyncio.sleep(1))
-    except KeyboardInterrupt:
-        print("Exiting gracefully...")
-    finally:
-        loop.run_until_complete(bot.close())
-        loop.close()
+bot.run()
