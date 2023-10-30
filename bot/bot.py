@@ -323,7 +323,16 @@ async def fetch_twitch_shoutout_user_id(user_to_shoutout):
     shoutout_user_id = await fetch_json(url)
     return shoutout_user_id
 
-async def trigger_twitch_shoutout(to_broadcaster_id, moderator_id):
+async def fetch_twitch_author_user_id(author_name):
+    url = f"https://decapi.me/twitch/id/{author_name}"
+    moderator_user_id = await fetch_json(url)
+    return moderator_user_id
+
+async def trigger_twitch_shoutout(user_to_shoutout, ctx):
+    # Fetching the shoutout user ID
+    shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
+    moderator_user_id = await fetch_twitch_author_user_id(ctx.author.name)
+
     url = 'https://api.twitch.tv/helix/chat/shoutouts'
     headers = {
         "Authorization": f"Bearer {TWITCH_API_AUTH}",
@@ -331,8 +340,8 @@ async def trigger_twitch_shoutout(to_broadcaster_id, moderator_id):
     }
     payload = {
         "from_broadcaster_id": CHANNEL_ID,
-        "to_broadcaster_id": to_broadcaster_id,
-        "moderator_id": moderator_id  # You can also hardcode or fetch this from somewhere if needed
+        "to_broadcaster_id": shoutout_user_id,
+        "moderator_id": moderator_user_id
     }
 
     try:
