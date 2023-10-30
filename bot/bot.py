@@ -207,40 +207,6 @@ class Bot(commands.Bot):
             await ctx.send(f'Pong: {ping_time} ms')
         else:
             await ctx.send(f'Error pinging')
-    
-    @bot.command(name="so", aliases=("shoutout",))
-    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
-        try:
-            chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
-
-            is_mod = ctx.author.is_mod
-
-            if not is_mod:
-                chat_logger.info(f"User {ctx.author.name} is not a mod, failed to run shoutout command.")
-                await ctx.send(f"You must be a moderator to use the !so command.")
-                return
-
-            game = await get_latest_stream_game(user_to_shoutout)
-
-            if not game:
-                shoutout_message = (
-                f"Hey, huge shoutout to @{user_to_shoutout}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_to_shoutout}"
-                )
-                chat_logger.info(shoutout_message)
-                await ctx.send(shoutout_message)
-                return
-
-            shoutout_message = (
-                f"Hey, huge shoutout to @{user_to_shoutout}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-            )
-            chat_logger.info(shoutout_message)
-            await ctx.send(shoutout_message)
-        except Exception as e:
-            chat_logger.error(f"Error in shoutout_command: {e}")
 
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
@@ -297,7 +263,41 @@ class Bot(commands.Bot):
             else:
                 chat_logger.info(f"{command} command not found.")
                 await ctx.channel.send(f'No such command found: !{command}')
+    
+    @bot.command(name="so", aliases=("shoutout",))
+    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
+        try:
+            chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
 
+            is_mod = ctx.author.is_mod
+
+            if not is_mod:
+                chat_logger.info(f"User {ctx.author.name} is not a mod, failed to run shoutout command.")
+                await ctx.send(f"You must be a moderator to use the !so command.")
+                return
+
+            game = await get_latest_stream_game(user_to_shoutout)
+
+            if not game:
+                shoutout_message = (
+                f"Hey, huge shoutout to @{user_to_shoutout}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_to_shoutout}"
+                )
+                chat_logger.info(shoutout_message)
+                await ctx.send(shoutout_message)
+                return
+
+            shoutout_message = (
+                f"Hey, huge shoutout to @{user_to_shoutout}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+            )
+            chat_logger.info(shoutout_message)
+            await ctx.send(shoutout_message)
+        except Exception as e:
+            chat_logger.error(f"Error in shoutout_command: {e}")
+            
 def is_mod_or_broadcaster(user):
     twitch_logger.info(f"User {user} is Mod")
     return 'moderator' in user.get('badges', {}) or 'broadcaster' in user.get('badges', {}) or user.is_mod
