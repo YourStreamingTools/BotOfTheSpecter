@@ -65,8 +65,8 @@ def setup_logger(name, log_file, level=logging.INFO):
     return logger
 
 # Setup bot logger
-main_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
-logger = setup_logger('main', main_log_file)
+bot_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
+bot_logger = setup_logger('bot', bot_log_file)
 
 # Setup chat logger
 chat_log_file = os.path.join(webroot, chat_logs, f"{CHANNEL_NAME}.txt")
@@ -76,7 +76,7 @@ chat_logger = setup_logger('chat', chat_log_file)
 twitch_log_file = os.path.join(webroot, twitch_logs, f"{CHANNEL_NAME}.txt")
 twitch_logger = setup_logger('twitch', twitch_log_file)
 
-logging.info("Bot script started.")
+bot_logger.info("Bot script started.")
 # Create the bot instance
 bot = commands.Bot(
     token=OAUTH_TOKEN,
@@ -122,8 +122,8 @@ conn.commit()
 
 @bot.event
 async def event_ready():
-    logging.info(f'Logged in as | {bot_instance.nick}')
-    logging.info(f'User id is | {bot_instance.user_id}')
+    bot_logger.info(f'Logged in as | {bot_instance.nick}')
+    bot_logger.info(f'User id is | {bot_instance.user_id}')
     chat_logger.info("Chat logger initialized.")
     twitch_logger.info("Twitch logger initialized.")
     
