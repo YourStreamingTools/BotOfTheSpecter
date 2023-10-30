@@ -211,36 +211,36 @@ class Bot(commands.Bot):
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
         try:
-            chat_logger.info(f"Shoutout command for {user_to_shoutout} ran by {ctx.author.name}.")
-            
+            chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
+
             is_mod = ctx.author.is_mod
-    
+
             if not is_mod:
-                chat_logger.info(f"User {ctx.author.name} is not a mod, failed to run SO Command.")
+                chat_logger.info(f"User {ctx.author.name} is not a mod, failed to run shoutout command.")
                 await ctx.send(f"You must be a moderator to use the !so command.")
                 return
-    
+
             game = await get_latest_stream_game(user_to_shoutout)
-    
+
             if not game:
                 shoutout_message = (
                 f"Hey, huge shoutout to @{user_to_shoutout}! "
                 f"You should go give them a follow over at "
                 f"https://www.twitch.tv/{user_to_shoutout}"
                 )
+                chat_logger.info(shoutout_message)
                 await ctx.send(shoutout_message)
                 return
-    
+
             shoutout_message = (
                 f"Hey, huge shoutout to @{user_to_shoutout}! "
                 f"You should go give them a follow over at "
                 f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
             )
+            chat_logger.info(shoutout_message)
             await ctx.send(shoutout_message)
         except Exception as e:
             chat_logger.error(f"Error in shoutout_command: {e}")
-
-
 
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
@@ -305,14 +305,19 @@ def is_mod_or_broadcaster(user):
 async def get_latest_stream_game(user_to_shoutout):
     url = f"https://api.twitch.tv/helix/streams?user_login={user_to_shoutout}"
     headers = {
-        "Client-ID": {TWITCH_API_CLIENT_ID},
+        "Client-ID": TWITCH_API_CLIENT_ID,
         "Authorization": f"Bearer {TWITCH_API_AUTH}",
     }
     response = await fetch_json(url, headers)
-    if response and "data" in response:
+    
+    # Add debug logger
+    twitch_logger.debug(f"Response from Twitch API: {response}")
+    
+    if response and "data" in response and len(response["data"]) > 0:
         twitch_logger.info(f"Got User to Shoutout Last Game.")
         return response["data"][0]["game_name"]
-    twitch_logger.info(f"Failed to get {user_to_shoutout} Last Game.")
+    
+    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
     return None
 
 async def fetch_json(url, headers):
@@ -322,7 +327,7 @@ async def fetch_json(url, headers):
                 if response.status == 200:
                     return await response.json()
     except Exception as e:
-        twitch_logger.info("Error fetching data: {e}")
+        twitch_logger.error("Error fetching data from TwitchAPI: {e}")
     return None
 
 # Run the bot
