@@ -38,7 +38,7 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
-builtin_commands = {"so", "ping", "timer", "addcommand", "removecommand"}
+builtin_commands = {"so", "shoutout", "ping", "timer", "addcommand", "removecommand"}
 
 # Logs
 webroot = "/var/www/html"
@@ -208,37 +208,40 @@ class Bot(commands.Bot):
         else:
             await ctx.send(f'Error pinging')
     
-    @bot.command(name="so", aliases=("shoutout"))
-    async def shoutout(ctx: commands.Context, user: twitchio.User):
-        chat_logger.info("Shoutout command ran.")
-        user = ctx.author
-        is_mod = user.is_mod
+    @bot.command(name="so", aliases=("shoutout",))
+    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
+        try:
+            chat_logger.info(f"Shoutout command for {user_to_shoutout} ran by {ctx.author.name}.")
+            
+            is_mod = ctx.author.is_mod
     
-        if not is_mod:
-            chat_logger.info("User {user} is not a mod, failed to run SO Command.")
-            await ctx.send(f"You must be a moderator to use the !so command.")
-            return
+            if not is_mod:
+                chat_logger.info(f"User {ctx.author.name} is not a mod, failed to run SO Command.")
+                await ctx.send(f"You must be a moderator to use the !so command.")
+                return
     
-        user_to_shoutout = {user.name}
-        user_id = await get_user_id(user_to_shoutout)
+            game = await get_latest_stream_game(user_to_shoutout)
     
-        if not user_id:
-            await ctx.send(f"Sorry, I couldn't find a user with the name {user_to_shoutout}.")
-            return
+            if not game:
+                shoutout_message = (
+                f"Hey, huge shoutout to @{user_to_shoutout}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_to_shoutout}"
+                )
+                await ctx.send(shoutout_message)
+                return
     
-        game = await get_latest_stream_game(user_id)
-    
-        if not game:
-            await ctx.send(f"Sorry, I couldn't determine the last game {user_to_shoutout} played.")
-            return
-    
-        shoutout_message = (
-            f"Hey, huge shoutout to @{user_to_shoutout}! "
-            f"You should go give them a follow over at "
-            f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-        )
-        await ctx.send(shoutout_message)
-    
+            shoutout_message = (
+                f"Hey, huge shoutout to @{user_to_shoutout}! "
+                f"You should go give them a follow over at "
+                f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+            )
+            await ctx.send(shoutout_message)
+        except Exception as e:
+            chat_logger.error(f"Error in shoutout_command: {e}")
+
+
+
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
         chat_logger.info("Add Command ran.")
@@ -296,33 +299,20 @@ class Bot(commands.Bot):
                 chat_logger.info("{command} command not found.")
 
 def is_mod_or_broadcaster(user):
-    twitch_logger.info("User {user} is Mod")
-    return 'moderator' in user.badges or user.is_mod
+    twitch_logger.info(f"User {user} is Mod")
+    return 'moderator' in user.badges or 'broadcaster' in user.badges or user.is_mod
 
-async def get_user_id(user_to_shoutout):
-    url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
+async def get_latest_stream_game(user_to_shoutout):
+    url = f"https://api.twitch.tv/helix/streams?user_login={user_to_shoutout}"
     headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": "Bearer {TWITCH_API_AUTH}",
+        "Client-ID": {TWITCH_API_CLIENT_ID},
+        "Authorization": f"Bearer {TWITCH_API_AUTH}",
     }
     response = await fetch_json(url, headers)
     if response and "data" in response:
-        twitch_logger.info("Got User to Shoutout ID.")
-        return response["data"][0]["id"]
-    twitch_logger.info("Failed to get {user_to_shoutout} Twitch ID.")
-    return None
-
-async def get_latest_stream_game(user_id):
-    url = f"https://api.twitch.tv/helix/streams?user_id={user_id}"
-    headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": "Bearer {TWITCH_API_AUTH}",
-    }
-    response = await fetch_json(url, headers)
-    if response and "data" in response:
-        twitch_logger.info("Got User to Shoutout Last Game.")
+        twitch_logger.info(f"Got User to Shoutout Last Game.")
         return response["data"][0]["game_name"]
-    twitch_logger.info("Failed to get {user_to_shoutout} Last Game.")
+    twitch_logger.info(f"Failed to get {user_to_shoutout} Last Game.")
     return None
 
 async def fetch_json(url, headers):
