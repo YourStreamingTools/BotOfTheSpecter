@@ -33,8 +33,8 @@ BOT_USERNAME = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
+TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-TWITCH_API_CLIENT_SECRET = CLIENT_SECRET
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
@@ -303,7 +303,7 @@ async def get_user_id(user_to_shoutout):
     url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": "Bearer {TWITCH_API_CLIENT_SECRET}",
+        "Authorization": "Bearer {TWITCH_API_AUTH}",
     }
     response = await fetch_json(url, headers)
     if response and "data" in response:
@@ -316,7 +316,7 @@ async def get_latest_stream_game(user_id):
     url = f"https://api.twitch.tv/helix/streams?user_id={user_id}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": "Bearer {TWITCH_API_CLIENT_SECRET}",
+        "Authorization": "Bearer {TWITCH_API_AUTH}",
     }
     response = await fetch_json(url, headers)
     if response and "data" in response:
