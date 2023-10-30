@@ -171,14 +171,14 @@ async def start_timer(ctx: commands.Context):
         # Default to 5 minutes if the user didn't provide a valid value
         minutes = 5
 
-    await ctx.send(f"Timer started for {minutes} minute(s).")
+    await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
     await asyncio.sleep(minutes * 60)  # Convert minutes to seconds
-    await ctx.send(f"@{ctx.author.name}, your {minutes} minute timer has ended!")
+    await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
 
 @bot.command(name='ping')
 async def ping_command(ctx: commands.Context):
     # Using subprocess to run the ping command
-    result = subprocess.run(["ping", "-c", "1", "ping.botofspecter.com"], stdout=subprocess.PIPE)
+    result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
     
     # Decode the result from bytes to string and search for the time
     output = result.stdout.decode('utf-8')
