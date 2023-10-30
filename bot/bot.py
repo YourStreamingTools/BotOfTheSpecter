@@ -286,47 +286,24 @@ class Bot(commands.Bot):
                 )
                 chat_logger.info(shoutout_message)
                 await ctx.send(shoutout_message)
-                return
+            else:
+                shoutout_message = (
+                    f"Hey, huge shoutout to @{user_to_shoutout}! "
+                    f"You should go give them a follow over at "
+                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+                )
+                chat_logger.info(shoutout_message)
+                await ctx.send(shoutout_message)
 
-            shoutout_message = (
-                f"Hey, huge shoutout to @{user_to_shoutout}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-            )
-            chat_logger.info(shoutout_message)
-            await ctx.send(shoutout_message)
+            # Trigger the Twitch shoutout
+            await trigger_twitch_shoutout(user_to_shoutout, ctx)
+
         except Exception as e:
             chat_logger.error(f"Error in shoutout_command: {e}")
-            
+
 def is_mod_or_broadcaster(user):
     twitch_logger.info(f"User {user} is Mod")
     return 'moderator' in user.get('badges', {}) or 'broadcaster' in user.get('badges', {}) or user.is_mod
-
-async def get_latest_stream_game(user_to_shoutout):
-    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
-    
-    response = await fetch_json(url)  # No headers required for this API
-    
-    # Add debug logger
-    twitch_logger.debug(f"Response from DecAPI: {response}")
-    
-    # API directly returns the game name as a string
-    if response and isinstance(response, str) and response != "null":  # 'null' is a possible response if the user isn't live
-        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
-        return response
-    
-    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
-    return None
-
-async def fetch_twitch_shoutout_user_id(user_to_shoutout):
-    url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
-    shoutout_user_id = await fetch_json(url)
-    return shoutout_user_id
-
-async def fetch_twitch_author_user_id(author_name):
-    url = f"https://decapi.me/twitch/id/{author_name}"
-    moderator_user_id = await fetch_json(url)
-    return moderator_user_id
 
 async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     # Fetching the shoutout user ID
@@ -355,6 +332,32 @@ async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     except Exception as e:
         twitch_logger.error(f"Error triggering shoutout: {e}")
         return None
+    
+async def get_latest_stream_game(user_to_shoutout):
+    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
+    
+    response = await fetch_json(url)  # No headers required for this API
+    
+    # Add debug logger
+    twitch_logger.debug(f"Response from DecAPI: {response}")
+    
+    # API directly returns the game name as a string
+    if response and isinstance(response, str) and response != "null":  # 'null' is a possible response if the user isn't live
+        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
+        return response
+    
+    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
+    return None
+
+async def fetch_twitch_shoutout_user_id(user_to_shoutout):
+    url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
+    shoutout_user_id = await fetch_json(url)
+    return shoutout_user_id
+
+async def fetch_twitch_author_user_id(author_name):
+    url = f"https://decapi.me/twitch/id/{author_name}"
+    moderator_user_id = await fetch_json(url)
+    return moderator_user_id
 
 async def fetch_json(url, headers=None):
     try:
