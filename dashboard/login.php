@@ -3,7 +3,7 @@
 $clientID = ''; // CHANGE TO MAKE THIS WORK
 $redirectURI = ''; // CHANGE TO MAKE THIS WORK
 $clientSecret = ''; // CHANGE TO MAKE THIS WORK
-$IDScope = 'openid chat:read moderation:read moderator:read:followers channel:read:vips channel:read:subscriptions moderator:read:chatters bits:read';
+$IDScope = 'openid user:read:email moderator:manage:shoutouts chat:read chat:edit moderation:read moderator:read:followers channel:read:vips channel:read:subscriptions moderator:read:chatters bits:read';
 $info = "Please wait while we redirect you to Twitch for authorization.";
 
 // Start PHP session
