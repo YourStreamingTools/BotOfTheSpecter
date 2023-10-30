@@ -49,8 +49,8 @@ if(isset($_GET['logType'])) {
     $logType = $_GET['logType'];
     $logPath = "logs/$logType/$username.txt";
     if(file_exists($logPath)) {
-        $logContent = file_get_contents($logPath);
-        $logTypeDisplay = ucfirst($logType);
+      $logLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+      $logContent = implode("\n", array_reverse($logLines));  
         
         // Check if the log content is empty
         if (trim($logContent) === '') {
