@@ -177,6 +177,7 @@ async def event_subscribe(subscriber):
 
 @bot.command(name='timer')
 async def start_timer(ctx: commands.Context):
+    chat_logger.info("Timer command ran.")
     content = ctx.message.content.strip()
     try:
         _, minutes = content.split(' ')
@@ -191,6 +192,7 @@ async def start_timer(ctx: commands.Context):
 
 @bot.command(name='ping')
 async def ping_command(ctx: commands.Context):
+    chat_logger.info("Ping command ran.")
     # Using subprocess to run the ping command
     result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
     
@@ -206,6 +208,7 @@ async def ping_command(ctx: commands.Context):
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
+    chat_logger.info("Shoutout command ran.")
     user = ctx.author
     is_mod = user.is_mod
 
@@ -267,6 +270,7 @@ async def fetch_json(url, headers):
 
 @bot.command(name='addcommand')
 async def add_command(ctx: commands.Context):
+    chat_logger.info("Add Command ran.")
     # Check if the user is a moderator or broadcaster
     if is_mod_or_broadcaster(ctx.author):
         # Parse the command and response from the message
@@ -282,6 +286,7 @@ def is_mod_or_broadcaster(user):
 
 @bot.command(name='removecommand')
 async def remove_command(ctx: commands.Context):
+    chat_logger.info("Remove Command ran.")
     # Check if the user is a moderator or broadcaster
     if is_mod_or_broadcaster(ctx.author):
         # Parse the command to remove from the message
@@ -320,8 +325,10 @@ async def event_message(ctx):
         if result:
             response = result[0]
             await ctx.channel.send(response)
+            chat_logger.info("{command} command ran.")
         else:
             await ctx.channel.send(f'No such command found: !{command}')
+            chat_logger.info("{command} command not found.")
 
 # Run the bot
 bot.run()
