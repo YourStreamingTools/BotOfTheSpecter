@@ -121,62 +121,62 @@ cursor.execute('''
 ''')
 conn.commit()
 
-class Bot(commands.Bot):
-    @bot.event
-    async def event_ready():
-        bot_logger.info('Logged in as | {bot_instance.nick}')
-        bot_logger.info('User id is | {bot_instance.user_id}')
-        chat_logger.info("Chat logger initialized.")
-        twitch_logger.info("Twitch logger initialized.")
+@bot.event
+async def event_ready():
+    bot_logger.info('Logged in as | {bot_instance.nick}')
+    bot_logger.info('User id is | {bot_instance.user_id}')
+    chat_logger.info("Chat logger initialized.")
+    twitch_logger.info("Twitch logger initialized.")
 
-        await pubsub_client.pubsub_channel_subscribe(CLIENT_ID, f'channel.{CHANNEL_NAME}')
-        # Send the message indicating the bot is ready
-        await channel.send(f"Ready and waiting.")
+    await pubsub_client.pubsub_channel_subscribe(CLIENT_ID, f'channel.{CHANNEL_NAME}')
+    # Send the message indicating the bot is ready
+    await channel.send(f"Ready and waiting.")
 
-    @bot.event()
-    async def on_pubsub_channel_subscription(data):
-        twitch_logger.info(f"Channel subscription event: {data}")
-        if data['type'] == 'stream.online':
-            print(f"The stream is now online, {BOT_USERNAME} is ready!")
-            await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
+@bot.event()
+async def on_pubsub_channel_subscription(data):
+    twitch_logger.info(f"Channel subscription event: {data}")
+    if data['type'] == 'stream.online':
+        print(f"The stream is now online, {BOT_USERNAME} is ready!")
+        await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
-    @bot.event()
-    async def event_new_follower(follower):
-        print(f"New follower: {follower.name}")
-        twitch_logger.info(f"New follower: {follower.name}")
-        await channel.send(f'New follower: {follower.name}')
+@bot.event()
+async def event_new_follower(follower):
+    print(f"New follower: {follower.name}")
+    twitch_logger.info(f"New follower: {follower.name}")
+    await channel.send(f'New follower: {follower.name}')
 
-    @bot.event()
-    async def event_cheer(cheerer, message):
-        print(f"{cheerer.display_name} cheered {message.bits} bits!")
-        twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
-        await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
+@bot.event()
+async def event_cheer(cheerer, message):
+    print(f"{cheerer.display_name} cheered {message.bits} bits!")
+    twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
+    await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
 
-    @bot.event()
-    async def event_subscribe(subscriber):
-        streak = {subscriber.streak}
-        months = {subscriber.cumulative_months}
-        gift = {subscriber.is_gift}
-        giftanonymous = {subscriber.is_anonymous}
-        if gift == False:
-            print(f"{subscriber.display_name} just subscribed to the channel!")
-            if streak > 1:
-                await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
-                twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
-            if months > 2:
-                await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
-                twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
-            else:
-                await channel.send(f'{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!')
-                twitch_logger.info(f"{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!")
+@bot.event()
+async def event_subscribe(subscriber):
+    streak = {subscriber.streak}
+    months = {subscriber.cumulative_months}
+    gift = {subscriber.is_gift}
+    giftanonymous = {subscriber.is_anonymous}
+    if gift == False:
+        print(f"{subscriber.display_name} just subscribed to the channel!")
+        if streak > 1:
+            await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
+            twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
+        if months > 2:
+            await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
+            twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
         else:
-            if giftanonymous == True:
-                await channel.send(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
-                twitch_logger.info(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
-            else:
-                await channel.send(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
-                twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
-
+            await channel.send(f'{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!')
+            twitch_logger.info(f"{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!")
+    else:
+        if giftanonymous == True:
+            await channel.send(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
+            twitch_logger.info(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
+        else:
+            await channel.send(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
+            twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
+                
+class Bot(commands.Bot):
     @bot.command(name='timer')
     async def start_timer(ctx: commands.Context):
         chat_logger.info("Timer command ran.")
@@ -187,57 +187,57 @@ class Bot(commands.Bot):
         except ValueError:
             # Default to 5 minutes if the user didn't provide a valid value
             minutes = 5
-
+    
         await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
         await asyncio.sleep(minutes * 60)  # Convert minutes to seconds
         await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
-
+    
     @bot.command(name='ping')
     async def ping_command(ctx: commands.Context):
         chat_logger.info("Ping command ran.")
         # Using subprocess to run the ping command
         result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
-
+    
         # Decode the result from bytes to string and search for the time
         output = result.stdout.decode('utf-8')
         match = re.search(r"time=(\d+\.\d+) ms", output)
-
+    
         if match:
             ping_time = match.group(1)
             await ctx.send(f'Pong: {ping_time} ms')
         else:
             await ctx.send(f'Error pinging')
-
+    
     @bot.command(name='so')
     async def shoutout(ctx: commands.Context):
         chat_logger.info("Shoutout command ran.")
         user = ctx.author
         is_mod = user.is_mod
-
+    
         if not is_mod:
             await ctx.send("You must be a moderator to use the !so command.")
             return
-
+    
         user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
         user_id = await get_user_id(user_to_shoutout)
-
+    
         if not user_id:
             await ctx.send(f"Sorry, I couldn't find a user with the name {user_to_shoutout}.")
             return
-
+    
         game = await get_latest_stream_game(user_id)
-
+    
         if not game:
             await ctx.send(f"Sorry, I couldn't determine the last game {user_to_shoutout} played.")
             return
-
+    
         shoutout_message = (
             f"Hey, huge shoutout to @{user_to_shoutout}! "
             f"You should go give them a follow over at "
             f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
         )
         await ctx.send(shoutout_message)
-
+    
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
         chat_logger.info("Add Command ran.")
@@ -245,12 +245,12 @@ class Bot(commands.Bot):
         if is_mod_or_broadcaster(ctx.author):
             # Parse the command and response from the message
             command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
-
+    
             # Insert the command and response into the database
             cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
             conn.commit()
             await ctx.send(f'Custom command added: !{command}')
-
+    
     @bot.command(name='removecommand')
     async def remove_command(ctx: commands.Context):
         chat_logger.info("Remove Command ran.")
@@ -258,34 +258,34 @@ class Bot(commands.Bot):
         if is_mod_or_broadcaster(ctx.author):
             # Parse the command to remove from the message
             command = ctx.message.content.strip().split(' ')[1]
-
+    
             # Delete the command from the database
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
             await ctx.send(f'Custom command removed: !{command}')
-
+    
     @bot.event
     async def event_message(ctx):
         if ctx.author.bot:
             return
-
+    
         # Get the message content
         message_content = ctx.content.strip()
         chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
-
+    
         # Check if the message starts with an exclamation mark
         if message_content.startswith('!'):
             # Extract the potential command (excluding the exclamation mark)
             command = message_content[1:]
-
+    
             # If the command is one of the built-in commands, simply return and do nothing
             if command in builtin_commands:
                 return
-
+    
             # Check if the command exists in the database
             cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
             result = cursor.fetchone()
-
+    
             if result:
                 response = result[0]
                 await ctx.channel.send(response)
@@ -308,7 +308,7 @@ async def get_user_id(user_to_shoutout):
     if response and "data" in response:
         twitch_logger.info("Got User to Shoutout ID.")
         return response["data"][0]["id"]
-    twitch_logger.info("Failed to get {user_to_shoutout} Twitch ID.")
+    twitch_logger.info("Failed to get user_to_shoutout Twitch ID.")
     return None
 
 async def get_latest_stream_game(user_id):
@@ -321,7 +321,7 @@ async def get_latest_stream_game(user_id):
     if response and "data" in response:
         twitch_logger.info("Got User to Shoutout Last Game.")
         return response["data"][0]["game_name"]
-    twitch_logger.info("Failed to get {user_to_shoutout} Last Game.")
+    twitch_logger.info("Failed to get user_to_shoutout Last Game.")
     return None
 
 async def fetch_json(url, headers):
@@ -331,7 +331,7 @@ async def fetch_json(url, headers):
                 if response.status == 200:
                     return await response.json()
     except Exception as e:
-        print(f"Error fetching data: {e}")
+        twitch_logger.info("Error fetching data: {e}")
     return None
 
 # Run the bot
