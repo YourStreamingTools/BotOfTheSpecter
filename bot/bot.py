@@ -28,9 +28,6 @@ parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
 args = parser.parse_args()
 
-# Set up the signal handler to listen for Ctrl+C
-signal.signal(signal.SIGINT, signal_handler)
-
 # Twitch bot settings
 BOT_USERNAME = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
