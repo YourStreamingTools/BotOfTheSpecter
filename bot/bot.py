@@ -303,31 +303,32 @@ def is_mod_or_broadcaster(user):
     return 'moderator' in user.badges or 'broadcaster' in user.badges or user.is_mod
 
 async def get_latest_stream_game(user_to_shoutout):
-    url = f"https://api.twitch.tv/helix/streams?user_login={user_to_shoutout}"
-    headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": f"Bearer {TWITCH_API_AUTH}",
-    }
-    response = await fetch_json(url, headers)
+    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
+    
+    response = await fetch_json(url)  # No headers required for this API
     
     # Add debug logger
-    twitch_logger.debug(f"Response from Twitch API: {response}")
+    twitch_logger.debug(f"Response from DecAPI: {response}")
     
-    if response and "data" in response and len(response["data"]) > 0:
-        twitch_logger.info(f"Got User to Shoutout Last Game.")
-        return response["data"][0]["game_name"]
+    # API directly returns the game name as a string
+    if response and isinstance(response, str) and response != "null":  # 'null' is a possible response if the user isn't live
+        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
+        return response
     
     twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
     return None
 
-async def fetch_json(url, headers):
+async def fetch_json(url, headers=None):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
-                    return await response.json()
+                    if "json" in response.headers.get("Content-Type", ""):
+                        return await response.json()
+                    else:
+                        return await response.text()
     except Exception as e:
-        twitch_logger.error("Error fetching data from TwitchAPI: {e}")
+        twitch_logger.error(f"Error fetching data: {e}")
     return None
 
 # Run the bot
