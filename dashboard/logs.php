@@ -42,6 +42,19 @@ if ($currentHour < 12) {
 } else {
     $greeting = "Good afternoon";
 }
+
+$logContent = '';
+$logTypeDisplay = '';
+if(isset($_GET['logType'])) {
+    $logType = $_GET['logType'];
+    $logPath = "logs/$logType/$username.txt";
+    if(file_exists($logPath)) {
+        $logContent = file_get_contents($logPath);
+        $logTypeDisplay = ucfirst($logType);
+    } else {
+        $logContent = "No logs available for this type.";
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -51,6 +64,7 @@ if ($currentHour < 12) {
     <title>BotOfTheSpecter - Bot Logs</title>
     <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
     <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.yourstreaming.tools/js/about.js"></script>
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
@@ -89,12 +103,40 @@ if ($currentHour < 12) {
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
+<h2>Your Logs:</h2>
+<ul class="tabs" data-tabs id="logTabs">
+    <li class="tabs-title <?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
+    <li class="tabs-title <?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="#chat">Chat Logs</a></li>
+    <li class="tabs-title <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="#twitch">Twitch Logs</a></li>
+</ul>
 
+<div class="tabs-content" data-tabs-content="logTabs">
+    <div class="tabs-panel <?php echo $logType === 'bot' ? 'is-active' : ''; ?>" id="bot">
+        <h3>Bot Logs</h3>
+        <pre><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Click tab to view.'; ?></pre>
+    </div>
+    <div class="tabs-panel <?php echo $logType === 'chat' ? 'is-active' : ''; ?>" id="chat">
+        <h3>Chat Logs</h3>
+        <pre><?php echo $logType === 'chat' ? htmlspecialchars($logContent) : 'Click tab to view.'; ?></pre>
+    </div>
+    <div class="tabs-panel <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>" id="twitch">
+        <h3>Twitch Logs</h3>
+        <pre><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Click tab to view.'; ?></pre>
+    </div>
 </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
+<script>
+$(document).ready(function() {
+    $("#logTabs a").click(function(e) {
+        e.preventDefault();
+        var logType = $(this).attr('href').replace('#', '');
+        window.location.href = "logs.php?logType=" + logType;
+    });
+});
+</script>
 </body>
 </html>
