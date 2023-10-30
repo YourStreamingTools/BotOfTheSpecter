@@ -1,25 +1,25 @@
-import os
-import asyncio
-import twitchio
-from twitchio.ext import commands
-from twitchio.ext import pubsub
-from twitchio.ext import eventsub
-import twitchAPI
-from twitchAPI.twitch import Twitch
-from twitchAPI.oauth import UserAuthenticator
-from twitchAPI.oauth import refresh_access_token
-from twitchAPI.type import AuthScope
-import sqlite3
+# Standard library imports
 import argparse
-import requests
+import datetime
 import logging
-import signal
-import aiohttp
-import time
-from datetime import datetime
-from datetime import timedelta
-import subprocess
+import os
 import re
+import signal
+import subprocess
+import time
+
+# Third-party imports
+import aiohttp
+import asyncio
+import requests
+import sqlite3
+import twitchAPI
+from twitchAPI.chat import Chat
+from twitchAPI.oauth import UserAuthenticator, refresh_access_token
+from twitchAPI.twitch import Twitch
+from twitchAPI.type import AuthScope
+import twitchio
+from twitchio.ext import commands, eventsub, pubsub
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
