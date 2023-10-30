@@ -46,32 +46,37 @@ bot_logs = os.path.join(logs_directory, "bot")
 chat_logs = os.path.join(logs_directory, "chat")
 twitch_logs = os.path.join(logs_directory, "twitch")
 
-for directory in [logs_directory, bot_logs]:
+# Ensure directories exist
+for directory in [logs_directory, bot_logs, chat_logs, twitch_logs]:
     directory_path = os.path.join(webroot, directory)
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
 
-log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
-logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Create a function to setup individual loggers for clarity
+def setup_logger(name, log_file, level=logging.INFO):
+    handler = logging.FileHandler(log_file)    
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
 
-# Logs for Chat
-chat_logger = logging.getLogger("chat")
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    return logger
+
+# Setup bot logger
+main_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
+logger = setup_logger('main', main_log_file)
+
+# Setup chat logger
 chat_log_file = os.path.join(webroot, chat_logs, f"{CHANNEL_NAME}.txt")
-chat_handler = logging.FileHandler(chat_log_file)
-chat_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-chat_handler.setFormatter(chat_format)
-chat_logger.setLevel(logging.INFO)
-chat_logger.addHandler(chat_handler)
+chat_logger = setup_logger('chat', chat_log_file)
 
-# Logs for Twitch
-twitch_logger = logging.getLogger("twitch")
+# Setup twitch logger
 twitch_log_file = os.path.join(webroot, twitch_logs, f"{CHANNEL_NAME}.txt")
-twitch_handler = logging.FileHandler(twitch_log_file)
-twitch_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-twitch_handler.setFormatter(twitch_format)  # corrected this line
-twitch_logger.setLevel(logging.INFO)
-twitch_logger.addHandler(twitch_handler)
+twitch_logger = setup_logger('twitch', twitch_log_file)
 
+logging.info("Bot script started.")
 # Create the bot instance
 bot = commands.Bot(
     token=OAUTH_TOKEN,
@@ -79,6 +84,7 @@ bot = commands.Bot(
     initial_channels=[CHANNEL_NAME],
     nick=BOT_USERNAME,
 )
+twitch_logger.info("Created the bot instance")
 
 # WILL FIX THIS, BUT TO GET THE BOT TO RUN WITHOUT ISSUES, I'VE COMMENTED THIS OUT #
 # client = twitchio.Client(token=CHANNEL_AUTH)
