@@ -34,6 +34,7 @@ OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
+TWITCH_API_CLIENT_SECRET = CLIENT_SECRET
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
@@ -123,8 +124,8 @@ conn.commit()
 class Bot(commands.Bot):
     @bot.event
     async def event_ready():
-        bot_logger.info(f'Logged in as | {bot_instance.nick}')
-        bot_logger.info(f'User id is | {bot_instance.user_id}')
+        bot_logger.info('Logged in as | {bot_instance.nick}')
+        bot_logger.info('User id is | {bot_instance.user_id}')
         chat_logger.info("Chat logger initialized.")
         twitch_logger.info("Twitch logger initialized.")
 
@@ -294,28 +295,33 @@ class Bot(commands.Bot):
                 chat_logger.info("{command} command not found.")
 
 def is_mod_or_broadcaster(user):
+    twitch_logger.info("User {user} is Mod")
     return 'moderator' in user.badges or user.is_mod
 
 async def get_user_id(user_to_shoutout):
     url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Authorization": f"Bearer {TWITCH_API_CLIENT_SECRET}",
     }
     response = await fetch_json(url, headers)
     if response and "data" in response:
+        twitch_logger.info("Got User to Shoutout ID.")
         return response["data"][0]["id"]
+    twitch_logger.info("Failed to get {user_to_shoutout} Twitch ID.")
     return None
 
 async def get_latest_stream_game(user_id):
     url = f"https://api.twitch.tv/helix/streams?user_id={user_id}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Authorization": f"Bearer {TWITCH_API_CLIENT_SECRET}",
     }
     response = await fetch_json(url, headers)
     if response and "data" in response:
+        twitch_logger.info("Got User to Shoutout Last Game.")
         return response["data"][0]["game_name"]
+    twitch_logger.info("Failed to get {user_to_shoutout} Last Game.")
     return None
 
 async def fetch_json(url, headers):
