@@ -37,6 +37,7 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
+builtin_commands = {"so", "ping", "timer", "addcommand", "removecommand"}
 
 # Create the bot instance
 bot = commands.Bot(
@@ -283,6 +284,9 @@ def is_mod_or_broadcaster(user):
 
 @bot.event
 async def event_message(ctx):
+    if ctx.author.bot:
+        return
+    
     # Get the message content
     message_content = ctx.content.strip()
     chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
@@ -291,6 +295,10 @@ async def event_message(ctx):
     if message_content.startswith('!'):
         # Extract the potential command (excluding the exclamation mark)
         command = message_content[1:]
+
+        # If the command is one of the built-in commands, simply return and do nothing
+        if command in builtin_commands:
+            return
 
         # Check if the command exists in the database
         cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
