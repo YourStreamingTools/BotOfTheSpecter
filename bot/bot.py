@@ -26,12 +26,6 @@ parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
 args = parser.parse_args()
 
-# Define a signal handler function to handle Ctrl+C (SIGINT)
-def signal_handler(sig, frame):
-    global running
-    print("Exiting gracefully...")
-    running = False
-
 # Set up the signal handler to listen for Ctrl+C
 signal.signal(signal.SIGINT, signal_handler)
 
@@ -96,6 +90,7 @@ twitch_logger.setLevel(logging.INFO)
 twitch_logger.addHandler(twitch_handler)
 
 # Create an instance of your Bot class
+running = True
 bot_instance = bot
 channel = bot.get_channel('{CHANNEL_NAME}')
 # Define the pubsub_client outside the class
@@ -295,4 +290,15 @@ async def event_message(ctx):
             await ctx.channel.send(f'No such command found: !{command}')
 
 # Run the bot
-bot.run()
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    
+    try:
+        loop.run_until_complete(bot.start())
+        while running:
+            loop.run_until_complete(asyncio.sleep(1))
+    except KeyboardInterrupt:
+        print("Exiting gracefully...")
+    finally:
+        loop.run_until_complete(bot.close())
+        loop.close()
