@@ -29,7 +29,7 @@ parser.add_argument("-token", dest="channel_auth_token", required=True, help="Au
 args = parser.parse_args()
 
 # Twitch bot settings
-BOT_USERNAME = ""  # CHANGE TO MAKE THIS WORK
+BOT_USERNAME = "botofthespecter"
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
@@ -78,12 +78,12 @@ twitch_log_file = os.path.join(webroot, twitch_logs, f"{CHANNEL_NAME}.txt")
 twitch_logger = setup_logger('twitch', twitch_log_file)
 
 bot_logger.info("Bot script started.")
-# Create the bot instance
+# Create the bot instance and connect to TwitchAPI
 bot = commands.Bot(
     token=OAUTH_TOKEN,
-    prefix='!',
+    prefix="!",
     initial_channels=[CHANNEL_NAME],
-    nick=BOT_USERNAME,
+    nick="BotOfTheSpecter",
 )
 twitch_logger.info("Created the bot instance")
 
@@ -208,18 +208,18 @@ class Bot(commands.Bot):
         else:
             await ctx.send(f'Error pinging')
     
-    @bot.command(name='so')
-    async def shoutout(ctx: commands.Context):
+    @bot.command(name="so", aliases=("shoutout"))
+    async def shoutout(ctx: commands.Context, user: twitchio.User):
         chat_logger.info("Shoutout command ran.")
         user = ctx.author
         is_mod = user.is_mod
     
         if not is_mod:
             chat_logger.info("User {user} is not a mod, failed to run SO Command.")
-            await ctx.send("You must be a moderator to use the !so command.")
+            await ctx.send(f"You must be a moderator to use the !so command.")
             return
     
-        user_to_shoutout = ctx.message.content.strip().split(' ')[-1]
+        user_to_shoutout = {user.name}
         user_id = await get_user_id(user_to_shoutout)
     
         if not user_id:
