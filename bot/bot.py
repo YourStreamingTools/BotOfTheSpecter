@@ -18,6 +18,9 @@ import aiohttp
 import time
 from datetime import datetime
 from datetime import timedelta
+import subprocess
+import re
+
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -176,6 +179,21 @@ async def start_timer(ctx: commands.Context):
     await ctx.send(f"Timer started for {minutes} minute(s).")
     await asyncio.sleep(minutes * 60)  # Convert minutes to seconds
     await ctx.send(f"@{ctx.author.name}, your {minutes} minute timer has ended!")
+
+@bot.command(name='ping')
+async def ping_command(ctx: commands.Context):
+    # Using subprocess to run the ping command
+    result = subprocess.run(["ping", "-c", "1", "ping.botofspecter.com"], stdout=subprocess.PIPE)
+    
+    # Decode the result from bytes to string and search for the time
+    output = result.stdout.decode('utf-8')
+    match = re.search(r"time=(\d+\.\d+) ms", output)
+    
+    if match:
+        ping_time = match.group(1)
+        await ctx.send(f'Pong: {ping_time} ms')
+    else:
+        await ctx.send(f'Error pinging')
 
 @bot.command(name='so')
 async def shoutout(ctx: commands.Context):
