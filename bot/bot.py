@@ -215,6 +215,7 @@ class Bot(commands.Bot):
         is_mod = user.is_mod
     
         if not is_mod:
+            chat_logger.info("User {user} is not a mod, failed to run SO Command.")
             await ctx.send("You must be a moderator to use the !so command.")
             return
     
@@ -302,26 +303,26 @@ async def get_user_id(user_to_shoutout):
     url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": f"Bearer {TWITCH_API_CLIENT_SECRET}",
+        "Authorization": "Bearer {TWITCH_API_CLIENT_SECRET}",
     }
     response = await fetch_json(url, headers)
     if response and "data" in response:
         twitch_logger.info("Got User to Shoutout ID.")
         return response["data"][0]["id"]
-    twitch_logger.info("Failed to get user_to_shoutout Twitch ID.")
+    twitch_logger.info("Failed to get {user_to_shoutout} Twitch ID.")
     return None
 
 async def get_latest_stream_game(user_id):
     url = f"https://api.twitch.tv/helix/streams?user_id={user_id}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": f"Bearer {TWITCH_API_CLIENT_SECRET}",
+        "Authorization": "Bearer {TWITCH_API_CLIENT_SECRET}",
     }
     response = await fetch_json(url, headers)
     if response and "data" in response:
         twitch_logger.info("Got User to Shoutout Last Game.")
         return response["data"][0]["game_name"]
-    twitch_logger.info("Failed to get user_to_shoutout Last Game.")
+    twitch_logger.info("Failed to get {user_to_shoutout} Last Game.")
     return None
 
 async def fetch_json(url, headers):
