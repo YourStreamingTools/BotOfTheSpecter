@@ -234,38 +234,39 @@ class Bot(commands.Bot):
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
             await ctx.send(f'Custom command removed: !{command}')
-
-async def event_message(ctx):
-    if ctx.author.bot:
-        return
-
-    # Get the message content
-    message_content = ctx.content.strip()
-    chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
-
-    # Check if the message starts with an exclamation mark
-    if message_content.startswith('!'):
-        # Split the message into command and its arguments
-        parts = message_content.split()
-        command = parts[0][1:]  # Extract the command without '!'
-        args = parts[1:]  # Remaining parts are arguments
-
-        # If the command is one of the built-in commands, process it using the bot's command processing
-        if command in builtin_commands:
-            await bot.process_commands(ctx)
+    
+    @bot.event
+    async def event_message(ctx):
+        if ctx.author.bot:
             return
 
-        # Check if the command exists in the database
-        cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
-        result = cursor.fetchone()
+        # Get the message content
+        message_content = ctx.content.strip()
+        chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
 
-        if result:
-            response = result[0]
-            chat_logger.info(f"{command} command ran.")
-            await ctx.channel.send(response)
-        else:
-            chat_logger.info(f"{command} command not found.")
-            await ctx.channel.send(f'No such command found: !{command}')
+        # Check if the message starts with an exclamation mark
+        if message_content.startswith('!'):
+            # Split the message into command and its arguments
+            parts = message_content.split()
+            command = parts[0][1:]  # Extract the command without '!'
+            args = parts[1:]  # Remaining parts are arguments
+
+            # If the command is one of the built-in commands, process it using the bot's command processing
+            if command in builtin_commands:
+                await bot.process_commands(ctx)
+                return
+
+            # Check if the command exists in the database
+            cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+            result = cursor.fetchone()
+
+            if result:
+                response = result[0]
+                chat_logger.info(f"{command} command ran.")
+                await ctx.channel.send(response)
+            else:
+                chat_logger.info(f"{command} command not found.")
+                await ctx.channel.send(f'No such command found: !{command}')
 
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
