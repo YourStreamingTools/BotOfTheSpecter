@@ -164,6 +164,7 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
       <li><a href="vips.php">View VIPs</a></li>
       <li><a href="logs.php">View Logs</a></li>
       <li><a href="commands.php">Bot Commands</a></li>
+      <li><a href="add-commands.php">Add Bot Command</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
