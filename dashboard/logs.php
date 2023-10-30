@@ -51,8 +51,13 @@ if(isset($_GET['logType'])) {
     if(file_exists($logPath)) {
         $logContent = file_get_contents($logPath);
         $logTypeDisplay = ucfirst($logType);
+        
+        // Check if the log content is empty
+        if (trim($logContent) === '') {
+            $logContent = "Nothing has been logged yet.";
+        }
     } else {
-        $logContent = "No logs available for this type.";
+        $logContent = "Error getting that log file, it doesn't look like it exists.";
     }
 }
 ?>
