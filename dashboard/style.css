@@ -1,0 +1,10 @@
+pre {
+    background-color: #f7f7f7;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto;
+}
+
+.tabs-panel {
+    padding-top: 20px;
+}
