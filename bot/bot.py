@@ -208,6 +208,11 @@ class Bot(commands.Bot):
             await ctx.send(f'Pong: {ping_time} ms')
         else:
             await ctx.send(f'Error pinging')
+    
+    @bot.command(name='lurk')
+    async def lurk_command(ctx: commands.Context):
+        chat_logger.info(f"{ctx.author.name} is lurking.")
+        await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
 
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
@@ -267,11 +272,6 @@ class Bot(commands.Bot):
             else:
                 chat_logger.info(f"{command} command not found.")
                 await ctx.channel.send(f'No such command found: !{command}')
-    
-    @bot.command(name='lurk')
-    async def lurk_command(ctx: commands.Context):
-        chat_logger.info(f"{ctx.author.name} is lurking.")
-        await ctx.send(f"Thanks for lurking, {ctx.author.name}! Enjoy the stream.")
 
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
