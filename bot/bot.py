@@ -38,7 +38,7 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
-builtin_commands = {"so", "shoutout", "ping", "timer", "addcommand", "removecommand"}
+builtin_commands = {"so", "shoutout", "ping", "lurk", "timer", "addcommand", "removecommand"}
 
 # Logs
 webroot = "/var/www/html"
@@ -267,6 +267,11 @@ class Bot(commands.Bot):
             else:
                 chat_logger.info(f"{command} command not found.")
                 await ctx.channel.send(f'No such command found: !{command}')
+    
+    @bot.command(name='lurk')
+    async def lurk_command(ctx: commands.Context):
+        chat_logger.info(f"{ctx.author.name} is lurking.")
+        await ctx.send(f"Thanks for lurking, {ctx.author.name}! Enjoy the stream.")
 
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
