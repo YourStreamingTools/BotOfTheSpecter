@@ -39,7 +39,7 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
-builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "timer", "addcommand", "removecommand"}
+builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "uptime", "timer", "addcommand", "removecommand"}
 lurk_start_times = {}
 
 # Logs
@@ -302,7 +302,29 @@ class Bot(commands.Bot):
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
             await ctx.send(f'Custom command removed: !{command}')
-    
+            
+    @bot.command(name='uptime')
+    async def uptime_command(ctx: commands.Context):
+        url = f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}"
+
+        try:
+            # Use aiohttp to perform a GET request to the DecAPI
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    # Check if the request was successful
+                    if response.status == 200:
+                        # Retrieve the text that contains the uptime
+                        uptime_text = await response.text()
+                        # Send the uptime text to the Twitch chat
+                        await ctx.send(uptime_text)
+                    else:
+                        # If the request was not successful, log the error
+                        chat_logger.error(f"Failed to retrieve uptime. Status: {response.status}.")
+                        await ctx.send(f"Sorry, I couldn't retrieve the uptime right now. {response.status}")
+        except Exception as e:
+            chat_logger.error(f"Error retrieving uptime: {e}")
+            await ctx.send("Oops, something went wrong while trying to check uptime.")
+
     @bot.event
     async def event_message(ctx):
         if ctx.author.bot:
