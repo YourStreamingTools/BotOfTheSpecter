@@ -318,7 +318,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     # Fetching the shoutout user ID
     shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
     moderator_user_id = await fetch_twitch_author_user_id(ctx.author.name)
-
+    
     url = 'https://api.twitch.tv/helix/chat/shoutouts'
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -327,7 +327,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     payload = {
         "from_broadcaster_id": CHANNEL_ID,
         "to_broadcaster_id": shoutout_user_id,
-        "moderator_id": moderator_user_id
+        "moderator_id": CHANNEL_ID
     }
 
     try:
@@ -361,11 +361,13 @@ async def get_latest_stream_game(user_to_shoutout):
 async def fetch_twitch_shoutout_user_id(user_to_shoutout):
     url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
     shoutout_user_id = await fetch_json(url)
+    twitch_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
     return shoutout_user_id
 
 async def fetch_twitch_author_user_id(author_name):
     url = f"https://decapi.me/twitch/id/{author_name}"
     moderator_user_id = await fetch_json(url)
+    twitch_logger.debug(f"Response from DecAPI: {moderator_user_id}")
     return moderator_user_id
 
 async def fetch_json(url, headers=None):
