@@ -39,7 +39,7 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
-builtin_commands = {"so", "shoutout", "ping", "lurk", "timer", "addcommand", "removecommand"}
+builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "timer", "addcommand", "removecommand"}
 lurk_start_times = {}
 
 # Logs
@@ -216,6 +216,10 @@ class Bot(commands.Bot):
         try:
             user_id = ctx.author.id
             now = datetime.now()
+            if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                await ctx.send(f"You cannot lurk in your own channel, Mr Streamer.")
+                chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
+                return
             if user_id in lurk_start_times:
                 # Calculate the time difference since they started lurking
                 lurk_duration = now - lurk_start_times[user_id]
@@ -243,6 +247,10 @@ class Bot(commands.Bot):
     @bot.command(name="unlurk", aliases=("back",))
     async def unlurk_command(ctx: commands.Context):
         try:
+            if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                await ctx.send(f"Mr Streamer, you've been here all along!")
+                chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
+                return
             # Check if the user was lurking
             if ctx.author.id in lurk_start_times:
                 # Calculate the elapsed time
