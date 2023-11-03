@@ -302,28 +302,29 @@ class Bot(commands.Bot):
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
             await ctx.send(f'Custom command removed: !{command}')
-            
+
     @bot.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
         url = f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}"
 
         try:
-            # Use aiohttp to perform a GET request to the DecAPI
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
-                    # Check if the request was successful
                     if response.status == 200:
-                        # Retrieve the text that contains the uptime
                         uptime_text = await response.text()
-                        # Send the uptime text to the Twitch chat
-                        await ctx.send(uptime_text)
+
+                        # Check if the API response is that the channel is offline
+                        if 'is offline' in uptime_text:
+                            await ctx.send(f"{uptime_text}")
+                        else:
+                            # If the channel is live, send a custom message with the uptime
+                            await ctx.send(f"We've been live for {uptime_text}.")
                     else:
-                        # If the request was not successful, log the error
                         chat_logger.error(f"Failed to retrieve uptime. Status: {response.status}.")
                         await ctx.send(f"Sorry, I couldn't retrieve the uptime right now. {response.status}")
         except Exception as e:
             chat_logger.error(f"Error retrieving uptime: {e}")
-            await ctx.send("Oops, something went wrong while trying to check uptime.")
+            await ctx.send(f"Oops, something went wrong while trying to check uptime.")
 
     @bot.event
     async def event_message(ctx):
