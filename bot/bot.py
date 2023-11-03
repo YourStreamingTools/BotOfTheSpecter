@@ -1,6 +1,7 @@
 # Standard library imports
 import argparse
 import datetime
+from datetime import datetime
 import logging
 import os
 import re
@@ -212,15 +213,14 @@ class Bot(commands.Bot):
     
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
-        # Log the lurk command execution
-        chat_logger.info(f"{ctx.author.name} is lurking.")
-        
-        # Store the current time for the user
-        lurk_start_times[ctx.author.id] = datetime.now()
-        
-        # Send the lurk message to the Twitch chat
-        await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
-    
+        try:
+            lurk_start_times[ctx.author.id] = datetime.now()
+            await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
+            chat_logger.info(f"{ctx.author.name} is lurking.")
+        except Exception as e:
+            chat_logger.error(f"Error in lurk_command: {e}")
+            await ctx.send("Oops, something went wrong while trying to lurk.")
+
     @bot.command(name="unlurk", aliases=("back",))
     async def unlurk_command(ctx: commands.Context):
         try:
@@ -231,17 +231,15 @@ class Bot(commands.Bot):
                 elapsed_time = datetime.now() - start_time
                 minutes, seconds = divmod(int(elapsed_time.total_seconds()), 60)
                 hours, minutes = divmod(minutes, 60)
-    
+
                 # Build the time string
                 periods = [("hours", hours), ("minutes", minutes), ("seconds", seconds)]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-                
+
                 # Log the unlurk command execution
                 chat_logger.info(f"{ctx.author.name} is no longer lurking.")
-                
-                # Send the unlurk message to the Twitch chat
                 await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}!")
-                
+
                 # Remove the user's start time from the dictionary
                 del lurk_start_times[ctx.author.id]
             else:
