@@ -39,6 +39,7 @@ CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 builtin_commands = {"so", "shoutout", "ping", "lurk", "timer", "addcommand", "removecommand"}
+lurk_start_times = {}
 
 # Logs
 webroot = "/var/www/html"
@@ -211,8 +212,45 @@ class Bot(commands.Bot):
     
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
+        # Log the lurk command execution
         chat_logger.info(f"{ctx.author.name} is lurking.")
+        
+        # Store the current time for the user
+        lurk_start_times[ctx.author.id] = datetime.now()
+        
+        # Send the lurk message to the Twitch chat
         await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
+    
+    @bot.command(name="unlurk", aliases=("back",))
+    async def unlurk_command(ctx: commands.Context):
+        try:
+            # Check if the user was lurking
+            if ctx.author.id in lurk_start_times:
+                # Calculate the elapsed time
+                start_time = lurk_start_times[ctx.author.id]
+                elapsed_time = datetime.now() - start_time
+                minutes, seconds = divmod(int(elapsed_time.total_seconds()), 60)
+                hours, minutes = divmod(minutes, 60)
+    
+                # Build the time string
+                periods = [("hours", hours), ("minutes", minutes), ("seconds", seconds)]
+                time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                
+                # Log the unlurk command execution
+                chat_logger.info(f"{ctx.author.name} is no longer lurking.")
+                
+                # Send the unlurk message to the Twitch chat
+                await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}!")
+                
+                # Remove the user's start time from the dictionary
+                del lurk_start_times[ctx.author.id]
+            else:
+                # If the user wasn't lurking, send a different message
+                await ctx.send(f"{ctx.author.name}, you were not lurking.")
+        except Exception as e:
+            chat_logger.error(f"Error in unlurk_command: {e}")
+            # Send an error message to the Twitch chat
+            await ctx.send("Oops, something went wrong with the unlurk command.")
 
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
