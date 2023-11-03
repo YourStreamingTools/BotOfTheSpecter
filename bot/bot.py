@@ -214,9 +214,22 @@ class Bot(commands.Bot):
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
         try:
-            lurk_start_times[ctx.author.id] = datetime.now()
-            await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
-            chat_logger.info(f"{ctx.author.name} is lurking.")
+            user_id = ctx.author.id
+            now = datetime.now()
+            if user_id in lurk_start_times:
+                # Calculate the time difference since they started lurking
+                lurk_time = now - lurk_start_times[user_id]
+                # Format this time difference into a string (e.g., "2 hours, 15 minutes")
+                lurk_time_str = str(lurk_time).split('.')[0]  # This removes microseconds
+                # Inform the user of their previous lurk time
+                await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {lurk_time_str}. I've reset your lurk time.")
+                chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {lurk_time_str}.")
+            else:
+                await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
+                chat_logger.info(f"{ctx.author.name} is now lurking.")
+
+            # Set or reset the start time for the user.
+            lurk_start_times[user_id] = now
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send("Oops, something went wrong while trying to lurk.")
@@ -237,8 +250,8 @@ class Bot(commands.Bot):
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
                 # Log the unlurk command execution
-                chat_logger.info(f"{ctx.author.name} is no longer lurking.")
-                await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}!")
+                chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
+                await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
 
                 # Remove the user's start time from the dictionary
                 del lurk_start_times[ctx.author.id]
