@@ -218,12 +218,18 @@ class Bot(commands.Bot):
             now = datetime.now()
             if user_id in lurk_start_times:
                 # Calculate the time difference since they started lurking
-                lurk_time = now - lurk_start_times[user_id]
-                # Format this time difference into a string (e.g., "2 hours, 15 minutes")
-                lurk_time_str = str(lurk_time).split('.')[0]  # This removes microseconds
+                lurk_duration = now - lurk_start_times[user_id]
+                # Convert the duration to seconds
+                total_seconds = int(lurk_duration.total_seconds())
+                # Calculate hours, minutes, and seconds
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                # Create time string
+                periods = [("hours", hours), ("minutes", minutes), ("seconds", seconds)]
+                time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
                 # Inform the user of their previous lurk time
-                await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {lurk_time_str}. I've reset your lurk time.")
-                chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {lurk_time_str}.")
+                await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
+                chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
             else:
                 await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
                 chat_logger.info(f"{ctx.author.name} is now lurking.")
@@ -257,7 +263,7 @@ class Bot(commands.Bot):
                 del lurk_start_times[ctx.author.id]
             else:
                 # If the user wasn't lurking, send a different message
-                await ctx.send(f"{ctx.author.name}, you were not lurking.")
+                await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}")
             # Send an error message to the Twitch chat
