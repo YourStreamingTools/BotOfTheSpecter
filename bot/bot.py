@@ -333,8 +333,9 @@ async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=payload) as response:
-                if response.status == 200:
-                    return await response.json()
+                if response.status in (200, 204):
+                    twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                    return {}
                 else:
                     twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
                     return None
