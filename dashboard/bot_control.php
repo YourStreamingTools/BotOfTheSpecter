@@ -53,7 +53,7 @@ function getBotStatus($statusScriptPath, $username) {
 }
 
 function startBot($botScriptPath, $username, $twitchUserId, $authToken) {
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken > /dev/null 2>&1 &";
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort > /dev/null 2>&1 &";
     shell_exec($command);
     sleep(3);
 }
