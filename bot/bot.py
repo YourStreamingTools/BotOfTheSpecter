@@ -14,6 +14,8 @@ import aiohttp
 import asyncio
 import requests
 import sqlite3
+import flask
+from flask import Flask, request
 import twitchAPI
 from twitchAPI.chat import Chat
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
@@ -35,12 +37,16 @@ OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
+CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
+WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "uptime", "timer", "addcommand", "removecommand"}
 lurk_start_times = {}
+
+app = Flask("TwitchWebhookServer")
 
 # Logs
 webroot = "/var/www/html"
@@ -89,18 +95,16 @@ bot = commands.Bot(
 )
 twitch_logger.info("Created the bot instance")
 
-# WILL FIX THIS, BUT TO GET THE BOT TO RUN WITHOUT ISSUES, I'VE COMMENTED THIS OUT #
-# client = twitchio.Client(token=CHANNEL_AUTH)
-# async def main():
-#     topics = [
-#         pubsub.bits(CHANNEL_AUTH)[CHANNEL_ID],
-#         pubsub.channel_subscriptions(CHANNEL_AUTH)[CHANNEL_ID],
-#         pubsub.channel_points(CHANNEL_AUTH)[CHANNEL_ID],
-#         pubsub.channel_follow(CHANNEL_AUTH)[CHANNEL_ID]
-#     ]
-#     await client.pubsub.subscribe_topics(topics)
-#     await client.start()
-# client.loop.run_until_complete(main())
+client = twitchio.Client(token=TWITCH_API_AUTH)
+async def main():
+    topics = [
+        pubsub.bits(CHANNEL_AUTH)[CHANNEL_ID],
+        pubsub.channel_subscriptions(CHANNEL_AUTH)[CHANNEL_ID],
+        pubsub.channel_points(CHANNEL_AUTH)[CHANNEL_ID]
+    ]
+    await client.pubsub.subscribe_topics(topics)
+    await client.start()
+client.loop.run_until_complete(main())
 
 # Create an instance of your Bot class
 bot_instance = bot
@@ -123,44 +127,54 @@ cursor.execute('''
 ''')
 conn.commit()
 
-@bot.event
+@client.event
 async def event_ready():
     bot_logger.info('Logged in as | {bot_instance.nick}')
     bot_logger.info('User id is | {bot_instance.user_id}')
     chat_logger.info("Chat logger initialized.")
     twitch_logger.info("Twitch logger initialized.")
 
-    await pubsub_client.pubsub_channel_subscribe(CLIENT_ID, f'channel.{CHANNEL_NAME}')
     # Send the message indicating the bot is ready
     await channel.send(f"Ready and waiting.")
 
-@bot.event()
+@client.event()
 async def on_pubsub_channel_subscription(data):
     twitch_logger.info(f"Channel subscription event: {data}")
     if data['type'] == 'stream.online':
-        # print(f"The stream is now online, {BOT_USERNAME} is ready!")
         await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
-@bot.event()
-async def event_new_follower(follower):
-    # print(f"New follower: {follower.name}")
-    twitch_logger.info(f"New follower: {follower.name}")
-    await channel.send(f'New follower: {follower.name}')
+@app.route('/webhook/<channel_name>', methods=['POST'])
+def webhook(channel_name):
+    if channel_name.lower() != CHANNEL_NAME.lower():
+        return "Invalid channel", 400
 
-@bot.event()
+    data = request.json
+
+    # Handle the challenge request
+    if 'challenge' in data:
+        return data['challenge']
+
+    # Process the follower event
+    follower_name = data['event']['user_name']
+    # Ensure the follower event is for the correct channel
+    if data['event']['broadcaster_user_login'].lower() == channel_name.lower():
+        asyncio.run(channel.send(f'New follower: {follower_name}'))  # Send a message to your Twitch channel
+        twitch_logger.info(f"New follower: {follower_name}")
+
+    return 'OK', 200
+
+@client.event()
 async def event_cheer(cheerer, message):
-    # print(f"{cheerer.display_name} cheered {message.bits} bits!")
     twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
     await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
 
-@bot.event()
+@client.event()
 async def event_subscribe(subscriber):
     streak = subscriber.streak
     months = subscriber.cumulative_months
     gift = subscriber.is_gift
     giftanonymous = subscriber.is_anonymous
     if gift == False:
-        # print(f"{subscriber.display_name} just subscribed to the channel!")
         if streak > 1:
             await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
             twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
@@ -493,5 +507,31 @@ async def handle_shoutout_command(user, user_to_shoutout):
     else:
         return f"Failed to shoutout {user_to_shoutout}."
 
+def create_eventsub_subscription():
+    access_token = CHANNEL_AUTH
+    headers = {
+        'Client-ID': CLIENT_ID,
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    json_data = {
+        'type': 'channel.follow',
+        'version': '1',
+        'condition': {
+            'broadcaster_user_id': CHANNEL_ID
+        },
+        'transport': {
+            'method': 'webhook',
+            'callback': CALLBACK_URL,
+            'secret': WEBHOOK_SECRET
+        }
+    }
+    response = requests.post('https://api.twitch.tv/helix/eventsub/subscriptions', headers=headers, json=json_data)
+    print(response.json())
+    pass
+
 # Run the bot
+if __name__ == '__main__':
+    create_eventsub_subscription()
+    app.run()
 bot.run()
