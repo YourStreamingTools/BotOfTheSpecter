@@ -541,6 +541,7 @@ if __name__ == '__main__':
 
     # Start the bot in a separate thread
     bot_thread = threading.Thread(target=start_bot)
+    bot_thread.daemon = True
     bot_thread.start()
 
     # Start the Flask app (this will block the main thread)
