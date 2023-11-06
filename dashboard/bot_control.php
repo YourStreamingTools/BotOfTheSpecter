@@ -9,7 +9,14 @@ if (isset($_POST['runBot'])) {
         $statusOutput = "Bot is already running. Process ID: $pid";
     } else {
         startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort);
-        $statusOutput = "Bot started successfully.";
+        $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+        $pid = intval(preg_replace('/\D/', '', $statusOutput));
+
+        if ($pid > 0) {
+            $statusOutput = "Bot started successfully. Process ID: $pid";
+        } else {
+            $statusOutput = "Failed to start the bot. Please check the configuration or server status.";
+        }
     }
 }
 
