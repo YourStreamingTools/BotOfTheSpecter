@@ -8,7 +8,7 @@ if (isset($_POST['runBot'])) {
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
         $statusOutput = "Bot is already running. Process ID: $pid";
     } else {
-        startBot($botScriptPath, $username, $twitchUserId, $authToken);
+        startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort);
         $statusOutput = "Bot started successfully.";
     }
 }
@@ -52,8 +52,9 @@ function getBotStatus($statusScriptPath, $username) {
     return shell_exec("python $statusScriptPath -channel $username");
 }
 
-function startBot($botScriptPath, $username, $twitchUserId, $authToken) {
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort > /dev/null 2>&1 &";
+function startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort) {
+    $logPath = "/var/www/html/script/$username.txt";
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort > $logPath 2>&1 &";
     shell_exec($command);
     sleep(3);
 }
