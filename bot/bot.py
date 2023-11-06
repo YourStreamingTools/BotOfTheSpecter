@@ -32,17 +32,17 @@ parser.add_argument("-token", dest="channel_auth_token", required=True, help="Au
 args = parser.parse_args()
 
 # Twitch bot settings
-BOT_USERNAME = "botofthespecter"
-OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
-CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
-CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
-TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
-WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
-TWITCH_API_CLIENT_ID = CLIENT_ID
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
+BOT_USERNAME = "botofthespecter"
+WEBHOOK_SECRET = "" # CHANGE TO MAKE THIS WORK
+CALLBACK_URL = f"" # CHANGE TO MAKE THIS WORK
+OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
+CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
+TWITCH_API_CLIENT_ID = CLIENT_ID
+CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
+TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WOR
 builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "uptime", "timer", "addcommand", "removecommand"}
 lurk_start_times = {}
 
@@ -507,11 +507,10 @@ async def handle_shoutout_command(user, user_to_shoutout):
     else:
         return f"Failed to shoutout {user_to_shoutout}."
 
-def create_eventsub_subscription():
-    access_token = CHANNEL_AUTH
+def create_eventsub_subscription(CHANNEL_NAME):
     headers = {
         'Client-ID': CLIENT_ID,
-        'Authorization': f'Bearer {access_token}',
+        'Authorization': f'Bearer {CHANNEL_AUTH}',
         'Content-Type': 'application/json'
     }
     json_data = {
@@ -532,6 +531,6 @@ def create_eventsub_subscription():
 
 # Run the bot
 if __name__ == '__main__':
-    create_eventsub_subscription()
+    create_eventsub_subscription(CHANNEL_NAME)
     app.run()
 bot.run()
