@@ -25,6 +25,7 @@ $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $authToken = $access_token;
+$webhookPort = $user['webhook_port'];
 $user_timezone = $user['timezone'];
 
 if (!$user_timezone || !in_array($user_timezone, timezone_identifiers_list())) {
@@ -58,7 +59,7 @@ include 'bot_control.php';
     <script src="https://cdn.yourstreaming.tools/js/about.js"></script>
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
+    <!-- <?php echo "User: $username | $twitchUserId | $authToken | Port: $webhookPort"; ?> -->
   </head>
 <body>
 <!-- Navigation -->
