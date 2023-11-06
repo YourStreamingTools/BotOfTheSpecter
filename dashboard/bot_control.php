@@ -61,7 +61,7 @@ function getBotStatus($statusScriptPath, $username) {
 
 function startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort) {
     $logPath = "/var/www/html/script/$username.txt";
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort > $logPath 2>&1 &";
+    $command = "screen -dmS $username python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort > $logPath";
     shell_exec($command);
     sleep(3);
 }
