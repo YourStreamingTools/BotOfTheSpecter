@@ -103,12 +103,32 @@ if (isset($_GET['code'])) {
         // Database connect
         require_once "db_connect.php";
 
-        // Insert/update the access token, profile image URL, user ID, and display name in the 'users' table
-        $insertQuery = "INSERT INTO users (username, access_token, api_key, profile_image, twitch_user_id, twitch_display_name, is_admin) VALUES ('$twitchUsername', '$accessToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', 0)
-                    ON DUPLICATE KEY UPDATE access_token = '$accessToken', profile_image = '$profileImageUrl', twitch_user_id = '$twitchUserId', twitch_display_name = '$twitchDisplayName', last_login = ?";
+        function generateUniquePort($conn) {
+            $basePort = 8000; // Example starting port
+            $maxPort = 9000; // Maximum port number
+        
+            // Query to find the maximum port number currently in use
+            $query = "SELECT MAX(webhook_port) as max_port FROM users";
+            $result = mysqli_query($conn, $query);
+            $row = mysqli_fetch_assoc($result);
+        
+            $lastPort = $row['max_port'] ? $row['max_port'] : $basePort;
+            $newPort = $lastPort + 1;
+        
+            return ($newPort <= $maxPort) ? $newPort : null; // Return null if max port number exceeded
+        }
+
+        // Insert/update user data
+        $insertQuery = "INSERT INTO users (username, access_token, api_key, profile_image, twitch_user_id, twitch_display_name, webhook_port, is_admin)
+                        VALUES ('$twitchUsername', '$accessToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', ?, 0)
+                        ON DUPLICATE KEY UPDATE access_token = '$accessToken', profile_image = '$profileImageUrl', twitch_user_id = '$twitchUserId', twitch_display_name = '$twitchDisplayName', last_login = ?";
+            
         $stmt = mysqli_prepare($conn, $insertQuery);
         $last_login = date('Y-m-d H:i:s');
-        mysqli_stmt_bind_param($stmt, 's', $last_login);
+        $uniquePort = generateUniquePort($conn); // Generate unique port
+            
+        // Bind the generated port number for new users, and the last login date
+        mysqli_stmt_bind_param($stmt, 'is', $uniquePort, $last_login);
         
         if (mysqli_stmt_execute($stmt)) {
             // Redirect the user to the dashboard
