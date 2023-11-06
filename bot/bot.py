@@ -8,6 +8,7 @@ import re
 import signal
 import subprocess
 import time
+import threading
 
 # Third-party imports
 import aiohttp
@@ -29,20 +30,22 @@ parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
 parser.add_argument("-channel", dest="target_channel", required=True, help="Target Twitch channel name")
 parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch user ID")
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
+parser.add_argument("-port", dest="webhook_port", required=True, type=int, help="Port for the webhook server")
 args = parser.parse_args()
 
 # Twitch bot settings
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
+WEBHOOK_PORT = args.webhook_port
 BOT_USERNAME = "botofthespecter"
 WEBHOOK_SECRET = "" # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f"" # CHANGE TO MAKE THIS WORK
-OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
-CLIENT_ID = ""    # CHANGE TO MAKE THIS WORK
+OAUTH_TOKEN = "" # CHANGE TO MAKE THIS WORK
+CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
-TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WOR
+TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
 builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "uptime", "timer", "addcommand", "removecommand"}
 lurk_start_times = {}
 
@@ -97,14 +100,10 @@ twitch_logger.info("Created the bot instance")
 
 client = twitchio.Client(token=TWITCH_API_AUTH)
 async def main():
-    topics = [
-        pubsub.bits(CHANNEL_AUTH)[CHANNEL_ID],
-        pubsub.channel_subscriptions(CHANNEL_AUTH)[CHANNEL_ID],
-        pubsub.channel_points(CHANNEL_AUTH)[CHANNEL_ID]
-    ]
-    await client.pubsub.subscribe_topics(topics)
-    await client.start()
-client.loop.run_until_complete(main())
+    channel_id_int = int(CHANNEL_ID)
+    pubsub_pool = pubsub.PubSubPool(client)
+    await pubsub_pool.subscribe_channel(CHANNEL_AUTH, channel_id_int, [pubsub.PubSubBits, pubsub.PubSubSubscriptions, pubsub.PubSubChannelPoints])
+    await pubsub_pool.listen()
 
 # Create an instance of your Bot class
 bot_instance = bot
@@ -143,7 +142,7 @@ async def on_pubsub_channel_subscription(data):
     if data['type'] == 'stream.online':
         await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
-@app.route('/webhook/<channel_name>', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def webhook(channel_name):
     if channel_name.lower() != CHANNEL_NAME.lower():
         return "Invalid channel", 400
@@ -515,7 +514,7 @@ def create_eventsub_subscription(CHANNEL_NAME):
     }
     json_data = {
         'type': 'channel.follow',
-        'version': '1',
+        'version': '2',
         'condition': {
             'broadcaster_user_id': CHANNEL_ID
         },
@@ -530,7 +529,19 @@ def create_eventsub_subscription(CHANNEL_NAME):
     pass
 
 # Run the bot
+def start_bot():
+    bot.run()
+
+# Function to start the Flask app
+def start_app():
+    app.run(port=WEBHOOK_PORT)
+
 if __name__ == '__main__':
     create_eventsub_subscription(CHANNEL_NAME)
-    app.run()
-bot.run()
+
+    # Start the bot in a separate thread
+    bot_thread = threading.Thread(target=start_bot)
+    bot_thread.start()
+
+    # Start the Flask app (this will block the main thread)
+    start_app()
