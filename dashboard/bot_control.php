@@ -1,7 +1,7 @@
 <?php
 $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
-$logPath = "/var/www/html/script/$username.txt";
+$logPath = "/var/www/html/www/script/$username.txt";
 
 if (isset($_POST['runBot'])) {
     if (isBotRunning($statusScriptPath, $username, $logPath)) {
@@ -53,21 +53,46 @@ function isBotRunning($statusScriptPath, $username, $logPath) {
 
 function getBotPID($statusScriptPath, $username, $logPath) {
     $statusOutput = shell_exec("python $statusScriptPath -channel $username");
-    return intval(preg_replace('/\D/', '', $statusOutput));
+    if ($statusOutput !== null) {
+        return intval(preg_replace('/\D/', '', $statusOutput));
+    } else {
+        return 0;
+    }
 }
 
 function getBotStatus($statusScriptPath, $username, $logPath) {
-    return shell_exec("python $statusScriptPath -channel $username > $logPath");
+    $statusOutput = shell_exec("python $statusScriptPath -channel $username > $logPath");
+    if ($statusOutput !== null) {
+        $pid = intval(preg_replace('/\D/', '', $statusOutput));
+        if ($pid > 0) {
+            return "Bot Running with PID: $pid.";
+        } else {
+            return "Bot is not running.";
+        }
+    } else {
+        return "Unable to determine bot status - I'm guessing the bot is not running.";
+    }
 }
 
 function startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort, $logPath) {
-    $command = "screen -dmS $username python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort > $logPath";
-    shell_exec($command);
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort > $logPath";
+    $output = shell_exec($command . ' 2>&1');
     sleep(3);
+
+    if (!empty($output) && strpos($output, 'error') !== false) {
+        return false;
+    }
+    return true;
 }
 
 function killBot($pid) {
-    shell_exec("kill $pid > /dev/null 2>&1 &");
+    $output = shell_exec("kill $pid > /dev/null 2>&1 &");
     sleep(3);
+
+    if (strpos($output, 'error') !== false) {
+        return false;
+    }
+    return true;
 }
+
 ?>
