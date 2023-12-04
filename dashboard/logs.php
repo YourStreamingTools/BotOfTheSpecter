@@ -113,6 +113,7 @@ if(isset($_GET['logType'])) {
     <li class="tabs-title <?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="#chat">Chat Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="#twitch">Twitch Logs</a></li>
+    <li class="tabs-title <?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="#script">Script Logs</a></li>
 </ul>
 
 <div class="tabs-content" data-tabs-content="logTabs">
@@ -127,6 +128,10 @@ if(isset($_GET['logType'])) {
     <div class="tabs-panel <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>" id="twitch">
         <h3>Twitch Logs</h3>
         <pre><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+    </div>
+    <div class="tabs-panel <?php echo $logType === 'script' ? 'is-active' : ''; ?>" id="script">
+        <h3>Script Logs</h3>
+        <pre><?php echo $logType === 'script' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
 </div>
 </div>
