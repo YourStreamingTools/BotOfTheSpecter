@@ -17,6 +17,7 @@ import requests
 import sqlite3
 import flask
 from flask import Flask, request
+from flask_app import start_app
 import twitchAPI
 from twitchAPI.chat import Chat
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
@@ -48,8 +49,6 @@ CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
 builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "uptime", "timer", "addcommand", "removecommand"}
 lurk_start_times = {}
-
-app = Flask("TwitchWebhookServer")
 
 # Logs
 webroot = "/var/www/html"
@@ -532,17 +531,14 @@ def create_eventsub_subscription(CHANNEL_NAME):
 def start_bot():
     bot.run()
 
-# Function to start the Flask app
-def start_app():
-    app.run(port=WEBHOOK_PORT)
-
 if __name__ == '__main__':
-    create_eventsub_subscription(CHANNEL_NAME)
-
-    # Start the bot in a separate thread
     bot_thread = threading.Thread(target=start_bot)
     bot_thread.daemon = True
     bot_thread.start()
 
-    # Start the Flask app (this will block the main thread)
-    start_app()
+    app_thread = threading.Thread(target=start_app, args=(args.webhook_port,))
+    app_thread.daemon = True
+    app_thread.start()
+
+    bot_thread.join()
+    app_thread.join()
