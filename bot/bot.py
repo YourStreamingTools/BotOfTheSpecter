@@ -48,7 +48,6 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
 builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "uptime", "timer", "addcommand", "removecommand"}
-lurk_start_times = {}
 
 # Logs
 webroot = "/var/www/html"
@@ -127,6 +126,12 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS user_typos (
         username TEXT PRIMARY KEY,
         typo_count INTEGER DEFAULT 0
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS lurk_times (
+        user_id TEXT PRIMARY KEY,
+        start_time TEXT NOT NULL
     )
 ''')
 conn.commit()
@@ -212,32 +217,43 @@ class Bot(commands.Bot):
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
         try:
-            user_id = ctx.author.id
+            user_id = str(ctx.author.id)
             now = datetime.now()
+
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
                 await ctx.send(f"You cannot lurk in your own channel, Streamer.")
                 chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
                 return
-            if user_id in lurk_start_times:
-                # Calculate the time difference since they started lurking
-                lurk_duration = now - lurk_start_times[user_id]
-                # Convert the duration to seconds
+
+            # Check if the user is already in the lurk table
+            cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = ?', (user_id,))
+            result = cursor.fetchone()
+
+            if result:
+                # User was lurking before
+                previous_start_time = datetime.fromisoformat(result[0])
+                lurk_duration = now - previous_start_time
+
+                # Calculate the duration
                 total_seconds = int(lurk_duration.total_seconds())
-                # Calculate hours, minutes, and seconds
                 hours, remainder = divmod(total_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
+
                 # Create time string
                 periods = [("hours", hours), ("minutes", minutes), ("seconds", seconds)]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+
                 # Inform the user of their previous lurk time
                 await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
                 chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
             else:
+                # User is not in the lurk table
                 await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
                 chat_logger.info(f"{ctx.author.name} is now lurking.")
 
-            # Set or reset the start time for the user.
-            lurk_start_times[user_id] = now
+            # Update the start time in the database
+            cursor.execute('INSERT OR REPLACE INTO lurk_times (user_id, start_time) VALUES (?, ?)', (user_id, now.isoformat()))
+            conn.commit()
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send("Oops, something went wrong while trying to lurk.")
@@ -245,14 +261,17 @@ class Bot(commands.Bot):
     @bot.command(name="unlurk", aliases=("back",))
     async def unlurk_command(ctx: commands.Context):
         try:
+            user_id = str(ctx.author.id)
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
                 await ctx.send(f"Streamer, you've been here all along!")
                 chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
                 return
-            # Check if the user was lurking
-            if ctx.author.id in lurk_start_times:
-                # Calculate the elapsed time
-                start_time = lurk_start_times[ctx.author.id]
+
+            cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = ?', (user_id,))
+            result = cursor.fetchone()
+
+            if result:
+                start_time = datetime.fromisoformat(result[0])
                 elapsed_time = datetime.now() - start_time
                 minutes, seconds = divmod(int(elapsed_time.total_seconds()), 60)
                 hours, minutes = divmod(minutes, 60)
@@ -261,18 +280,17 @@ class Bot(commands.Bot):
                 periods = [("hours", hours), ("minutes", minutes), ("seconds", seconds)]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
-                # Log the unlurk command execution
+                # Log the unlurk command execution and send a response
                 chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
                 await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
 
-                # Remove the user's start time from the dictionary
-                del lurk_start_times[ctx.author.id]
+                # Remove the user's start time from the database
+                cursor.execute('DELETE FROM lurk_times WHERE user_id = ?', (user_id,))
+                conn.commit()
             else:
-                # If the user wasn't lurking, send a different message
                 await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}")
-            # Send an error message to the Twitch chat
             await ctx.send("Oops, something went wrong with the unlurk command.")
 
     @bot.command(name='addcommand')
