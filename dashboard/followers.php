@@ -185,8 +185,8 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
 <!-- Disclaimer and Button -->
-<div class="row column text-center">
-    <p class="disclaimer">Disclaimer: Due to the time it takes to pull followers from Twitch, if you'd like to view all your followers, please click the button below.</p>
+<div class="row column text-center disclaimer">
+    <p>Disclaimer: Due to the time it takes to pull followers from Twitch, if you'd like to view all your followers, please click the button below.</p>
     <button id="view-followers-btn" class="button large">View Followers</button>
 </div>
 
@@ -252,10 +252,10 @@ $(document).ready(function() {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var btn = document.getElementById('view-followers-btn');
-    var disclaimer = document.querySelector('.disclaimer'); // Add this line
     btn.addEventListener('click', function() {
-        // Hide the disclaimer
-        if (disclaimer) disclaimer.style.display = 'none'; // Add this line
+        // Hide the disclaimer div
+        var disclaimerDiv = document.querySelector('.disclaimer'); // Select the disclaimer div
+        disclaimerDiv.style.display = 'none'; // Hide it
 
         // Redirect to the same page with a 'load' parameter to trigger PHP loading
         window.location.href = '?load=followers';
