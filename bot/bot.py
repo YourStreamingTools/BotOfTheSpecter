@@ -365,14 +365,16 @@ class Bot(commands.Bot):
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
         try:
-            chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
-
             is_mod = ctx.author.is_mod
 
             if not is_mod:
                 chat_logger.info(f"User {ctx.author.name} is not a mod, failed to run shoutout command.")
                 await ctx.send(f"You must be a moderator to use the !so command.")
                 return
+
+            # Remove @ from the username if present
+            user_to_shoutout = user_to_shoutout.lstrip('@')
+            chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
 
             game = await get_latest_stream_game(user_to_shoutout)
 
