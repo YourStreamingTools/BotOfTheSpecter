@@ -95,6 +95,19 @@ if (isset($_GET['code'])) {
     $userInfo = json_decode($userInfoResponse, true);
 
     if (isset($userInfo['data']) && count($userInfo['data']) > 0) {
+        $twitchDisplayName = $userInfo['data'][0]['display_name'];
+    
+        // Read the list of authorized users from the JSON file located in a specific directory
+        $authUsersJson = file_get_contents('/var/www/bot/authusers.json');
+        $authUsers = json_decode($authUsersJson, true)['users'];
+    
+        // Check if the user is authorized
+        if (!in_array($twitchDisplayName, $authUsers)) {
+            // Redirect to unauthorized page
+            header('Location: unauthorized.php');
+            exit;
+        }
+        
         $twitchUsername = $userInfo['data'][0]['login'];
         $twitchDisplayName = $userInfo['data'][0]['display_name'];
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
