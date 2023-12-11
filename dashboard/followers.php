@@ -44,80 +44,82 @@ if ($currentHour < 12) {
 }
 
 // API endpoint to fetch followers
-$followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
-$clientID = ''; // CHANGE TO MAKE THIS WORK
+if (isset($_GET['load']) && $_GET['load'] == 'followers') {
+  // API endpoint to fetch followers
+  $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
+  $clientID = ''; // CHANGE TO MAKE THIS WORK
 
-$allFollowers = [];
-$liveData = "";
-$cacheExpiration = 3600; // Cache expires after 1 hour
-$cacheDirectory = "cache/$username";
-$cacheFile = "$cacheDirectory/allFollowers.json";
-if (!is_dir($cacheDirectory)) {
-  mkdir($cacheDirectory, 0755, true);
+  $allFollowers = [];
+  $liveData = "";
+  $cacheExpiration = 3600; // Cache expires after 1 hour
+  $cacheDirectory = "cache/$username";
+  $cacheFile = "$cacheDirectory/allFollowers.json";
+  if (!is_dir($cacheDirectory)) {
+    mkdir($cacheDirectory, 0755, true);
+  }
+  if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
+    $allFollowers = json_decode(file_get_contents($cacheFile), true);
+    $cacheTime = filemtime($cacheFile);
+    $currentTime = time();
+    $timeDifference = round(($currentTime - $cacheTime) / 60);
+    $liveData = "Follower results are cached up to 1 hour. (Cache updated: $timeDifference minutes ago)";
+  } else {
+    do {
+        // Set up cURL request with headers
+        $curl = curl_init($followersURL);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken,
+            'Client-ID: ' . $clientID
+        ]);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
+        // Execute cURL request
+        $response = curl_exec($curl);
+
+        if ($response === false) {
+            // Handle cURL error
+            $errorInfo = curl_getinfo($curl);
+            $errorMessage = 'cURL error: ' . curl_error($curl);
+            $errorDetails = 'URL: ' . $errorInfo['url'] . ' | HTTP Code: ' . $errorInfo['http_code'];
+        
+            // Log the error to a file for debugging
+            error_log($errorMessage . ' | ' . $errorDetails, 3, 'curl_errors.log');
+        
+            echo 'An error occurred while fetching data. Please try again later.';
+            exit;
+        }
+
+        if ($response === false) {
+            // Handle cURL error
+            echo 'cURL error: ' . curl_error($curl);
+            exit;
+        }
+
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        if ($httpCode !== 200) {
+            // Handle non-successful HTTP response
+            $HTTPError = 'HTTP error: ' . $httpCode;
+            echo "$HTTPError";
+            exit;
+        }
+
+        curl_close($curl);
+
+        // Process and append follower information to the array
+        $followersData = json_decode($response, true);
+        $allFollowers = array_merge($allFollowers, $followersData['data']);
+
+        // Save the data to the cache file
+        file_put_contents($cacheFile, json_encode($allFollowers));
+        $liveData = "Follower results have been cached, you're viewing live data.";
+
+        // Check if there are more pages of followers
+        $cursor = $followersData['pagination']['cursor'] ?? null;
+        $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&after=$cursor";
+
+    } while ($cursor);
+  }
 }
-if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
-  $allFollowers = json_decode(file_get_contents($cacheFile), true);
-  $cacheTime = filemtime($cacheFile);
-  $currentTime = time();
-  $timeDifference = round(($currentTime - $cacheTime) / 60);
-  $liveData = "Follower results are cached up to 1 hour. (Cache updated: $timeDifference minutes ago)";
-} else {
-  do {
-      // Set up cURL request with headers
-      $curl = curl_init($followersURL);
-      curl_setopt($curl, CURLOPT_HTTPHEADER, [
-          'Authorization: Bearer ' . $accessToken,
-          'Client-ID: ' . $clientID
-      ]);
-      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
-      // Execute cURL request
-      $response = curl_exec($curl);
-
-      if ($response === false) {
-          // Handle cURL error
-          $errorInfo = curl_getinfo($curl);
-          $errorMessage = 'cURL error: ' . curl_error($curl);
-          $errorDetails = 'URL: ' . $errorInfo['url'] . ' | HTTP Code: ' . $errorInfo['http_code'];
-    
-          // Log the error to a file for debugging
-          error_log($errorMessage . ' | ' . $errorDetails, 3, 'curl_errors.log');
-    
-          echo 'An error occurred while fetching data. Please try again later.';
-          exit;
-      }
-
-      if ($response === false) {
-          // Handle cURL error
-          echo 'cURL error: ' . curl_error($curl);
-          exit;
-      }
-
-      $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-      if ($httpCode !== 200) {
-          // Handle non-successful HTTP response
-          $HTTPError = 'HTTP error: ' . $httpCode;
-          echo "$HTTPError";
-          exit;
-      }
-
-      curl_close($curl);
-
-      // Process and append follower information to the array
-      $followersData = json_decode($response, true);
-      $allFollowers = array_merge($allFollowers, $followersData['data']);
-
-      // Save the data to the cache file
-      file_put_contents($cacheFile, json_encode($allFollowers));
-      $liveData = "Follower results have been cached, you're viewing live data.";
-
-      // Check if there are more pages of followers
-      $cursor = $followersData['pagination']['cursor'] ?? null;
-      $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&after=$cursor";
-
-  } while ($cursor);
-}
-
 // Number of followers per page
 $followersPerPage = 50;
 
@@ -181,36 +183,47 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
-<?php if ($displaySearchBar) : ?>
-    <div class="row column">
-        <div class="search-container">
-            <input type="text" id="follower-search" placeholder="Search for Followers...">
-        </div>
-    </div>
-<?php endif; ?>
-<h1>Your Followers:</h1>
-<h3><?php echo $liveData ?></h3>
-<div class="followers-grid">
-  <?php foreach ($followersForCurrentPage as $follower) : 
-      $followerDisplayName = $follower['user_name'];
-  ?>
-  <div class="follower">
-  <span><?php echo $followerDisplayName; ?></span>
-  <span class="follow-time"><?php echo date('Y F d H:i', strtotime($follower['followed_at'])); ?></span>
-  </div>
-  <?php endforeach; ?>
+<!-- Disclaimer and Button -->
+<div class="row column text-center">
+    <p>Disclaimer: Due to the time it takes to pull followers from Twitch, if you'd like to view all your followers, please click the button below.</p>
+    <button id="view-followers-btn" class="button large">View Followers</button>
 </div>
 
-<!-- Pagination -->
-<div class="pagination">
-    <?php if ($totalPages > 1) : ?>
-        <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
-            <?php if ($page === $currentPage) : ?>
-                <span class="current-page"><?php echo $page; ?></span>
-            <?php else : ?>
-                <a href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
-            <?php endif; ?>
-        <?php endfor; ?>
+<!-- Followers Content Container (initially hidden) -->
+<div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
+    <?php if (isset($_GET['load']) && $_GET['load'] == 'followers'): ?>
+    <h1>Your Followers:</h1>
+    <?php if ($displaySearchBar) : ?>
+        <div class="row column">
+            <div class="search-container">
+                <input type="text" id="follower-search" placeholder="Search for Followers...">
+            </div>
+        </div>
+    <?php endif; ?>
+    <h3><?php echo $liveData ?></h3>
+    <div class="followers-grid">
+        <?php foreach ($followersForCurrentPage as $follower) : 
+            $followerDisplayName = $follower['user_name'];
+        ?>
+        <div class="follower">
+            <span><?php echo $followerDisplayName; ?></span>
+            <span class="follow-time"><?php echo date('Y F d H:i', strtotime($follower['followed_at'])); ?></span>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="pagination">
+        <?php if ($totalPages > 1) : ?>
+            <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
+                <?php if ($page === $currentPage) : ?>
+                    <span class="current-page"><?php echo $page; ?></span>
+                <?php else : ?>
+                    <a href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
+                <?php endif; ?>
+            <?php endfor; ?>
+        <?php endif; ?>
+    </div>
     <?php endif; ?>
 </div>
 </div>
@@ -233,6 +246,15 @@ $(document).ready(function() {
         });
     });
     <?php endif; ?>
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('view-followers-btn');
+    btn.addEventListener('click', function() {
+        // Redirect to the same page with a 'load' parameter to trigger PHP loading
+        window.location.href = '?load=followers';
+    });
 });
 </script>
 </body>
