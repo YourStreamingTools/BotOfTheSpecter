@@ -47,7 +47,8 @@ CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-builtin_commands = {"so", "shoutout", "ping", "lurk", "unlurk", "back", "uptime", "timer", "addcommand", "removecommand"}
+builtin_commands = {"commands", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "so"}
+builtin_aliases = {"cmds", "back", "shoutout"}
 
 # Logs
 webroot = "/var/www/html"
@@ -182,6 +183,15 @@ async def event_subscribe(subscriber):
             twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
                 
 class Bot(commands.Bot):
+    @bot.command(name="commands", aliases=["cmds"])
+    async def commands_command(ctx: commands.Context):
+        # Prefix each command with an exclamation mark
+        commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
+        response_message = f"Built-in commands: {commands_list}"
+        
+        # Sending the response message to the chat
+        await ctx.send(response_message)
+
     @bot.command(name='timer')
     async def start_timer(ctx: commands.Context):
         chat_logger.info(f"Timer command ran.")
@@ -423,27 +433,30 @@ class Bot(commands.Bot):
     async def event_message(ctx):
         if ctx.author.bot:
             return
-
+        
         # Get the message content
         message_content = ctx.content.strip()
         chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
-
+        
         # Check if the message starts with an exclamation mark
         if message_content.startswith('!'):
             # Split the message into command and its arguments
             parts = message_content.split()
             command = parts[0][1:]  # Extract the command without '!'
             args = parts[1:]  # Remaining parts are arguments
-
-            # If the command is one of the built-in commands, process it using the bot's command processing
-            if command in builtin_commands:
+    
+            # Combine commands and aliases for checking
+            all_commands = builtin_commands | builtin_aliases
+    
+            # If the command or alias is one of the built-in commands, process it using the bot's command processing
+            if command in all_commands:
                 await bot.process_commands(ctx)
                 return
-
+            
             # Check if the command exists in the database
             cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
             result = cursor.fetchone()
-
+            
             if result:
                 response = result[0]
                 chat_logger.info(f"{command} command ran.")
