@@ -275,25 +275,36 @@ class Bot(commands.Bot):
         # Check if the user is a moderator or broadcaster
         if is_mod_or_broadcaster(ctx.author):
             # Parse the command and response from the message
-            command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
-    
+            try:
+                command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+            except ValueError:
+                await ctx.send("Invalid command format. Use: !addcommand [command] [response]")
+                return
+
             # Insert the command and response into the database
             cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
             conn.commit()
             await ctx.send(f'Custom command added: !{command}')
-    
+        else:
+            await ctx.send("You must be a moderator or broadcaster to use this command.")
+
     @bot.command(name='removecommand')
     async def remove_command(ctx: commands.Context):
         chat_logger.info("Remove Command ran.")
         # Check if the user is a moderator or broadcaster
         if is_mod_or_broadcaster(ctx.author):
-            # Parse the command to remove from the message
-            command = ctx.message.content.strip().split(' ')[1]
-    
+            try:
+                command = ctx.message.content.strip().split(' ')[1]
+            except IndexError:
+                await ctx.send("Invalid command format. Use: !removecommand [command]")
+                return
+
             # Delete the command from the database
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
             await ctx.send(f'Custom command removed: !{command}')
+        else:
+            await ctx.send("You must be a moderator or broadcaster to use this command.")
 
     @bot.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
