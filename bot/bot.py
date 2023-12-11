@@ -362,7 +362,7 @@ class Bot(commands.Bot):
         if ctx.author.name.lower() == CHANNEL_NAME.lower():
             await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
             return
-            
+
         # Determine the target user: mentioned user or the command caller
         target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
 
@@ -373,6 +373,33 @@ class Bot(commands.Bot):
 
         # Send the message
         await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
+        
+    @bot.command(name='edittypos')
+    async def edit_typo_command(ctx: commands.Context, mentioned_username: str, new_count: int):
+        # Check if the user is a moderator or broadcaster
+        if not is_mod_or_broadcaster(ctx.author):
+            await ctx.send("You must be a moderator or broadcaster to use this command.")
+            return
+
+        # Ensure a username is mentioned
+        if not mentioned_username:
+            await ctx.send("Please specify a user to edit typos for. Usage: !edittypos @username new_count")
+            return
+
+        # Remove @ from the username if present
+        target_user = mentioned_username.lstrip('@')
+
+        # Validate new_count is non-negative
+        if new_count < 0:
+            await ctx.send("Typo count cannot be negative.")
+            return
+
+        # Update typo count in the database
+        cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
+        conn.commit()
+
+        # Confirm the update to the moderator
+        await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
 
     @bot.event
     async def event_message(ctx):
