@@ -50,6 +50,9 @@ try {
   // Fetch all custom commands
   $getCommands = $db->query("SELECT * FROM custom_commands");
   $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
+  // Fetch typo counts
+  $getTypos = $db->query("SELECT * FROM user_typos");
+  $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
 }
@@ -99,23 +102,45 @@ try {
 <div class="row column">
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
-<br>
-<table>
-    <thead>
-      <tr>
-        <th>Command</th>
-        <th>Response</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($commands as $command): ?>
+<div class="row">
+  <div class="small-12 medium-6 columns">
+    <h4>Bot Commands</h4>
+    <table>
+      <thead>
         <tr>
-          <td><?php echo $command['command']; ?></td>
-          <td><?php echo $command['response']; ?></td>
+          <th>Command</th>
+          <th>Response</th>
         </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <?php foreach ($commands as $command): ?>
+          <tr>
+            <td><?php echo $command['command']; ?></td>
+            <td><?php echo $command['response']; ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="small-12 medium-6 columns">
+    <h4>Typo Counts</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Typo Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($typos as $typo): ?>
+          <tr>
+            <td><?php echo htmlspecialchars($typo['username']); ?></td>
+            <td><?php echo htmlspecialchars($typo['typo_count']); ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 </div>
 
