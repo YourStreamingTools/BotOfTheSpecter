@@ -44,6 +44,7 @@ if ($currentHour < 12) {
 }
 
 // API endpoint to fetch followers
+$allFollowers = [];
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   // API endpoint to fetch followers
   $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
