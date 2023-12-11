@@ -123,6 +123,12 @@ cursor.execute('''
         response TEXT
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS user_typos (
+        username TEXT PRIMARY KEY,
+        typo_count INTEGER DEFAULT 0
+    )
+''')
 conn.commit()
 
 @client.event
@@ -209,7 +215,7 @@ class Bot(commands.Bot):
             user_id = ctx.author.id
             now = datetime.now()
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                await ctx.send(f"You cannot lurk in your own channel, Mr Streamer.")
+                await ctx.send(f"You cannot lurk in your own channel, Streamer.")
                 chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
                 return
             if user_id in lurk_start_times:
@@ -240,7 +246,7 @@ class Bot(commands.Bot):
     async def unlurk_command(ctx: commands.Context):
         try:
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                await ctx.send(f"Mr Streamer, you've been here all along!")
+                await ctx.send(f"Streamer, you've been here all along!")
                 chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
                 return
             # Check if the user was lurking
@@ -328,6 +334,45 @@ class Bot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error retrieving uptime: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check uptime.")
+    
+    @bot.command(name='typo')
+    async def typo_command(ctx: commands.Context, *, mentioned_username: str = None):
+        # Check if the broadcaster is running the command
+        if ctx.author.name.lower() == CHANNEL_NAME.lower():
+            await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
+            return
+
+        # Determine the target user: mentioned user or the command caller
+        target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
+
+        # Increment typo count in the database
+        cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
+        conn.commit()
+
+        # Retrieve the updated count
+        cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+        typo_count = cursor.fetchone()[0]
+
+        # Send the message
+        await ctx.send(f"Congratulations {target_user}, you've done a typo! {target_user} you've done a typo in chat {typo_count} times.")
+    
+    @bot.command(name='typos')
+    async def typos_command(ctx: commands.Context, *, mentioned_username: str = None):
+        # Check if the broadcaster is running the command
+        if ctx.author.name.lower() == CHANNEL_NAME.lower():
+            await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
+            return
+            
+        # Determine the target user: mentioned user or the command caller
+        target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
+
+        # Retrieve the typo count
+        cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+        result = cursor.fetchone()
+        typo_count = result[0] if result else 0
+
+        # Send the message
+        await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
 
     @bot.event
     async def event_message(ctx):
