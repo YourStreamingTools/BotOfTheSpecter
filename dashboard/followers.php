@@ -45,7 +45,9 @@ if ($currentHour < 12) {
 
 // API endpoint to fetch followers
 $allFollowers = [];
+$showDisclaimer = true;
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
+  $showDisclaimer = false;
   // API endpoint to fetch followers
   $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
   $clientID = ''; // CHANGE TO MAKE THIS WORK
@@ -121,6 +123,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     } while ($cursor);
   }
 }
+
 // Number of followers per page
 $followersPerPage = 50;
 
@@ -184,12 +187,14 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
+<?php if ($showDisclaimer): ?>
 <!-- Disclaimer and Button -->
-<div class="row column text-center disclaimer">
+<div class="row column text-center">
     <p>Disclaimer: Due to the time it takes to pull followers from Twitch, if you'd like to view all your followers, please click the button below.</p>
-    <button id="view-followers-btn" class="button large">View Followers</button>
+    <a href="?load=followers" class="button large">View Followers</a>
 </div>
 
+<?php endif; ?>
 <!-- Followers Content Container (initially hidden) -->
 <div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
     <?php if (isset($_GET['load']) && $_GET['load'] == 'followers'): ?>
