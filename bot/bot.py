@@ -141,26 +141,6 @@ async def on_pubsub_channel_subscription(data):
     if data['type'] == 'stream.online':
         await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
-@app.route('/webhook', methods=['POST'])
-def webhook(channel_name):
-    if channel_name.lower() != CHANNEL_NAME.lower():
-        return "Invalid channel", 400
-
-    data = request.json
-
-    # Handle the challenge request
-    if 'challenge' in data:
-        return data['challenge']
-
-    # Process the follower event
-    follower_name = data['event']['user_name']
-    # Ensure the follower event is for the correct channel
-    if data['event']['broadcaster_user_login'].lower() == channel_name.lower():
-        asyncio.run(channel.send(f'New follower: {follower_name}'))  # Send a message to your Twitch channel
-        twitch_logger.info(f"New follower: {follower_name}")
-
-    return 'OK', 200
-
 @client.event()
 async def event_cheer(cheerer, message):
     twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
@@ -532,13 +512,4 @@ def start_bot():
     bot.run()
 
 if __name__ == '__main__':
-    bot_thread = threading.Thread(target=start_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-
-    app_thread = threading.Thread(target=start_app, args=(args.webhook_port,))
-    app_thread.daemon = True
-    app_thread.start()
-
-    bot_thread.join()
-    app_thread.join()
+    start_bot()
