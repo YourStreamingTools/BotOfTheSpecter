@@ -39,6 +39,7 @@ CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 WEBHOOK_PORT = args.webhook_port
+DECAPI = "" # CHANGE TO MAKE THIS WORK
 BOT_USERNAME = "botofthespecter"
 WEBHOOK_SECRET = "" # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f"" # CHANGE TO MAKE THIS WORK
@@ -47,7 +48,7 @@ CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-builtin_commands = {"commands", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "so"}
+builtin_commands = {"commands", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so"}
 builtin_aliases = {"cmds", "back", "shoutout"}
 
 # Logs
@@ -428,6 +429,28 @@ class Bot(commands.Bot):
 
         # Confirm the update to the moderator
         await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
+
+    @bot.command(name='followage')
+    async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
+        # Determine the target user: mentioned user or the command caller
+        target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
+
+        # Construct the DecAPI URL
+        url = f"https://decapi.me/twitch/followage/{CHANNEL_NAME}/{target_user}?token={DECAPI}"
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        followage_text = await response.text()
+
+                        # Send the response message as received from DecAPI
+                        await ctx.send(followage_text)
+                    else:
+                        await ctx.send(f"Failed to retrieve followage information for {target_user}.")
+        except Exception as e:
+            chat_logger.error(f"Error retrieving followage: {e}")
+            await ctx.send(f"Oops, something went wrong while trying to check followage.")
 
     @bot.event
     async def event_message(ctx):
