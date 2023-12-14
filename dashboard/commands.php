@@ -87,11 +87,28 @@ try {
 
   // Calculate lurk durations for each user
   foreach ($lurkers as $key => $lurker) {
-      $startTime = new DateTime($lurker['start_time']);
-      $currentTime = new DateTime();
-      $interval = $currentTime->diff($startTime);
-      $lurkers[$key]['lurk_duration'] = $interval->format('%y years, %m months, %d days, %h hours, %i minutes');
-  }
+    $startTime = new DateTime($lurker['start_time']);
+    $currentTime = new DateTime();
+    $interval = $currentTime->diff($startTime);
+    
+    $timeStringParts = [];
+    if ($interval->y > 0) {
+        $timeStringParts[] = "{$interval->y} year(s)";
+    }
+    if ($interval->m > 0) {
+        $timeStringParts[] = "{$interval->m} month(s)";
+    }
+    if ($interval->d > 0) {
+        $timeStringParts[] = "{$interval->d} day(s)";
+    }
+    if ($interval->h > 0) {
+        $timeStringParts[] = "{$interval->h} hour(s)";
+    }
+    if ($interval->i > 0) {
+        $timeStringParts[] = "{$interval->i} minute(s)";
+    }
+    $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
+}
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
 }
