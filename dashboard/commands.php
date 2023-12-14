@@ -53,9 +53,34 @@ try {
   // Fetch typo counts
   $getTypos = $db->query("SELECT * FROM user_typos");
   $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
-  // Fetch lurking users
-  $getLurkers = $db->query("SELECT * FROM lurk_times");
-  $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+  // Fetch user IDs from your database
+  $getLurkers = $db->query("SELECT user_id FROM lurk_times");
+  $lurkers = $getLurkers->fetchAll(PDO::FETCH_COLUMN, 0);
+
+  // Prepare the Twitch API request
+  $userIdParams = implode('&id=', $lurkers);
+  $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
+  $clientID = ''; // CHANGE TO MAKE THIS WORK
+  $headers = [
+      "Client-ID: $clientID",
+      "Authorization: Bearer $authToken",
+  ];
+
+  // Execute the Twitch API request
+  $ch = curl_init($twitchApiUrl);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  $response = curl_exec($ch);
+  curl_close($ch);
+
+  // Decode the JSON response
+  $userData = json_decode($response, true);
+
+  // Map user IDs to usernames
+  $usernames = [];
+  foreach ($userData['data'] as $user) {
+      $usernames[$user['id']] = $user['display_name'];
+  }
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
 }
