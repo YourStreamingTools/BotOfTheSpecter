@@ -53,6 +53,9 @@ try {
   // Fetch typo counts
   $getTypos = $db->query("SELECT * FROM user_typos");
   $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
+  // Fetch lurking users
+  $getLurkers = $db->query("SELECT * FROM lurk_times");
+  $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
 }
@@ -136,6 +139,25 @@ try {
           <tr>
             <td><?php echo htmlspecialchars($typo['username']); ?></td>
             <td><?php echo htmlspecialchars($typo['typo_count']); ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="small-12 medium-6 columns">
+    <h4>Currently Lurking Users</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>Start Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($lurkers as $lurker): ?>
+          <tr>
+            <td><?php echo htmlspecialchars($lurker['user_id']); ?></td>
+            <td><?php echo htmlspecialchars($lurker['start_time']); ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
