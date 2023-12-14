@@ -50,15 +50,18 @@ try {
   // Fetch all custom commands
   $getCommands = $db->query("SELECT * FROM custom_commands");
   $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
+
   // Fetch typo counts
   $getTypos = $db->query("SELECT * FROM user_typos");
   $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
-  // Fetch user IDs from your database
-  $getLurkers = $db->query("SELECT user_id FROM lurk_times");
-  $lurkers = $getLurkers->fetchAll(PDO::FETCH_COLUMN, 0);
 
-  // Prepare the Twitch API request
-  $userIdParams = implode('&id=', $lurkers);
+  // Fetch Lurkers
+  $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
+  $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+
+  // Prepare the Twitch API request for user data
+  $userIds = array_column($lurkers, 'user_id');
+  $userIdParams = implode('&id=', $userIds);
   $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
   $clientID = ''; // CHANGE TO MAKE THIS WORK
   $headers = [
@@ -80,6 +83,14 @@ try {
   $usernames = [];
   foreach ($userData['data'] as $user) {
       $usernames[$user['id']] = $user['display_name'];
+  }
+
+  // Calculate lurk durations for each user
+  foreach ($lurkers as $key => $lurker) {
+      $startTime = new DateTime($lurker['start_time']);
+      $currentTime = new DateTime();
+      $interval = $currentTime->diff($startTime);
+      $lurkers[$key]['lurk_duration'] = $interval->format('%y years, %m months, %d days, %h hours, %i minutes');
   }
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
@@ -174,15 +185,15 @@ try {
     <table>
       <thead>
         <tr>
-          <th>User ID</th>
-          <th>Start Time</th>
+          <th>Username</th>
+          <th>Lurk Duration</th>
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($lurkers as $lurker): ?>
+        <?php foreach ($lurkers as $lurker): $displayName = $usernames[$lurker['user_id']] ?? $lurker['user_id'];?>
           <tr>
-            <td><?php echo htmlspecialchars($lurker['user_id']); ?></td>
-            <td><?php echo htmlspecialchars($lurker['start_time']); ?></td>
+            <td><?php echo htmlspecialchars($displayName); ?></td>
+            <td><?php echo htmlspecialchars($lurker['lurk_duration']); ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
