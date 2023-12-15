@@ -343,11 +343,11 @@ class Bot(commands.Bot):
 
     @bot.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
-        url = f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}"
-
+        chat_logger.info("Uptime Command ran.")
+        uptime_url = f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(uptime_url) as response:
                     if response.status == 200:
                         uptime_text = await response.text()
 
@@ -366,6 +366,7 @@ class Bot(commands.Bot):
     
     @bot.command(name='typo')
     async def typo_command(ctx: commands.Context, *, mentioned_username: str = None):
+        chat_logger.info("Typo Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower():
             await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
@@ -387,6 +388,7 @@ class Bot(commands.Bot):
     
     @bot.command(name='typos')
     async def typos_command(ctx: commands.Context, *, mentioned_username: str = None):
+        chat_logger.info("Typos Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower():
             await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
@@ -405,6 +407,7 @@ class Bot(commands.Bot):
         
     @bot.command(name='edittypos')
     async def edit_typo_command(ctx: commands.Context, mentioned_username: str, new_count: int):
+        chat_logger.info("Edit Typos Command ran.")
         # Check if the user is a moderator or broadcaster
         if not is_mod_or_broadcaster(ctx.author):
             await ctx.send("You must be a moderator or broadcaster to use this command.")
@@ -432,15 +435,12 @@ class Bot(commands.Bot):
 
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
-        # Determine the target user: mentioned user or the command caller
+        chat_logger.info("Follow Age Command ran.")
         target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
-
-        # Construct the DecAPI URL
-        url = f"https://decapi.me/twitch/followage/{CHANNEL_NAME}/{target_user}?token={DECAPI}"
-
+        followage_url = f"https://decapi.me/twitch/followage/{CHANNEL_NAME}/{target_user}?token={DECAPI}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(followage_url) as response:
                     if response.status == 200:
                         followage_text = await response.text()
 
