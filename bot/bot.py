@@ -49,7 +49,7 @@ TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
 builtin_commands = {"commands", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so"}
-builtin_aliases = {"cmds", "back", "shoutout"}
+builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo"}
 
 # Logs
 webroot = "/var/www/html"
@@ -386,7 +386,7 @@ class Bot(commands.Bot):
         # Send the message
         await ctx.send(f"Congratulations {target_user}, you've done a typo! {target_user} you've done a typo in chat {typo_count} times.")
     
-    @bot.command(name='typos')
+    @bot.command(name='typos', aliases=('typocount',))
     async def typos_command(ctx: commands.Context, *, mentioned_username: str = None):
         chat_logger.info("Typos Command ran.")
         # Check if the broadcaster is running the command
@@ -404,34 +404,44 @@ class Bot(commands.Bot):
 
         # Send the message
         await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
-        
-    @bot.command(name='edittypos')
-    async def edit_typo_command(ctx: commands.Context, mentioned_username: str, new_count: int):
+
+    @bot.command(name='edittypos', aliases=('edittypo',))
+    async def edit_typo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
         chat_logger.info("Edit Typos Command ran.")
-        # Check if the user is a moderator or broadcaster
-        if not is_mod_or_broadcaster(ctx.author):
-            await ctx.send("You must be a moderator or broadcaster to use this command.")
-            return
+        try:
+            if not mentioned_username or new_count is None:
+                chat_logger.error("Command missing parameters.")
+                await ctx.send("Usage: !edittypos @username new_count")
+                return
 
-        # Ensure a username is mentioned
-        if not mentioned_username:
-            await ctx.send("Please specify a user to edit typos for. Usage: !edittypos @username new_count")
-            return
+            chat_logger.info(f"Edit Typos Command ran with params: {mentioned_username}, {new_count}")
 
-        # Remove @ from the username if present
-        target_user = mentioned_username.lstrip('@')
+            # Remove @ from the username if present
+            target_user = mentioned_username.lstrip('@')
 
-        # Validate new_count is non-negative
-        if new_count < 0:
-            await ctx.send("Typo count cannot be negative.")
-            return
+            # Validate new_count is non-negative
+            if new_count < 0:
+                await ctx.send("Typo count cannot be negative.")
+                return
 
-        # Update typo count in the database
-        cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
-        conn.commit()
+            # Check if the user exists in the database
+            cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+            result = cursor.fetchone()
 
-        # Confirm the update to the moderator
-        await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
+            if result is not None:
+                # Update typo count in the database
+                cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
+                conn.commit()
+                await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
+            else:
+                # If user does not exist, send an error message or add the user with the given typo count
+                await ctx.send(f"No record for {target_user}. Adding them with the typo count.")
+                cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, ?)', (target_user, new_count))
+                conn.commit()
+                await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
+        except Exception as e:
+            chat_logger.error(f"Error in edit_typo_command: {e}")
+            await ctx.send("An error occurred while trying to edit typos.")
 
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
@@ -445,7 +455,7 @@ class Bot(commands.Bot):
                         followage_text = await response.text()
 
                         # Send the response message as received from DecAPI
-                        await ctx.send(followage_text)
+                        await ctx.send(f"{target_user} has been following for: {followage_text}")
                     else:
                         await ctx.send(f"Failed to retrieve followage information for {target_user}.")
         except Exception as e:
