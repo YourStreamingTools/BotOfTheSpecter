@@ -49,7 +49,7 @@ try {
 }
 
 // Handling form submission for updating typo count
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_typo'])) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'update') {
     $formUsername = $_POST['username'] ?? '';
     $typoCount = $_POST['typo_count'] ?? '';
 
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_typo'])) {
 }
 
 // Handling form submission for removing a user
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_typo'])) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'remove') {
     $formUsername = $_POST['username'] ?? '';
 
     try {
@@ -160,6 +160,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
   <div class="small-12 medium-6 columns">
     <h2>Edit User Typos</h2>
     <form action="" method="post">
+      <input type="hidden" name="action" value="update">
       <label for="username">Username:</label>
       <select id="username" name="username" required onchange="updateCurrentCount(this.value)">
         <option value="">Select a user</option>
@@ -176,6 +177,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
   <div class="small-12 medium-6 columns">
     <h2>Remove User Typo Record</h2>
     <form action="" method="post">
+      <input type="hidden" name="action" value="remove">
       <label for="username">Username:</label>
       <select id="username" name="username" required onchange="updateCurrentCount(this.value)">
         <option value="">Select a user</option>
