@@ -51,7 +51,7 @@ include 'bot_control.php';
 
 // Twitch API URL
 $modurl = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
-$clientID = '';
+$clientID = ''; // CHANGE TO MAKE THIS WORK
 
 $ch = curl_init($modurl);
 $headers = [
@@ -141,7 +141,8 @@ if ($ModStatusOutput) {
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
-<h3><?php echo "$BotModMessage <br> $statusOutput"; ?></h3>
+<?php echo $BotModMessage; ?>
+<h3><?php echo $statusOutput; ?></h3>
 <br>
 <table style="border: none !important;">
   <tr>
