@@ -159,7 +159,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 <div class="row">
   <div class="small-12 medium-6 columns">
     <h2>Edit User Typos</h2>
-    <form action="edit_typos" method="post">
+    <form action="" method="post">
       <label for="username">Username:</label>
       <select id="username" name="username" required onchange="updateCurrentCount(this.value)">
         <option value="">Select a user</option>
@@ -175,7 +175,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
   </div>
   <div class="small-12 medium-6 columns">
     <h2>Remove User Typo Record</h2>
-    <form action="remove_typo" method="post">
+    <form action="" method="post">
       <label for="username">Username:</label>
       <select id="username" name="username" required onchange="updateCurrentCount(this.value)">
         <option value="">Select a user</option>
