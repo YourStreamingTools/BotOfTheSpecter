@@ -123,7 +123,6 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     } while ($cursor);
   }
 }
-
 // Number of followers per page
 $followersPerPage = 50;
 
@@ -172,6 +171,7 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
       <li><a href="logs.php">View Logs</a></li>
       <li><a href="commands.php">Bot Commands</a></li>
       <li><a href="add-commands.php">Add Bot Command</a></li>
+      <li><a href="edit_typos.php">Edit Typos</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
@@ -186,6 +186,7 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
 <div class="row column">
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
+<br>
 <br>
 <?php if ($showDisclaimer): ?>
 <!-- Disclaimer and Button -->
