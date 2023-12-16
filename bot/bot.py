@@ -48,8 +48,8 @@ CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-builtin_commands = {"commands", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so"}
-builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo"}
+builtin_commands = {"commands", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so", "removetypos"}
+builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo"}
 
 # Logs
 webroot = "/var/www/html"
@@ -411,7 +411,7 @@ class Bot(commands.Bot):
         try:
             if not mentioned_username or new_count is None:
                 chat_logger.error("Command missing parameters.")
-                await ctx.send("Usage: !edittypos @username new_count")
+                await ctx.send("Usage: !edittypos @username [amount]")
                 return
 
             chat_logger.info(f"Edit Typos Command ran with params: {mentioned_username}, {new_count}")
@@ -442,6 +442,44 @@ class Bot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in edit_typo_command: {e}")
             await ctx.send("An error occurred while trying to edit typos.")
+
+    @bot.command(name='removetypos', aliases=('removetypo',))
+    async def remove_typos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
+        chat_logger.info("Remove Typos Command ran.")
+        try:
+            # Ensure a username is mentioned
+            if not mentioned_username:
+                await ctx.send("Usage: !removetypos @username [amount]")
+                return
+
+            # Check if the user is a moderator or broadcaster
+            if not is_mod_or_broadcaster(ctx.author):
+                await ctx.send("You must be a moderator or broadcaster to use this command.")
+                return
+
+            # Remove @ from the username if present
+            target_user = mentioned_username.lstrip('@')
+
+            # Validate decrease_amount is non-negative
+            if decrease_amount < 0:
+                await ctx.send("Remove amount cannot be negative.")
+                return
+
+            # Check if the user exists in the database
+            cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+            result = cursor.fetchone()
+
+            if result:
+                current_count = result[0]
+                new_count = max(0, current_count - decrease_amount)  # Ensure count doesn't go below 0
+                cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
+                conn.commit()
+                await ctx.send(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
+            else:
+                await ctx.send(f"No typo record found for {target_user}.")
+        except Exception as e:
+            chat_logger.error(f"Error in remove_typos_command: {e}")
+            await ctx.send("An error occurred while trying to remove typos.")
 
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
