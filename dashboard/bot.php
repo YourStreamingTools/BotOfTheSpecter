@@ -24,6 +24,7 @@ $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
+$broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $webhookPort = $user['webhook_port'];
 $user_timezone = $user['timezone'];
@@ -47,6 +48,51 @@ if ($currentHour < 12) {
 $statusOutput = 'Bot Status: Unkown';
 $pid = '';
 include 'bot_control.php';
+
+// Twitch API URL
+$modurl = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
+$clientID = '';
+
+$ch = curl_init($modurl);
+$headers = [
+    "Client-ID: {$clientID}",
+    "Authorization: Bearer {$authToken}"
+];
+
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+
+$BotIsMod = false; // Default to false until we know for sure
+
+if ($response === false) {
+    // Handle error - you might want to log this or take other action
+    $error = 'Curl error: ' . curl_error($ch);
+} else {
+    // Decode the response
+    $responseData = json_decode($response, true);
+    if (isset($responseData['data'])) {
+        // Check if the user is in the list of moderators
+        foreach ($responseData['data'] as $mod) {
+            if ($mod['user_login'] === 'botofthespecter') {
+                $BotIsMod = true;
+                break;
+            }
+        }
+    } else {
+        // Handle unexpected response format
+        $error = 'Unexpected response format.';
+    }
+}
+curl_close($ch);
+$ModStatusOutput = $BotIsMod;
+$BotModMessage = "";
+if ($ModStatusOutput) {
+  $BotModMessage = "<p style='color: green;'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
+} else {
+  $BotModMessage = "<p style='color: red;'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p>";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -95,7 +141,7 @@ include 'bot_control.php';
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
-<h3><?php echo $statusOutput; ?></h3>
+<h3><?php echo "$BotModMessage <br> $statusOutput"; ?></h3>
 <br>
 <table style="border: none !important;">
   <tr>
