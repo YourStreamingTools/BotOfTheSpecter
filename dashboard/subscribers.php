@@ -32,7 +32,6 @@ if (!$user_timezone || !in_array($user_timezone, timezone_identifiers_list())) {
 }
 
 date_default_timezone_set($user_timezone);
-
 // Determine the greeting based on the user's local time
 $currentHour = date('G');
 $greeting = '';
@@ -133,6 +132,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
       <li><a href="logs.php">View Logs</a></li>
       <li><a href="commands.php">Bot Commands</a></li>
       <li><a href="add-commands.php">Add Bot Command</a></li>
+      <li><a href="edit_typos.php">Edit Typos</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
