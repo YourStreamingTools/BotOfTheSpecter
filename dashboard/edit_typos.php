@@ -89,7 +89,7 @@ try {
   echo "Error fetching typo data: " . $e->getMessage();
   $typoData = [];
 }
-
+$status = "";
 // Check for AJAX request to get the current typo count
 if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET['username'])) {
   $requestedUsername = $_GET['username'];
@@ -99,9 +99,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET
   $stmt->execute();
   $result = $stmt->fetch(PDO::FETCH_ASSOC);
   if ($result) {
-    echo $result['typo_count'];
+    $status = $result['typo_count'];
   } else {
-    echo "0";
+    $status = "0";
   }
   exit;
 }
@@ -173,6 +173,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
       <input type="number" id="typo_count" name="typo_count" required min="0">
       <input type="submit" class="defult-button" value="Update Typo Count">
     </form>
+    <?php echo "<p>$status</p>" ?>
   </div>
   <div class="small-12 medium-6 columns">
     <h2>Remove User Typo Record</h2>
