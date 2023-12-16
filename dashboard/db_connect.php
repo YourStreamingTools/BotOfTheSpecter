@@ -2,7 +2,7 @@
 $servername = "localhost";
 $username = "username";
 $password = "password";
-$dbname = "todolistdb";
+$dbname = "dbname";
 
 // Create a connection
 $conn = new mysqli($servername, $username, $password, $dbname);
