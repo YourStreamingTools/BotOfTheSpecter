@@ -107,7 +107,7 @@ if (isset($_GET['code'])) {
             header('Location: unauthorized.php');
             exit;
         }
-        
+
         $twitchUsername = $userInfo['data'][0]['login'];
         $twitchDisplayName = $userInfo['data'][0]['display_name'];
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
@@ -117,8 +117,8 @@ if (isset($_GET['code'])) {
         require_once "db_connect.php";
 
         function generateUniquePort($conn) {
-            $basePort = 8000; // Example starting port
-            $maxPort = 9000; // Maximum port number
+            $basePort = 8000;
+            $maxPort = 9000;
         
             // Query to find the maximum port number currently in use
             $query = "SELECT MAX(webhook_port) as max_port FROM users";
