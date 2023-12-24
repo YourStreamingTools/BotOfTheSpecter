@@ -410,12 +410,12 @@ class Bot(commands.Bot):
     async def edit_typo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
         chat_logger.info("Edit Typos Command ran.")
         try:
-            if not mentioned_username or new_count is None:
-                chat_logger.error("Command missing parameters.")
-                await ctx.send("Usage: !edittypos @username [amount]")
-                return
-            
             if is_mod_or_broadcaster(ctx.author):
+                if not mentioned_username or new_count is None:
+                    chat_logger.error("Command missing parameters.")
+                    await ctx.send("Usage: !edittypos @username [amount]")
+                    return
+            
                 chat_logger.info(f"Edit Typos Command ran with params: {mentioned_username}, {new_count}")
 
                 # Remove @ from the username if present
