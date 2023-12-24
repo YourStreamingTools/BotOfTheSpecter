@@ -357,6 +357,7 @@ class Bot(commands.Bot):
                         else:
                             # If the channel is live, send a custom message with the uptime
                             await ctx.send(f"We've been live for {uptime_text}.")
+                            chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime_text}.")
                     else:
                         chat_logger.error(f"Failed to retrieve uptime. Status: {response.status}.")
                         await ctx.send(f"Sorry, I couldn't retrieve the uptime right now. {response.status}")
@@ -413,32 +414,37 @@ class Bot(commands.Bot):
                 chat_logger.error("Command missing parameters.")
                 await ctx.send("Usage: !edittypos @username [amount]")
                 return
+            
+            if is_mod_or_broadcaster(ctx.author):
+                chat_logger.info(f"Edit Typos Command ran with params: {mentioned_username}, {new_count}")
 
-            chat_logger.info(f"Edit Typos Command ran with params: {mentioned_username}, {new_count}")
+                # Remove @ from the username if present
+                target_user = mentioned_username.lstrip('@')
 
-            # Remove @ from the username if present
-            target_user = mentioned_username.lstrip('@')
+                # Validate new_count is non-negative
+                if new_count < 0:
+                    await ctx.send("Typo count cannot be negative.")
+                    return
 
-            # Validate new_count is non-negative
-            if new_count < 0:
-                await ctx.send("Typo count cannot be negative.")
-                return
+                # Check if the user exists in the database
+                cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+                result = cursor.fetchone()
 
-            # Check if the user exists in the database
-            cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
-            result = cursor.fetchone()
-
-            if result is not None:
-                # Update typo count in the database
-                cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
-                conn.commit()
-                await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
+                if result is not None:
+                    # Update typo count in the database
+                    cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
+                    conn.commit()
+                    chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
+                    await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
+                else:
+                    # If user does not exist, send an error message or add the user with the given typo count
+                    await ctx.send(f"No record for {target_user}. Adding them with the typo count.")
+                    cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, ?)', (target_user, new_count))
+                    conn.commit()
+                    chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
+                    await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
             else:
-                # If user does not exist, send an error message or add the user with the given typo count
-                await ctx.send(f"No record for {target_user}. Adding them with the typo count.")
-                cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, ?)', (target_user, new_count))
-                conn.commit()
-                await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
+                await ctx.send("You must be a moderator or broadcaster to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in edit_typo_command: {e}")
             await ctx.send("An error occurred while trying to edit typos.")
