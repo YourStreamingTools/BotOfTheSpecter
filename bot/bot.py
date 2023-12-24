@@ -140,12 +140,12 @@ conn.commit()
 
 @client.event
 async def event_ready():
-    bot_logger.info('Logged in as | {bot_instance.nick}')
-    bot_logger.info('User id is | {bot_instance.user_id}')
-    chat_logger.info("Chat logger initialized.")
-    twitch_logger.info("Twitch logger initialized.")
+    bot_logger.info(f"Bot logger initialized.")
+    chat_logger.info(f"Chat logger initialized.")
+    twitch_logger.info(f"Twitch logger initialized.")
 
     # Send the message indicating the bot is ready
+    bot_logger.info(f"Logged in as | {BOT_USERNAME}")
     await channel.send(f"Ready and waiting.")
 
 @client.event()
