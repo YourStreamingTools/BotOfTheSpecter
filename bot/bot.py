@@ -453,36 +453,34 @@ class Bot(commands.Bot):
     async def remove_typos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
         chat_logger.info("Remove Typos Command ran.")
         try:
-            # Ensure a username is mentioned
-            if not mentioned_username:
-                await ctx.send("Usage: !removetypos @username [amount]")
-                return
+            if is_mod_or_broadcaster(ctx.author):
+                # Ensure a username is mentioned
+                if not mentioned_username:
+                    await ctx.send("Usage: !removetypos @username [amount]")
+                    return
+            
+                # Remove @ from the username if present
+                target_user = mentioned_username.lstrip('@')
 
-            # Check if the user is a moderator or broadcaster
-            if not is_mod_or_broadcaster(ctx.author):
-                await ctx.send("You must be a moderator or broadcaster to use this command.")
-                return
+                # Validate decrease_amount is non-negative
+                if decrease_amount < 0:
+                    await ctx.send("Remove amount cannot be negative.")
+                    return
 
-            # Remove @ from the username if present
-            target_user = mentioned_username.lstrip('@')
+                # Check if the user exists in the database
+                cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+                result = cursor.fetchone()
 
-            # Validate decrease_amount is non-negative
-            if decrease_amount < 0:
-                await ctx.send("Remove amount cannot be negative.")
-                return
-
-            # Check if the user exists in the database
-            cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
-            result = cursor.fetchone()
-
-            if result:
-                current_count = result[0]
-                new_count = max(0, current_count - decrease_amount)  # Ensure count doesn't go below 0
-                cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
-                conn.commit()
-                await ctx.send(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
+                if result:
+                    current_count = result[0]
+                    new_count = max(0, current_count - decrease_amount)  # Ensure count doesn't go below 0
+                    cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
+                    conn.commit()
+                    await ctx.send(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
+                else:
+                    await ctx.send(f"No typo record found for {target_user}.")
             else:
-                await ctx.send(f"No typo record found for {target_user}.")
+                await ctx.send("You must be a moderator or broadcaster to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send("An error occurred while trying to remove typos.")
