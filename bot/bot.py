@@ -319,6 +319,7 @@ class Bot(commands.Bot):
             # Insert the command and response into the database
             cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
             conn.commit()
+            chat_logger.info(f"{ctx.author} has added the command !{command} with the response: {response}")
             await ctx.send(f'Custom command added: !{command}')
         else:
             await ctx.send("You must be a moderator or broadcaster to use this command.")
@@ -337,6 +338,7 @@ class Bot(commands.Bot):
             # Delete the command from the database
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
+            chat_logger.info(f"{ctx.author} has removed {command}")
             await ctx.send(f'Custom command removed: !{command}')
         else:
             await ctx.send("You must be a moderator or broadcaster to use this command.")
@@ -385,6 +387,7 @@ class Bot(commands.Bot):
         typo_count = cursor.fetchone()[0]
 
         # Send the message
+        chat_logger.info(f"{target_user} has done a new typo in chat, they're count is now at {typo_count}.")
         await ctx.send(f"Congratulations {target_user}, you've done a typo! {target_user} you've done a typo in chat {typo_count} times.")
     
     @bot.command(name='typos', aliases=('typocount',))
@@ -404,6 +407,7 @@ class Bot(commands.Bot):
         typo_count = result[0] if result else 0
 
         # Send the message
+        chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
         await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
 
     @bot.command(name='edittypos', aliases=('edittypo',))
