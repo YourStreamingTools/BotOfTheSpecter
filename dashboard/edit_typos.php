@@ -24,17 +24,9 @@ $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $authToken = $access_token;
-$user_timezone = $user['timezone'];
-
-// Set timezone
-if (!$user_timezone || !in_array($user_timezone, timezone_identifiers_list())) {
-    $user_timezone = 'Etc/UTC';
-}
-date_default_timezone_set($user_timezone);
-
-// Determine the greeting based on the user's local time
-$currentHour = date('G');
-$greeting = ($currentHour < 12) ? "Good morning" : "Good afternoon";
+$timezone = 'Australia/Sydney';
+date_default_timezone_set($timezone);
+$greeting = 'Hello';
 
 // Database connection for bot commands
 $db = new PDO("sqlite:/var/www/bot/commands/{$loggedInUsername}_commands.db");
