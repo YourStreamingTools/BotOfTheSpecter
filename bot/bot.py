@@ -379,7 +379,8 @@ class Bot(commands.Bot):
             return
 
         # Determine the target user: mentioned user or the command caller
-        target_user = mentioned_username.lower().lstrip('@') if mentioned_username.lower() else ctx.author.name.lower()
+        mentioned_username_lower = mentioned_username.lower()
+        target_user = mentioned_username_lower.lstrip('@') if mentioned_username_lower else ctx.author.name.lower()
 
         # Increment typo count in the database
         cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
@@ -402,7 +403,8 @@ class Bot(commands.Bot):
             return
 
         # Determine the target user: mentioned user or the command caller
-        target_user = mentioned_username.lower().lstrip('@') if mentioned_username.lower() else ctx.author.name.lower()
+        mentioned_username_lower = mentioned_username.lower()
+        target_user = mentioned_username_lower.lstrip('@') if mentioned_username else ctx.author.name.lower()
 
         # Retrieve the typo count
         cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
@@ -427,8 +429,9 @@ class Bot(commands.Bot):
                     await ctx.send(f"Usage: !editypos {mentioned_username} [amount]")
                     return
 
-                # Remove @ from the username if present and log the command usage.
-                target_user = mentioned_username.lower().lstrip('@')
+                # Determine the target user: mentioned user or the command caller
+                mentioned_username_lower = mentioned_username.lower()
+                target_user = mentioned_username_lower.lstrip('@')
                 chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
 
                 # Validate new_count is non-negative
@@ -472,8 +475,10 @@ class Bot(commands.Bot):
                     return
             
                 # Remove @ from the username if present
-                target_user = mentioned_username.lower().lstrip('@')
-
+                mentioned_username_lower = mentioned_username.lower()
+                target_user = mentioned_username_lower.lstrip('@')
+                chat_logger.info(f"Remove Typos Command ran with params")
+                
                 # Validate decrease_amount is non-negative
                 if decrease_amount < 0:
                     chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
