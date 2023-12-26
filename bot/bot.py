@@ -139,7 +139,7 @@ cursor.execute('''
 ''')
 conn.commit()
 
-eventsub_client = eventsub.EventSubClient(bot, "{WEBHOOK_SECRET}", "{CALLBACK_URL}")
+# eventsub_client = eventsub.EventSubClient(bot, "{WEBHOOK_SECRET}", "{CALLBACK_URL}")
 @client.event
 async def event_ready():
     bot_logger.info(f"Bot logger initialized.")
@@ -148,7 +148,7 @@ async def event_ready():
 
     # Send the message indicating the bot is ready
     bot_logger.info(f"Logged in as | {BOT_USERNAME}")
-    await eventsub_client.subscribe_channel_subscriptions({CHANNEL_ID})
+    # await eventsub_client.subscribe_channel_subscriptions({CHANNEL_ID})
     await channel.send(f"Ready and waiting.")
 
 @client.event()
@@ -718,7 +718,7 @@ def create_eventsub_subscription(CHANNEL_NAME):
 # Run the bot
 def start_bot():
     bot.run()
-    bot.loop.create_task(eventsub_client.listen(port={WEBHOOK_PORT}))
+    # bot.loop.create_task(eventsub_client.listen(port={WEBHOOK_PORT}))
 
 if __name__ == '__main__':
     start_bot()
