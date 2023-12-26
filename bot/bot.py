@@ -594,7 +594,7 @@ class Bot(commands.Bot):
 
 def is_mod_or_broadcaster(user):
     if user == 'gfaundead':
-        twitch_logger.info(f"User is gfaUnDead and is considered as Mod.")
+        twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
         return True
     
     twitch_logger.info(f"User {user} is Mod")
