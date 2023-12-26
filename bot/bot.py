@@ -49,7 +49,7 @@ CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-builtin_commands = {"commands", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so", "removetypos"}
+builtin_commands = {"commands", "bot", "timer", "ping", "lurk", "unlurk", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so", "removetypos"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo"}
 
 # Logs
@@ -195,6 +195,11 @@ class Bot(commands.Bot):
         
         # Sending the response message to the chat
         await ctx.send(response_message)
+
+    @bot.command(name='bot')
+    async def bot_command(ctx: commands.Context):
+        chat_logger.info(f"{ctx.author.name.lower} ran the Bot Command.")
+        await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
 
     @bot.command(name='timer')
     async def start_timer(ctx: commands.Context):
@@ -604,7 +609,6 @@ def is_mod_or_broadcaster(user):
 async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     # Fetching the shoutout user ID
     shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
-    moderator_user_id = await fetch_twitch_author_user_id(ctx.author.name)
     
     url = 'https://api.twitch.tv/helix/chat/shoutouts'
     headers = {
@@ -639,7 +643,7 @@ async def get_latest_stream_game(user_to_shoutout):
     twitch_logger.debug(f"Response from DecAPI: {response}")
     
     # API directly returns the game name as a string
-    if response and isinstance(response, str) and response != "null":  # 'null' is a possible response if the user isn't live
+    if response and isinstance(response, str) and response != "null":
         twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
         return response
     
@@ -651,12 +655,6 @@ async def fetch_twitch_shoutout_user_id(user_to_shoutout):
     shoutout_user_id = await fetch_json(url)
     twitch_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
     return shoutout_user_id
-
-async def fetch_twitch_author_user_id(author_name):
-    url = f"https://decapi.me/twitch/id/{author_name}"
-    moderator_user_id = await fetch_json(url)
-    twitch_logger.debug(f"Response from DecAPI: {moderator_user_id}")
-    return moderator_user_id
 
 async def fetch_json(url, headers=None):
     try:
