@@ -466,15 +466,17 @@ class Bot(commands.Bot):
         try:
             if is_mod_or_broadcaster(ctx.author):
                 # Ensure a username is mentioned
-                if not mentioned_username:
-                    await ctx.send("Usage: !removetypos @username [amount]")
+                if not mentioned_username is None:
+                    chat_logger.error("Command missing username parameter.")
+                    await ctx.send("Usage: !edittypos @username")
                     return
             
                 # Remove @ from the username if present
-                target_user = mentioned_username.lstrip('@')
+                target_user = mentioned_username.lower().lstrip('@')
 
                 # Validate decrease_amount is non-negative
                 if decrease_amount < 0:
+                    chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
                     await ctx.send("Remove amount cannot be negative.")
                     return
 
@@ -591,6 +593,10 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in shoutout_command: {e}")
 
 def is_mod_or_broadcaster(user):
+    if user == 'gfaundead':
+        twitch_logger.info(f"User is gfaUnDead and is considered as Mod.")
+        return True
+    
     twitch_logger.info(f"User {user} is Mod")
     return 'moderator' in user.get('badges', {}) or 'broadcaster' in user.get('badges', {}) or user.is_mod
 
