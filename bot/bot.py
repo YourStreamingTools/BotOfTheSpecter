@@ -379,8 +379,8 @@ class Bot(commands.Bot):
             return
 
         # Determine the target user: mentioned user or the command caller
-        mentioned_username_lower = mentioned_username.lower()
-        target_user = mentioned_username_lower.lstrip('@') if mentioned_username_lower else ctx.author.name.lower()
+        mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
+        target_user = mentioned_username_lower.lstrip('@')
 
         # Increment typo count in the database
         cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
@@ -403,8 +403,8 @@ class Bot(commands.Bot):
             return
 
         # Determine the target user: mentioned user or the command caller
-        mentioned_username_lower = mentioned_username.lower()
-        target_user = mentioned_username_lower.lstrip('@') if mentioned_username else ctx.author.name.lower()
+        mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
+        target_user = mentioned_username_lower.lstrip('@')
 
         # Retrieve the typo count
         cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
@@ -417,20 +417,11 @@ class Bot(commands.Bot):
 
     @bot.command(name='edittypos', aliases=('edittypo',))
     async def edit_typo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
-        chat_logger.info("Edit Typos Command ran.")
-        try:
-            if is_mod_or_broadcaster(ctx.author):
-                if not mentioned_username is None:
-                    chat_logger.error("Command missing username parameter.")
-                    await ctx.send("Usage: !edittypos @username [amount]")
-                    return
-                if not new_count is None:
-                    chat_logger.error("Command missing count paramenter.")
-                    await ctx.send(f"Usage: !editypos {mentioned_username} [amount]")
-                    return
-
+        if is_mod_or_broadcaster(ctx.author):
+            chat_logger.info("Edit Typos Command ran.")
+            try:
                 # Determine the target user: mentioned user or the command caller
-                mentioned_username_lower = mentioned_username.lower()
+                mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                 target_user = mentioned_username_lower.lstrip('@')
                 chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
 
@@ -457,11 +448,11 @@ class Bot(commands.Bot):
                     conn.commit()
                     chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
                     await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
-            else:
-                await ctx.send("You must be a moderator or broadcaster to use this command.")
-        except Exception as e:
-            chat_logger.error(f"Error in edit_typo_command: {e}")
-            await ctx.send("An error occurred while trying to edit typos.")
+            except Exception as e:
+                chat_logger.error(f"Error in edit_typo_command: {e}")
+                await ctx.send(f"An error occurred while trying to edit typos. {e}")
+        else:
+            await ctx.send("You must be a moderator or broadcaster to use this command.")
 
     @bot.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
@@ -471,7 +462,7 @@ class Bot(commands.Bot):
                 # Ensure a username is mentioned
                 if not mentioned_username is None:
                     chat_logger.error("Command missing username parameter.")
-                    await ctx.send("Usage: !edittypos @username")
+                    await ctx.send("Usage: !remotetypos @username")
                     return
             
                 # Remove @ from the username if present
