@@ -254,12 +254,12 @@ class Bot(commands.Bot):
                 lurk_duration = now - previous_start_time
 
                 # Calculate the duration
-                total_seconds = int(lurk_duration.total_seconds())
-                hours, remainder = divmod(total_seconds, 3600)
+                days, seconds = divmod(lurk_duration.total_seconds(), 86400)
+                hours, remainder = divmod(seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
 
                 # Create time string
-                periods = [("hours", hours), ("minutes", minutes), ("seconds", seconds)]
+                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
                 # Inform the user of their previous lurk time
@@ -292,11 +292,14 @@ class Bot(commands.Bot):
             if result:
                 start_time = datetime.fromisoformat(result[0])
                 elapsed_time = datetime.now() - start_time
-                minutes, seconds = divmod(int(elapsed_time.total_seconds()), 60)
-                hours, minutes = divmod(minutes, 60)
+
+                # Calculate the duration
+                days, seconds = divmod(elapsed_time.total_seconds(), 86400)
+                hours, remainder = divmod(seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
 
                 # Build the time string
-                periods = [("hours", hours), ("minutes", minutes), ("seconds", seconds)]
+                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
                 # Log the unlurk command execution and send a response
