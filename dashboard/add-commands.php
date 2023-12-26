@@ -25,23 +25,9 @@ $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $authToken = $access_token;
-$user_timezone = $user['timezone'];
-
-if (!$user_timezone || !in_array($user_timezone, timezone_identifiers_list())) {
-    $user_timezone = 'Etc/UTC';
-}
-
-date_default_timezone_set($user_timezone);
-
-// Determine the greeting based on the user's local time
-$currentHour = date('G');
-$greeting = '';
-
-if ($currentHour < 12) {
-    $greeting = "Good morning";
-} else {
-    $greeting = "Good afternoon";
-}
+$timezone = 'Australia/Sydney';
+date_default_timezone_set($timezone);
+$greeting = 'Hello';
 
 $db = new PDO("sqlite:/var/www/bot/commands/{$username}_commands.db");
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -108,6 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
+<p style='color: red;'>Disclaimer: Due to the coding proccess, adding commands in here will not make them active with the bot, <b>YET</b>, this is coming soon.</p>
 <form method="post" action="">
     <div class="row">
         <div class="small-12 medium-6 column">
