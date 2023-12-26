@@ -379,7 +379,7 @@ class Bot(commands.Bot):
             return
 
         # Determine the target user: mentioned user or the command caller
-        target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
+        target_user = mentioned_username.lstrip('@') if mentioned_username.lower() else ctx.author.name.lower()
 
         # Increment typo count in the database
         cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
@@ -402,7 +402,7 @@ class Bot(commands.Bot):
             return
 
         # Determine the target user: mentioned user or the command caller
-        target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
+        target_user = mentioned_username.lower().lstrip('@') if mentioned_username.lower() else ctx.author.name.lower()
 
         # Retrieve the typo count
         cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
@@ -418,18 +418,22 @@ class Bot(commands.Bot):
         chat_logger.info("Edit Typos Command ran.")
         try:
             if is_mod_or_broadcaster(ctx.author):
-                if not mentioned_username or new_count is None:
-                    chat_logger.error("Command missing parameters.")
+                if not mentioned_username is None:
+                    chat_logger.error("Command missing username parameter.")
                     await ctx.send("Usage: !edittypos @username [amount]")
                     return
-            
-                chat_logger.info(f"Edit Typos Command ran with params: {mentioned_username}, {new_count}")
+                if not new_count is None:
+                    chat_logger.error("Command missing count paramenter.")
+                    await ctx.send(f"Usage: !editypos {mentioned_username} [amount]")
+                    return
 
-                # Remove @ from the username if present
-                target_user = mentioned_username.lstrip('@')
+                # Remove @ from the username if present and log the command usage.
+                target_user = mentioned_username.lower().lstrip('@')
+                chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
 
                 # Validate new_count is non-negative
                 if new_count < 0:
+                    chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
                     await ctx.send("Typo count cannot be negative.")
                     return
 
@@ -444,7 +448,7 @@ class Bot(commands.Bot):
                     chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
                     await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
                 else:
-                    # If user does not exist, send an error message or add the user with the given typo count
+                    # If user does not exist, send an error message and add the user with the given typo count
                     await ctx.send(f"No record for {target_user}. Adding them with the typo count.")
                     cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, ?)', (target_user, new_count))
                     conn.commit()
