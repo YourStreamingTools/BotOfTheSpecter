@@ -270,7 +270,7 @@ class Bot(commands.Bot):
             conn.commit()
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
-            await ctx.send("Oops, something went wrong while trying to lurk.")
+            await ctx.send(f"Oops, something went wrong while trying to lurk.")
 
     @bot.command(name="unlurk", aliases=("back",))
     async def unlurk_command(ctx: commands.Context):
@@ -305,7 +305,7 @@ class Bot(commands.Bot):
                 await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}")
-            await ctx.send("Oops, something went wrong with the unlurk command.")
+            await ctx.send(f"Oops, something went wrong with the unlurk command.")
 
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
@@ -316,7 +316,7 @@ class Bot(commands.Bot):
             try:
                 command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
             except ValueError:
-                await ctx.send("Invalid command format. Use: !addcommand [command] [response]")
+                await ctx.send(f"Invalid command format. Use: !addcommand [command] [response]")
                 return
 
             # Insert the command and response into the database
@@ -325,7 +325,7 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} has added the command !{command} with the response: {response}")
             await ctx.send(f'Custom command added: !{command}')
         else:
-            await ctx.send("You must be a moderator or broadcaster to use this command.")
+            await ctx.send(f"You must be a moderator or broadcaster to use this command.")
 
     @bot.command(name='removecommand')
     async def remove_command(ctx: commands.Context):
@@ -335,7 +335,7 @@ class Bot(commands.Bot):
             try:
                 command = ctx.message.content.strip().split(' ')[1]
             except IndexError:
-                await ctx.send("Invalid command format. Use: !removecommand [command]")
+                await ctx.send(f"Invalid command format. Use: !removecommand [command]")
                 return
 
             # Delete the command from the database
@@ -344,7 +344,7 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} has removed {command}")
             await ctx.send(f'Custom command removed: !{command}')
         else:
-            await ctx.send("You must be a moderator or broadcaster to use this command.")
+            await ctx.send(f"You must be a moderator or broadcaster to use this command.")
 
     @bot.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
@@ -375,7 +375,7 @@ class Bot(commands.Bot):
         chat_logger.info("Typo Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower():
-            await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
+            await ctx.send(f"Dear Streamer, you can never have a typo in your own channel.")
             return
 
         # Determine the target user: mentioned user or the command caller
@@ -399,7 +399,7 @@ class Bot(commands.Bot):
         chat_logger.info("Typos Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower():
-            await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
+            await ctx.send(f"Dear Streamer, you can never have a typo in your own channel.")
             return
 
         # Determine the target user: mentioned user or the command caller
@@ -428,7 +428,7 @@ class Bot(commands.Bot):
                 # Validate new_count is non-negative
                 if new_count < 0:
                     chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
-                    await ctx.send("Typo count cannot be negative.")
+                    await ctx.send(f"Typo count cannot be negative.")
                     return
 
                 # Check if the user exists in the database
@@ -452,7 +452,7 @@ class Bot(commands.Bot):
                 chat_logger.error(f"Error in edit_typo_command: {e}")
                 await ctx.send(f"An error occurred while trying to edit typos. {e}")
         else:
-            await ctx.send("You must be a moderator or broadcaster to use this command.")
+            await ctx.send(f"You must be a moderator or broadcaster to use this command.")
 
     @bot.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
@@ -462,7 +462,7 @@ class Bot(commands.Bot):
                 # Ensure a username is mentioned
                 if not mentioned_username is None:
                     chat_logger.error("Command missing username parameter.")
-                    await ctx.send("Usage: !remotetypos @username")
+                    await ctx.send(f"Usage: !remotetypos @username")
                     return
             
                 # Remove @ from the username if present
@@ -473,7 +473,7 @@ class Bot(commands.Bot):
                 # Validate decrease_amount is non-negative
                 if decrease_amount < 0:
                     chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
-                    await ctx.send("Remove amount cannot be negative.")
+                    await ctx.send(f"Remove amount cannot be negative.")
                     return
 
                 # Check if the user exists in the database
@@ -489,10 +489,10 @@ class Bot(commands.Bot):
                 else:
                     await ctx.send(f"No typo record found for {target_user}.")
             else:
-                await ctx.send("You must be a moderator or broadcaster to use this command.")
+                await ctx.send(f"You must be a moderator or broadcaster to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
-            await ctx.send("An error occurred while trying to remove typos.")
+            await ctx.send(f"An error occurred while trying to remove typos.")
 
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
@@ -550,7 +550,7 @@ class Bot(commands.Bot):
                 await ctx.channel.send(f'No such command found: !{command}')
 
     @bot.command(name="so", aliases=("shoutout",))
-    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str):
+    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
         try:
             is_mod = ctx.author.is_mod
 
@@ -559,6 +559,11 @@ class Bot(commands.Bot):
                 await ctx.send(f"You must be a moderator to use the !so command.")
                 return
 
+            if user_to_shoutout is None:
+                    chat_logger.error(f"SO Command missing username parameter.")
+                    await ctx.send(f"Usage: !so @username")
+                    return
+            
             # Remove @ from the username if present
             user_to_shoutout = user_to_shoutout.lstrip('@')
             chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
@@ -592,9 +597,9 @@ def is_mod_or_broadcaster(user):
     if user == 'gfaundead':
         twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
         return True
-    
-    twitch_logger.info(f"User {user} is Mod")
-    return 'moderator' in user.get('badges', {}) or 'broadcaster' in user.get('badges', {}) or user.is_mod
+    else:
+        twitch_logger.info(f"User {user} is Mod")
+        return 'moderator' in user.get('badges', {}) or 'broadcaster' in user.get('badges', {}) or user.is_mod
 
 async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     # Fetching the shoutout user ID
