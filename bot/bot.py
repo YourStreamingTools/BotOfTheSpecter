@@ -465,8 +465,8 @@ class Bot(commands.Bot):
                     await ctx.send(f"Usage: !remotetypos @username")
                     return
             
-                # Remove @ from the username if present
-                mentioned_username_lower = mentioned_username.lower()
+                # Determine the target user: mentioned user or the command caller
+                mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                 target_user = mentioned_username_lower.lstrip('@')
                 chat_logger.info(f"Remove Typos Command ran with params")
                 
