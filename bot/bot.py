@@ -379,7 +379,7 @@ class Bot(commands.Bot):
             return
 
         # Determine the target user: mentioned user or the command caller
-        target_user = mentioned_username.lstrip('@') if mentioned_username.lower() else ctx.author.name.lower()
+        target_user = mentioned_username.lower().lstrip('@') if mentioned_username.lower() else ctx.author.name.lower()
 
         # Increment typo count in the database
         cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
