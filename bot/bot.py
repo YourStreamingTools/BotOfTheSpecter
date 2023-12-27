@@ -432,17 +432,29 @@ class Bot(commands.Bot):
                 mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                 target_user = mentioned_username_lower.lstrip('@')
                 chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
-
-                # Validate new_count is non-negative
-                if new_count < 0:
+    
+                # Check if new_count is non-negative
+                if new_count is not None and new_count < 0:
                     chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
                     await ctx.send(f"Typo count cannot be negative.")
                     return
-
+    
+                # Check if mentioned_username is not provided
+                if mentioned_username is None:
+                    chat_logger.error(f"There was no mentioned username for the command to run.")
+                    await ctx.send(f"Usage: !edittypos @username [amount]")
+                    return
+    
+                # Check if new_count is not provided
+                if new_count is None:
+                    chat_logger.error(f"There was no count added to the command to edit")
+                    await ctx.send(f"Usage: !edittypos @{target_user} [amount]")
+                    return
+    
                 # Check if the user exists in the database
                 cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
                 result = cursor.fetchone()
-
+    
                 if result is not None:
                     # Update typo count in the database
                     cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
