@@ -2,6 +2,7 @@
 $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
 $logPath = "/var/www/html/www/script/$username.txt";
+$statusOutput = getBotStatus($statusScriptPath, $username, $logPath);
 
 if (isset($_POST['runBot'])) {
     if (isBotRunning($statusScriptPath, $username, $logPath)) {
@@ -40,7 +41,14 @@ if (isset($_POST['restartBot'])) {
     if ($pid > 0) {
         killBot($pid);
         startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort, $logPath);
-        $statusOutput = "Bot restarted successfully.";
+        $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+        $pid = intval(preg_replace('/\D/', '', $statusOutput));
+
+        if ($pid > 0) {
+            $statusOutput = "Bot restarted successfully. Process ID: $pid";
+        } else {
+            $statusOutput = "Failed to restart the bot. Please check the configuration or server status.";
+        }
     } else {
         $statusOutput = "Bot is not running.";
     }
