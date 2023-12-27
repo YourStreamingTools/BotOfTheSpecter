@@ -198,7 +198,7 @@ class Bot(commands.Bot):
 
     @bot.command(name='bot')
     async def bot_command(ctx: commands.Context):
-        chat_logger.info(f"{ctx.author.name.lower} ran the Bot Command.")
+        chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
 
     @bot.command(name='timer')
@@ -433,24 +433,24 @@ class Bot(commands.Bot):
                 target_user = mentioned_username_lower.lstrip('@')
                 chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
     
+                # Check if mentioned_username is not provided
+                if mentioned_username is None:
+                    chat_logger.error("There was no mentioned username for the command to run.")
+                    await ctx.send("Usage: !edittypos @username [amount]")
+                    return
+
+                # Check if new_count is not provided
+                if new_count is None:
+                    chat_logger.error("There was no count added to the command to edit.")
+                    await ctx.send(f"Usage: !edittypos @{target_user} [amount]")
+                    return
+
                 # Check if new_count is non-negative
                 if new_count is not None and new_count < 0:
                     chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
                     await ctx.send(f"Typo count cannot be negative.")
                     return
-    
-                # Check if mentioned_username is not provided
-                if mentioned_username is None:
-                    chat_logger.error(f"There was no mentioned username for the command to run.")
-                    await ctx.send(f"Usage: !edittypos @username [amount]")
-                    return
-    
-                # Check if new_count is not provided
-                if new_count is None:
-                    chat_logger.error(f"There was no count added to the command to edit")
-                    await ctx.send(f"Usage: !edittypos @{target_user} [amount]")
-                    return
-    
+
                 # Check if the user exists in the database
                 cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
                 result = cursor.fetchone()
@@ -615,12 +615,19 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in shoutout_command: {e}")
 
 def is_mod_or_broadcaster(user):
-    if user == 'gfaundead':
+    if user.name == 'gfaundead':
         twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
         return True
     else:
-        twitch_logger.info(f"User {user} is Mod")
-        return 'moderator' in user.get('badges', {}) or 'broadcaster' in user.get('badges', {}) or user.is_mod
+        badges = user.get('badges', {})
+        is_mod = user.is_mod if hasattr(user, 'is_mod') else False
+
+        # Check if the user has either the 'moderator' or 'broadcaster' badge, or is a moderator
+        if 'moderator' in badges or 'broadcaster' in badges or is_mod:
+            twitch_logger.info(f"User {user.name} is a Mod or Broadcaster")
+            return True
+        else:
+            return False
 
 async def trigger_twitch_shoutout(user_to_shoutout, ctx):
     # Fetching the shoutout user ID
