@@ -568,21 +568,22 @@ class Bot(commands.Bot):
                 return
 
             if user_to_shoutout is None:
-                    chat_logger.error(f"SO Command missing username parameter.")
-                    await ctx.send(f"Usage: !so @username")
-                    return
-            
+                chat_logger.error(f"SO Command missing username parameter.")
+                await ctx.send(f"Usage: !so @username")
+                return
+
             # Remove @ from the username if present
             user_to_shoutout = user_to_shoutout.lstrip('@')
+
             chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
 
             game = await get_latest_stream_game(user_to_shoutout)
 
             if not game:
                 shoutout_message = (
-                f"Hey, huge shoutout to @{user_to_shoutout}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_to_shoutout}"
+                    f"Hey, huge shoutout to @{user_to_shoutout}! "
+                    f"You should go give them a follow over at "
+                    f"https://www.twitch.tv/{user_to_shoutout}"
                 )
                 chat_logger.info(shoutout_message)
                 await ctx.send(shoutout_message)
