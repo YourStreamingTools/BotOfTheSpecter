@@ -277,6 +277,42 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
 
+    @bot.command(name="lurking")
+    async def lurking_command(ctx: commands.Context):
+        try:
+            user_id = str(ctx.author.id)
+    
+            if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                await ctx.send(f"Streamer, you're always present!")
+                chat_logger.info(f"{ctx.author.name} tried to check lurk time in their own channel.")
+                return
+    
+            cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = ?', (user_id,))
+            result = cursor.fetchone()
+    
+            if result:
+                start_time = datetime.fromisoformat(result[0])
+                elapsed_time = datetime.now() - start_time
+    
+                # Calculate the duration
+                days, seconds = divmod(elapsed_time.total_seconds(), 86400)
+                hours, remainder = divmod(seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+    
+                # Build the time string
+                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+    
+                # Send the lurk time message
+                await ctx.send(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
+                chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
+            else:
+                await ctx.send(f"{ctx.author.name}, you're not currently lurking.")
+                chat_logger.info(f"{ctx.author.name} tried to check lurk time but is not lurking.")
+        except Exception as e:
+            chat_logger.error(f"Error in lurking_command: {e}")
+            await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
+
     @bot.command(name="unlurk", aliases=("back",))
     async def unlurk_command(ctx: commands.Context):
         try:
