@@ -313,6 +313,49 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in lurking_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
 
+    @bot.command(name="lurklead")
+    async def lurklead_command(ctx: commands.Context):
+        try:
+            cursor.execute('SELECT user_id, start_time FROM lurk_times')
+            lurkers = cursor.fetchall()
+    
+            longest_lurk = None
+            longest_lurk_user_id = None
+            now = datetime.now()
+    
+            for user_id, start_time in lurkers:
+                start_time = datetime.fromisoformat(start_time)
+                lurk_duration = now - start_time
+    
+                if longest_lurk is None or lurk_duration > longest_lurk:
+                    longest_lurk = lurk_duration
+                    longest_lurk_user_id = user_id
+    
+            if longest_lurk_user_id:
+                display_name = await get_display_name(longest_lurk_user_id)
+    
+                if display_name:
+                    # Calculate the duration
+                    days, seconds = divmod(longest_lurk.total_seconds(), 86400)
+                    hours, remainder = divmod(seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+    
+                    # Build the time string
+                    periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                    time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+    
+                    # Send the message
+                    await ctx.send(f"{display_name} is currently lurking the most with {time_string} on the clock.")
+                    chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
+                else:
+                    await ctx.send("There was an issue retrieving the display name of the lurk leader.")
+            else:
+                await ctx.send("No one is currently lurking.")
+                chat_logger.info("Lurklead command run but no lurkers found.")
+        except Exception as e:
+            chat_logger.error(f"Error in lurklead_command: {e}")
+            await ctx.send("Oops, something went wrong while trying to find the lurk leader.")
+
     @bot.command(name="unlurk", aliases=("back",))
     async def unlurk_command(ctx: commands.Context):
         try:
@@ -649,6 +692,22 @@ class Bot(commands.Bot):
 
         except Exception as e:
             chat_logger.error(f"Error in shoutout_command: {e}")
+
+async def get_display_name(user_id):
+    # Replace with actual method to get display name from Twitch API
+    url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    headers = {
+        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data['data'][0]['display_name'] if data['data'] else None
+            else:
+                return None
 
 def is_mod_or_broadcaster(user):
     if user.name == 'gfaundead':
