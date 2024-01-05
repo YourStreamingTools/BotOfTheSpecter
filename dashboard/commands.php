@@ -127,8 +127,8 @@ include 'sqlite.php';
       <tbody>
         <?php foreach ($lurkers as $lurker): $displayName = $usernames[$lurker['user_id']] ?? $lurker['user_id'];?>
           <tr>
-            <td><?php echo htmlspecialchars($displayName); ?></td>
-            <td><?php echo htmlspecialchars($lurker['lurk_duration']); ?></td>
+            <td id="<?php echo $lurker['user_id']; ?>"><?php echo htmlspecialchars($displayName); ?></td>
+            <td id="lurk_duration"><?php echo htmlspecialchars($lurker['lurk_duration']); ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
