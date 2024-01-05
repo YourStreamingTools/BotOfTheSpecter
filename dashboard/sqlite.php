@@ -20,7 +20,7 @@ try {
   $userIds = array_column($lurkers, 'user_id');
   $userIdParams = implode('&id=', $userIds);
   $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
-  $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+  $clientID = ''; // CHANGE TO MAKE THIS WORK
   $headers = [
       "Client-ID: $clientID",
       "Authorization: Bearer $authToken",
