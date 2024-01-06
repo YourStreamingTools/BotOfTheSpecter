@@ -49,7 +49,7 @@ CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-builtin_commands = {"commands", "bot", "timer", "ping", "lurk", "unlurk", "lurking", "lurklead", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so", "removetypos"}
+builtin_commands = {"commands", "bot", "timer", "ping", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "addcommand", "removecommand", "uptime", "typo", "typos", "edittypos", "followage", "so", "removetypos"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo"}
 
 # Logs
@@ -137,6 +137,18 @@ cursor.execute('''
         start_time TEXT NOT NULL
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS hug_counts (
+        username TEXT PRIMARY KEY,
+        hug_count INTEGER DEFAULT 0
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS kiss_counts (
+        username TEXT PRIMARY KEY,
+        kiss_count INTEGER DEFAULT 0
+    )
+''')
 conn.commit()
 
 # eventsub_client = eventsub.EventSubClient(bot, "{WEBHOOK_SECRET}", "{CALLBACK_URL}")
@@ -215,7 +227,43 @@ class Bot(commands.Bot):
         await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
         await asyncio.sleep(minutes * 60)  # Convert minutes to seconds
         await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
-    
+        
+    @bot.command(name='hug')
+    async def hug_command(ctx: commands.Context, *, mentioned_username: str = None):
+        if mentioned_username:
+            target_user = mentioned_username.lstrip('@')
+
+            # Increment hug count in the database
+            cursor.execute('INSERT INTO hug_counts (username, hug_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET hug_count = hug_count + 1', (target_user,))
+            conn.commit()
+
+            # Retrieve the updated count
+            cursor.execute('SELECT hug_count FROM hug_counts WHERE username = ?', (target_user,))
+            hug_count = cursor.fetchone()[0]
+
+            # Send the message
+            await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+        else:
+            await ctx.send("Usage: !hug @username")
+
+    @bot.command(name='kiss')
+    async def kiss_command(ctx: commands.Context, *, mentioned_username: str = None):
+        if mentioned_username:
+            target_user = mentioned_username.lstrip('@')
+
+            # Increment kiss count in the database
+            cursor.execute('INSERT INTO kiss_counts (username, kiss_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET kiss_count = kiss_count + 1', (target_user,))
+            conn.commit()
+
+            # Retrieve the updated count
+            cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = ?', (target_user,))
+            kiss_count = cursor.fetchone()[0]
+
+            # Send the message
+            await ctx.send(f"@{target_user} has been kissed by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+        else:
+            await ctx.send("Usage: !kiss @username")
+
     @bot.command(name='ping')
     async def ping_command(ctx: commands.Context):
         chat_logger.info(f"Ping command ran.")
