@@ -457,7 +457,7 @@ class Bot(commands.Bot):
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
         chat_logger.info("Add Command ran.")
-        # Check if the user is a moderator or broadcaster
+        # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
             # Parse the command and response from the message
             try:
@@ -472,12 +472,12 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} has added the command !{command} with the response: {response}")
             await ctx.send(f'Custom command added: !{command}')
         else:
-            await ctx.send(f"You must be a moderator or broadcaster to use this command.")
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name='removecommand')
     async def remove_command(ctx: commands.Context):
         chat_logger.info("Remove Command ran.")
-        # Check if the user is a moderator or broadcaster
+        # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
             try:
                 command = ctx.message.content.strip().split(' ')[1]
@@ -491,7 +491,7 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} has removed {command}")
             await ctx.send(f'Custom command removed: !{command}')
         else:
-            await ctx.send(f"You must be a moderator or broadcaster to use this command.")
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
@@ -611,7 +611,7 @@ class Bot(commands.Bot):
                 chat_logger.error(f"Error in edit_typo_command: {e}")
                 await ctx.send(f"An error occurred while trying to edit typos. {e}")
         else:
-            await ctx.send(f"You must be a moderator or broadcaster to use this command.")
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
@@ -648,7 +648,7 @@ class Bot(commands.Bot):
                 else:
                     await ctx.send(f"No typo record found for {target_user}.")
             else:
-                await ctx.send(f"You must be a moderator or broadcaster to use this command.")
+                await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
@@ -691,7 +691,7 @@ class Bot(commands.Bot):
             # Send the message
             await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
         else:
-            await ctx.send("You must be a moderator or broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(ctx: commands.Context):
@@ -715,7 +715,7 @@ class Bot(commands.Bot):
             # Send the message
             await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
         else:
-            await ctx.send("You must be a moderator or broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
