@@ -54,11 +54,17 @@ include 'sqlite.php';
     <ul class="dropdown vertical medium-horizontal menu" data-responsive-menu="drilldown medium-dropdown hinge-in-from-top hinge-out-from-top">
       <li class="menu-text">BotOfTheSpecter</li>
       <li><a href="bot.php">Dashboard</a></li>
-      <li><a href="mods.php">View Mods</a></li>
-      <li><a href="followers.php">View Followers</a></li>
-      <li><a href="subscribers.php">View Subscribers</a></li>
-      <li><a href="vips.php">View VIPs</a></li>
+      <li>
+        <a>Twitch Data</a>
+        <ul class="vertical menu" data-dropdown-menu>
+          <li><a href="mods.php">View Mods</a></li>
+          <li><a href="followers.php">View Followers</a></li>
+          <li><a href="subscribers.php">View Subscribers</a></li>
+          <li><a href="vips.php">View VIPs</a></li>
+        </ul>
+      </li>
       <li><a href="logs.php">View Logs</a></li>
+      <li><a href="counters.php">Counters</a></li>
       <li class="is-active"><a href="commands.php">Bot Commands</a></li>
       <li><a href="add-commands.php">Add Bot Command</a></li>
       <li><a href="edit_typos.php">Edit Typos</a></li>
@@ -77,7 +83,7 @@ include 'sqlite.php';
 <br>
 <h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <div class="row">
-  <div class="small-12 medium-6 columns">
+  <div class="columns">
     <h4>Bot Commands</h4>
     <table>
       <thead>
@@ -94,70 +100,6 @@ include 'sqlite.php';
           </tr>
         <?php endforeach; ?>
       </tbody>
-    </table>
-  </div>
-  <div class="small-12 medium-6 columns">
-    <h4>Typo Counts</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Username</th>
-          <th>Typo Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($typos as $typo): ?>
-          <tr>
-            <td><?php echo htmlspecialchars($typo['username']); ?></td>
-            <td><?php echo htmlspecialchars($typo['typo_count']); ?></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <div class="small-12 medium-6 columns">
-    <h4>Currently Lurking Users</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Username</th>
-          <th>Lurk Duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($lurkers as $lurker): $displayName = $usernames[$lurker['user_id']] ?? $lurker['user_id'];?>
-          <tr>
-            <td id="<?php echo $lurker['user_id']; ?>"><?php echo htmlspecialchars($displayName); ?></td>
-            <td id="lurk_duration"><?php echo htmlspecialchars($lurker['lurk_duration']); ?></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <div class="small-12 medium-6 columns">
-    <h4>Deaths Overview</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Category</th>
-                <th>Count</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Total Deaths -->
-            <tr>
-                <td>Total Deaths</td>
-                <td><?php echo htmlspecialchars($totalDeaths['death_count']); ?></td>
-            </tr>
-
-            <!-- Game-Specific Deaths -->
-            <?php foreach ($gameDeaths as $gameDeath): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($gameDeath['game_name']); ?></td>
-                <td><?php echo htmlspecialchars($gameDeath['death_count']); ?></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
     </table>
   </div>
 </div>
