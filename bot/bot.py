@@ -653,6 +653,22 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
 
+    @bot.command(name='deaths')
+    async def deaths_command(ctx: commands.Context):
+        current_game = await get_current_stream_game()
+
+        # Retrieve the game-specific death count
+        cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+        game_death_count = cursor.fetchone()
+        game_death_count = game_death_count[0] if game_death_count else 0
+
+        # Retrieve the total death count
+        cursor.execute('SELECT death_count FROM total_deaths')
+        total_death_count = cursor.fetchone()[0]
+
+        # Send the message
+        await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
         chat_logger.info("Follow Age Command ran.")
@@ -752,6 +768,22 @@ class Bot(commands.Bot):
 
         except Exception as e:
             chat_logger.error(f"Error in shoutout_command: {e}")
+
+async def get_current_stream_game():
+    url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
+
+    response = await fetch_json(url)  # No headers required for this API
+
+    # Add debug logger
+    twitch_logger.debug(f"Response from DecAPI for current game: {response}")
+
+    # API directly returns the game name as a string
+    if response and isinstance(response, str) and response != "null":
+        twitch_logger.info(f"Current game for {CHANNEL_NAME}: {response}.")
+        return response
+
+    twitch_logger.error(f"Failed to get current game for {CHANNEL_NAME}.")
+    return None
 
 async def get_display_name(user_id):
     # Replace with actual method to get display name from Twitch API
