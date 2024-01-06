@@ -693,6 +693,30 @@ class Bot(commands.Bot):
         else:
             await ctx.send("You must be a moderator or broadcaster to use this command.")
 
+    @bot.command(name='deathremove', aliases=['death-'])
+    async def deathremove_command(ctx: commands.Context):
+        if is_mod_or_broadcaster(ctx.author):
+            current_game = await get_current_stream_game()
+
+            # Decrement game-specific death count (ensure it doesn't go below 0)
+            cursor.execute('UPDATE game_deaths SET death_count = GREATEST(0, death_count - 1) WHERE game_name = ?', (current_game,))
+
+            # Decrement total death count (ensure it doesn't go below 0)
+            cursor.execute('UPDATE total_deaths SET death_count = GREATEST(0, death_count - 1)')
+            conn.commit()
+
+            # Retrieve updated counts
+            cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+            game_death_count = cursor.fetchone()[0]
+
+            cursor.execute('SELECT death_count FROM total_deaths')
+            total_death_count = cursor.fetchone()[0]
+
+            # Send the message
+            await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+        else:
+            await ctx.send("You must be a moderator or broadcaster to use this command.")
+
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
         chat_logger.info("Follow Age Command ran.")
