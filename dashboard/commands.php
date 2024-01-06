@@ -134,6 +134,40 @@ include 'sqlite.php';
       </tbody>
     </table>
   </div>
+  <div class="small-12 medium-6 columns">
+    <h4>Total Deaths</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Total Deaths</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><?php echo htmlspecialchars($totalDeaths['death_count']); ?></td>
+            </tr>
+        </tbody>
+    </table>
+  </div>
+  <div class="small-12 medium-6 columns">
+      <h4>Game-Specific Deaths</h4>
+      <table>
+          <thead>
+              <tr>
+                  <th>Game</th>
+                  <th>Deaths</th>
+              </tr>
+          </thead>
+          <tbody>
+              <?php foreach ($gameDeaths as $gameDeath): ?>
+              <tr>
+                  <td><?php echo htmlspecialchars($gameDeath['game_name']); ?></td>
+                  <td><?php echo htmlspecialchars($gameDeath['death_count']); ?></td>
+              </tr>
+              <?php endforeach; ?>
+          </tbody>
+      </table>
+  </div>
 </div>
 </div>
 
