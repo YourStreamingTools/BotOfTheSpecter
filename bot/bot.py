@@ -716,6 +716,11 @@ class Bot(commands.Bot):
             await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
         else:
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
+    
+    @bot.command(name='game')
+    async def game_command(ctx: commands.Context):
+        current_game = await get_current_stream_game()
+        await ctx.send(f"The current game we're playing is: {current_game}")
 
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
