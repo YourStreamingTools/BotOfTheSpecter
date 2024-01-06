@@ -72,11 +72,17 @@ if(isset($_GET['logType'])) {
     <ul class="dropdown vertical medium-horizontal menu" data-responsive-menu="drilldown medium-dropdown hinge-in-from-top hinge-out-from-top">
       <li class="menu-text">BotOfTheSpecter</li>
       <li><a href="bot.php">Dashboard</a></li>
-      <li><a href="mods.php">View Mods</a></li>
-      <li><a href="followers.php">View Followers</a></li>
-      <li><a href="subscribers.php">View Subscribers</a></li>
-      <li><a href="vips.php">View VIPs</a></li>
+      <li>
+        <a>Twitch Data</a>
+        <ul class="vertical menu" data-dropdown-menu>
+          <li><a href="mods.php">View Mods</a></li>
+          <li><a href="followers.php">View Followers</a></li>
+          <li><a href="subscribers.php">View Subscribers</a></li>
+          <li><a href="vips.php">View VIPs</a></li>
+        </ul>
+      </li>
       <li class="is-active"><a href="logs.php">View Logs</a></li>
+      <li><a href="counters.php">Counters</a></li>
       <li><a href="commands.php">Bot Commands</a></li>
       <li><a href="add-commands.php">Add Bot Command</a></li>
       <li><a href="edit_typos.php">Edit Typos</a></li>
