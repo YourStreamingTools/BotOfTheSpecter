@@ -51,7 +51,7 @@ CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
 builtin_commands = {"commands", "bot", "timer", "ping", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "so", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove"}
-builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo"}
+builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
 # Logs
 webroot = "/var/www/html"
