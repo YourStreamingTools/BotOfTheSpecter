@@ -669,6 +669,30 @@ class Bot(commands.Bot):
         # Send the message
         await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
 
+    @bot.command(name='deathadd', aliases=['death+'])
+    async def deathadd_command(ctx: commands.Context):
+        if is_mod_or_broadcaster(ctx.author):
+            current_game = await get_current_stream_game()
+
+            # Increment game-specific death count
+            cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (?, 1) ON CONFLICT(game_name) DO UPDATE SET death_count = death_count + 1', (current_game,))
+
+            # Increment total death count
+            cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
+            conn.commit()
+
+            # Retrieve updated counts
+            cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+            game_death_count = cursor.fetchone()[0]
+
+            cursor.execute('SELECT death_count FROM total_deaths')
+            total_death_count = cursor.fetchone()[0]
+
+            # Send the message
+            await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+        else:
+            await ctx.send("You must be a moderator or broadcaster to use this command.")
+
     @bot.command(name='followage')
     async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
         chat_logger.info("Follow Age Command ran.")
