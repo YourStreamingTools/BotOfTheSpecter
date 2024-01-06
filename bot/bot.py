@@ -149,6 +149,17 @@ cursor.execute('''
         kiss_count INTEGER DEFAULT 0
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS total_deaths (
+        death_count INTEGER DEFAULT 0
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS game_deaths (
+        game_name TEXT PRIMARY KEY,
+        death_count INTEGER DEFAULT 0
+    )
+''')
 conn.commit()
 
 # eventsub_client = eventsub.EventSubClient(bot, "{WEBHOOK_SECRET}", "{CALLBACK_URL}")
@@ -227,7 +238,7 @@ class Bot(commands.Bot):
         await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
         await asyncio.sleep(minutes * 60)  # Convert minutes to seconds
         await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
-        
+
     @bot.command(name='hug')
     async def hug_command(ctx: commands.Context, *, mentioned_username: str = None):
         if mentioned_username:
