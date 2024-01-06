@@ -49,6 +49,14 @@ try {
     // Fetch game-specific deaths
     $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths");
     $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Fetch hug counts
+    $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts");
+    $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch kiss counts
+    $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts");
+    $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Calculate lurk durations for each user
     foreach ($lurkers as $key => $lurker) {
