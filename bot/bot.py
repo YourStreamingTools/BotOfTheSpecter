@@ -254,8 +254,10 @@ class Bot(commands.Bot):
             hug_count = cursor.fetchone()[0]
 
             # Send the message
+            chat_logger.info(f"{target_user} has been hugged by {ctx.author}. They have been hugged: {hug_count}")
             await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
         else:
+            chat_logger.info(f"{ctx.author} tried to run the command without user mentioned.")
             await ctx.send("Usage: !hug @username")
 
     @bot.command(name='kiss')
@@ -272,8 +274,10 @@ class Bot(commands.Bot):
             kiss_count = cursor.fetchone()[0]
 
             # Send the message
+            chat_logger.info(f"{target_user} has been kissed by {ctx.author}. They have been kissed: {kiss_count}")
             await ctx.send(f"@{target_user} has been kissed by @{ctx.author.name}, they have been kissed {kiss_count} times.")
         else:
+            chat_logger.info(f"{ctx.author} tried to run the command without user mentioned.")
             await ctx.send("Usage: !kiss @username")
 
     @bot.command(name='ping')
@@ -291,6 +295,7 @@ class Bot(commands.Bot):
             bot_logger.info(f"Pong: {ping_time} ms")
             await ctx.send(f'Pong: {ping_time} ms')
         else:
+            bot_logger.error(f"Error Pinging. {output}")
             await ctx.send(f'Error pinging')
     
     @bot.command(name='lurk')
@@ -655,6 +660,7 @@ class Bot(commands.Bot):
 
     @bot.command(name='deaths')
     async def deaths_command(ctx: commands.Context):
+        chat_logger.info("Deaths command ran.")
         current_game = await get_current_stream_game()
 
         # Retrieve the game-specific death count
@@ -667,11 +673,13 @@ class Bot(commands.Bot):
         total_death_count = cursor.fetchone()[0]
 
         # Send the message
+        chat_logger.info(f"{ctx.author} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
         await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
 
     @bot.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
+            chat_logger.info("Death Add Command ran.")
             current_game = await get_current_stream_game()
 
             # Increment game-specific death count
@@ -689,13 +697,17 @@ class Bot(commands.Bot):
             total_death_count = cursor.fetchone()[0]
 
             # Send the message
+            chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
+            chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
             await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
         else:
+            chat_logger.info(f"{ctx.author} tried to use the command, death add, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
+            chat_logger.info("Death Remove Command Ran")
             current_game = await get_current_stream_game()
 
             # Decrement game-specific death count (ensure it doesn't go below 0)
@@ -713,13 +725,17 @@ class Bot(commands.Bot):
             total_death_count = cursor.fetchone()[0]
 
             # Send the message
+            chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
+            chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
             await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
         else:
+            chat_logger.info(f"{ctx.author} tried to use the command, death remove, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @bot.command(name='game')
     async def game_command(ctx: commands.Context):
         current_game = await get_current_stream_game()
+        chat_logger.info(f"Game Command has been ran. Current game is: {current_game}")
         await ctx.send(f"The current game we're playing is: {current_game}")
 
     @bot.command(name='followage')
