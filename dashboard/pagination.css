@@ -85,7 +85,7 @@ p {
 
 #profile-image {
     border-radius: 50%;
-    border: 2px solid #4CAF50;
+    border: 1px solid #4CAF50;
 }
 
 .menu-text {
@@ -220,4 +220,62 @@ label {
 
 #current-typo-count {
     color: #ffffff;
+}
+
+/* Darkmode Logs */
+h1, h2, h3 {
+    color: #ffffff;
+}
+
+.tabs {
+    background-color: #444444;
+    border: 1px solid #444444;
+}
+
+.tabs-title {
+    background-color: #444444;
+    color: #bbbbbb;
+    padding: 10px;
+}
+
+.tabs-title.is-active {
+    background-color: #444444;
+    color: #ffffff;
+}
+
+.tabs-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.tabs-title a:hover {
+    color: #4CAF50;
+}
+
+.tabs-content {
+    background-color: #222222;
+    color: #ffffff;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.tabs-panel {
+    background-color: transparent;
+    color: #ffffff;
+    border: 1px solid #444444;
+}
+
+.tabs-panel.is-active {
+    border: none;
+}
+
+pre {
+    background-color: #444444;
+    color: #ffffff;
+    padding: 10px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 5px;
+    margin-top: 0;
 }
