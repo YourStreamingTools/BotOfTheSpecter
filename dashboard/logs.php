@@ -100,7 +100,7 @@ if(isset($_GET['logType'])) {
 
 <div class="row column">
 <br>
-<h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
+<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <h2>Your Logs:</h2>
 <ul class="tabs" data-tabs id="logTabs">
