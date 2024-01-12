@@ -25,47 +25,38 @@
     color: #ffffff;
 }
 
-.followers-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.follower {
-    border: 1px solid #333;
-    padding: 10px;
-    background-color: #fff;
-    text-align: center;
-    border-radius: 5px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 50px;
-}
-
-.follower span {
-    color: #333333;
-    font-weight: bold;
-}
-
-.follow-time {
-    color: #777777;
-    font-size: 12px;
-}
-
-.subscribers-grid {
+/* Grid container styles */
+.followers-grid, .subscribers-grid, .moderator-grid, .vip-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 20px;
 }
 
-.subscriber {
+/* Individual item styles */
+.follower, .subscriber, .moderator, .vip {
     background-color: #f0f0f0;
+    border: 1px solid #333333;
     padding: 10px;
+    text-align: center;
     border-radius: 5px;
     box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 97px;
+}
+
+.follower span, .subscriber span, .moderator span, .vip span {
+    display: block;
+    text-align: center;
+    color: #333333;
+    font-weight: bold;
+}
+
+.follower-time, .moderator-time, .vip-time {
+    font-size: 12px;
+    color: #888888;
 }
 
 .subscriber-broadcaster {
@@ -73,80 +64,13 @@
     padding: 10px;
     border-radius: 5px;
     box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.2);
-}
-
-.subscriber span {
-    display: block;
-    text-align: center;
-}
-
-.subscriber-broadcaster span {
-    display: block;
-    text-align: center;
-}
-
-.moderator-time {
-    font-size: 12px;
-    color: #888;
-}
-
-.moderator-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 20px;
-}
-
-.moderator {
-    border: 1px solid #333;
+    border: 1px solid #333333;
     text-align: center;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 50px;
-    background-color: #f0f0f0;
-    padding: 10px;
-    border-radius: 5px;
-    box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.2);
-}
-
-.moderator span {
-    display: block;
-    text-align: center;
-}
-
-.moderator-time {
-    font-size: 12px;
-    color: #888;
-}
-
-.vip {
-    border: 1px solid #333;
-    padding: 10px;
-    background-color: #fff;
-    text-align: center;
-    border-radius: 5px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 50px;
-}
-
-.vip span {
-    color: #333333;
-    font-weight: bold;
-}
-
-.vip-time {
-    font-size: 12px;
-    color: #888;
-}
-
-.vip-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 20px;
+    height: 97px;
 }
 
 /* Apply dark mode styles to the entire website */
@@ -160,7 +84,7 @@ body {
 }
 
 a {
-    color: #bb86fc;
+    color: #000000;
 }
 
 /* New Buttons */
@@ -188,6 +112,7 @@ a {
 
 .bot-table td, 
 .bot-table tr {
+    color: #ffffff;
     border: none;
     border-style: solid;
     border-color: #111111;
