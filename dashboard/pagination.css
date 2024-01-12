@@ -118,3 +118,15 @@ a {
     border-color: #111111;
     background-color: #111111;
 }
+
+.counter-table {
+    border-color: #ffffff;
+    background-color: #111111;
+}
+
+.counter-table td, 
+.counter-table tr {
+    color: #ffffff;
+    border-color: #ffffff;
+    background-color: #111111;
+}
