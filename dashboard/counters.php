@@ -136,14 +136,13 @@ include 'sqlite.php';
             <!-- Total Deaths -->
             <tr>
                 <td>Total Deaths</td>
-                <td><?php echo htmlspecialchars($totalDeaths['death_count']); ?></td>
+                <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? ''); ?></td>
             </tr>
-
             <!-- Game-Specific Deaths -->
             <?php foreach ($gameDeaths as $gameDeath): ?>
             <tr>
-                <td><?php echo htmlspecialchars($gameDeath['game_name']); ?></td>
-                <td><?php echo htmlspecialchars($gameDeath['death_count']); ?></td>
+                <td><?php echo htmlspecialchars($gameDeath['game_name'] ?? ''); ?></td>
+                <td><?php echo htmlspecialchars($gameDeath['death_count'] ?? ''); ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>
