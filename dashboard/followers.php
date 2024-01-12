@@ -110,6 +110,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     } while ($cursor);
   }
 }
+
 // Number of followers per page
 $followersPerPage = 50;
 
@@ -125,7 +126,6 @@ $endIndex = $startIndex + $followersPerPage;
 
 // Get followers for the current page
 $followersForCurrentPage = array_slice($allFollowers, $startIndex, $followersPerPage);
-$displaySearchBar = count($allFollowers) > $followersPerPage;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -180,7 +180,6 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<br>
 <?php if ($showDisclaimer): ?>
 <!-- Disclaimer and Button -->
 <div class="row column text-center">
@@ -193,13 +192,6 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
 <div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
     <?php if (isset($_GET['load']) && $_GET['load'] == 'followers'): ?>
     <h1>Your Followers:</h1>
-    <?php if ($displaySearchBar) : ?>
-        <div class="row column">
-            <div class="search-container">
-                <input type="text" id="follower-search" placeholder="Search for Followers...">
-            </div>
-        </div>
-    <?php endif; ?>
     <h3><?php echo $liveData ?></h3>
     <div class="followers-grid">
         <?php foreach ($followersForCurrentPage as $follower) : 
@@ -226,28 +218,12 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
     </div>
     <?php endif; ?>
 </div>
+<br>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
-<script>
-$(document).ready(function() {
-    <?php if ($displaySearchBar) : ?>
-    $('#follower-search').on('input', function() {
-        var searchTerm = $(this).val().toLowerCase();
-        $('.follower').each(function() {
-            var followerName = $(this).find('span').text().toLowerCase();
-            if (followerName.includes(searchTerm)) {
-                $(this).show();
-            } else {
-                $(this).hide();
-            }
-        });
-    });
-    <?php endif; ?>
-});
-</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var btn = document.getElementById('view-followers-btn');
