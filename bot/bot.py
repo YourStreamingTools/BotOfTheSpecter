@@ -175,18 +175,18 @@ async def event_ready():
     # await eventsub_client.subscribe_channel_subscriptions({CHANNEL_ID})
     await channel.send(f"Ready and waiting.")
 
-@client.event()
-async def on_pubsub_channel_subscription(data):
-    twitch_logger.info(f"Channel subscription event: {data}")
-    if data['type'] == 'stream.online':
-        await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
+# @client.event
+# async def on_pubsub_channel_subscription(data):
+#     twitch_logger.info(f"Channel subscription event: {data}")
+#     if data['type'] == 'stream.online':
+#         await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
 
-@client.event()
+@client.event
 async def event_cheer(cheerer, message):
     twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
     await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
 
-@client.event()
+@client.event
 async def event_subscribe(subscriber):
     streak = subscriber.streak
     months = subscriber.cumulative_months
@@ -194,11 +194,11 @@ async def event_subscribe(subscriber):
     giftanonymous = subscriber.is_anonymous
     if gift == False:
         if streak > 1:
-            await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
-            twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
+            await channel.send(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
+            twitch_logger.info(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
         if months > 2:
-            await channel.send(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
-            twitch_logger.info(f'{subscriber.display_name} has resubsribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
+            await channel.send(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
+            twitch_logger.info(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
         else:
             await channel.send(f'{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!')
             twitch_logger.info(f"{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!")
@@ -209,7 +209,7 @@ async def event_subscribe(subscriber):
         else:
             await channel.send(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
             twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
-                
+
 class Bot(commands.Bot):
     @bot.command(name="commands", aliases=["cmds"])
     async def commands_command(ctx: commands.Context):
