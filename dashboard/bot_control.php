@@ -98,9 +98,9 @@ function killBot($pid) {
     $output = shell_exec("kill $pid > /dev/null 2>&1 &");
     sleep(3);
 
-    if (strpos($output, 'error') !== false) {
+    if (isset($output) && strpos($output, 'error') !== false) {
         return false;
-    }
+    }    
     return true;
 }
 
