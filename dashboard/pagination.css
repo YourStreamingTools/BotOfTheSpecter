@@ -151,9 +151,45 @@
 
 /* Apply dark mode styles to the entire website */
 body {
-    background-color: #111;
-    color: #fff;
-  }
-  a {
+    background-color: #111111;
+    color: #ffffff;
+}
+
+.menu-text {
+    color: #000000;
+}
+
+a {
     color: #bb86fc;
-  }
+}
+
+/* New Buttons */
+.bot-button {
+    background-color: #4CAF50;
+    color: #FFFFFF;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 18px;
+    cursor: pointer;
+}
+  
+.bot-button:hover {
+    background-color: #3E8E41;
+}
+
+/* New Bot Table */
+.bot-table {
+    border: none;
+    border-style: solid;
+    border-color: #111111;
+    background-color: #111111;
+}
+
+.bot-table td, 
+.bot-table tr {
+    border: none;
+    border-style: solid;
+    border-color: #111111;
+    background-color: #111111;
+}
