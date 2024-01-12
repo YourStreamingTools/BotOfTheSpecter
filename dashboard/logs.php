@@ -1,3 +1,4 @@
+<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
 // Initialize the session
 session_start();
@@ -55,6 +56,7 @@ if(isset($_GET['logType'])) {
     <title>BotOfTheSpecter - Bot Logs</title>
     <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
     <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
+    <link rel="stylesheet" href="pagination.css">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.yourstreaming.tools/js/about.js"></script>
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
