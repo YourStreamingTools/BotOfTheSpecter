@@ -9,16 +9,16 @@ if (isset($_POST['runBot'])) {
     if (isBotRunning($statusScriptPath, $username, $logPath)) {
         $statusOutput = shell_exec("python $statusScriptPath -channel $username");
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
-        $statusOutput = "Bot is already running. Process ID: $pid";
+        $statusOutput = "<h3>Bot is already running. Process ID: $pid.</h3>";
     } else {
         startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort, $logPath);
         $statusOutput = shell_exec("python $statusScriptPath -channel $username");
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
 
         if ($pid > 0) {
-            $statusOutput = "Bot started successfully. Process ID: $pid";
+            $statusOutput = "<h3>Bot started successfully. Process ID: $pid.</h3>";
         } else {
-            $statusOutput = "Failed to start the bot. Please check the configuration or server status.";
+            $statusOutput = "<h3 style='color: red;'>Failed to start the bot. Please check the configuration or server status.</h3>";
         }
     }
 }
@@ -31,9 +31,9 @@ if (isset($_POST['killBot'])) {
     $pid = getBotPID($statusScriptPath, $username, $logPath);
     if ($pid > 0) {
         killBot($pid);
-        $statusOutput = "Bot stopped successfully.";
+        $statusOutput = "<h3>Bot stopped successfully.</h3>";
     } else {
-        $statusOutput = "Bot is not running.";
+        $statusOutput = "<h3 style='color: red;'>Bot is not running.</h3>";
     }
 }
 
@@ -46,12 +46,12 @@ if (isset($_POST['restartBot'])) {
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
 
         if ($pid > 0) {
-            $statusOutput = "Bot restarted successfully. Process ID: $pid";
+            $statusOutput = "<h3>Bot restarted successfully. Process ID: $pid.</h3>";
         } else {
-            $statusOutput = "Failed to restart the bot. Please check the configuration or server status.";
+            $statusOutput = "<h3 style='color: red;'>Failed to restart the bot. Please check the configuration or server status.</h3>";
         }
     } else {
-        $statusOutput = "Bot is not running.";
+        $statusOutput = "<h3 style='color: red;'>Bot is not running.</h3>";
     }
 }
 
@@ -74,12 +74,12 @@ function getBotStatus($statusScriptPath, $username, $logPath) {
     if ($statusOutput !== null) {
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
         if ($pid > 0) {
-            return "Bot Running with PID: $pid.";
+            return "<h3>Bot Running with PID: $pid.</h3>";
         } else {
-            return "Bot is not running.";
+            return "<h3 style='color: red;'>Bot is not running.</h3>";
         }
     } else {
-        return "Unable to determine bot status - I'm guessing the bot is not running.";
+        return "<h3 style='color: red;'>Unable to determine bot status - I'm guessing the bot is not running.</h3>";
     }
 }
 
