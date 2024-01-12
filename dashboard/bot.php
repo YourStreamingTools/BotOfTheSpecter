@@ -1,3 +1,4 @@
+<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
 // Initialize the session
 session_start();
@@ -87,6 +88,7 @@ if ($ModStatusOutput) {
     <title>BotOfTheSpecter - Dashboard</title>
     <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
     <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
+    <link rel="stylesheet" href="pagination.css">
     <script src="https://cdn.yourstreaming.tools/js/about.js"></script>
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
@@ -135,15 +137,14 @@ if ($ModStatusOutput) {
 <?php echo $BotModMessage; ?>
 <h3><?php echo $statusOutput; ?></h3>
 <br>
-<table style="border: none !important;">
+<table class="bot-table">
   <tr>
-    <td><form action="" method="post"><button class="defult-button" type="submit" name="runBot">Run Bot</button></form></td>
-    <td><form action="" method="post"><button class="defult-button" type="submit" name="botStatus">Check Bot Status</button></form></td>
-    <td><form action="" method="post"><button class="defult-button" type="submit" name="killBot">Stop Bot</button></form></td>
-    <td><form action="" method="post"><button class="defult-button" type="submit" name="restartBot">Restart Bot</button></form></td>
+    <td><form action="" method="post"><button class="bot-button" type="submit" name="runBot">Run Bot</button></form></td>
+    <td><form action="" method="post"><button class="bot-button" type="submit" name="botStatus">Check Bot Status</button></form></td>
+    <td><form action="" method="post"><button class="bot-button" type="submit" name="killBot">Stop Bot</button></form></td>
+    <td><form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form></td>
   </tr>
 </table>
-</div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
