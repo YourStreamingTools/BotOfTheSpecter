@@ -135,7 +135,7 @@ if ($ModStatusOutput) {
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <?php echo $BotModMessage; ?>
-<h3><?php echo $statusOutput; ?></h3>
+<?php echo $statusOutput; ?>
 <br>
 <table class="bot-table">
   <tr>
