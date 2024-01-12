@@ -155,7 +155,8 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 
 <div class="row column">
 <br>
-<h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
+<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<br>
 <div class="row">
   <div class="small-12 medium-6 columns">
     <h2>Edit User Typos</h2>
