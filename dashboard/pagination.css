@@ -129,4 +129,6 @@ a {
     color: #ffffff;
     border-color: #ffffff;
     background-color: #111111;
+    border-bottom: 1px solid #ffffff;
+    border-right: 1px solid #ffffff;
 }
