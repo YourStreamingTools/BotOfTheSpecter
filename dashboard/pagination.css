@@ -240,7 +240,7 @@ h1, h2, h3 {
 
 .tabs-title.is-active {
     background-color: #444444;
-    color: #ffffff;
+    color: #111111;
 }
 
 .tabs-title a {
@@ -249,14 +249,14 @@ h1, h2, h3 {
 }
 
 .tabs-title a:hover {
-    color: #4CAF50;
+    color: #444444;
 }
 
 .tabs-content {
     background-color: #222222;
     color: #ffffff;
     padding: 15px;
-    border-radius: 5px;
+    border-radius: 0px;
 }
 
 .tabs-panel {
