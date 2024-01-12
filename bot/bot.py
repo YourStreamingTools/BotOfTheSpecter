@@ -163,17 +163,20 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# eventsub_client = eventsub.EventSubClient(bot, "{WEBHOOK_SECRET}", "{CALLBACK_URL}")
 @client.event
 async def event_ready():
     bot_logger.info(f"Bot logger initialized.")
     chat_logger.info(f"Chat logger initialized.")
     twitch_logger.info(f"Twitch logger initialized.")
 
-    # Send the message indicating the bot is ready
-    bot_logger.info(f"Logged in as | {BOT_USERNAME}")
-    # await eventsub_client.subscribe_channel_subscriptions({CHANNEL_ID})
-    await channel.send(f"Ready and waiting.")
+    # Get the channel object using the provided CHANNEL_NAME
+    channel = await client.get_channel(CHANNEL_NAME)
+
+    if channel:
+        bot_logger.info(f"Logged in as | {BOT_USERNAME}")
+        await channel.send(f"Ready and waiting.")
+    else:
+        bot_logger.warning("Channel not found, unable to send ready message.")
 
 # @client.event
 # async def on_pubsub_channel_subscription(data):
