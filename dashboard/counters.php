@@ -87,7 +87,7 @@ include 'sqlite.php';
 <div class="row">
   <div class="small-12 medium-6 columns">
     <h4>Typo Counts</h4>
-    <table class="bot-table">
+    <table class="counter-table">
       <thead>
         <tr>
           <th>Username</th>
@@ -106,7 +106,7 @@ include 'sqlite.php';
   </div>
   <div class="small-12 medium-6 columns">
     <h4>Currently Lurking Users</h4>
-    <table class="bot-table">
+    <table class="counter-table">
       <thead>
         <tr>
           <th>Username</th>
@@ -125,7 +125,7 @@ include 'sqlite.php';
   </div>
   <div class="small-12 medium-6 columns">
     <h4>Deaths Overview</h4>
-    <table class="bot-table">
+    <table class="counter-table">
         <thead>
             <tr>
                 <th>Category</th>
@@ -151,7 +151,7 @@ include 'sqlite.php';
   </div>
   <div class="small-12 medium-6 columns">
     <h4>Hug Counts</h4>
-    <table class="bot-table">
+    <table class="counter-table">
         <thead>
             <tr>
                 <th>Username</th>
@@ -170,7 +170,7 @@ include 'sqlite.php';
   </div>         
   <div class="small-12 medium-6 columns">
       <h4>Kiss Counts</h4>
-      <table class="bot-table">
+      <table class="counter-table">
           <thead>
               <tr>
                   <th>Username</th>
