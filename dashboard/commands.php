@@ -87,7 +87,7 @@ include 'sqlite.php';
 <div class="row">
   <div class="columns">
     <h4>Bot Commands</h4>
-    <table>
+    <table class="bot-table">
       <thead>
         <tr>
           <th>Command</th>
