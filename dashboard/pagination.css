@@ -79,6 +79,15 @@ body {
     color: #ffffff;
 }
 
+p {
+    color: #ffffff;
+}
+
+#profile-image {
+    border-radius: 50%;
+    border: 2px solid #4CAF50;
+}
+
 .menu-text {
     color: #000000;
 }
