@@ -132,3 +132,38 @@ a {
     border-bottom: 1px solid #ffffff;
     border-right: 1px solid #ffffff;
 }
+
+/* Darkmode form */
+input[type="text"], input[type="submit"] {
+    background-color: #444444;
+    color: #ffffff;
+    border: 1px solid #111111;
+    box-shadow: 0 0 5px #4CAF50;
+}
+
+input[type="text"]#response:focus, input[type="text"]#response:active {
+    background-color: #444444;
+    color: #ffffff;
+    border: 1px solid #111111;
+    box-shadow: 0 0 5px #4CAF50;
+}
+
+input[type="submit"] {
+    background-color: #4CAF50;
+}
+
+label {
+    color: #ffffff;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    background-color: #444444;
+    border-color: #4CAF50;
+    box-shadow: 0 0 10px #4CAF50;
+}
+
+input[type="text"]::placeholder {
+    background-color: #444444;
+    color: #ffffff;
+}
