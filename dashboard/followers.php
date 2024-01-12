@@ -214,15 +214,15 @@ $displaySearchBar = count($allFollowers) > $followersPerPage;
     
     <!-- Pagination -->
     <div class="pagination">
-        <?php if ($totalPages > 1) : ?>
-            <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
-                <?php if ($page === $currentPage) : ?>
-                    <span class="current-page"><?php echo $page; ?></span>
-                <?php else : ?>
-                    <a href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
-                <?php endif; ?>
-            <?php endfor; ?>
-        <?php endif; ?>
+      <?php if ($totalPages > 1) : ?>
+          <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
+              <?php if ($page === $currentPage) : ?>
+                  <span class="current-page"><?php echo $page; ?></span>
+              <?php else : ?>
+                  <a href="followers.php?load=followers&page=<?php echo $page; ?>"><?php echo $page; ?></a>
+              <?php endif; ?>
+          <?php endfor; ?>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
 </div>
