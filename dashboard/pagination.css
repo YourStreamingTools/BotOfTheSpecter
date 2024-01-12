@@ -148,3 +148,12 @@
     grid-template-columns: repeat(5, 1fr);
     gap: 20px;
 }
+
+/* Apply dark mode styles to the entire website */
+body {
+    background-color: #111;
+    color: #fff;
+  }
+  a {
+    color: #bb86fc;
+  }
