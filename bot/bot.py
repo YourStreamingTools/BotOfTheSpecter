@@ -213,12 +213,20 @@ async def event_subscribe(subscriber):
 class Bot(commands.Bot):
     @bot.command(name="commands", aliases=["cmds"])
     async def commands_command(ctx: commands.Context):
-        # Prefix each command with an exclamation mark
-        commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
-        response_message = f"Built-in commands: {commands_list}"
-        
+        is_mod = is_mod_or_broadcaster(ctx.author)
+
+        if is_mod:
+            # If the user is a mod, include both mod_commands and builtin_commands
+            all_commands = mod_commands.union(builtin_commands)
+            commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
+        else:
+            # If the user is not a mod, only include builtin_commands
+            commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
+
+        response_message = f"Available commands to you: {commands_list}"
+
         # Sending the response message to the chat
-        await ctx.send(response_message)
+        await ctx.reply(response_message)
 
     @bot.command(name='bot')
     async def bot_command(ctx: commands.Context):
