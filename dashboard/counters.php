@@ -86,25 +86,6 @@ include 'sqlite.php';
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <div class="row">
   <div class="small-12 medium-6 columns">
-    <h4>Typo Counts</h4>
-    <table class="counter-table">
-      <thead>
-        <tr>
-          <th>Username</th>
-          <th>Typo Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($typos as $typo): ?>
-          <tr>
-            <td><?php echo htmlspecialchars($typo['username']); ?></td>
-            <td><?php echo htmlspecialchars($typo['typo_count']); ?></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <div class="small-12 medium-6 columns">
     <h4>Currently Lurking Users</h4>
     <table class="counter-table">
       <thead>
@@ -118,6 +99,25 @@ include 'sqlite.php';
           <tr>
             <td id="<?php echo $lurker['user_id']; ?>"><?php echo htmlspecialchars($displayName); ?></td>
             <td id="lurk_duration"><?php echo htmlspecialchars($lurker['lurk_duration']); ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="small-12 medium-6 columns">
+    <h4>Typo Counts</h4>
+    <table class="counter-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Typo Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($typos as $typo): ?>
+          <tr>
+            <td><?php echo htmlspecialchars($typo['username']); ?></td>
+            <td><?php echo htmlspecialchars($typo['typo_count']); ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
