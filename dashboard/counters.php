@@ -126,64 +126,76 @@ include 'sqlite.php';
   <div class="small-12 medium-6 columns">
     <h4>Deaths Overview</h4>
     <table class="counter-table">
-        <thead>
-            <tr>
-                <th>Category</th>
-                <th>Count</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Total Deaths -->
-            <tr>
-                <td>Total Deaths</td>
-                <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? ''); ?></td>
-            </tr>
-            <!-- Game-Specific Deaths -->
-            <?php foreach ($gameDeaths as $gameDeath): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($gameDeath['game_name'] ?? ''); ?></td>
-                <td><?php echo htmlspecialchars($gameDeath['death_count'] ?? ''); ?></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Total Deaths -->
+        <tr>
+          <td>Total Deaths</td>
+          <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? ''); ?></td>
+        </tr>
+        <!-- Game-Specific Deaths -->
+        <?php foreach ($gameDeaths as $gameDeath): ?>
+        <tr>
+          <td><?php echo htmlspecialchars($gameDeath['game_name'] ?? ''); ?></td>
+          <td><?php echo htmlspecialchars($gameDeath['death_count'] ?? ''); ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
     </table>
   </div>
   <div class="small-12 medium-6 columns">
     <h4>Hug Counts</h4>
     <table class="counter-table">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Hug Count</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($hugCounts as $hugCount): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($hugCount['username']); ?></td>
-                <td><?php echo htmlspecialchars($hugCount['hug_count']); ?></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Hug Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Total Hugs -->
+        <tr>
+          <td>Total Hugs</td>
+          <td><?php echo htmlspecialchars($totalHugs['total_hug_count'] ?? ''); ?></td>
+        </tr>
+        <!-- Username-Specific Hugs -->
+        <?php foreach ($hugCounts as $hugCount): ?>
+        <tr>
+          <td><?php echo htmlspecialchars($hugCount['username']); ?></td>
+          <td><?php echo htmlspecialchars($hugCount['hug_count']); ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
     </table>
   </div>         
   <div class="small-12 medium-6 columns">
       <h4>Kiss Counts</h4>
       <table class="counter-table">
-          <thead>
-              <tr>
-                  <th>Username</th>
-                  <th>Kiss Count</th>
-              </tr>
-          </thead>
-          <tbody>
-              <?php foreach ($kissCounts as $kissCount): ?>
-              <tr>
-                  <td><?php echo htmlspecialchars($kissCount['username']); ?></td>
-                  <td><?php echo htmlspecialchars($kissCount['kiss_count']); ?></td>
-              </tr>
-              <?php endforeach; ?>
-          </tbody>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Kiss Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Total Kisses -->
+          <tr>
+            <td>Total Kisses</td>
+            <td><?php echo htmlspecialchars($totalKisses['total_kiss_count'] ?? ''); ?></td>
+          </tr>
+          <!-- Username-Specific Kisses -->
+          <?php foreach ($kissCounts as $kissCount): ?>
+          <tr>
+            <td><?php echo htmlspecialchars($kissCount['username']); ?></td>
+            <td><?php echo htmlspecialchars($kissCount['kiss_count']); ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
       </table>
   </div>
 </div>
