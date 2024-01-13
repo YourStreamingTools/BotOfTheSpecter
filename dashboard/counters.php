@@ -136,13 +136,13 @@ include 'sqlite.php';
         <!-- Total Deaths -->
         <tr>
           <td>Total Deaths</td>
-          <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? ''); ?></td>
+          <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? '0'); ?></td>
         </tr>
         <!-- Game-Specific Deaths -->
         <?php foreach ($gameDeaths as $gameDeath): ?>
         <tr>
-          <td><?php echo htmlspecialchars($gameDeath['game_name'] ?? ''); ?></td>
-          <td><?php echo htmlspecialchars($gameDeath['death_count'] ?? ''); ?></td>
+          <td><?php echo htmlspecialchars($gameDeath['game_name']); ?></td>
+          <td><?php echo htmlspecialchars($gameDeath['death_count']); ?></td>
         </tr>
         <?php endforeach; ?>
       </tbody>
@@ -161,7 +161,7 @@ include 'sqlite.php';
         <!-- Total Hugs -->
         <tr>
           <td>Total Hugs</td>
-          <td><?php echo htmlspecialchars($totalHugs['total_hug_count'] ?? ''); ?></td>
+          <td><?php echo htmlspecialchars($totalHugs['total_hug_count'] ?? '0'); ?></td>
         </tr>
         <!-- Username-Specific Hugs -->
         <?php foreach ($hugCounts as $hugCount): ?>
@@ -186,7 +186,7 @@ include 'sqlite.php';
           <!-- Total Kisses -->
           <tr>
             <td>Total Kisses</td>
-            <td><?php echo htmlspecialchars($totalKisses['total_kiss_count'] ?? ''); ?></td>
+            <td><?php echo htmlspecialchars($totalKisses['total_kiss_count'] ?? '0'); ?></td>
           </tr>
           <!-- Username-Specific Kisses -->
           <?php foreach ($kissCounts as $kissCount): ?>
