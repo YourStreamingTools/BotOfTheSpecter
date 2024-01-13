@@ -97,7 +97,7 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
     <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
     <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
     <link rel="stylesheet" href="pagination.css">
-    <script src="https://cdn.yourstreaming.tools/js/about.js"></script>
+    <script src="about.js"></script>
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
   </head>
