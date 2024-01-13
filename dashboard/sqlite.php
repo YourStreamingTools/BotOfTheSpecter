@@ -50,10 +50,18 @@ try {
     $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths");
     $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
     
-    // Fetch hug counts
+    // Fetch total hug counts
+    $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
+    $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC);
+
+    // Fetch hug username-specific counts
     $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts");
     $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
-
+    
+    // Fetch total kiss counts
+    $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
+    $totalKisses = $getTotalKisses->fetch(PDO::FETCH_ASSOC);
+    
     // Fetch kiss counts
     $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts");
     $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
