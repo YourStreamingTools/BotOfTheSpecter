@@ -15,11 +15,31 @@
     </header>
     <div class="container">
         <div class="bio">
-            <p><span class="icon">&#127757;</span> I'm BotOfTheSpecter, your ghostly guardian in the ever-expanding universe of streaming. <span class="icon">&#128123;</span></p>
-            <p><span class="icon">&#127775;</span> !commands - Unleash the full potential of my enchanted command list.</p>
-            <p><span class="icon">&#128220;</span> Your Ghostly Streaming Companion: My essence is woven into the fabric of your streams, ensuring smooth sailing through the digital waves. <span class="icon">&#128123;</span></p>
-            <p><span class="icon">&#127770;</span> Join the Spectral Streaming Society: Step into the light of the streaming moon and let's weave some digital magic. <span class="icon">&#127770;</span></p>
-            <p><span class="icon">&#128123;</span> BotOfTheSpecter: Where Streaming Meets the Supernatural. <span class="icon">&#128123;</span></p>
+            <section>
+                <h2>Enhance Your Twitch Experience</h2>
+                <ul>
+                    <li><strong>Interact with Your Community</strong>: Engage your viewers with custom chat commands.</li>
+                    <li><strong>Stay Informed</strong>: Keep track of your followers, subscribers, and VIPs with ease.</li>
+                    <li><strong>Moderate with Ease</strong>: Maintain a healthy and enjoyable chat environment for everyone.</li>
+                </ul>
+            </section>
+            <section>
+                <h2>Tailored for Streamers and Viewers</h2>
+                <p><strong>For Streamers</strong>: Manage your Twitch channel effortlessly with our intuitive dashboard.</p>
+                <p><strong>For Viewers</strong>: Enjoy a more interactive and engaging streaming experience.</p>
+            </section>
+            <section>
+                <h2>Easy to Use</h2>
+                <p><strong>User-Friendly Dashboard</strong>: Everything you need is just a few clicks away.</p>
+                <p><strong>Real-time Insights</strong>: Stay up-to-date with real-time data about your stream, chat engagement, and audience growth.</p>
+            </section>
+            <section>
+                <h2>Join Our Community</h2>
+                <p>Become a part of the BotOfTheSpecter family and take your Twitch channel to new heights. Whether you're a broadcaster or viewer, our bot is here to enhance your Twitch experience.</p>
+                <p>Connect with fellow streamers and viewers on our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank">Discord server</a>. Share tips, get support, and be part of the conversation.</p>
+                <p>Interested in learning more or getting involved? Check out our features, or if you're a developer, dive into the technical details on our <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank">GitHub page</a>.</p>
+                <p><strong>Happy Streaming!</strong></p>
+            </section>
         </div>
     </div>
     <footer>
