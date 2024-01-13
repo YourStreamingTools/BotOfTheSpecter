@@ -22,7 +22,7 @@ function showPopup() {
   // Style the links for dark mode
   var links = popup.querySelectorAll('a');
   links.forEach(function(link) {
-      link.style.color = "#080C2D";
+      link.style.color = "#3498DB";
   });
 
   // Create a close button for the popup
