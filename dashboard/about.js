@@ -13,7 +13,7 @@ function showPopup() {
     popup.style.transform = "translate(-50%, -50%)";
     popup.style.width = "400px";
     popup.style.padding = "20px";
-    popup.style.backgroundColor = "#222222";
+    popup.style.backgroundColor = "#666666";
     popup.style.borderRadius = "5px";
     popup.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.5)";
     popup.style.zIndex = "9999";
