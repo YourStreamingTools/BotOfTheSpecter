@@ -1,7 +1,7 @@
 import requests
 
 # Base URL for the server
-SERVER_BASE_URL = 'https://api.botofthespecter.com/logs'
+SERVER_BASE_URL = "" # CHANGE TO MAKE THIS WORK
 
 def get_bot_logs(username):
     url = f"{SERVER_BASE_URL}/bot/{username}.txt"
