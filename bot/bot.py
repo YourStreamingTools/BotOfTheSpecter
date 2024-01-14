@@ -54,7 +54,7 @@ mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deat
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
 # Logs
-webroot = "/var/www/html"
+webroot = "/var/www/dashboard"
 logs_directory = "logs"
 bot_logs = os.path.join(logs_directory, "bot")
 chat_logs = os.path.join(logs_directory, "chat")
