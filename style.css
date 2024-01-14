@@ -10,10 +10,37 @@ body {
     color: #c0c0c0;
     font-family: Arial, sans-serif;
 }
+a {
+    color: aqua;
+}
+
+.login-button {
+    position: fixed;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    z-index: 1000;
+    padding: 10px 20px;
+    background-color: #333333;
+    color: white;
+    text-align: center;
+    border: none;
+    text-decoration: none;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
+  }
+  
+  .login-button:hover {
+    background-color: #333333;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transform: translateY(-50%) scale(1.1);
+  }  
 
 /* Header Style */
 header {
-    background-color: #333;
+    background-color: #333333;
     text-align: center;
     padding: 20px;
 }
@@ -21,7 +48,7 @@ header {
 /* Heading Style */
 h1 {
     font-size: 2em;
-    color: #fff;
+    color: #ffffff;
 }
 
 /* Main content container Style */
