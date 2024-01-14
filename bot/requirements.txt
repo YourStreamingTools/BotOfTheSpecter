@@ -1,6 +1,5 @@
 twitchio
 twitchAPI
-psutil
 aiohttp
 requests
 Flask
