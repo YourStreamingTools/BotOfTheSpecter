@@ -324,19 +324,39 @@ class Bot(commands.Bot):
             return
 
         try:
-            # Detect the language of the input text
-            source_lang = translator.detect(message).lang
+            # Check if the input message is empty or too short
+            if len(message.strip()) < 3:
+                await ctx.send("The provided message is too short for language detection.")
+                return
 
-            # Get the language name from the detected language code
-            source_lang_name = LANGUAGES.get(source_lang, "Unknown")
-            chat_logger.info(f"Translator Detected Lanaguage as: {source_lang_name}.")
-            # Translate the message to English
-            translated_message = translator.translate(message, src=source_lang, dest='en').text
-            chat_logger.info(f'Translted from "{message}" to "{translated_message}"')
-            # Send the translated message along with the source language
-            await ctx.send(f"Detected Language: {source_lang_name}\nTranslation: {translated_message}")
+            # Debugging: Log the message content
+            chat_logger.info(f"Message content: {message}")
+
+            # Detect the language of the input text
+            detected_lang = translator.detect(message)
+            source_lang = detected_lang.lang if detected_lang else None
+
+            # Debugging: Log detected language
+            chat_logger.info(f"Detected language: {source_lang}")
+
+            if source_lang:
+                source_lang_name = LANGUAGES.get(source_lang, "Unknown")
+                chat_logger.info(f"Translator Detected Language as: {source_lang_name}.")
+
+                # Translate the message to English
+                translated_message = translator.translate(message, src=source_lang, dest='en').text
+                chat_logger.info(f'Translated from "{message}" to "{translated_message}"')
+
+                # Send the translated message along with the source language
+                await ctx.send(f"Detected Language: {source_lang_name}\nTranslation: {translated_message}")
+            else:
+                chat_logger.info("Unable to detect the source language.")
+                await ctx.send("Unable to detect the source language.")
+        except AttributeError as ae:
+            chat_logger.error(f"AttributeError: {ae}")
+            await ctx.send("An error occurred while detecting the language.")
         except Exception as e:
-            bot_logger.error(f"Translating error: {e}")
+            chat_logger.error(f"Translating error: {e}")
             await ctx.send("An error occurred while translating the message.")
 
     @bot.command(name='lurk')
