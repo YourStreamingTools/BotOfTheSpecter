@@ -18,6 +18,7 @@ import sqlite3
 import flask
 from flask import Flask, request
 from flask_app import start_app
+from googletrans import Translator, LANGUAGES
 import twitchAPI
 from twitchAPI.chat import Chat
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
@@ -162,6 +163,9 @@ cursor.execute('''
     )
 ''')
 conn.commit()
+
+# Initialize the translator
+translator = Translator()
 
 @client.event
 async def event_ready():
@@ -309,6 +313,32 @@ class Bot(commands.Bot):
             bot_logger.error(f"Error Pinging. {output}")
             await ctx.send(f'Error pinging')
     
+    @bot.command(name="translate")
+    async def translate_command(ctx: commands.Context):
+        # Get the message content after the command
+        message = ctx.message.content[len("!translate "):]
+
+        # Check if there is a message to translate
+        if not message:
+            await ctx.send("Please provide a message to translate.")
+            return
+
+        try:
+            # Detect the language of the input text
+            source_lang = translator.detect(message).lang
+
+            # Get the language name from the detected language code
+            source_lang_name = LANGUAGES.get(source_lang, "Unknown")
+            chat_logger.info(f"Translator Detected Lanaguage as: {source_lang_name}.")
+            # Translate the message to English
+            translated_message = translator.translate(message, src=source_lang, dest='en').text
+            chat_logger.info(f'Translted from "{message}" to "{translated_message}"')
+            # Send the translated message along with the source language
+            await ctx.send(f"Detected Language: {source_lang_name}\nTranslation: {translated_message}")
+        except Exception as e:
+            bot_logger.error(f"Translating error: {e}")
+            await ctx.send("An error occurred while translating the message.")
+
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
         try:
