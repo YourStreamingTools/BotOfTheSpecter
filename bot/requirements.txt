@@ -3,3 +3,4 @@ twitchAPI
 aiohttp
 requests
 Flask
+googletrans
