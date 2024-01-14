@@ -15,28 +15,25 @@ a {
 }
 
 .login-button {
-    position: fixed;
-    top: 50%;
-    right: 10px;
-    transform: translateY(-50%);
-    z-index: 1000;
-    padding: 10px 20px;
-    background-color: #333333;
-    color: white;
-    text-align: center;
-    border: none;
-    text-decoration: none;
-    font-size: 16px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s, transform 0.3s;
-  }
-  
-  .login-button:hover {
-    background-color: #333333;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    transform: translateY(-50%) scale(1.1);
-  }  
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  padding: 8px 15px;
+  background-color: #333333;
+  color: #ffffff;
+  text-align: center;
+  border: none;
+  text-decoration: none;
+  font-size: 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: box-shadow 0.3s;
+}
+
+.login-button:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}   
 
 /* Header Style */
 header {
