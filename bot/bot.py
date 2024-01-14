@@ -18,6 +18,7 @@ import sqlite3
 import flask
 from flask import Flask, request
 from flask_app import start_app
+from translate import Translator
 from googletrans import Translator, LANGUAGES
 import twitchAPI
 from twitchAPI.chat import Chat
@@ -165,7 +166,7 @@ cursor.execute('''
 conn.commit()
 
 # Initialize the translator
-translator = Translator(to_lang="en")
+translator = Translator(service_urls=['translate.google.com'])
 
 @client.event
 async def event_ready():
@@ -326,7 +327,7 @@ class Bot(commands.Bot):
         try:
             # Check if the input message is too short
             if len(message.strip()) < 5:
-                await ctx.send("The provided message is too short for reliable language detection.")
+                await ctx.send("The provided message is too short for reliable translation.")
                 return
 
             # Debugging: Log the message content
@@ -348,9 +349,8 @@ class Bot(commands.Bot):
                 chat_logger.info(f'Translated from "{message}" to "{translated_message}"')
 
                 # Send the translated message along with the source language
-                await ctx.send(f"Detected Language: {source_lang_name}\nTranslation: {translated_message}")
+                await ctx.send(f"Detected Language: {source_lang_name}. Translation: {translated_message}")
             else:
-                chat_logger.info("Unable to detect the source language.")
                 await ctx.send("Unable to detect the source language.")
         except AttributeError as ae:
             chat_logger.error(f"AttributeError: {ae}")
