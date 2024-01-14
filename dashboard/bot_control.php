@@ -2,7 +2,7 @@
 <?php
 $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
-$logPath = "/var/www/html/www/script/$username.txt";
+$logPath = "/var/www/dashboard/logs/script/$username.txt";
 $statusOutput = getBotStatus($statusScriptPath, $username, $logPath);
 
 if (isset($_POST['runBot'])) {
