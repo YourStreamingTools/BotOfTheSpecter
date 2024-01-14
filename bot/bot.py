@@ -165,7 +165,7 @@ cursor.execute('''
 conn.commit()
 
 # Initialize the translator
-translator = Translator()
+translator = Translator(to_lang="en")
 
 @client.event
 async def event_ready():
@@ -324,9 +324,9 @@ class Bot(commands.Bot):
             return
 
         try:
-            # Check if the input message is empty or too short
-            if len(message.strip()) < 3:
-                await ctx.send("The provided message is too short for language detection.")
+            # Check if the input message is too short
+            if len(message.strip()) < 5:
+                await ctx.send("The provided message is too short for reliable language detection.")
                 return
 
             # Debugging: Log the message content
