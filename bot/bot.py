@@ -251,9 +251,22 @@ class Bot(commands.Bot):
         except ValueError:
             # Default to 5 minutes if the user didn't provide a valid value
             minutes = 5
-    
-        await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
-        await asyncio.sleep(minutes * 60)  # Convert minutes to seconds
+
+        await ctx.send(f"@{ctx.author.name}, timer started for {minutes} minute(s).")
+
+        # Calculate the interval for countdown messages
+        interval = minutes * 60 // 10  # Send messages every 10% of the time
+
+        for remaining_seconds in range(minutes * 60, 0, -interval):
+            minutes_left = remaining_seconds // 60
+            seconds_left = remaining_seconds % 60
+
+            # Send countdown message
+            await ctx.send(f"@{ctx.author.name}, {minutes_left} minute(s) timer has {seconds_left} seconds left.")
+
+            # Wait for the interval before sending the next message
+            await asyncio.sleep(interval)
+
         await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
 
     @bot.command(name='hug')
