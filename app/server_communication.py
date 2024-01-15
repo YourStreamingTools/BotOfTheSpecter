@@ -9,6 +9,7 @@ def get_global_username():
     return twitch_auth.global_username
 
 def is_user_authorized(username):
+    username = get_global_username()
     # Fetch the list of authorized users
     response = requests.get(AUTH_USERS_URL)
     
@@ -18,20 +19,24 @@ def is_user_authorized(username):
         # Check if the username is in the list of authorized users
         return username in auth_users
     else:
-        # Handle the error by raising an exception
-        raise Exception(f"Error fetching authorized users: {response.status_code}")
+        # Handle the error or return False
+        print(f"Error fetching authorized users: {response.status_code}")
+        return False
 
-def get_bot_logs(username):
+def get_bot_logs():
+    username = get_global_username()
     url = f"{SERVER_BASE_URL}/bot/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
 
-def get_chat_logs(username):
+def get_chat_logs():
+    username = get_global_username()
     url = f"{SERVER_BASE_URL}/chat/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
 
-def get_twitch_logs(username):
+def get_twitch_logs():
+    username = get_global_username()
     url = f"{SERVER_BASE_URL}/twitch/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
@@ -43,20 +48,5 @@ def handle_response(response):
         reversed_text = '\n'.join(reversed(lines))
         return reversed_text
     else:
-        # Handle non-200 status codes by raising an exception
-        raise Exception(f'Error: No logs found or access denied, status code {response.status_code}')
-
-# Get the global username
-username = get_global_username()
-
-try:
-    if is_user_authorized(username):
-        print(f"User {username} is authorized.")
-        # Now you can safely fetch logs
-        bot_logs = get_bot_logs(username)
-        chat_logs = get_chat_logs(username)
-        twitch_logs = get_twitch_logs(username)
-    else:
-        print(f"User {username} is not authorized.")
-except Exception as e:
-    print(str(e))
+        # If the page is not found, it might mean the username is incorrect or there are no logs
+        return {'error': f'No logs found or access denied, status code {response.status_code}'}
