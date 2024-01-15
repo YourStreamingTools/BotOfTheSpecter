@@ -283,6 +283,29 @@ class Bot(commands.Bot):
         timer_task = asyncio.create_task(run_timer(ctx, minutes, interval))
         active_timers[ctx.channel.id] = timer_task
 
+    @bot.command(name='timers')
+    async def list_timers(ctx: commands.Context):
+        chat_logger.info(f"Timers command ran.")
+        
+        # Check if there are active timers
+        if not active_timers:
+            await ctx.send("There are no active timers.")
+            return
+        
+        # Create a message to list active timers
+        timers_message = "Active timers:\n"
+        
+        for channel_id, timer_task in active_timers.items():
+            # Get the user's channel object
+            channel = bot.get_channel(channel_id)
+            
+            # Add the user's timer information to the message
+            if channel:
+                user_name = channel.name  # Use channel name as the username
+                timers_message += f"@{user_name}: {timer_task.get_name()} minutes\n"
+        
+        await ctx.send(timers_message)
+
     @bot.command(name='hug')
     async def hug_command(ctx: commands.Context, *, mentioned_username: str = None):
         if mentioned_username:
