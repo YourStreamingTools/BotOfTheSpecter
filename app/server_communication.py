@@ -1,3 +1,4 @@
+import json
 import requests
 import twitch_auth
 
@@ -17,9 +18,16 @@ def is_user_authorized(display_name):
     
     # Check for a successful response
     if response.status_code == 200:
-        auth_users = response.json()
-        # Check if the username is in the list of authorized users
-        return display_name in auth_users
+        auth_data = response.json()
+        auth_users = auth_data.get("users", [])
+        
+        # Check if the provided display_name is in the list of authorized users
+        if display_name in auth_users:
+            print(f"{display_name} is authorized to access this application.")
+            return True
+        else:
+            print(f"{display_name} is not authorized to access this application.")
+            return False
     else:
         # Handle the error or return False
         print(f"Error fetching authorized users: {response.status_code}")
