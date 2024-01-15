@@ -1,10 +1,16 @@
+import os
 import json
 import requests
 import twitch_auth
+import logging
 
 # Base URL for the server
 SERVER_BASE_URL = "" # CHANGE TO MAKE THIS WORK
 AUTH_USERS_URL = "" # CHANGE TO MAKE THIS WORK
+
+appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
+os.makedirs(appdata_dir, exist_ok=True)
+log_file_path = os.path.join(appdata_dir, 'server-communication.log')
 
 def get_global_username():
     return twitch_auth.global_username
