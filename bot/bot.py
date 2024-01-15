@@ -252,10 +252,13 @@ class Bot(commands.Bot):
             # Default to 5 minutes if the user didn't provide a valid value
             minutes = 5
 
-        await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
+        await ctx.reply(f"Timer started for {minutes} minute(s).")
 
-        # Calculate the interval for countdown messages
-        interval = minutes * 60 // 5  # Send messages every 10% of the time
+        # Calculate the interval for countdown messages based on the timer duration
+        if minutes >= 5:
+            interval = minutes * 60 // 10  # Send messages every 10% of the time
+        else:
+            interval = max(30, minutes * 15)  # Minimum interval of 30 seconds for shorter timers
 
         # Wait for the first countdown message after the initial delay
         await asyncio.sleep(interval)
