@@ -6,8 +6,20 @@ import twitch_auth
 
 def get_global_username():
     return twitch_auth.global_username
+def get_global_display_name():
+    return twitch_auth.global_display_name
 
 def fetch_and_show_logs(log_type):
+    global global_display_name
+
+    if not global_display_name:
+        print("User is not authenticated.")
+        return
+
+    if not server_communication.is_user_authorized(global_display_name):
+        print(f"{global_display_name} is not authorized to access logs.")
+        return
+
     if log_type == 'bot':
         logs = server_communication.get_bot_logs()
     elif log_type == 'chat':
