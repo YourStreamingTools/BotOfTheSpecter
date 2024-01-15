@@ -40,12 +40,15 @@ def exchange_code_for_token(code):
     user_response = requests.get("https://api.twitch.tv/helix/users", headers=headers)
     user_info = user_response.json().get('data', [{}])[0]
     username = user_info.get('login')
+    display_name = user_info.get('display_name')  # Add this line to retrieve the display name
 
     global global_username
+    global global_display_name
     global_username = username
+    global_display_name = display_name
 
-    # Print the username to the console
-    print(f"Authenticated Twitch user: {username}")
+    # Print both the username and display name to the console
+    print(f"Authenticated Twitch user: {username} (Display Name: {display_name})")
 
 def run_server():
     server_address = ('', 5000)
