@@ -1,8 +1,18 @@
+import os
 import webbrowser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import requests
 import urllib.parse as urlparse
+import logging
+
+# Construct the log file path in the user's AppData directory
+appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
+os.makedirs(appdata_dir, exist_ok=True)
+log_file_path = os.path.join(appdata_dir, 'authentication.log')
+
+# Initialize a logger
+logging.basicConfig(filename=log_file_path, level=logging.INFO)
 
 CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
@@ -13,7 +23,7 @@ class AuthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b'Authentication complete. You may close this window.')
+        self.wfile.write(b'Authentication complete. You may close this window now.')
         url = self.path
         code = urlparse.parse_qs(urlparse.urlparse(url).query).get('code', None)
         if code:
@@ -46,14 +56,23 @@ def exchange_code_for_token(code):
     global_username = username
     global_display_name = display_name
 
-    # Print both the username and display name to the console
-    print(f"Authenticated Twitch user: {username} (Display Name: {display_name})")
+    # Log both the username and display name
+    logging.info(f"Authenticated Twitch user: {username} (Display Name: {display_name})")
 
 def run_server():
-    server_address = ('', 5000)
+    server_address = ('0.0.0.0', 5000)
     httpd = HTTPServer(server_address, AuthHandler)
     httpd.handle_request()
 
 def start_auth():
     threading.Thread(target=run_server, daemon=True).start()
     webbrowser.open(AUTH_URL)
+
+# Initialize the logger
+logger = logging.getLogger(__name__)
+
+if __name__ == "__main__":
+    # Redirect logging output to the specified log file
+    logger.addHandler(logging.FileHandler(log_file_path))
+    # Start the authentication process
+    start_auth()
