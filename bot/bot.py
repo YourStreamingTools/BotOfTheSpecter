@@ -168,9 +168,6 @@ conn.commit()
 # Initialize the translator
 translator = Translator(service_urls=['translate.google.com'])
 
-# Dictionary to store active timer tasks by channel ID
-active_timers = {}
-
 @client.event
 async def event_ready():
     bot_logger.info(f"Bot logger initialized.")
@@ -244,29 +241,10 @@ class Bot(commands.Bot):
         chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
 
-    @bot.command(name='timerstop')
-    async def stop_timer(ctx: commands.Context):
-        chat_logger.info(f"Timer stop command ran.")
-
-        # Check if there is an active timer task for this user's channel
-        timer_task = active_timers.get(ctx.channel.id)
-
-        if timer_task:
-            # Cancel the active timer task
-            timer_task.cancel()
-
-            # Remove the timer task from the active_timers dictionary
-            del active_timers[ctx.channel.id]
-
-            await ctx.send(f"The timer has been stopped by @{ctx.author.name}!")
-        else:
-            await ctx.send("There is no active timer to stop.")
-
     @bot.command(name='timer')
     async def start_timer(ctx: commands.Context):
         chat_logger.info(f"Timer command ran.")
         content = ctx.message.content.strip()
-
         try:
             _, minutes = content.split(' ')
             minutes = int(minutes)
@@ -279,32 +257,31 @@ class Bot(commands.Bot):
         # Set a fixed interval of 30 seconds for countdown messages
         interval = 30
 
-        # Create and store the timer task for this channel
-        timer_task = asyncio.create_task(run_timer(ctx, minutes, interval))
-        active_timers[ctx.channel.id] = timer_task
+        # Wait for the first countdown message after the initial delay
+        await asyncio.sleep(interval)
 
-    @bot.command(name='timers')
-    async def list_timers(ctx: commands.Context):
-        chat_logger.info(f"Timers command ran.")
-        
-        # Check if there are active timers
-        if not active_timers:
-            await ctx.send("There are no active timers.")
-            return
-        
-        # Create a message to list active timers
-        timers_message = "Active timers:\n"
-        
-        for channel_id, timer_task in active_timers.items():
-            # Get the user's channel object
-            channel = bot.get_channel(channel_id)
-            
-            # Add the user's timer information to the message
-            if channel:
-                user_name = channel.name  # Use channel name as the username
-                timers_message += f"@{user_name}: {timer_task.get_name()} minutes\n"
-        
-        await ctx.send(timers_message)
+        for remaining_seconds in range((minutes * 60) - interval, 0, -interval):
+            minutes_left = remaining_seconds // 60
+            seconds_left = remaining_seconds % 60
+
+            # Format the countdown message
+            countdown_message = f"@{ctx.author.name}, timer has "
+
+            if minutes_left > 0:
+                countdown_message += f"{minutes_left} minute(s) "
+
+            if seconds_left > 0:
+                countdown_message += f"{seconds_left} second(s) left."
+            else:
+                countdown_message += "left."
+
+            # Send countdown message
+            await ctx.send(countdown_message)
+
+            # Wait for the fixed interval of 30 seconds before sending the next message
+            await asyncio.sleep(interval)
+
+        await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
 
     @bot.command(name='hug')
     async def hug_command(ctx: commands.Context, *, mentioned_username: str = None):
@@ -948,27 +925,6 @@ class Bot(commands.Bot):
 
         except Exception as e:
             chat_logger.error(f"Error in shoutout_command: {e}")
-
-async def run_timer(ctx, minutes, interval):
-    for remaining_seconds in range((minutes * 60) - interval, 0, -interval):
-        minutes_left = remaining_seconds // 60
-        seconds_left = remaining_seconds % 60
-        
-        # Format the countdown message
-        countdown_message = f"@{ctx.author.name}, "
-        
-        if minutes_left > 0:
-            countdown_message += f"{minutes_left} minute(s) "
-        
-        countdown_message += f"timer has {seconds_left} second(s) left."
-        
-        # Send countdown message
-        await ctx.send(countdown_message)
-        
-        # Wait for the fixed interval of 30 seconds before sending the next message
-        await asyncio.sleep(interval)
-    
-    await ctx.send(f"@{ctx.author.name}, the {minutes} minute timer has ended!")
 
 async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
