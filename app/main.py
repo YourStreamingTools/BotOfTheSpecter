@@ -1,10 +1,16 @@
+import os
 import tkinter as tk
 from tkinter import ttk
 import threading
 import server_communication
 import twitch_auth
+import logging
 
 threading.Thread(target=twitch_auth.start_auth, daemon=True).start()
+
+appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
+os.makedirs(appdata_dir, exist_ok=True)
+log_file_path = os.path.join(appdata_dir, 'main.log')
 
 def get_global_username():
     return twitch_auth.global_username
