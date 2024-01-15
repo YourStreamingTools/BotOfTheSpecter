@@ -7,9 +7,11 @@ AUTH_USERS_URL = "" # CHANGE TO MAKE THIS WORK
 
 def get_global_username():
     return twitch_auth.global_username
+def get_global_display_name():
+    return twitch_auth.global_display_name
 
-def is_user_authorized(username):
-    username = get_global_username()
+def is_user_authorized(display_name):
+    display_name = get_global_display_name()
     # Fetch the list of authorized users
     response = requests.get(AUTH_USERS_URL)
     
@@ -17,7 +19,7 @@ def is_user_authorized(username):
     if response.status_code == 200:
         auth_users = response.json()
         # Check if the username is in the list of authorized users
-        return username in auth_users
+        return display_name in auth_users
     else:
         # Handle the error or return False
         print(f"Error fetching authorized users: {response.status_code}")
