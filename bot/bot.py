@@ -168,9 +168,6 @@ conn.commit()
 # Initialize the translator
 translator = Translator(service_urls=['translate.google.com'])
 
-# Create a cooldown object with a specific cooldown time (in seconds)
-cooldown = commands.cooldown(1, 60, commands.BucketType.user)
-
 @client.event
 async def event_ready():
     bot_logger.info(f"Bot logger initialized.")
@@ -245,16 +242,9 @@ class Bot(commands.Bot):
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
 
     @bot.command(name='timer')
-    @commands.cooldown(1, 60, commands.BucketType.user)  # Set a 60-second cooldown for each user
     async def start_timer(ctx: commands.Context):
         chat_logger.info(f"Timer command ran.")
         content = ctx.message.content.strip()
-
-        # Check if the user is on cooldown
-        if ctx.command.get_cooldown_retry_after(ctx) > 0:
-            await ctx.send(f"@{ctx.author.name}, you must wait before starting another timer.")
-            return
-
         try:
             _, minutes = content.split(' ')
             minutes = int(minutes)
@@ -275,12 +265,15 @@ class Bot(commands.Bot):
             seconds_left = remaining_seconds % 60
 
             # Format the countdown message
-            countdown_message = f"@{ctx.author.name}, "
+            countdown_message = f"@{ctx.author.name}, timer has "
 
             if minutes_left > 0:
                 countdown_message += f"{minutes_left} minute(s) "
 
-            countdown_message += f"timer has {seconds_left} second(s) left."
+            if seconds_left > 0:
+                countdown_message += f"{seconds_left} second(s) left."
+            else:
+                countdown_message += "left."
 
             # Send countdown message
             await ctx.send(countdown_message)
