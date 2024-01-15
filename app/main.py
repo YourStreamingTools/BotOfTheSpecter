@@ -4,8 +4,15 @@ import threading
 import server_communication
 import twitch_auth
 
+threading.Thread(target=twitch_auth.start_auth, daemon=True).start()
+
+def get_global_username():
+    return twitch_auth.global_username
+def get_global_display_name():
+    return twitch_auth.global_display_name
+
 def fetch_and_show_logs(log_type):
-    display_name = twitch_auth.get_global_display_name()
+    display_name = get_global_display_name()
 
     if not display_name:
         text_area.delete(1.0, tk.END)
@@ -57,21 +64,5 @@ text_area.pack(expand=1, fill='both')
 # Label to display authentication status
 auth_status_label = tk.Label(logs_tab, text="", fg="red")
 auth_status_label.pack(pady=5)
-
-threading.Thread(target=twitch_auth.start_auth, daemon=True).start()
-
-# Function to update the authentication status label
-def update_auth_status():
-    display_name = twitch_auth.get_global_display_name()
-    if not display_name:
-        auth_status_label.config(text="User is not authenticated.")
-    elif not server_communication.is_user_authorized(display_name):
-        auth_status_label.config(text=f"{display_name} is not authorized to access logs.")
-    else:
-        auth_status_label.config(text="Authenticated and authorized.")
-
-# Periodically update the authentication status label
-update_auth_status()
-window.after(5000, update_auth_status)
 
 window.mainloop()
