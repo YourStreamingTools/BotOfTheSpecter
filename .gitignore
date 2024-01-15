@@ -2,3 +2,4 @@ app/dist/*
 app/build/*
 app/BotOfTheSpecter.spec
 app/build.bat
+app/data.txt
