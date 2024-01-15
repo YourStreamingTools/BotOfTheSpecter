@@ -252,7 +252,7 @@ class Bot(commands.Bot):
             # Default to 5 minutes if the user didn't provide a valid value
             minutes = 5
 
-        await ctx.reply(f"Timer started for {minutes} minute(s).")
+        await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
 
         # Calculate the interval for countdown messages based on the timer duration
         if minutes >= 5:
@@ -273,7 +273,10 @@ class Bot(commands.Bot):
             if minutes_left > 0:
                 countdown_message += f"{minutes_left} minute(s) "
 
-            countdown_message += f"timer has {seconds_left} second(s) left."
+            if seconds_left > 0:
+                countdown_message += f"{seconds_left} second(s) left."
+            else:
+                countdown_message += "left."
 
             # Send countdown message
             await ctx.send(countdown_message)
