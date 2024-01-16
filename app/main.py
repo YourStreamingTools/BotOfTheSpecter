@@ -22,7 +22,7 @@ REMOTE_SSH_PASSWORD = config('REMOTE_SSH_PASSWORD')
 
 # Function to run the bot
 def run_bot():
-    status_label.config(text="Bot is running")
+    status_label.config(text="Bot can't be started form this app.")
 
 # Function to check bot status
 def check_bot_status():
@@ -41,8 +41,9 @@ def check_bot_status():
     ssh_port = REMOTE_SSH_PORT
     ssh_username = REMOTE_SSH_USERNAME
     ssh_password = REMOTE_SSH_PASSWORD
-    
-    remote_command = f"python /path/to/status.py -channel {username}"
+    remote_command_template = config('REMOTE_COMMAND')
+
+    remote_command = f"{remote_command_template} -channel {username}"
 
     try:
         ssh = paramiko.SSHClient()
@@ -66,11 +67,11 @@ def check_bot_status():
 
 # Function to stop the bot
 def stop_bot():
-    status_label.config(text="Bot stopped")
+    status_label.config(text="Bot can't be stopped form this app.")
 
 # Function to restart the bot
 def restart_bot():
-    status_label.config(text="Bot restarted")
+    status_label.config(text="Bot can't be restarted form this app.")
 
 def get_global_username():
     return twitch_auth.global_username
