@@ -4,3 +4,4 @@ app/__pycache__/*
 app/BotOfTheSpecter.spec
 app/build.bat
 app/data.txt
+app/.env
