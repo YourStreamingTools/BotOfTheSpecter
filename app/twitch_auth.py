@@ -5,6 +5,7 @@ import threading
 import requests
 import urllib.parse as urlparse
 import logging
+from decouple import config
 
 # Construct the log file path in the user's AppData directory
 appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
@@ -14,8 +15,8 @@ log_file_path = os.path.join(appdata_dir, 'authentication.log')
 # Initialize a logger
 logging.basicConfig(filename=log_file_path, level=logging.INFO)
 
-CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
-CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
+CLIENT_ID = config('CLIENT_ID')
+CLIENT_SECRET = config('CLIENT_SECRET')
 REDIRECT_URI = "http://localhost:5000/auth"
 AUTH_URL = f"https://id.twitch.tv/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=user:read:email"
 
