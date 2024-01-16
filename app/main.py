@@ -104,8 +104,34 @@ def fetch_and_show_logs(log_type):
 
 window = tk.Tk()
 window.title("BotOfTheSpecter")
-
 tab_control = ttk.Notebook(window)
+
+# Create a "Bot" tab
+bot_tab = ttk.Frame(tab_control)
+tab_control.add(bot_tab, text='Bot')
+
+# Frame for holding buttons and status in the "Bot" tab
+bot_tab_frame = tk.Frame(bot_tab)
+bot_tab_frame.pack(pady=5)
+
+# Create buttons for the "Bot" tab with similar style to the "Logs" tab buttons
+run_button = tk.Button(bot_tab_frame, text="Run Bot", command=run_bot)
+run_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+check_status_button = tk.Button(bot_tab_frame, text="Check Bot Status", command=check_bot_status)
+check_status_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+stop_button = tk.Button(bot_tab_frame, text="Stop Bot", command=stop_bot)
+stop_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+restart_button = tk.Button(bot_tab_frame, text="Restart Bot", command=restart_bot)
+restart_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+# Create a label to display status
+status_label = tk.Label(bot_tab_frame, text="", fg="blue")
+status_label.pack(pady=5)
+
+# Create a "Logs" tab
 logs_tab = ttk.Frame(tab_control)
 tab_control.add(logs_tab, text='Logs')
 tab_control.pack(expand=1, fill='both')
@@ -130,31 +156,5 @@ text_area.pack(expand=1, fill='both')
 # Label to display authentication status
 auth_status_label = tk.Label(logs_tab, text="", fg="red")
 auth_status_label.pack(pady=5)
-
-# Create a "Bot" tab
-bot_tab = ttk.Frame(tab_control)
-tab_control.add(bot_tab, text='Bot')
-tab_control.pack(expand=1, fill='both')
-
-# Frame for holding buttons and status in the "Bot" tab
-bot_tab_frame = tk.Frame(bot_tab)
-bot_tab_frame.pack(pady=5)
-
-# Create buttons for the "Bot" tab
-run_button = tk.Button(bot_tab_frame, text="Run Bot", command=run_bot)
-run_button.pack(padx=5, pady=5)
-
-check_status_button = tk.Button(bot_tab_frame, text="Check Bot Status", command=check_bot_status)
-check_status_button.pack(padx=5, pady=5)
-
-stop_button = tk.Button(bot_tab_frame, text="Stop Bot", command=stop_bot)
-stop_button.pack(padx=5, pady=5)
-
-restart_button = tk.Button(bot_tab_frame, text="Restart Bot", command=restart_bot)
-restart_button.pack(padx=5, pady=5)
-
-# Create a label to display status
-status_label = tk.Label(bot_tab_frame, text="", fg="blue")
-status_label.pack(pady=5)
 
 window.mainloop()
