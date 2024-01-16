@@ -129,7 +129,7 @@ restart_button = tk.Button(bot_tab_frame, text="Restart Bot", command=restart_bo
 restart_button.pack(side=tk.LEFT, padx=5, pady=5)
 
 # Create a label to display status
-status_label = tk.Label(bot_tab_frame, text="", fg="blue")
+status_label = tk.Label(bot_tab, text="", fg="blue", font=("Arial", 14))
 status_label.pack(pady=5)
 
 # Create a "Logs" tab
@@ -137,7 +137,7 @@ logs_tab = ttk.Frame(tab_control)
 tab_control.add(logs_tab, text='Logs')
 tab_control.pack(expand=1, fill='both')
 
-# Frame for holding the buttons
+# Frame for holding the buttons in the "Logs" tab
 buttons_frame = tk.Frame(logs_tab)
 buttons_frame.pack(pady=5)
 
