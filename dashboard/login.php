@@ -98,7 +98,7 @@ if (isset($_GET['code'])) {
         $twitchDisplayName = $userInfo['data'][0]['display_name'];
     
         // Read the list of authorized users from the JSON file located in a specific directory
-        $authUsersJson = file_get_contents('/var/www/bot/authusers.json');
+        $authUsersJson = file_get_contents('/var/www/api/authusers.json');
         $authUsers = json_decode($authUsersJson, true)['users'];
     
         // Check if the user is authorized
