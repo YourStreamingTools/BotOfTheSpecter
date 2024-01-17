@@ -15,8 +15,9 @@ log_file_path = os.path.join(appdata_dir, 'authentication.log')
 # Initialize a logger
 logging.basicConfig(filename=log_file_path, level=logging.INFO)
 
-CLIENT_ID = config('CLIENT_ID')
-CLIENT_SECRET = config('CLIENT_SECRET')
+# Get variables
+CLIENT_ID="" # CHANGE TO MAKE THIS WORK
+CLIENT_SECRET="" # CHANGE TO MAKE THIS WORK
 REDIRECT_URI = "http://localhost:5000/auth"
 AUTH_URL = f"https://id.twitch.tv/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=user:read:email"
 
