@@ -14,11 +14,12 @@ appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
 os.makedirs(appdata_dir, exist_ok=True)
 log_file_path = os.path.join(appdata_dir, 'main.log')
 
-# Get environment variables from .env
-REMOTE_SSH_HOST = config('REMOTE_SSH_HOST')
-REMOTE_SSH_PORT = config('REMOTE_SSH_PORT')
-REMOTE_SSH_USERNAME = config('REMOTE_SSH_USERNAME')
-REMOTE_SSH_PASSWORD = config('REMOTE_SSH_PASSWORD')
+# Get variables
+REMOTE_SSH_HOST="" # CHANGE TO MAKE THIS WORK
+REMOTE_SSH_PORT="" # CHANGE TO MAKE THIS WORK
+REMOTE_SSH_USERNAME="" # CHANGE TO MAKE THIS WORK
+REMOTE_SSH_PASSWORD="" # CHANGE TO MAKE THIS WORK
+REMOTE_COMMAND_TEMPLATE="" # CHANGE TO MAKE THIS WORK
 
 # Function to run the bot
 def run_bot():
@@ -41,7 +42,7 @@ def check_bot_status():
     ssh_port = REMOTE_SSH_PORT
     ssh_username = REMOTE_SSH_USERNAME
     ssh_password = REMOTE_SSH_PASSWORD
-    remote_command_template = config('REMOTE_COMMAND')
+    remote_command_template = REMOTE_COMMAND_TEMPLATE
 
     remote_command = f"{remote_command_template} -channel {username}"
 
