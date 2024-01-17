@@ -5,9 +5,9 @@ import twitch_auth
 import logging
 from decouple import config
 
-# Base URL for the server
-SERVER_BASE_URL = config('SERVER_BASE_URL')
-AUTH_USERS_URL = config('AUTH_USERS_URL')
+# Get variables
+SERVER_BASE_URL="" # CHANGE TO MAKE THIS WORK
+AUTH_USERS_URL="" # CHANGE TO MAKE THIS WORK
 
 appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
 os.makedirs(appdata_dir, exist_ok=True)
