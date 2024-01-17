@@ -104,7 +104,7 @@ def fetch_and_show_logs(log_type):
     text_area.insert(tk.END, logs)
 
 window = tk.Tk()
-window.title("BotOfTheSpecter")
+window.title("BotOfTheSpecter V1.5.1")
 tab_control = ttk.Notebook(window)
 
 # Create a "Bot" tab
