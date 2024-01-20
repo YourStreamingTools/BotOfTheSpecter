@@ -7,10 +7,10 @@ import logging
 from decouple import config
 
 # Get variables
-REMOTE_SSH_HOST = ""  # CHANGE TO MAKE THIS WORK
-REMOTE_SSH_PORT = ""  # CHANGE TO MAKE THIS WORK
-REMOTE_SSH_USERNAME = ""  # CHANGE TO MAKE THIS WORK
-REMOTE_SSH_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
+REMOTE_SSH_HOST="" # CHANGE TO MAKE THIS WORK
+REMOTE_SSH_PORT="" # CHANGE TO MAKE THIS WORK
+REMOTE_SSH_USERNAME="" # CHANGE TO MAKE THIS WORK
+REMOTE_SSH_PASSWORD="" # CHANGE TO MAKE THIS WORK
 REMOTE_COMMAND_TEMPLATE = "python /var/www/bot/status.py"
 SERVER_BASE_URL = "https://api.botofthespecter.com/logs"
 AUTH_USERS_URL = "https://api.botofthespecter.com/authusers.json"
