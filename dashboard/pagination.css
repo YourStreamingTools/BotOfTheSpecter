@@ -279,3 +279,40 @@ pre {
     border-radius: 5px;
     margin-top: 0;
 }
+
+/* Dark mode styles for the download section */
+.download-item {
+    background-color: #222222;
+    color: #ffffff;
+    border: 1px solid #444444;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+}
+
+.download-item h3 {
+    color: #4CAF50;
+}
+
+.download-item p {
+    color: #ffffff;
+}
+
+.download-button {
+    background-color: #4CAF50;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 18px;
+    cursor: pointer;
+    text-decoration: none; /* Remove underline */
+    transition: background-color 0.3s ease-in-out; /* Add a smooth transition effect */
+}
+
+.download-button:hover {
+    background-color: #3E8E41;
+    color: #ffffff; /* Change text color on hover for better contrast */
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3); /* Add a subtle shadow on hover */
+}
