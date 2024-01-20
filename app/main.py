@@ -40,25 +40,21 @@ bot_tab_frame = tk.Frame(bot_tab)
 bot_tab_frame.pack(pady=5)
 
 # Create buttons for the "Bot" tab with similar style to the "Logs" tab buttons
-run_button = tk.Button(bot_tab_frame, text="Run Bot", command=run_bot)
+run_button = tk.Button(bot_tab_frame, text="Run Bot", command=lambda: run_bot(status_label))
 run_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-check_status_button = tk.Button(bot_tab_frame, text="Check Bot Status", command=check_bot_status)
+check_status_button = tk.Button(bot_tab_frame, text="Check Bot Status", command=lambda: check_bot_status(status_label))
 check_status_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-stop_button = tk.Button(bot_tab_frame, text="Stop Bot", command=stop_bot)
+stop_button = tk.Button(bot_tab_frame, text="Stop Bot", command=lambda: stop_bot(status_label))
 stop_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-restart_button = tk.Button(bot_tab_frame, text="Restart Bot", command=restart_bot)
+restart_button = tk.Button(bot_tab_frame, text="Restart Bot", command=lambda: restart_bot(status_label))
 restart_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-# Create a text widget to display status
-status_text_widget = tk.Text(bot_tab)
-status_text_widget.pack(expand=1, fill='both')
-
-# Label to display authentication status
-auth_status_label = tk.Label(bot_tab, text="", fg="red")
-auth_status_label.pack(pady=5)
+# Create a Label widget to display status
+status_label = tk.Label(bot_tab, text="", fg="blue", font=("Arial", 14))
+status_label.pack(pady=5)
 
 # Create a "Logs" tab
 logs_tab = ttk.Frame(tab_control)
