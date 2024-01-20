@@ -6,6 +6,7 @@ import requests
 import urllib.parse as urlparse
 import logging
 from decouple import config
+import json
 
 # Construct the log file path in the user's AppData directory
 appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
@@ -52,11 +53,17 @@ def exchange_code_for_token(code):
     user_info = user_response.json().get('data', [{}])[0]
     username = user_info.get('login')
     display_name = user_info.get('display_name')
+    twitch_id = user_info.get('id')
 
+    # Store Twitch credentials as global variables
     global global_username
-    global global_display_name 
+    global global_display_name
+    global global_twitch_id
+    global global_auth_token
     global_username = username
     global_display_name = display_name
+    global_twitch_id = twitch_id
+    global_auth_token = access_token
 
     # Log both the username and display name
     logging.info(f"Authenticated Twitch user: {username} (Display Name: {display_name})")
