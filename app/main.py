@@ -4,8 +4,7 @@ from tkinter import ttk, messagebox
 import requests
 import webbrowser
 import threading
-from server_communication import is_user_authorized, check_bot_status, \
-                            run_bot, stop_bot, restart_bot, fetch_and_show_logs
+from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs
 import twitch_auth
 import updates
 import threading
@@ -13,7 +12,9 @@ import logging
 import paramiko
 from decouple import config
 
+# Threading for app
 threading.Thread(target=twitch_auth.start_auth, daemon=True).start()
+threading.Thread(target=updates.check_for_updates, daemon=True).start()
 
 appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
 os.makedirs(appdata_dir, exist_ok=True)
@@ -24,7 +25,6 @@ window.title(f"BotOfTheSpecter V{updates.VERSION}")
 tab_control = ttk.Notebook(window)
 
 # Create a "Help" menu with "Check for Updates" option
-updates.check_for_updates()
 menu_bar = tk.Menu(window)
 window.config(menu=menu_bar)
 help_menu = tk.Menu(menu_bar, tearoff=0)
@@ -52,9 +52,13 @@ stop_button.pack(side=tk.LEFT, padx=5, pady=5)
 restart_button = tk.Button(bot_tab_frame, text="Restart Bot", command=restart_bot)
 restart_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-# Create a label to display status
-status_label = tk.Label(bot_tab, text="", fg="blue", font=("Arial", 14))
-status_label.pack(pady=5)
+# Create a text widget to display status
+status_text_widget = tk.Text(bot_tab)
+status_text_widget.pack(expand=1, fill='both')
+
+# Label to display authentication status
+auth_status_label = tk.Label(bot_tab, text="", fg="red")
+auth_status_label.pack(pady=5)
 
 # Create a "Logs" tab
 logs_tab = ttk.Frame(tab_control)
