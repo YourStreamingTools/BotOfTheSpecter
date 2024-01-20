@@ -7,6 +7,8 @@ import threading
 from server_communication import is_user_authorized, check_bot_status, \
                             run_bot, stop_bot, restart_bot, fetch_and_show_logs
 import twitch_auth
+import updates
+import threading
 import logging
 import paramiko
 from decouple import config
@@ -19,66 +21,19 @@ log_file_path = os.path.join(appdata_dir, 'main.log')
 
 # Get variables
 REMOTE_VERSION_URL="https://api.botofthespecter.com/version_control.txt"
-VERSION="1.6.1"
-    
-# Function to check for updates
-def custom_messagebox(title, message, buttons):
-    result = None
-
-    top = tk.Toplevel()
-    top.title(title)
-    top.geometry("400x150")  # Set the width and height as needed
-    top.grab_set()  # Make the dialog modal
-
-    message_label = tk.Label(top, text=message)
-    message_label.pack(padx=20, pady=10)
-
-    button_frame = tk.Frame(top)
-    button_frame.pack(padx=20, pady=10)
-
-    for label in buttons:
-        button = tk.Button(button_frame, text=label, command=lambda l=label: set_result(l))
-        button.pack(side=tk.LEFT, padx=10)
-
-    def set_result(label):
-        nonlocal result
-        result = label
-        top.destroy()
-
-    top.wait_window()
-
-    return result
-
-def check_for_updates(user_initiated=False):
-    try:
-        response = requests.get(REMOTE_VERSION_URL)
-        remote_version = response.text.strip()
-
-        if remote_version != VERSION:
-            message = f"A new update ({remote_version}) is available."
-            button_clicked = custom_messagebox("Update Available", message, ["Download", "OK"])
-
-            if button_clicked == "Download":
-                webbrowser.open("https://dashboard.botofthespecter.com/app.php")
-        elif user_initiated:
-            messagebox.showinfo("No Updates", "No new updates available.")
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to check for updates: {str(e)}")
-
-def check_updates():
-    check_for_updates(user_initiated=True)
+VERSION="1.7"
 
 window = tk.Tk()
 window.title(f"BotOfTheSpecter V{VERSION}")
 tab_control = ttk.Notebook(window)
 
 # Create a "Help" menu with "Check for Updates" option
-check_for_updates()
+updates.check_for_updates()
 menu_bar = tk.Menu(window)
 window.config(menu=menu_bar)
 help_menu = tk.Menu(menu_bar, tearoff=0)
 menu_bar.add_cascade(label="Help", menu=help_menu)
-help_menu.add_command(label="Check for Updates", command=check_updates)
+help_menu.add_command(label="Check for Updates", command=updates.check_for_updates)
 
 # Create a "Bot" tab
 bot_tab = ttk.Frame(tab_control)
