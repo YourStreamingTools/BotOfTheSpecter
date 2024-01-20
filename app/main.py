@@ -19,12 +19,8 @@ appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
 os.makedirs(appdata_dir, exist_ok=True)
 log_file_path = os.path.join(appdata_dir, 'main.log')
 
-# Get variables
-REMOTE_VERSION_URL="https://api.botofthespecter.com/version_control.txt"
-VERSION="1.7"
-
 window = tk.Tk()
-window.title(f"BotOfTheSpecter V{VERSION}")
+window.title(f"BotOfTheSpecter V{updates.VERSION}")
 tab_control = ttk.Notebook(window)
 
 # Create a "Help" menu with "Check for Updates" option
