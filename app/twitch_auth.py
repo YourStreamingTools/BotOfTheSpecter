@@ -66,7 +66,7 @@ def exchange_code_for_token(code):
     global_auth_token = access_token
 
     # Log both the username and display name
-    logging.info(f"Authenticated Twitch user: {username} (Display Name: {display_name})")
+    logging.info(f"Authenticated Twitch user: {username} (User ID: {twitch_id} | Display Name: {display_name})")
 
 def run_server():
     server_address = ('0.0.0.0', 5000)
