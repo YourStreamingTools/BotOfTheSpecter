@@ -14,8 +14,8 @@ REMOTE_SSH_USERNAME="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_PASSWORD="" # CHANGE TO MAKE THIS WORK
 STATUS_COMMAND_TEMPLATE="" # CHANGE TO MAKE THIS WORK
 BOT_COMMAND_TEMPLATE="" # CHANGE TO MAKE THIS WORK
-SERVER_BASE_URL="https://api.botofthespecter.com/logs"
-AUTH_USERS_URL="https://api.botofthespecter.com/authusers.json"
+LOGS_SERVER_URL="" # CHANGE TO MAKE THIS WORK
+AUTH_USERS_URL="" # CHANGE TO MAKE THIS WORK
 
 # Get Username
 def get_global_username():
@@ -106,8 +106,34 @@ def check_bot_status(status_label):
         status_label.config(text=f"Error: {str(e)}", fg="red")
 
 # Function to stop the bot
-def stop_bot():
-    return "Bot can't be stopped from this app."
+def stop_bot(status_label):
+    display_name = get_global_display_name()
+    username = get_global_username()
+
+    if not display_name:
+        status_label.config(text="User is not authenticated.", fg="red")
+        return
+
+    if not is_user_authorized(display_name):
+        status_label.config(text=f"{display_name} is not authorized to access this application.", fg="red")
+        return
+
+    # Get the PID of the currently running bot
+    pid = get_bot_pid(username)
+
+    if pid > 0:
+        # Kill the bot process
+        kill_bot(pid)
+
+        # Check to make sure it stopped
+        new_pid = get_bot_pid(username)
+
+        if new_pid > 0:
+            status_label.config(text="Failed to stop the bot.", fg="red")
+        else:
+            status_label.config(text="Bot stopped successfully.", fg="blue")
+    else:
+        status_label.config(text="Bot is not running.", fg="red")
 
 # Function to restart the bot
 def restart_bot():
@@ -121,7 +147,7 @@ def restart_bot():
         return f"{display_name} is not authorized to access this application."
 
     # Get the PID of the currently running bot
-    pid = get_bot_pid()
+    pid = get_bot_pid(username)
 
     if pid > 0:
         # Kill the bot process
@@ -131,7 +157,7 @@ def restart_bot():
         run_bot(username, pid)
 
         # Get the new PID of the bot process after restart
-        new_pid = get_bot_pid()
+        new_pid = get_bot_pid(username)
 
         if new_pid > 0:
             return f"Bot restarted successfully. New Process ID: {new_pid}."
@@ -141,9 +167,8 @@ def restart_bot():
         return "Bot is not running."
 
 # Function to get the PID of the currently running bot
-def get_bot_pid():
+def get_bot_pid(username):
     display_name = get_global_display_name()
-    username = get_global_username()
 
     if not display_name:
         return "User is not authenticated."
@@ -168,6 +193,7 @@ def get_bot_pid():
             # Parse the output to extract the PID
             try:
                 pid = int(output)
+                print(f"Current Bot PID: {pid}")
                 return pid
             except ValueError:
                 return -1  # Failed to parse PID
@@ -197,11 +223,23 @@ def kill_bot(pid):
 
         stdin, stdout, stderr = ssh.exec_command(remote_kill_command)
 
-        # Check for errors if needed
+        # Add a print statement to debug
+        print(f"Kill Command: {remote_kill_command}")
+
+        result = stdout.read().decode('utf-8')
+        error = stderr.read().decode('utf-8')
+
+        # Add a print statement to debug
+        print(f"Kill Bot Output: {result}")
+        print(f"Kill Bot Error: {error}")
 
         ssh.close()
+
+        return result  # Return the result of the command execution
     except Exception as e:
-        return f"Error: {str(e)}"
+        # Add a print statement to debug
+        print(f"Kill Bot Exception: {str(e)}")
+        return str(e)  # Return the exception message
 
 # Is ther user authorized to use this app
 def is_user_authorized(display_name):
