@@ -1,13 +1,13 @@
 import os
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 import requests
 import threading
 import server_communication
 import twitch_auth
 import logging
 import paramiko
+import webbrowser
 from decouple import config
 
 threading.Thread(target=twitch_auth.start_auth, daemon=True).start()
@@ -23,7 +23,7 @@ REMOTE_SSH_USERNAME="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_PASSWORD="" # CHANGE TO MAKE THIS WORK
 REMOTE_COMMAND_TEMPLATE="" # CHANGE TO MAKE THIS WORK
 REMOTE_VERSION_URL="https://api.botofthespecter.com/version_control.txt"
-VERSION="1.6.0"
+VERSION="1.6.1"
 
 # Function to run the bot
 def run_bot():
@@ -109,30 +109,63 @@ def fetch_and_show_logs(log_type):
     text_area.insert(tk.END, logs)
     
 # Function to check for updates
-def check_for_updates():
+def custom_messagebox(title, message, buttons):
+    result = None
+
+    top = tk.Toplevel()
+    top.title(title)
+    top.geometry("400x150")  # Set the width and height as needed
+    top.grab_set()  # Make the dialog modal
+
+    message_label = tk.Label(top, text=message)
+    message_label.pack(padx=20, pady=10)
+
+    button_frame = tk.Frame(top)
+    button_frame.pack(padx=20, pady=10)
+
+    for label in buttons:
+        button = tk.Button(button_frame, text=label, command=lambda l=label: set_result(l))
+        button.pack(side=tk.LEFT, padx=10)
+
+    def set_result(label):
+        nonlocal result
+        result = label
+        top.destroy()
+
+    top.wait_window()
+
+    return result
+
+def check_for_updates(user_initiated=False):
     try:
         response = requests.get(REMOTE_VERSION_URL)
         remote_version = response.text.strip()
 
         if remote_version != VERSION:
-            message = f"A new update ({remote_version}) is available. Click OK to go to the download page."
-            if messagebox.askokcancel("Update Available", message):
-                # Open the GitHub releases page in a web browser
-                import webbrowser
+            message = f"A new update ({remote_version}) is available."
+            button_clicked = custom_messagebox("Update Available", message, ["Download", "OK"])
+
+            if button_clicked == "Download":
                 webbrowser.open("https://dashboard.botofthespecter.com/app.php")
-        else:
-            # Display a message if no new updates are available
+        elif user_initiated:
             messagebox.showinfo("No Updates", "No new updates available.")
     except Exception as e:
         messagebox.showerror("Error", f"Failed to check for updates: {str(e)}")
 
-# Function to trigger the update check
 def check_updates():
-    threading.Thread(target=check_for_updates).start()
+    check_for_updates(user_initiated=True)
 
 window = tk.Tk()
 window.title(f"BotOfTheSpecter V{VERSION}")
 tab_control = ttk.Notebook(window)
+
+# Create a "Help" menu with "Check for Updates" option
+check_for_updates()
+menu_bar = tk.Menu(window)
+window.config(menu=menu_bar)
+help_menu = tk.Menu(menu_bar, tearoff=0)
+menu_bar.add_cascade(label="Help", menu=help_menu)
+help_menu.add_command(label="Check for Updates", command=check_updates)
 
 # Create a "Bot" tab
 bot_tab = ttk.Frame(tab_control)
@@ -184,12 +217,5 @@ text_area.pack(expand=1, fill='both')
 # Label to display authentication status
 auth_status_label = tk.Label(logs_tab, text="", fg="red")
 auth_status_label.pack(pady=5)
-
-# Create a "Help" menu with "Check for Updates" option
-menu_bar = tk.Menu(window)
-window.config(menu=menu_bar)
-help_menu = tk.Menu(menu_bar, tearoff=0)
-menu_bar.add_cascade(label="Help", menu=help_menu)
-help_menu.add_command(label="Check for Updates", command=check_updates)
 
 window.mainloop()
