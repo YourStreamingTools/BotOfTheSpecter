@@ -6,3 +6,5 @@ app/build.bat
 app/data.txt
 app/.env
 app/CodeSignTool/*
+dashboard/logs/*
+dashboard/cache/*
