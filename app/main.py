@@ -63,18 +63,19 @@ tab_control.pack(expand=1, fill='both')
 
 # Frame for holding the buttons in the "Logs" tab
 buttons_frame = tk.Frame(logs_tab)
-buttons_frame.pack(pady=5)
+buttons_frame.pack(side=tk.TOP, pady=5)
 
 # Creating individual buttons for each log type and packing them side by side
-bot_button = tk.Button(buttons_frame, text="Bot Logs", command=lambda: fetch_and_show_logs('bot'))
-bot_button.pack(side=tk.LEFT, padx=5, pady=5)
+bot_logs_button = tk.Button(buttons_frame, text="Bot Logs", command=lambda: fetch_and_show_logs('bot', text_area))
+bot_logs_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-chat_button = tk.Button(buttons_frame, text="Chat Logs", command=lambda: fetch_and_show_logs('chat'))
-chat_button.pack(side=tk.LEFT, padx=5, pady=5)
+chat_logs_button = tk.Button(buttons_frame, text="Chat Logs", command=lambda: fetch_and_show_logs('chat', text_area))
+chat_logs_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-twitch_button = tk.Button(buttons_frame, text="Twitch Logs", command=lambda: fetch_and_show_logs('twitch'))
-twitch_button.pack(side=tk.LEFT, padx=5, pady=5)
+twitch_logs_button = tk.Button(buttons_frame, text="Twitch Logs", command=lambda: fetch_and_show_logs('twitch', text_area))
+twitch_logs_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+# Create a Text widget for displaying logs
 text_area = tk.Text(logs_tab)
 text_area.pack(expand=1, fill='both')
 
