@@ -20,6 +20,7 @@ REMOTE_SSH_PORT="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_USERNAME="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_PASSWORD="" # CHANGE TO MAKE THIS WORK
 REMOTE_COMMAND_TEMPLATE="" # CHANGE TO MAKE THIS WORK
+VERSION="1.5.2"
 
 # Function to run the bot
 def run_bot():
@@ -105,7 +106,7 @@ def fetch_and_show_logs(log_type):
     text_area.insert(tk.END, logs)
 
 window = tk.Tk()
-window.title("BotOfTheSpecter V1.5.2")
+window.title(f"BotOfTheSpecter V{VERSION}")
 tab_control = ttk.Notebook(window)
 
 # Create a "Bot" tab
