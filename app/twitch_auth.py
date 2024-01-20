@@ -20,7 +20,7 @@ logging.basicConfig(filename=log_file_path, level=logging.INFO)
 CLIENT_ID="" # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET="" # CHANGE TO MAKE THIS WORK
 REDIRECT_URI = "http://localhost:5000/auth"
-AUTH_URL = f"https://id.twitch.tv/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=user:read:email"
+AUTH_URL = f"https://id.twitch.tv/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=openid user:read:email moderator:manage:shoutouts chat:read chat:edit moderation:read moderator:read:followers channel:read:vips channel:read:subscriptions moderator:read:chatters bits:read"
 
 class AuthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -67,6 +67,7 @@ def exchange_code_for_token(code):
 
     # Log both the username and display name
     logging.info(f"Authenticated Twitch user: {username} (User ID: {twitch_id} | Display Name: {display_name})")
+    print(f"Authenticated Twitch user: {username} (User ID: {twitch_id} | Display Name: {display_name})")
 
 def run_server():
     server_address = ('0.0.0.0', 5000)
