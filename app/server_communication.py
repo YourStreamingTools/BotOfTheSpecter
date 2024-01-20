@@ -11,9 +11,9 @@ REMOTE_SSH_HOST="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_PORT="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_USERNAME="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_PASSWORD="" # CHANGE TO MAKE THIS WORK
-REMOTE_COMMAND_TEMPLATE = "python /var/www/bot/status.py"
-SERVER_BASE_URL = "https://api.botofthespecter.com/logs"
-AUTH_USERS_URL = "https://api.botofthespecter.com/authusers.json"
+REMOTE_COMMAND_TEMPLATE="" # CHANGE TO MAKE THIS WORK
+SERVER_BASE_URL="https://api.botofthespecter.com/logs"
+AUTH_USERS_URL="https://api.botofthespecter.com/authusers.json"
 
 def get_global_username():
     return twitch_auth.global_username
@@ -72,26 +72,7 @@ def stop_bot():
 def restart_bot():
     return "Bot can't be restarted from this app."
 
-def fetch_and_show_logs(log_type):
-    display_name = get_global_display_name()
-
-    if not display_name:
-        return "User is not authenticated."
-
-    if not is_user_authorized(display_name):
-        return f"{display_name} is not authorized to access this application."
-
-    if log_type == 'bot':
-        logs = get_bot_logs()
-    elif log_type == 'chat':
-        logs = get_chat_logs()
-    elif log_type == 'twitch':
-        logs = get_twitch_logs()
-    else:
-        logs = "Invalid log type"
-
-    return logs
-
+# Is ther user authorized to use this app
 def is_user_authorized(display_name):
     display_name = get_global_display_name()
     # Fetch the list of authorized users
@@ -113,6 +94,27 @@ def is_user_authorized(display_name):
         # Handle the error or return False
         print(f"Error fetching authorized users: {response.status_code}")
         return False
+    
+# Get logs from the server
+def fetch_and_show_logs(log_type):
+    display_name = get_global_display_name()
+
+    if not display_name:
+        return "User is not authenticated."
+
+    if not is_user_authorized(display_name):
+        return f"{display_name} is not authorized to access this application."
+
+    if log_type == 'bot':
+        logs = get_bot_logs()
+    elif log_type == 'chat':
+        logs = get_chat_logs()
+    elif log_type == 'twitch':
+        logs = get_twitch_logs()
+    else:
+        logs = "Invalid log type"
+
+    return logs
 
 def get_bot_logs():
     username = get_global_username()
