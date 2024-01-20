@@ -1,6 +1,8 @@
 import os
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
+import requests
 import threading
 import server_communication
 import twitch_auth
@@ -20,7 +22,8 @@ REMOTE_SSH_PORT="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_USERNAME="" # CHANGE TO MAKE THIS WORK
 REMOTE_SSH_PASSWORD="" # CHANGE TO MAKE THIS WORK
 REMOTE_COMMAND_TEMPLATE="" # CHANGE TO MAKE THIS WORK
-VERSION="1.5.2"
+REMOTE_VERSION_URL="https://api.botofthespecter.com/version_control.txt"
+VERSION="1.6.0"
 
 # Function to run the bot
 def run_bot():
@@ -104,6 +107,28 @@ def fetch_and_show_logs(log_type):
 
     text_area.delete(1.0, tk.END)
     text_area.insert(tk.END, logs)
+    
+# Function to check for updates
+def check_for_updates():
+    try:
+        response = requests.get(REMOTE_VERSION_URL)
+        remote_version = response.text.strip()
+
+        if remote_version != VERSION:
+            message = f"A new update ({remote_version}) is available. Click OK to go to the download page."
+            if messagebox.askokcancel("Update Available", message):
+                # Open the GitHub releases page in a web browser
+                import webbrowser
+                webbrowser.open("https://dashboard.botofthespecter.com/app.php")
+        else:
+            # Display a message if no new updates are available
+            messagebox.showinfo("No Updates", "No new updates available.")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to check for updates: {str(e)}")
+
+# Function to trigger the update check
+def check_updates():
+    threading.Thread(target=check_for_updates).start()
 
 window = tk.Tk()
 window.title(f"BotOfTheSpecter V{VERSION}")
@@ -159,5 +184,12 @@ text_area.pack(expand=1, fill='both')
 # Label to display authentication status
 auth_status_label = tk.Label(logs_tab, text="", fg="red")
 auth_status_label.pack(pady=5)
+
+# Create a "Help" menu with "Check for Updates" option
+menu_bar = tk.Menu(window)
+window.config(menu=menu_bar)
+help_menu = tk.Menu(menu_bar, tearoff=0)
+menu_bar.add_cascade(label="Help", menu=help_menu)
+help_menu.add_command(label="Check for Updates", command=check_updates)
 
 window.mainloop()
