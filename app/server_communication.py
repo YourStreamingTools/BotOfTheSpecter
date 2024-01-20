@@ -1,4 +1,5 @@
 import os
+import tkinter as tk
 import json
 import requests
 import paramiko
@@ -39,10 +40,17 @@ def get_webhook_port():
 # Function to run the bot
 def run_bot(username, pid):
     username = get_global_username()
+    display_name = get_global_display_name()
     twitchUserId = get_global_user_id()
     authToken = get_global_auth_token()
     webhookPort = get_webhook_port()
 
+    if not display_name:
+        return "User is not authenticated."
+
+    if not is_user_authorized(display_name):
+        return f"{display_name} is not authorized to access this application."
+    
     remote_start_command = f"{BOT_COMMAND_TEMPLATE} -channel {username} -channelid {twitchUserId} -token {authToken} -port {webhookPort} > /dev/null 2>&1 &"
 
     try:
@@ -57,39 +65,20 @@ def run_bot(username, pid):
 
         ssh.close()
     except Exception as e:
-        pass  # Handle the error as needed
-
-# Function to kill the bot on the server
-def kill_bot(pid):
-    display_name = get_global_display_name()
-    username = get_global_username()
-
-    remote_kill_command = f"kill {pid} > /dev/null 2>&1 &"
-
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
-
-        stdin, stdout, stderr = ssh.exec_command(remote_kill_command)
-
-        # Check for errors if needed
-
-        ssh.close()
-    except Exception as e:
-        pass  # Handle the error as needed
+        return f"Error: {str(e)}"
 
 # Function to check bot status
-def check_bot_status():
+def check_bot_status(status_label):
     display_name = get_global_display_name()
     username = get_global_username()
 
     if not display_name:
-        return "User is not authenticated."
+        status_label.config(text="User is not authenticated.", fg="red")
+        return
 
     if not is_user_authorized(display_name):
-        return f"{display_name} is not authorized to access this application."
+        status_label.config(text=f"{display_name} is not authorized to access this application.", fg="red")
+        return
 
     remote_command = f"{STATUS_COMMAND_TEMPLATE} -channel {username}"
 
@@ -104,14 +93,17 @@ def check_bot_status():
         output = stdout.read().decode("utf-8")
         error = stderr.read().decode("utf-8")
 
-        if error:
-            return f"Error: {error}"
-        else:
-            return output
-
         ssh.close()
+
+        if error:
+            print(error)
+            status_label.config(text=f"Error: {error}", fg="red")
+        else:
+            print(output)
+            status_label.config(text=output, fg="blue")
     except Exception as e:
-        return f"Error: {str(e)}"
+        print(e)
+        status_label.config(text=f"Error: {str(e)}", fg="red")
 
 # Function to stop the bot
 def stop_bot():
@@ -152,6 +144,13 @@ def restart_bot():
 def get_bot_pid():
     display_name = get_global_display_name()
     username = get_global_username()
+
+    if not display_name:
+        return "User is not authenticated."
+
+    if not is_user_authorized(display_name):
+        return f"{display_name} is not authorized to access this application."
+    
     remote_status_command = f"{STATUS_COMMAND_TEMPLATE} -channel {username}"
 
     try:
@@ -176,6 +175,33 @@ def get_bot_pid():
             return -1  # Error in retrieving PID
     except Exception as e:
         return f"Error: {str(e)}"
+    
+# Function to kill the bot on the server
+def kill_bot(pid):
+    display_name = get_global_display_name()
+    username = get_global_username()
+
+    if not display_name:
+        return "User is not authenticated."
+
+    if not is_user_authorized(display_name):
+        return f"{display_name} is not authorized to access this application."
+
+    remote_kill_command = f"kill {pid} > /dev/null 2>&1 &"
+
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
+
+        stdin, stdout, stderr = ssh.exec_command(remote_kill_command)
+
+        # Check for errors if needed
+
+        ssh.close()
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 # Is ther user authorized to use this app
 def is_user_authorized(display_name):
@@ -190,10 +216,10 @@ def is_user_authorized(display_name):
 
         # Check if the provided display_name is in the list of authorized users
         if display_name in auth_users:
-            print(f"{display_name} is authorized to access this application.")
+            # print(f"{display_name} is authorized to access this application.")
             return True
         else:
-            print(f"{display_name} is not authorized to access this application.")
+            # print(f"{display_name} is not authorized to access this application.")
             return False
     else:
         # Handle the error or return False
@@ -201,8 +227,9 @@ def is_user_authorized(display_name):
         return False
     
 # Get logs from the server
-def fetch_and_show_logs(log_type):
+def fetch_and_show_logs(log_type, text_area):
     display_name = get_global_display_name()
+    username = get_global_username()
 
     if not display_name:
         return "User is not authenticated."
@@ -219,23 +246,30 @@ def fetch_and_show_logs(log_type):
     else:
         logs = "Invalid log type"
 
+    print(f"Fetching {log_type} logs for user {username}")
+    # print(logs)
+
+    # Insert the logs into the text_area widget
+    text_area.delete(1.0, tk.END)  # Clear the existing text
+    text_area.insert(tk.END, logs)  # Insert the fetched logs
+
     return logs
 
 def get_bot_logs():
     username = get_global_username()
-    url = f"{SERVER_BASE_URL}/bot/{username}.txt"
+    url = f"{LOGS_SERVER_URL}/bot/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
 
 def get_chat_logs():
     username = get_global_username()
-    url = f"{SERVER_BASE_URL}/chat/{username}.txt"
+    url = f"{LOGS_SERVER_URL}/chat/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
 
 def get_twitch_logs():
     username = get_global_username()
-    url = f"{SERVER_BASE_URL}/twitch/{username}.txt"
+    url = f"{LOGS_SERVER_URL}/twitch/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
 
