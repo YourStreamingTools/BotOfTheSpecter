@@ -5,7 +5,7 @@ import updates
 def show_about_message():
     about_window = tk.Toplevel()
     about_window.title("About")
-    about_window.geometry("400x300")
+    about_window.geometry("500x350")
 
     about_label = tk.Label(about_window, text="BotOfTheSpecter", font=("Arial", 16))
     about_label.pack(pady=10)
@@ -14,13 +14,12 @@ def show_about_message():
     version_label.pack(pady=5)
 
     description_text = (
-        "This application allows you to view bot logs without the need to log into the website.\n"
-        "You can also check if the bot is currently running using the 'Check Bot Status' button.\n"
-        "Please note that this executable is solely for viewing bot logs and checking the status\n"
-        "of the bot if it's currently running. This is not the full bot application. Stay tuned for\n"
-        "more versions and updates in the future."
+        "This application allows you to view bot logs without the need to log into the website.\n\n"
+        "You can also check if the bot is currently running using the 'Check Bot Status' button.\n\n"
+        "This executable is solely for viewing bot logs and checking the status of the bot if it's currently running."
     )
-    description_label = tk.Label(about_window, text=description_text, font=("Arial", 12), wraplength=380)  # Adjust wraplength as needed
+    
+    description_label = tk.Label(about_window, text=description_text, font=("Arial", 12), justify="left")
     description_label.pack(pady=10)
 
     close_button = tk.Button(about_window, text="Close", command=about_window.destroy)
