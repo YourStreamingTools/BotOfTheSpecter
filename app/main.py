@@ -1,14 +1,9 @@
 # Main Imports
 import os
 import tkinter as tk
-from tkinter import ttk, messagebox
-import requests
-import webbrowser
+from tkinter import ttk
 import threading
 import threading
-import logging
-import paramiko
-from decouple import config
 # App Imports
 from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs
 import twitch_auth
