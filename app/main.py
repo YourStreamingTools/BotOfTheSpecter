@@ -1,16 +1,22 @@
+# Main Imports
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 import requests
 import webbrowser
 import threading
-from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs
-import twitch_auth
-import updates
 import threading
 import logging
 import paramiko
 from decouple import config
+# App Imports
+from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs
+import twitch_auth
+import updates
+import about
+
+def exit_app():
+    window.destroy()
 
 # Threading for app
 threading.Thread(target=twitch_auth.start_auth, daemon=True).start()
@@ -24,9 +30,13 @@ window = tk.Tk()
 window.title(f"BotOfTheSpecter V{updates.VERSION}")
 tab_control = ttk.Notebook(window)
 
-# Create a "Help" menu with "Check for Updates" option
+# Create a "File" & "Help" menu. Create Options, "About", "Exit" & "Check for Updates"
 menu_bar = tk.Menu(window)
 window.config(menu=menu_bar)
+file_menu = tk.Menu(menu_bar, tearoff=0)
+menu_bar.add_cascade(label="File", menu=file_menu)
+file_menu.add_command(label="About", command=about.show_about_message)
+file_menu.add_command(label="Exit", command=exit_app)
 help_menu = tk.Menu(menu_bar, tearoff=0)
 menu_bar.add_cascade(label="Help", menu=help_menu)
 help_menu.add_command(label="Check for Updates", command=updates.check_for_updates)
