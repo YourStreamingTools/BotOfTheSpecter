@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import messagebox
 import updates
 
 def show_about_message():
@@ -19,8 +18,8 @@ def show_about_message():
         "This executable is solely for viewing bot logs and checking the status of the bot if it's currently running."
     )
     
-    description_label = tk.Label(about_window, text=description_text, font=("Arial", 12), justify="left")
-    description_label.pack(pady=10)
+    description_message = tk.Message(about_window, text=description_text, font=("Arial", 12), width=400)
+    description_message.pack(pady=10)
 
     close_button = tk.Button(about_window, text="Close", command=about_window.destroy)
     close_button.pack(pady=10)
