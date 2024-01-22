@@ -9,6 +9,7 @@ from server_communication import check_bot_status, run_bot, stop_bot, restart_bo
 import twitch_auth
 import updates
 import about
+from icon import icon_path
 
 # Function to exit the app
 def exit_app():
@@ -24,6 +25,7 @@ log_file_path = os.path.join(appdata_dir, 'main.log')
 
 window = tk.Tk()
 window.title(f"BotOfTheSpecter V{updates.VERSION}")
+window.iconbitmap(f"{icon_path}")
 tab_control = ttk.Notebook(window)
 
 # Create a "File" & "Help" menu. Create Options, "About", "Exit" & "Check for Updates"
