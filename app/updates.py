@@ -2,7 +2,7 @@ import requests
 import webbrowser
 import tkinter as tk
 from tkinter import messagebox
-from decouple import config
+from icon import icon_path
 
 REMOTE_VERSION_URL = "https://api.botofthespecter.com/version_control.txt"
 VERSION = "1.7"
@@ -12,6 +12,7 @@ def custom_messagebox(title, message, buttons):
 
     top = tk.Toplevel()
     top.title(title)
+    top.iconbitmap(f"{icon_path}")
     top.geometry("400x150")
     top.grab_set()
 
