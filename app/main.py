@@ -10,6 +10,7 @@ import twitch_auth
 import updates
 import about
 
+# Function to exit the app
 def exit_app():
     window.destroy()
 
