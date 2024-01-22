@@ -5,19 +5,13 @@ from datetime import datetime
 import logging
 import os
 import re
-import signal
 import subprocess
-import time
-import threading
 
 # Third-party imports
 import aiohttp
 import asyncio
 import requests
 import sqlite3
-import flask
-from flask import Flask, request
-from flask_app import start_app
 from translate import Translator
 from googletrans import Translator, LANGUAGES
 import twitchAPI
