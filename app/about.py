@@ -1,9 +1,11 @@
 import tkinter as tk
+from icon import icon_path
 import updates
 
 def show_about_message():
     about_window = tk.Toplevel()
     about_window.title("About")
+    about_window.iconbitmap(f"{icon_path}")
     about_window.geometry("500x350")
 
     about_label = tk.Label(about_window, text="BotOfTheSpecter", font=("Arial", 16))
