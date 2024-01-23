@@ -1,4 +1,6 @@
 import os
+import time
+import datetime
 import tkinter as tk
 import json
 import requests
@@ -35,10 +37,10 @@ def get_global_auth_token():
 
 # Get Workhook from database
 def get_webhook_port():
-    return 5000
+    return 8001
 
 # Function to run the bot
-def run_bot(username, pid):
+def run_bot(status_label):
     username = get_global_username()
     display_name = get_global_display_name()
     twitchUserId = get_global_user_id()
@@ -46,26 +48,47 @@ def run_bot(username, pid):
     webhookPort = get_webhook_port()
 
     if not display_name:
-        return "User is not authenticated."
+        status_label.config(text="User is not authenticated.", fg="red")
+        return
 
     if not is_user_authorized(display_name):
-        return f"{display_name} is not authorized to access this application."
+        status_label.config(text=f"{display_name} is not authorized to access this application.", fg="red")
+        return
     
-    remote_start_command = f"{BOT_COMMAND_TEMPLATE} -channel {username} -channelid {twitchUserId} -token {authToken} -port {webhookPort} > /dev/null 2>&1 &"
+    remote_status_command = f"{STATUS_COMMAND_TEMPLATE} -channel {username}"
 
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
         ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
+        stdin, stdout, stderr = ssh.exec_command(remote_status_command)
 
-        stdin, stdout, stderr = ssh.exec_command(remote_start_command)
-
-        # Check for errors if needed
-
+        status_output = stdout.read().decode("utf-8")
         ssh.close()
+
+        if "Bot Running with PID" in status_output:
+            pid_start_index = status_output.find(":") + 1
+            pid = status_output[pid_start_index:].strip()
+            print(f"Bot is already running with PID: {pid}")
+            status_label.config(text=f"Bot is already running with PID: {pid}", fg="blue")
+        else:
+            remote_start_command = f"{BOT_COMMAND_TEMPLATE} -channel {username} -channelid {twitchUserId} -token {authToken} -port {webhookPort} > /dev/null 2>&1 &"
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
+            ssh.exec_command(remote_start_command)
+            time.sleep(3)  # Wait for a few seconds to ensure the bot starts
+            stdin, stdout, stderr = ssh.exec_command(remote_status_command)
+
+            run_status = stdout.read().decode("utf-8")
+            ssh.close()
+
+            pid_start_index = run_status.find(":") + 1
+            pid = run_status[pid_start_index:].strip()
+            print(f"Bot started successfully. Process ID: {pid}")
+            status_label.config(text=f"Bot started successfully. Process ID: {pid}", fg="blue")
     except Exception as e:
-        return f"Error: {str(e)}"
+        status_label.config(text=f"Error: {str(e)}", fg="red")
 
 # Function to check bot status
 def check_bot_status(status_label):
@@ -118,128 +141,99 @@ def stop_bot(status_label):
         status_label.config(text=f"{display_name} is not authorized to access this application.", fg="red")
         return
 
-    # Get the PID of the currently running bot
-    pid = get_bot_pid(username)
-
-    if pid > 0:
-        # Kill the bot process
-        kill_bot(pid)
-
-        # Check to make sure it stopped
-        new_pid = get_bot_pid(username)
-
-        if new_pid > 0:
-            status_label.config(text="Failed to stop the bot.", fg="red")
-        else:
-            status_label.config(text="Bot stopped successfully.", fg="blue")
-    else:
-        status_label.config(text="Bot is not running.", fg="red")
-
-# Function to restart the bot
-def restart_bot():
-    display_name = get_global_display_name()
-    username = get_global_username()
-
-    if not display_name:
-        return "User is not authenticated."
-
-    if not is_user_authorized(display_name):
-        return f"{display_name} is not authorized to access this application."
-
-    # Get the PID of the currently running bot
-    pid = get_bot_pid(username)
-
-    if pid > 0:
-        # Kill the bot process
-        kill_bot(pid)
-
-        # Start the bot process
-        run_bot(username, pid)
-
-        # Get the new PID of the bot process after restart
-        new_pid = get_bot_pid(username)
-
-        if new_pid > 0:
-            return f"Bot restarted successfully. New Process ID: {new_pid}."
-        else:
-            return "Failed to restart the bot."
-    else:
-        return "Bot is not running."
-
-# Function to get the PID of the currently running bot
-def get_bot_pid(username):
-    display_name = get_global_display_name()
-
-    if not display_name:
-        return "User is not authenticated."
-
-    if not is_user_authorized(display_name):
-        return f"{display_name} is not authorized to access this application."
-    
-    remote_status_command = f"{STATUS_COMMAND_TEMPLATE} -channel {username}"
-
     try:
+        remote_status_command = f"{STATUS_COMMAND_TEMPLATE} -channel {username}"
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
         ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
-
         stdin, stdout, stderr = ssh.exec_command(remote_status_command)
-
-        output = stdout.read().decode("utf-8")
-        error = stderr.read().decode("utf-8")
-
-        if not error:
-            # Parse the output to extract the PID
-            try:
-                pid = int(output)
-                print(f"Current Bot PID: {pid}")
-                return pid
-            except ValueError:
-                return -1  # Failed to parse PID
-        else:
-            return -1  # Error in retrieving PID
-    except Exception as e:
-        return f"Error: {str(e)}"
-    
-# Function to kill the bot on the server
-def kill_bot(pid):
-    display_name = get_global_display_name()
-    username = get_global_username()
-
-    if not display_name:
-        return "User is not authenticated."
-
-    if not is_user_authorized(display_name):
-        return f"{display_name} is not authorized to access this application."
-
-    remote_kill_command = f"kill {pid} > /dev/null 2>&1 &"
-
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
-
-        stdin, stdout, stderr = ssh.exec_command(remote_kill_command)
-
-        # Add a print statement to debug
-        print(f"Kill Command: {remote_kill_command}")
-
-        result = stdout.read().decode('utf-8')
-        error = stderr.read().decode('utf-8')
-
-        # Add a print statement to debug
-        print(f"Kill Bot Output: {result}")
-        print(f"Kill Bot Error: {error}")
-
+        status_output = stdout.read().decode("utf-8")
         ssh.close()
 
-        return result  # Return the result of the command execution
+        if "Bot Running with PID" in status_output:
+            try:
+                remote_kill_command = f"kill {status_output.split(':')[-1].strip()} > /dev/null 2>&1 &"
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
+                ssh.exec_command(remote_kill_command)
+                time.sleep(3)
+                stdin, stdout, stderr = ssh.exec_command(remote_status_command)
+                new_status_output = stdout.read().decode("utf-8")
+                ssh.close()
+
+                if "Bot running with PID" not in new_status_output:
+                    status_label.config(text="Bot stopped successfully.", fg="blue")
+                else:
+                    status_label.config(text="Failed to stop the bot.", fg="red")
+            except Exception as e:
+                status_label.config(text=f"Error: {str(e)}", fg="red")
+        else:
+            status_label.config(text="Bot is not running.", fg="red")
     except Exception as e:
-        # Add a print statement to debug
-        print(f"Kill Bot Exception: {str(e)}")
-        return str(e)  # Return the exception message
+        status_label.config(text=f"Error: {str(e)}", fg="red")
+
+# Function to restart the bot
+def restart_bot(status_label):
+    username = get_global_username()
+    display_name = get_global_display_name()
+    twitchUserId = get_global_user_id()
+    authToken = get_global_auth_token()
+    webhookPort = get_webhook_port()
+
+    if not display_name:
+        status_label.config(text="User is not authenticated.", fg="red")
+        return
+
+    if not is_user_authorized(display_name):
+        status_label.config(text=f"{display_name} is not authorized to access this application.", fg="red")
+        return
+
+    try:
+        remote_status_command = f"{STATUS_COMMAND_TEMPLATE} -channel {username}"
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
+        stdin, stdout, stderr = ssh.exec_command(remote_status_command)
+        status_output = stdout.read().decode("utf-8")
+        ssh.close()
+
+        if "Bot Running with PID" in status_output:
+            try:
+                remote_kill_command = f"kill {status_output.split(':')[-1].strip()} > /dev/null 2>&1 &"
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
+                ssh.exec_command(remote_kill_command)
+                time.sleep(3)
+                stdin, stdout, stderr = ssh.exec_command(remote_status_command)
+                new_status_output = stdout.read().decode("utf-8")
+                ssh.close()
+
+                if "Bot running with PID" not in new_status_output:
+                    remote_start_command = f"{BOT_COMMAND_TEMPLATE} -channel {username} -channelid {twitchUserId} -token {authToken} -port {webhookPort} > /dev/null 2>&1 &"
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(REMOTE_SSH_HOST, int(REMOTE_SSH_PORT), REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD)
+                    ssh.exec_command(remote_start_command)
+                    time.sleep(3)
+                    stdin, stdout, stderr = ssh.exec_command(remote_status_command)
+
+                    run_status = stdout.read().decode("utf-8")
+                    ssh.close()
+
+                    pid_start_index = run_status.find(":") + 1
+                    pid = run_status[pid_start_index:].strip()
+                    print(f"Bot successfully restarted. Process ID: {pid}")
+                    status_label.config(text=f"Bot successfully restarted. Process ID: {pid}", fg="blue")
+                else:
+                    status_label.config(text="Failed to stop the bot. Can't restart.", fg="red")
+            except Exception as e:
+                status_label.config(text=f"Error: {str(e)}", fg="red")
+        else:
+            status_label.config(text="Bot is not running. Can't restart.", fg="red")
+    except Exception as e:
+        status_label.config(text=f"Error: {str(e)}", fg="red")
 
 # Is ther user authorized to use this app
 def is_user_authorized(display_name):
