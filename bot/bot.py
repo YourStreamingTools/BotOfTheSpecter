@@ -213,7 +213,7 @@ async def event_subscribe(subscriber):
             twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
 
 class Bot(commands.Bot):
-    @bot.command(name="commands", aliases=["cmds"])
+    @bot.command(name="commands", aliases=["cmds",])
     async def commands_command(ctx: commands.Context):
         is_mod = is_mod_or_broadcaster(ctx.author)
 
@@ -628,7 +628,7 @@ class Bot(commands.Bot):
         chat_logger.info(f"{target_user} has done a new typo in chat, they're count is now at {typo_count}.")
         await ctx.send(f"Congratulations {target_user}, you've done a typo! {target_user} you've done a typo in chat {typo_count} times.")
     
-    @bot.command(name='typos', aliases=('typocount',))
+    @bot.command(name="typos", aliases=("typocount",))
     async def typos_command(ctx: commands.Context, *, mentioned_username: str = None):
         chat_logger.info("Typos Command ran.")
         # Check if the broadcaster is running the command
@@ -649,7 +649,7 @@ class Bot(commands.Bot):
         chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
         await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
 
-    @bot.command(name='edittypos', aliases=('edittypo',))
+    @bot.command(name="edittypos", aliases=("edittypo",))
     async def edit_typo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info("Edit Typos Command ran.")
@@ -700,7 +700,7 @@ class Bot(commands.Bot):
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
-    @bot.command(name='removetypos', aliases=('removetypo',))
+    @bot.command(name="removetypos", aliases=("removetypo",))
     async def remove_typos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
         chat_logger.info("Remove Typos Command ran.")
         try:
@@ -758,7 +758,7 @@ class Bot(commands.Bot):
         chat_logger.info(f"{ctx.author} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
         await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
 
-    @bot.command(name='deathadd', aliases=['death+'])
+    @bot.command(name="deathadd", aliases=["death+",])
     async def deathadd_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info("Death Add Command ran.")
@@ -786,7 +786,7 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to use the command, death add, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
-    @bot.command(name='deathremove', aliases=['death-'])
+    @bot.command(name="deathremove", aliases=["death-",])
     async def deathremove_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info("Death Remove Command Ran")
