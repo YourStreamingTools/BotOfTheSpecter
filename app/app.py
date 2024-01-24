@@ -17,7 +17,7 @@ def exit_app():
 
 # Threading for app
 threading.Thread(target=twitch_auth.start_auth, daemon=True).start()
-threading.Thread(target=updates.check_for_updates, daemon=True).start()
+# threading.Thread(target=updates.check_for_updates, daemon=True).start()
 
 appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
 os.makedirs(appdata_dir, exist_ok=True)
