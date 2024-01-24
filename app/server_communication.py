@@ -98,7 +98,7 @@ def run_bot(status_label):
         status_output = stdout.read().decode("utf-8")
         ssh.close()
 
-        if "Bot Running with PID" in status_output:
+        if "Bot is running with process ID" in status_output:
             pid_start_index = status_output.find(":") + 1
             pid = status_output[pid_start_index:].strip()
             print(f"Bot is already running with PID: {pid}")
@@ -120,7 +120,7 @@ def run_bot(status_label):
             print(f"Bot started successfully. Process ID: {pid}")
             status_label.config(text=f"Bot started successfully. Process ID: {pid}", fg="blue")
     except Exception as e:
-        status_label.config(text=f"Error: {str(e)}", fg="red")
+        status_label.config(text=f"Error: {str(e)}", fg="red", wraplength=400)
 
 # Function to check bot status
 def check_bot_status(status_label):
@@ -158,7 +158,7 @@ def check_bot_status(status_label):
             status_label.config(text=output, fg="blue")
     except Exception as e:
         print(e)
-        status_label.config(text=f"Error: {str(e)}", fg="red")
+        status_label.config(text=f"Error: {str(e)}", fg="red", wraplength=400)
 
 # Function to stop the bot
 def stop_bot(status_label):
@@ -182,7 +182,7 @@ def stop_bot(status_label):
         status_output = stdout.read().decode("utf-8")
         ssh.close()
 
-        if "Bot Running with PID" in status_output:
+        if "Bot is running with process ID" in status_output:
             try:
                 remote_kill_command = f"kill {status_output.split(':')[-1].strip()} > /dev/null 2>&1 &"
                 ssh = paramiko.SSHClient()
@@ -194,16 +194,16 @@ def stop_bot(status_label):
                 new_status_output = stdout.read().decode("utf-8")
                 ssh.close()
 
-                if "Bot running with PID" not in new_status_output:
+                if "Bot is running with process ID" not in new_status_output:
                     status_label.config(text="Bot stopped successfully.", fg="blue")
                 else:
                     status_label.config(text="Failed to stop the bot.", fg="red")
             except Exception as e:
-                status_label.config(text=f"Error: {str(e)}", fg="red")
+                status_label.config(text=f"Error: {str(e)}", fg="red", wraplength=400)
         else:
             status_label.config(text="Bot is not running.", fg="red")
     except Exception as e:
-        status_label.config(text=f"Error: {str(e)}", fg="red")
+        status_label.config(text=f"Error: {str(e)}", fg="red", wraplength=400)
 
 # Function to restart the bot
 def restart_bot(status_label):
@@ -230,7 +230,7 @@ def restart_bot(status_label):
         status_output = stdout.read().decode("utf-8")
         ssh.close()
 
-        if "Bot Running with PID" in status_output:
+        if "Bot is running with process ID" in status_output:
             try:
                 remote_kill_command = f"kill {status_output.split(':')[-1].strip()} > /dev/null 2>&1 &"
                 ssh = paramiko.SSHClient()
@@ -242,7 +242,7 @@ def restart_bot(status_label):
                 new_status_output = stdout.read().decode("utf-8")
                 ssh.close()
 
-                if "Bot running with PID" not in new_status_output:
+                if "Bot is running with process ID" not in new_status_output:
                     remote_start_command = f"{BOT_COMMAND_TEMPLATE} -channel {username} -channelid {twitchUserId} -token {authToken} -port {webhookPort} > /dev/null 2>&1 &"
                     ssh = paramiko.SSHClient()
                     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -261,11 +261,11 @@ def restart_bot(status_label):
                 else:
                     status_label.config(text="Failed to stop the bot. Can't restart.", fg="red")
             except Exception as e:
-                status_label.config(text=f"Error: {str(e)}", fg="red")
+                status_label.config(text=f"Error: {str(e)}", fg="red", wraplength=400)
         else:
             status_label.config(text="Bot is not running. Can't restart.", fg="red")
     except Exception as e:
-        status_label.config(text=f"Error: {str(e)}", fg="red")
+        status_label.config(text=f"Error: {str(e)}", fg="red", wraplength=400)
 
 # Is ther user authorized to use this app
 def is_user_authorized(display_name):
