@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-filevers=(1, 7, 0, 0),
-prodvers=(1, 7, 0, 0),
+filevers=(1, 7, 1, 0),
+prodvers=(1, 7, 1, 0),
 mask=0x3f,
 flags=0x0,
 OS=0x4,
@@ -16,12 +16,12 @@ StringFileInfo(
     u'040904B0',
     [StringStruct(u'CompanyName', u'YourStreamingTools'),
     StringStruct(u'FileDescription', u'BotOfTheSpecter Local Controler'),
-    StringStruct(u'FileVersion', u'1.7.0'),
+    StringStruct(u'FileVersion', u'1.7.1'),
     StringStruct(u'InternalName', u'BotOfTheSpecter'),
     StringStruct(u'LegalCopyright', u'Copyright (c) 2024 | YourStreamingTools'),
     StringStruct(u'OriginalFilename', u'botofthespecter.exe'),
     StringStruct(u'ProductName', u'BotOfTheSpecter'),
-    StringStruct(u'ProductVersion', u'1.7.0')])
+    StringStruct(u'ProductVersion', u'1.7.1')])
   ]), 
 VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]
