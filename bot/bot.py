@@ -45,9 +45,9 @@ CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-builtin_commands = ["commands", "bot", "timer", "ping", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "so", "deaths"]
-mod_commands = ["addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove"]
-builtin_aliases = ["cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"]
+builtin_commands = {"commands", "bot", "timer", "ping", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "so", "deaths"}
+mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove"}
+builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
 # Logs
 webroot = "/var/www/dashboard"
@@ -162,20 +162,29 @@ conn.commit()
 # Initialize the translator
 translator = Translator(service_urls=['translate.google.com'])
 
-@client.event
-async def event_ready():
-    bot_logger.info(f"Bot logger initialized.")
-    chat_logger.info(f"Chat logger initialized.")
-    twitch_logger.info(f"Twitch logger initialized.")
+# config = {
+#     "irc_token": OAUTH_TOKEN,
+#     "client_secret": CLIENT_SECRET,
+# }
+# twitch_bot = twitchio.Client(config["irc_token"], client_secret = config["client_secret"], initial_channels = [CHANNEL_NAME])
+# es = eventsub.EventSubWSClient(twitch_bot)
 
-    # Get the channel object using the provided CHANNEL_NAME
-    channel = await client.get_channel(CHANNEL_NAME)
+# @twitch_bot.event()
+# async def event_ready():
+#     await twitch_bot.join_channels([CHANNEL_NAME])
+#     await es.subscribe_channel_follows_v2(twitch_bot.user_id, twitch_bot.user_id, config["irc_token"])
+#     bot_logger.info(f"Bot logger initialized.")
+#     chat_logger.info(f"Chat logger initialized.")
+#     twitch_logger.info(f"Twitch logger initialized.")
 
-    if channel:
-        bot_logger.info(f"Logged in as | {BOT_USERNAME}")
-        await channel.send(f"Ready and waiting.")
-    else:
-        bot_logger.warning("Channel not found, unable to send ready message.")
+# @twitch_bot.event()
+# async def event_channel_join(CHANNEL_NAME):
+#     bot_logger.info(f"Bot has joined the channel: {CHANNEL_NAME}")
+#     channel = await twitch_bot.get_channel(CHANNEL_NAME)
+#     if channel:
+#         await channel.send("Hello, I have joined the channel!")
+#     else:
+#         bot_logger.warning("Channel not found, unable to send join message.")
 
 # @client.event
 # async def on_pubsub_channel_subscription(data):
@@ -219,7 +228,7 @@ class Bot(commands.Bot):
 
         if is_mod:
             # If the user is a mod, include both mod_commands and builtin_commands
-            all_commands = mod_commands.union(builtin_commands)
+            all_commands = list(mod_commands) + list(builtin_commands)
             commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
         else:
             # If the user is not a mod, only include builtin_commands
@@ -228,7 +237,7 @@ class Bot(commands.Bot):
         response_message = f"Available commands to you: {commands_list}"
 
         # Sending the response message to the chat
-        await ctx.reply(response_message)
+        await ctx.send(response_message)
 
     @bot.command(name='bot')
     async def bot_command(ctx: commands.Context):
