@@ -16,8 +16,10 @@ def show_about_message():
 
     description_text = (
         "This application allows you to view bot logs without the need to log into the website.\n\n"
-        "You can also check if the bot is currently running using the 'Check Bot Status' button.\n\n"
-        "This executable is solely for viewing bot logs and checking the status of the bot if it's currently running."
+        "You can check if the bot is currently running using the 'Check Bot Status' button.\n"
+        "You can run the bot from this app if the bot isn't running by using the 'Run Bot' Button.\n"
+        "You can stop the bot if with wish the bot to stop working.\n"
+        "You can restart the bot if you need the bot to restart or to get the new version of the bot running."
     )
     
     description_message = tk.Message(about_window, text=description_text, font=("Arial", 12), width=400)
