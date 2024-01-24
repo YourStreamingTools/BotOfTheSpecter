@@ -6,6 +6,7 @@ import json
 import requests
 import paramiko
 import twitch_auth
+import mysql.connector
 import logging
 from decouple import config
 
@@ -37,7 +38,38 @@ def get_global_auth_token():
 
 # Get Workhook from database
 def get_webhook_port():
-    return 8001
+    db_config = {
+        "host": "", # CHANGE TO MAKE THIS WORK
+        "user": "", # CHANGE TO MAKE THIS WORK
+        "password": "", # CHANGE TO MAKE THIS WORK
+        "database": "" # CHANGE TO MAKE THIS WORK
+    }
+
+    username = get_global_username()
+
+    try:
+        # Create a database connection
+        connection = mysql.connector.connect(**db_config)
+
+        if connection.is_connected():
+            cursor = connection.cursor()
+
+            # Query to fetch webhook_port based on username
+            query = "SELECT webhook_port FROM users WHERE username = %s"
+            cursor.execute(query, (username,))
+            result = cursor.fetchone()
+
+            if result:
+                webhook_port = result[0]
+                print(f"Webhook port found as: {webhook_port}")
+                return webhook_port
+
+    except mysql.connector.Error as error:
+        print("Error: ", error)
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
 
 # Function to run the bot
 def run_bot(status_label):
