@@ -799,7 +799,7 @@ class Bot(commands.Bot):
             await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, death add, but couldn't has they are not a moderator.")
-            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name="deathremove", aliases=["death-",])
     async def deathremove_command(ctx: commands.Context):
@@ -827,7 +827,7 @@ class Bot(commands.Bot):
             await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, death remove, but couldn't has they are not a moderator.")
-            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
     
     @bot.command(name='game')
     async def game_command(ctx: commands.Context):
@@ -855,6 +855,26 @@ class Bot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
+
+    @bot.command(name="checkupdate")
+    async def check_update_command(ctx: commands.Context):
+        if is_mod_or_broadcaster(ctx.author):
+            REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
+            VERSION = "1.7"
+            response = requests.get(REMOTE_VERSION_URL)
+            remote_version = response.text.strip()
+
+            if remote_version != VERSION:
+                message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot."
+                bot_logger.info(f"Bot update available. (V{remote_version})")
+                await ctx.send(f"{message}")
+            else:
+                message = f"There is no update pending."
+                bot_logger.info(f"{message}")
+                await ctx.send(f"{message}")
+        else:
+            chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
+            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
 
     @bot.event
     async def event_message(ctx):
@@ -938,7 +958,7 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in shoutout_command: {e}")
 
 # Functions for all the commands
-##
+##    
 # Function to get the current streaming category for the channel.
 async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
