@@ -3,7 +3,6 @@ import os
 import tkinter as tk
 from tkinter import ttk
 import threading
-import threading
 # App Imports
 from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs
 import twitch_auth
