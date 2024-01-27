@@ -1,15 +1,16 @@
 # Standard library imports
+import os
+import re
+import asyncio
+import queue
 import argparse
 import datetime
 from datetime import datetime
 import logging
-import os
-import re
 import subprocess
 
 # Third-party imports
 import aiohttp
-import asyncio
 import requests
 import sqlite3
 from translate import Translator
@@ -844,8 +845,10 @@ class Bot(commands.Bot):
                         followage_text = await response.text()
 
                         # Send the response message as received from DecAPI
+                        chat_logger.info(f"{target_user} has been following for: {followage_text}.")
                         await ctx.send(f"{target_user} has been following for: {followage_text}")
                     else:
+                        chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
                         await ctx.send(f"Failed to retrieve followage information for {target_user}.")
         except Exception as e:
             chat_logger.error(f"Error retrieving followage: {e}")
@@ -932,6 +935,9 @@ class Bot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in shoutout_command: {e}")
 
+# Functions for all the commands
+##
+# Function to get the current streaming category for the channel.
 async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
 
@@ -948,6 +954,7 @@ async def get_current_stream_game():
     twitch_logger.error(f"Failed to get current game for {CHANNEL_NAME}.")
     return None
 
+# Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
     # Replace with actual method to get display name from Twitch API
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
@@ -964,6 +971,7 @@ async def get_display_name(user_id):
             else:
                 return None
 
+# Function to check if the user running the task is a mod to the channel or the channel broadcaster.
 def is_mod_or_broadcaster(user):
     if user.name == 'gfaundead':
         twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
@@ -979,68 +987,18 @@ def is_mod_or_broadcaster(user):
         else:
             return False
 
-async def trigger_twitch_shoutout(user_to_shoutout, ctx):
+# Function to trigger a twitch shoutout via Twitch API
+shoutout_queue = queue.Queue()
+async def trigger_twitch_shoutout(user_to_shoutout):
     # Fetching the shoutout user ID
     shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
-    
-    url = 'https://api.twitch.tv/helix/chat/shoutouts'
-    headers = {
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
-    }
-    payload = {
-        "from_broadcaster_id": CHANNEL_ID,
-        "to_broadcaster_id": shoutout_user_id,
-        "moderator_id": CHANNEL_ID
-    }
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=payload) as response:
-                if response.status in (200, 204):
-                    twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
-                    return {}
-                else:
-                    twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-                    return None
-    except Exception as e:
-        twitch_logger.error(f"Error triggering shoutout: {e}")
-        return None
-    
-async def get_latest_stream_game(user_to_shoutout):
-    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
-    
-    response = await fetch_json(url)  # No headers required for this API
-    
-    # Add debug logger
-    twitch_logger.debug(f"Response from DecAPI: {response}")
-    
-    # API directly returns the game name as a string
-    if response and isinstance(response, str) and response != "null":
-        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
-        return response
-    
-    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
-    return None
+    # Add the shoutout request to the queue
+    shoutout_queue.put((user_to_shoutout, shoutout_user_id))
 
-async def fetch_twitch_shoutout_user_id(user_to_shoutout):
-    url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
-    shoutout_user_id = await fetch_json(url)
-    twitch_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
-    return shoutout_user_id
-
-async def fetch_json(url, headers=None):
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    if "json" in response.headers.get("Content-Type", ""):
-                        return await response.json()
-                    else:
-                        return await response.text()
-    except Exception as e:
-        twitch_logger.error(f"Error fetching data: {e}")
-    return None
+    # Check if the queue is empty and no shoutout is currently being processed
+    if shoutout_queue.qsize() == 1:
+        await process_shoutouts()
 
 async def handle_shoutout_command(user, user_to_shoutout):
     # Ensure user is a mod or broadcaster
@@ -1065,27 +1023,92 @@ async def handle_shoutout_command(user, user_to_shoutout):
     else:
         return f"Failed to shoutout {user_to_shoutout}."
 
-def create_eventsub_subscription(CHANNEL_NAME):
-    headers = {
-        'Client-ID': CLIENT_ID,
-        'Authorization': f'Bearer {CHANNEL_AUTH}',
-        'Content-Type': 'application/json'
-    }
-    json_data = {
-        'type': 'channel.follow',
-        'version': '2',
-        'condition': {
-            'broadcaster_user_id': CHANNEL_ID
-        },
-        'transport': {
-            'method': 'webhook',
-            'callback': CALLBACK_URL,
-            'secret': WEBHOOK_SECRET
+async def fetch_twitch_shoutout_user_id(user_to_shoutout):
+    url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
+    shoutout_user_id = await fetch_json(url)
+    twitch_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
+    return shoutout_user_id
+
+async def process_shoutouts():
+    while not shoutout_queue.empty():
+        user_to_shoutout, shoutout_user_id = shoutout_queue.get()
+
+        url = 'https://api.twitch.tv/helix/chat/shoutouts'
+        headers = {
+            "Authorization": f"Bearer {CHANNEL_AUTH}",
+            "Client-ID": TWITCH_API_CLIENT_ID,
         }
-    }
-    response = requests.post('https://api.twitch.tv/helix/eventsub/subscriptions', headers=headers, json=json_data)
-    print(response.json())
-    pass
+        payload = {
+            "from_broadcaster_id": CHANNEL_ID,
+            "to_broadcaster_id": shoutout_user_id,
+            "moderator_id": CHANNEL_ID
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status in (200, 204):
+                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                        await asyncio.sleep(180)  # Wait for 3 minutes before processing the next shoutout
+                    else:
+                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                    shoutout_queue.task_done()
+        except Exception as e:
+            twitch_logger.error(f"Error triggering shoutout: {e}")
+            shoutout_queue.task_done()
+
+# Function to get the last game a streamer has streamed.
+async def get_latest_stream_game(user_to_shoutout):
+    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
+    
+    response = await fetch_json(url)  # No headers required for this API
+    
+    # Add debug logger
+    twitch_logger.debug(f"Response from DecAPI: {response}")
+    
+    # API directly returns the game name as a string
+    if response and isinstance(response, str) and response != "null":
+        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
+        return response
+    
+    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
+    return None
+
+# Function to process JSON requests
+async def fetch_json(url, headers=None):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    if "json" in response.headers.get("Content-Type", ""):
+                        return await response.json()
+                    else:
+                        return await response.text()
+    except Exception as e:
+        twitch_logger.error(f"Error fetching data: {e}")
+    return None
+
+# def create_eventsub_subscription(CHANNEL_NAME):
+#     headers = {
+#         'Client-ID': CLIENT_ID,
+#         'Authorization': f'Bearer {CHANNEL_AUTH}',
+#         'Content-Type': 'application/json'
+#     }
+#     json_data = {
+#         'type': 'channel.follow',
+#         'version': '2',
+#         'condition': {
+#             'broadcaster_user_id': CHANNEL_ID
+#         },
+#         'transport': {
+#             'method': 'webhook',
+#             'callback': CALLBACK_URL,
+#             'secret': WEBHOOK_SECRET
+#         }
+#     }
+#     response = requests.post('https://api.twitch.tv/helix/eventsub/subscriptions', headers=headers, json=json_data)
+#     print(response.json())
+#     pass
 
 # Run the bot
 def start_bot():
