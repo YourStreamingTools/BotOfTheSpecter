@@ -8,6 +8,7 @@ import datetime
 from datetime import datetime
 import logging
 import subprocess
+import threading
 
 # Third-party imports
 import aiohttp
@@ -225,6 +226,7 @@ translator = Translator(service_urls=['translate.google.com'])
 #             await channel.send(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
 #             twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
 # TwitchIO  Client Events -- DISABLED FOR NOW
+
 class Bot(commands.Bot):
     @bot.command(name="commands", aliases=["cmds",])
     async def commands_command(ctx: commands.Context):
