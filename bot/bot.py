@@ -607,6 +607,7 @@ class Bot(commands.Bot):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(uptime_url) as response:
+                    api_logger.debug(f"{response}")
                     if response.status == 200:
                         uptime_text = await response.text()
 
@@ -848,6 +849,7 @@ class Bot(commands.Bot):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(followage_url) as response:
+                    api_logger.debug(f"{response}")
                     if response.status == 200:
                         followage_text = await response.text()
 
@@ -965,17 +967,14 @@ class Bot(commands.Bot):
 async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
 
-    response = await fetch_json(url)  # No headers required for this API
+    response = await fetch_json(url)
+    api_logger.debug(f"Response from DecAPI for current game: {response}")
 
-    # Add debug logger
-    twitch_logger.debug(f"Response from DecAPI for current game: {response}")
-
-    # API directly returns the game name as a string
     if response and isinstance(response, str) and response != "null":
         twitch_logger.info(f"Current game for {CHANNEL_NAME}: {response}.")
         return response
 
-    twitch_logger.error(f"Failed to get current game for {CHANNEL_NAME}.")
+    api_logger.error(f"Failed to get current game for {CHANNEL_NAME}.")
     return None
 
 # Function to get the diplay name of the user from their user id
@@ -1027,7 +1026,7 @@ async def trigger_twitch_shoutout(user_to_shoutout):
 async def fetch_twitch_shoutout_user_id(user_to_shoutout):
     url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
     shoutout_user_id = await fetch_json(url)
-    twitch_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
+    api_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
     return shoutout_user_id
 
 async def get_latest_stream_game(user_to_shoutout):
@@ -1035,14 +1034,14 @@ async def get_latest_stream_game(user_to_shoutout):
     
     response = await fetch_json(url)
     
-    twitch_logger.debug(f"Response from DecAPI: {response}")
+    api_logger.debug(f"Response from DecAPI: {response}")
     
     # API directly returns the game name as a string
     if response and isinstance(response, str) and response != "null":
         twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
         return response
     
-    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
+    api_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
     return None
 
 
@@ -1085,7 +1084,7 @@ async def fetch_json(url, headers=None):
                     else:
                         return await response.text()
     except Exception as e:
-        twitch_logger.error(f"Error fetching data: {e}")
+        api_logger.error(f"Error fetching data: {e}")
     return None
 
 # def create_eventsub_subscription(CHANNEL_NAME):
