@@ -57,9 +57,10 @@ logs_directory = "logs"
 bot_logs = os.path.join(logs_directory, "bot")
 chat_logs = os.path.join(logs_directory, "chat")
 twitch_logs = os.path.join(logs_directory, "twitch")
+api_logs = os.path.join(logs_directory, "api")
 
 # Ensure directories exist
-for directory in [logs_directory, bot_logs, chat_logs, twitch_logs]:
+for directory in [logs_directory, bot_logs, chat_logs, twitch_logs, api_logs]:
     directory_path = os.path.join(webroot, directory)
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
@@ -88,7 +89,10 @@ chat_logger = setup_logger('chat', chat_log_file)
 twitch_log_file = os.path.join(webroot, twitch_logs, f"{CHANNEL_NAME}.txt")
 twitch_logger = setup_logger('twitch', twitch_log_file)
 
-bot_logger.info("Bot script started.")
+# Setup API logger
+api_log_file = os.path.join(webroot, api_logs, f"{CHANNEL_NAME}.txt")
+api_logger = setup_logger("api", api_log_file)
+
 # Create the bot instance and connect to TwitchAPI
 bot = commands.Bot(
     token=OAUTH_TOKEN,
@@ -227,6 +231,7 @@ translator = Translator(service_urls=['translate.google.com'])
 #             twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
 # TwitchIO  Client Events -- DISABLED FOR NOW
 
+bot_logger.info("Bot script started.")
 class Bot(commands.Bot):
     @bot.command(name="commands", aliases=["cmds",])
     async def commands_command(ctx: commands.Context):
@@ -914,48 +919,45 @@ class Bot(commands.Bot):
 
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
-        try:
-            is_mod = ctx.author.is_mod
+        if is_mod_or_broadcaster(ctx.author):
+            try:
+                if user_to_shoutout is None:
+                    chat_logger.error(f"Shoutout command missing username parameter.")
+                    await ctx.send(f"Usage: !so @username")
+                    return
 
-            if not is_mod:
-                chat_logger.info(f"User {ctx.author.name} is not a mod, failed to run shoutout command.")
-                await ctx.send(f"You must be a moderator to use the !so command.")
-                return
+                # Remove @ from the username if present
+                user_to_shoutout = user_to_shoutout.lstrip('@')
 
-            if user_to_shoutout is None:
-                chat_logger.error(f"SO Command missing username parameter.")
-                await ctx.send(f"Usage: !so @username")
-                return
+                chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
 
-            # Remove @ from the username if present
-            user_to_shoutout = user_to_shoutout.lstrip('@')
+                game = await get_latest_stream_game(user_to_shoutout)
 
-            chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
+                if not game:
+                    shoutout_message = (
+                        f"Hey, huge shoutout to @{user_to_shoutout}! "
+                        f"You should go give them a follow over at "
+                        f"https://www.twitch.tv/{user_to_shoutout}"
+                    )
+                    chat_logger.info(shoutout_message)
+                    await ctx.send(shoutout_message)
+                else:
+                    shoutout_message = (
+                        f"Hey, huge shoutout to @{user_to_shoutout}! "
+                        f"You should go give them a follow over at "
+                        f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+                    )
+                    chat_logger.info(shoutout_message)
+                    await ctx.send(shoutout_message)
 
-            game = await get_latest_stream_game(user_to_shoutout)
+                # Trigger the Twitch shoutout
+                await trigger_twitch_shoutout(user_to_shoutout, ctx)
 
-            if not game:
-                shoutout_message = (
-                    f"Hey, huge shoutout to @{user_to_shoutout}! "
-                    f"You should go give them a follow over at "
-                    f"https://www.twitch.tv/{user_to_shoutout}"
-                )
-                chat_logger.info(shoutout_message)
-                await ctx.send(shoutout_message)
-            else:
-                shoutout_message = (
-                    f"Hey, huge shoutout to @{user_to_shoutout}! "
-                    f"You should go give them a follow over at "
-                    f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-                )
-                chat_logger.info(shoutout_message)
-                await ctx.send(shoutout_message)
-
-            # Trigger the Twitch shoutout
-            await trigger_twitch_shoutout(user_to_shoutout, ctx)
-
-        except Exception as e:
-            chat_logger.error(f"Error in shoutout_command: {e}")
+            except Exception as e:
+                chat_logger.error(f"Error in shoutout_command: {e}")
+        else:
+            chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't has they are not a moderator.")
+            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
 
 # Functions for all the commands
 ##    
@@ -1022,34 +1024,27 @@ async def trigger_twitch_shoutout(user_to_shoutout):
     if shoutout_queue.qsize() == 1:
         await process_shoutouts()
 
-async def handle_shoutout_command(user, user_to_shoutout):
-    # Ensure user is a mod or broadcaster
-    if not is_mod_or_broadcaster(user):
-        twitch_logger.warning(f"User {user} is not allowed to use the shoutout command.")
-        return "Only mods or the broadcaster can use the shoutout command."
-
-    # Get latest game of the user to shoutout
-    game_name = await get_latest_stream_game(user_to_shoutout)
-    if not game_name:
-        return f"Could not fetch the latest game for {user_to_shoutout}."
-    
-    # Fetch the Twitch ID for the user to shoutout
-    shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
-    if not shoutout_user_id:
-        return f"Could not fetch the Twitch ID for {user_to_shoutout}."
-    
-    # Trigger the shoutout
-    result = await trigger_twitch_shoutout(shoutout_user_id, user.id)
-    if result:
-        return f"Shoutout to @{user_to_shoutout} who was last seen playing {game_name}!"
-    else:
-        return f"Failed to shoutout {user_to_shoutout}."
-
 async def fetch_twitch_shoutout_user_id(user_to_shoutout):
     url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
     shoutout_user_id = await fetch_json(url)
     twitch_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
     return shoutout_user_id
+
+async def get_latest_stream_game(user_to_shoutout):
+    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
+    
+    response = await fetch_json(url)
+    
+    twitch_logger.debug(f"Response from DecAPI: {response}")
+    
+    # API directly returns the game name as a string
+    if response and isinstance(response, str) and response != "null":
+        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
+        return response
+    
+    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
+    return None
+
 
 async def process_shoutouts():
     while not shoutout_queue.empty():
@@ -1078,23 +1073,6 @@ async def process_shoutouts():
         except Exception as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
             shoutout_queue.task_done()
-
-# Function to get the last game a streamer has streamed.
-async def get_latest_stream_game(user_to_shoutout):
-    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
-    
-    response = await fetch_json(url)  # No headers required for this API
-    
-    # Add debug logger
-    twitch_logger.debug(f"Response from DecAPI: {response}")
-    
-    # API directly returns the game name as a string
-    if response and isinstance(response, str) and response != "null":
-        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
-        return response
-    
-    twitch_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
-    return None
 
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
