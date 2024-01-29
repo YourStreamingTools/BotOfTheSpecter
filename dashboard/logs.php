@@ -108,7 +108,7 @@ if(isset($_GET['logType'])) {
     <li class="tabs-title <?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="#chat">Chat Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="#twitch">Twitch Logs</a></li>
-    <li class="tabs-title <?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="#script">API Logs</a></li>
+    <li class="tabs-title <?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="#api">API Logs</a></li>
 </ul>
 
 <div class="tabs-content" data-tabs-content="logTabs">
@@ -124,8 +124,8 @@ if(isset($_GET['logType'])) {
         <h3>Twitch Logs</h3>
         <pre><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
-    <div class="tabs-panel <?php echo $logType === 'api' ? 'is-active' : ''; ?>" id="script">
-        <h3>Script Logs</h3>
+    <div class="tabs-panel <?php echo $logType === 'api' ? 'is-active' : ''; ?>" id="api">
+        <h3>API Logs</h3>
         <pre><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
 </div>
