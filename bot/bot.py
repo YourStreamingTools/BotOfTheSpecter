@@ -996,19 +996,24 @@ async def get_display_name(user_id):
 
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
 def is_mod_or_broadcaster(user):
+    # Check if the user is the bot owner
     if user.name == 'gfaundead':
         twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
         return True
-    else:
-        badges = user.get('badges', {})
-        is_mod = user.is_mod if hasattr(user, 'is_mod') else False
 
-        # Check if the user has either the 'moderator' or 'broadcaster' badge, or is a moderator
-        if 'moderator' in badges or 'broadcaster' in badges or is_mod:
-            twitch_logger.info(f"User {user.name} is a Mod or Broadcaster")
-            return True
-        else:
-            return False
+    # Check if the user is the broadcaster
+    elif user.name == CHANNEL_NAME:
+        twitch_logger.info(f"User {user.name} is the Broadcaster")
+        return True
+
+    # Check if the user is a moderator
+    elif 'moderator' in user.get('badges', {}) or (hasattr(user, 'is_mod') and user.is_mod):
+        twitch_logger.info(f"User {user.name} is a Moderator")
+        return True
+
+    # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
+    else:
+        return False
 
 # Function to trigger a twitch shoutout via Twitch API
 shoutout_queue = queue.Queue()
@@ -1025,25 +1030,35 @@ async def trigger_twitch_shoutout(user_to_shoutout):
 
 async def fetch_twitch_shoutout_user_id(user_to_shoutout):
     url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
-    shoutout_user_id = await fetch_json(url)
-    api_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
-    return shoutout_user_id
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                shoutout_user_id = await response.text()
+                api_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
+                return shoutout_user_id
+            else:
+                api_logger.error(f"Failed to fetch Twitch ID. Status: {response.status}")
+                return None
 
 async def get_latest_stream_game(user_to_shoutout):
     url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
-    
-    response = await fetch_json(url)
-    
-    api_logger.debug(f"Response from DecAPI: {response}")
-    
-    # API directly returns the game name as a string
-    if response and isinstance(response, str) and response != "null":
-        twitch_logger.info(f"Got {user_to_shoutout} Last Game: {response}.")
-        return response
-    
-    api_logger.error(f"Failed to get {user_to_shoutout} Last Game.")
-    return None
 
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                game_name = await response.text()
+                api_logger.debug(f"Response from DecAPI: {game_name}")
+
+                if game_name and game_name.lower() != "null":
+                    twitch_logger.info(f"Got {user_to_shoutout} Last Game: {game_name}.")
+                    return game_name
+                else:
+                    api_logger.error(f"User {user_to_shoutout} is not currently playing a game.")
+                    return None
+            else:
+                api_logger.error(f"Failed to get {user_to_shoutout} Last Game. Status: {response.status}")
+                return None
 
 async def process_shoutouts():
     while not shoutout_queue.empty():
