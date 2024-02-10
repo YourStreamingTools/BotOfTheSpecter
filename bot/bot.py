@@ -882,43 +882,7 @@ class Bot(commands.Bot):
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
             await ctx.reply("You must be a moderator or the broadcaster to use this command.")
-
-    @bot.event
-    async def event_message(ctx):
-        if ctx.author.bot:
-            return
-        
-        # Get the message content
-        message_content = ctx.content.strip()
-        chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
-        
-        # Check if the message starts with an exclamation mark
-        if message_content.startswith('!'):
-            # Split the message into command and its arguments
-            parts = message_content.split()
-            command = parts[0][1:]  # Extract the command without '!'
-            args = parts[1:]  # Remaining parts are arguments
     
-            # Combine commands and aliases for checking
-            all_commands = builtin_commands | builtin_aliases
-    
-            # If the command or alias is one of the built-in commands, process it using the bot's command processing
-            if command in all_commands:
-                await bot.process_commands(ctx)
-                return
-            
-            # Check if the command exists in the database
-            cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
-            result = cursor.fetchone()
-            
-            if result:
-                response = result[0]
-                chat_logger.info(f"{command} command ran.")
-                await ctx.channel.send(response)
-            else:
-                chat_logger.info(f"{command} command not found.")
-                await ctx.channel.send(f'No such command found: !{command}')
-
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
         if is_mod_or_broadcaster(ctx.author):
@@ -960,6 +924,42 @@ class Bot(commands.Bot):
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't has they are not a moderator.")
             await ctx.reply("You must be a moderator or the broadcaster to use this command.")
+
+    @bot.event
+    async def event_message(ctx):
+        if ctx.author.bot:
+            return
+        
+        # Get the message content
+        message_content = ctx.content.strip()
+        chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
+        
+        # Check if the message starts with an exclamation mark
+        if message_content.startswith('!'):
+            # Split the message into command and its arguments
+            parts = message_content.split()
+            command = parts[0][1:]  # Extract the command without '!'
+            args = parts[1:]  # Remaining parts are arguments
+    
+            # Combine commands and aliases for checking
+            all_commands = builtin_commands | builtin_aliases
+    
+            # If the command or alias is one of the built-in commands, process it using the bot's command processing
+            if command in all_commands:
+                await bot.process_commands(ctx)
+                return
+            
+            # Check if the command exists in the database
+            cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+            result = cursor.fetchone()
+            
+            if result:
+                response = result[0]
+                chat_logger.info(f"{command} command ran.")
+                await ctx.channel.send(response)
+            else:
+                chat_logger.info(f"{command} command not found.")
+                await ctx.channel.send(f'No such command found: !{command}')
 
 # Functions for all the commands
 ##    
