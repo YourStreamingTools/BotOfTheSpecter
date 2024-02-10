@@ -885,7 +885,7 @@ class Bot(commands.Bot):
     
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             if user_to_shoutout is None:
                     chat_logger.error(f"Shoutout command missing username parameter.")
                     await ctx.send(f"Usage: !so @username")
