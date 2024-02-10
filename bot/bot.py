@@ -886,12 +886,11 @@ class Bot(commands.Bot):
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
         if is_mod_or_broadcaster(ctx.author):
-            try:
-                if user_to_shoutout is None:
+            if user_to_shoutout is None:
                     chat_logger.error(f"Shoutout command missing username parameter.")
                     await ctx.send(f"Usage: !so @username")
                     return
-
+            try:
                 # Remove @ from the username if present
                 user_to_shoutout = user_to_shoutout.lstrip('@')
 
@@ -1013,6 +1012,7 @@ def is_mod_or_broadcaster(user):
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
     else:
+        twitch_logger.info(f"User {user.name} does not have required permissions.")
         return False
 
 # Function to trigger a twitch shoutout via Twitch API
