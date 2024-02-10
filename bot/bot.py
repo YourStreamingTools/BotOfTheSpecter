@@ -867,7 +867,7 @@ class Bot(commands.Bot):
     async def check_update_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-            VERSION = "1.7"
+            VERSION = "1.7.1"
             response = requests.get(REMOTE_VERSION_URL)
             remote_version = response.text.strip()
 
@@ -916,7 +916,7 @@ class Bot(commands.Bot):
                     await ctx.send(shoutout_message)
 
                 # Trigger the Twitch shoutout
-                await trigger_twitch_shoutout(user_to_shoutout, ctx)
+                await trigger_twitch_shoutout(user_to_shoutout)
 
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
