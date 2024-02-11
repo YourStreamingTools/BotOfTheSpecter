@@ -8,3 +8,4 @@ app/.env
 app/CodeSignTool/*
 dashboard/logs/*
 dashboard/cache/*
+api/app/*.exe
