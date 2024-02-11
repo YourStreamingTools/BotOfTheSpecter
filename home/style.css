@@ -1,0 +1,76 @@
+/* Default Style */
+body, h1, p {
+    margin: 0;
+    padding: 0;
+}
+
+/* Body Style */
+body {
+    background-color: #080c2d;
+    color: #c0c0c0;
+    font-family: Arial, sans-serif;
+}
+a {
+    color: #00FFFF;
+}
+
+.login-button {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  padding: 8px 15px;
+  background-color: #333333;
+  color: #ffffff;
+  text-align: center;
+  border: none;
+  text-decoration: none;
+  font-size: 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: box-shadow 0.3s;
+}
+
+.login-button:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}   
+
+/* Header Style */
+header {
+    background-color: #333333;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Heading Style */
+h1 {
+    font-size: 2em;
+    color: #ffffff;
+}
+
+/* Main content container Style */
+.container {
+    padding: 20px;
+}
+
+/* Bio text Style */
+.bio {
+    font-size: 1.2em;
+    text-align: left;
+    line-height: 1.5;
+}
+
+/* Footer Style */
+footer {
+    background-color: #080c2d;
+    text-align: center;
+    padding: 10px;
+    color: #ffffff;
+}
+
+/* Icon Style */
+.icon {
+    font-size: 1.5em;
+    margin: 0 5px;
+    vertical-align: middle;
+}
