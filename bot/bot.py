@@ -46,7 +46,7 @@ mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deat
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
 # Logs
-webroot = "/var/www/dashboard"
+webroot = "/var/www/logs"
 logs_directory = "logs"
 bot_logs = os.path.join(logs_directory, "bot")
 chat_logs = os.path.join(logs_directory, "chat")
@@ -861,7 +861,7 @@ class Bot(commands.Bot):
     async def check_update_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-            VERSION = "1.7.1"
+            VERSION = "1.8"
             response = requests.get(REMOTE_VERSION_URL)
             remote_version = response.text.strip()
 
@@ -1096,6 +1096,18 @@ async def fetch_json(url, headers=None):
         api_logger.error(f"Error fetching data: {e}")
     return None
 
+# Function for checking updates
+async def check_auto_update(ctx):
+    REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
+    VERSION = "1.8"
+    response = requests.get(REMOTE_VERSION_URL)
+    remote_version = response.text.strip()
+    if remote_version != VERSION:
+        message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot."
+        bot_logger.info(f"Bot update available. (V{remote_version})")
+        await ctx.send(f"{message}")
+
+# Function to create the eventsub subscription
 # def create_eventsub_subscription(CHANNEL_NAME):
 #     headers = {
 #         'Client-ID': CLIENT_ID,
@@ -1121,6 +1133,7 @@ async def fetch_json(url, headers=None):
 # Run the bot
 def start_bot():
     bot.run()
+    check_auto_update()
     # bot.loop.create_task(eventsub_client.listen(port={WEBHOOK_PORT}))
 
 if __name__ == '__main__':
