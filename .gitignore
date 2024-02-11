@@ -9,3 +9,4 @@ app/CodeSignTool/*
 dashboard/logs/*
 dashboard/cache/*
 api/app/*.exe
+api/authusers.json
