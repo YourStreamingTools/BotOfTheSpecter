@@ -1,9 +1,5 @@
-import flask
 from flask import Flask, request
 import argparse
-import asyncio
-import os
-import sqlite3
 
 app = Flask("TwitchWebhookServer")
 
