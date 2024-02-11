@@ -34,7 +34,7 @@ $logContent = '';
 $logTypeDisplay = '';
 if(isset($_GET['logType'])) {
     $logType = $_GET['logType'];
-    $logPath = "logs/$logType/$username.txt";
+    $logPath = "/var/www/logs/$logType/$username.txt";
     if(file_exists($logPath)) {
       $logLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
       $logContent = implode("\n", array_reverse($logLines));  
