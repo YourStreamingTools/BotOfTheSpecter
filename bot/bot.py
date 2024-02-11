@@ -16,12 +16,6 @@ import requests
 import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
-import twitchAPI
-from twitchAPI.chat import Chat
-from twitchAPI.oauth import UserAuthenticator, refresh_access_token
-from twitchAPI.twitch import Twitch
-from twitchAPI.type import AuthScope, ChatEvent
-from twitchAPI.chat import Chat, EventData, ChatMessage, ChatSub, ChatCommand
 import twitchio
 from twitchio.ext import commands, eventsub, pubsub
 
