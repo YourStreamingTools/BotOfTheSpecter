@@ -601,7 +601,7 @@ class Bot(commands.Bot):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(uptime_url) as response:
-                    api_logger.debug(f"{response}")
+                    api_logger.info(f"{response}")
                     if response.status == 200:
                         uptime_text = await response.text()
 
@@ -843,7 +843,7 @@ class Bot(commands.Bot):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(followage_url) as response:
-                    api_logger.debug(f"{response}")
+                    api_logger.info(f"{response}")
                     if response.status == 200:
                         followage_text = await response.text()
 
@@ -861,7 +861,7 @@ class Bot(commands.Bot):
     async def check_update_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-            VERSION = "1.8"
+            VERSION = "1.8.1"
             response = requests.get(REMOTE_VERSION_URL)
             remote_version = response.text.strip()
 
@@ -879,12 +879,15 @@ class Bot(commands.Bot):
     
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
-        if is_mod_or_broadcaster(ctx.author.name):
+        chat_logger.info(f"Shoutout command attempting to run.")
+        if is_mod_or_broadcaster(ctx.author):
+            chat_logger.info(f"Shoutout command running from {ctx.author}")
             if user_to_shoutout is None:
                     chat_logger.error(f"Shoutout command missing username parameter.")
                     await ctx.send(f"Usage: !so @username")
                     return
             try:
+                chat_logger.info(f"Shoutout command trying to run.")
                 # Remove @ from the username if present
                 user_to_shoutout = user_to_shoutout.lstrip('@')
 
@@ -916,7 +919,7 @@ class Bot(commands.Bot):
                 chat_logger.error(f"Error in shoutout_command: {e}")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't has they are not a moderator.")
-            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @bot.event
     async def event_message(ctx):
@@ -961,7 +964,7 @@ async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
 
     response = await fetch_json(url)
-    api_logger.debug(f"Response from DecAPI for current game: {response}")
+    api_logger.info(f"Response from DecAPI for current game: {response}")
 
     if response and isinstance(response, str) and response != "null":
         twitch_logger.info(f"Current game for {CHANNEL_NAME}: {response}.")
@@ -1029,7 +1032,7 @@ async def fetch_twitch_shoutout_user_id(user_to_shoutout):
         async with session.get(url) as response:
             if response.status == 200:
                 shoutout_user_id = await response.text()
-                api_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
+                api_logger.info(f"Response from DecAPI: {shoutout_user_id}")
                 return shoutout_user_id
             else:
                 api_logger.error(f"Failed to fetch Twitch ID. Status: {response.status}")
@@ -1042,7 +1045,7 @@ async def get_latest_stream_game(user_to_shoutout):
         async with session.get(url) as response:
             if response.status == 200:
                 game_name = await response.text()
-                api_logger.debug(f"Response from DecAPI: {game_name}")
+                api_logger.info(f"Response from DecAPI: {game_name}")
 
                 if game_name and game_name.lower() != "null":
                     twitch_logger.info(f"Got {user_to_shoutout} Last Game: {game_name}.")
@@ -1057,7 +1060,7 @@ async def get_latest_stream_game(user_to_shoutout):
 async def process_shoutouts():
     while not shoutout_queue.empty():
         user_to_shoutout, shoutout_user_id = shoutout_queue.get()
-
+        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={shoutout_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -1133,7 +1136,7 @@ async def check_auto_update(ctx):
 # Run the bot
 def start_bot():
     bot.run()
-    check_auto_update()
+    # check_auto_update()
     # bot.loop.create_task(eventsub_client.listen(port={WEBHOOK_PORT}))
 
 if __name__ == '__main__':
