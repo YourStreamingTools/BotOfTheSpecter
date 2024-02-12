@@ -413,7 +413,8 @@ class Bot(commands.Bot):
             data = response.json()
             if data['data']:
                 top_cheerer = data['data'][0]
-                await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {top_cheerer['score']} bits!")
+                score = "{:,}".format(top_cheerer['score'])
+                await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
             else:
                 await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
         else:
