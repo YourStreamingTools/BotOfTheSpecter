@@ -403,7 +403,7 @@ class Bot(commands.Bot):
     async def cheerleader_command(ctx):
         headers = {
             'Client-ID': CLIENT_ID,
-            'Authorization': f'Bearer {TWITCH_API_AUTH}'
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
         }
         params = {
             'count': 1
@@ -411,8 +411,11 @@ class Bot(commands.Bot):
         response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
         if response.status_code == 200:
             data = response.json()
-            top_cheerer = data['data'][0]
-            await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {top_cheerer['score']} bits!")
+            if data['data']:
+                top_cheerer = data['data'][0]
+                await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {top_cheerer['score']} bits!")
+            else:
+                await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
         else:
             await ctx.send("Sorry, I couldn't fetch the leaderboard.")
 
