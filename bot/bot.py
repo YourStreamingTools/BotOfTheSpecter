@@ -41,7 +41,7 @@ CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-builtin_commands = {"commands", "bot", "timer", "ping", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "so", "deaths"}
+builtin_commands = {"commands", "bot", "timer", "ping", "cheerleader", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "so", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
@@ -227,6 +227,11 @@ translator = Translator(service_urls=['translate.google.com'])
 
 bot_logger.info("Bot script started.")
 class Bot(commands.Bot):
+    async def event_message(self, message):
+        if message.echo:
+            return
+        await self.handle_commands(message)
+
     @bot.command(name="commands", aliases=["cmds",])
     async def commands_command(ctx: commands.Context):
         is_mod = is_mod_or_broadcaster(ctx.author)
@@ -394,6 +399,27 @@ class Bot(commands.Bot):
             chat_logger.error(f"Translating error: {e}")
             await ctx.send("An error occurred while translating the message.")
 
+    @bot.command(name='cheerleader')
+    async def cheerleader_command(ctx):
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        params = {
+            'count': 1
+        }
+        response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            if data['data']:
+                top_cheerer = data['data'][0]
+                score = "{:,}".format(top_cheerer['score'])
+                await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
+            else:
+                await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
+        else:
+            await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
         try:
@@ -555,45 +581,6 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in unlurk_command: {e}")
             await ctx.send(f"Oops, something went wrong with the unlurk command.")
 
-    @bot.command(name='addcommand')
-    async def add_command(ctx: commands.Context):
-        chat_logger.info("Add Command ran.")
-        # Check if the user is a moderator or the broadcaster
-        if is_mod_or_broadcaster(ctx.author):
-            # Parse the command and response from the message
-            try:
-                command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
-            except ValueError:
-                await ctx.send(f"Invalid command format. Use: !addcommand [command] [response]")
-                return
-
-            # Insert the command and response into the database
-            cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
-            conn.commit()
-            chat_logger.info(f"{ctx.author} has added the command !{command} with the response: {response}")
-            await ctx.send(f'Custom command added: !{command}')
-        else:
-            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
-
-    @bot.command(name='removecommand')
-    async def remove_command(ctx: commands.Context):
-        chat_logger.info("Remove Command ran.")
-        # Check if the user is a moderator or the broadcaster
-        if is_mod_or_broadcaster(ctx.author):
-            try:
-                command = ctx.message.content.strip().split(' ')[1]
-            except IndexError:
-                await ctx.send(f"Invalid command format. Use: !removecommand [command]")
-                return
-
-            # Delete the command from the database
-            cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
-            conn.commit()
-            chat_logger.info(f"{ctx.author} has removed {command}")
-            await ctx.send(f'Custom command removed: !{command}')
-        else:
-            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
-
     @bot.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
         chat_logger.info("Uptime Command ran.")
@@ -601,7 +588,7 @@ class Bot(commands.Bot):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(uptime_url) as response:
-                    api_logger.debug(f"{response}")
+                    api_logger.info(f"{response}")
                     if response.status == 200:
                         uptime_text = await response.text()
 
@@ -843,7 +830,7 @@ class Bot(commands.Bot):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(followage_url) as response:
-                    api_logger.debug(f"{response}")
+                    api_logger.info(f"{response}")
                     if response.status == 200:
                         followage_text = await response.text()
 
@@ -861,7 +848,7 @@ class Bot(commands.Bot):
     async def check_update_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-            VERSION = "1.8"
+            VERSION = "1.8.1"
             response = requests.get(REMOTE_VERSION_URL)
             remote_version = response.text.strip()
 
@@ -879,12 +866,15 @@ class Bot(commands.Bot):
     
     @bot.command(name="so", aliases=("shoutout",))
     async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
-        if is_mod_or_broadcaster(ctx.author.name):
+        chat_logger.info(f"Shoutout command attempting to run.")
+        if is_mod_or_broadcaster(ctx.author):
+            chat_logger.info(f"Shoutout command running from {ctx.author}")
             if user_to_shoutout is None:
                     chat_logger.error(f"Shoutout command missing username parameter.")
                     await ctx.send(f"Usage: !so @username")
                     return
             try:
+                chat_logger.info(f"Shoutout command trying to run.")
                 # Remove @ from the username if present
                 user_to_shoutout = user_to_shoutout.lstrip('@')
 
@@ -916,7 +906,45 @@ class Bot(commands.Bot):
                 chat_logger.error(f"Error in shoutout_command: {e}")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't has they are not a moderator.")
-            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+    @bot.command(name='addcommand')
+    async def add_command(ctx: commands.Context):
+        chat_logger.info("Add Command ran.")
+        # Check if the user is a moderator or the broadcaster
+        if is_mod_or_broadcaster(ctx.author):
+            # Parse the command and response from the message
+            try:
+                command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+            except ValueError:
+                await ctx.send(f"Invalid command format. Use: !addcommand [command] [response]")
+                return
+
+            # Insert the command and response into the database
+            cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
+            conn.commit()
+            chat_logger.info(f"{ctx.author} has added the command !{command} with the response: {response}")
+            await ctx.send(f'Custom command added: !{command}')
+        else:
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+
+    @bot.command(name='removecommand')
+    async def remove_command(ctx: commands.Context):
+        chat_logger.info("Remove Command ran.")
+        # Check if the user is a moderator or the broadcaster
+        if is_mod_or_broadcaster(ctx.author):
+            try:
+                command = ctx.message.content.strip().split(' ')[1]
+            except IndexError:
+                await ctx.send(f"Invalid command format. Use: !removecommand [command]")
+                return
+
+            # Delete the command from the database
+            cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
+            conn.commit()
+            chat_logger.info(f"{ctx.author} has removed {command}")
+            await ctx.send(f'Custom command removed: !{command}')
+        else:
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @bot.event
     async def event_message(ctx):
@@ -961,7 +989,7 @@ async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
 
     response = await fetch_json(url)
-    api_logger.debug(f"Response from DecAPI for current game: {response}")
+    api_logger.info(f"Response from DecAPI for current game: {response}")
 
     if response and isinstance(response, str) and response != "null":
         twitch_logger.info(f"Current game for {CHANNEL_NAME}: {response}.")
@@ -1029,7 +1057,7 @@ async def fetch_twitch_shoutout_user_id(user_to_shoutout):
         async with session.get(url) as response:
             if response.status == 200:
                 shoutout_user_id = await response.text()
-                api_logger.debug(f"Response from DecAPI: {shoutout_user_id}")
+                api_logger.info(f"Response from DecAPI: {shoutout_user_id}")
                 return shoutout_user_id
             else:
                 api_logger.error(f"Failed to fetch Twitch ID. Status: {response.status}")
@@ -1042,7 +1070,7 @@ async def get_latest_stream_game(user_to_shoutout):
         async with session.get(url) as response:
             if response.status == 200:
                 game_name = await response.text()
-                api_logger.debug(f"Response from DecAPI: {game_name}")
+                api_logger.info(f"Response from DecAPI: {game_name}")
 
                 if game_name and game_name.lower() != "null":
                     twitch_logger.info(f"Got {user_to_shoutout} Last Game: {game_name}.")
@@ -1057,7 +1085,7 @@ async def get_latest_stream_game(user_to_shoutout):
 async def process_shoutouts():
     while not shoutout_queue.empty():
         user_to_shoutout, shoutout_user_id = shoutout_queue.get()
-
+        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={shoutout_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -1133,7 +1161,7 @@ async def check_auto_update(ctx):
 # Run the bot
 def start_bot():
     bot.run()
-    check_auto_update()
+    # check_auto_update()
     # bot.loop.create_task(eventsub_client.listen(port={WEBHOOK_PORT}))
 
 if __name__ == '__main__':
