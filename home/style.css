@@ -15,25 +15,35 @@ a {
 }
 
 .login-button {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 1000;
-  padding: 8px 15px;
-  background-color: #333333;
-  color: #ffffff;
-  text-align: center;
-  border: none;
-  text-decoration: none;
-  font-size: 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: box-shadow 0.3s;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    padding: 8px 15px;
+    background-color: #333333;
+    color: #ffffff;
+    text-align: center;
+    border: none;
+    text-decoration: none;
+    font-size: 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: box-shadow 0.3s;
 }
-
+  
 .login-button:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}   
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+  
+/* Media query for smaller screens */
+@media (max-width: 600px) {
+    .login-button {
+        font-size: 14px;
+        padding: 6px 12px;
+        top: 10px;
+        right: 10px;
+    }
+}  
 
 /* Header Style */
 header {
