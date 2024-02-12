@@ -399,6 +399,23 @@ class Bot(commands.Bot):
             chat_logger.error(f"Translating error: {e}")
             await ctx.send("An error occurred while translating the message.")
 
+    @bot.command(name='cheerleader')
+    async def cheerleader_command(ctx):
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {TWITCH_API_AUTH}'
+        }
+        params = {
+            'count': 1
+        }
+        response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            top_cheerer = data['data'][0]
+            await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {top_cheerer['score']} bits!")
+        else:
+            await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
         try:
