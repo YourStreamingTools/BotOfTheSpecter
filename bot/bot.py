@@ -33,8 +33,9 @@ CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 WEBHOOK_PORT = args.webhook_port
-DECAPI = "" # CHANGE TO MAKE THIS WORK
 BOT_USERNAME = "botofthespecter"
+VERSION = "1.8.2"
+DECAPI = "" # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = "" # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f"" # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = "" # CHANGE TO MAKE THIS WORK
@@ -811,7 +812,6 @@ class Bot(commands.Bot):
     async def check_update_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-            VERSION = "1.8.2"
             response = requests.get(REMOTE_VERSION_URL)
             remote_version = response.text.strip()
 
@@ -1087,15 +1087,18 @@ async def fetch_json(url, headers=None):
     return None
 
 # Function for checking updates
-async def check_auto_update(ctx):
+async def check_auto_update():
     REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-    VERSION = "1.8"
-    response = requests.get(REMOTE_VERSION_URL)
-    remote_version = response.text.strip()
-    if remote_version != VERSION:
-        message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot."
-        bot_logger.info(f"Bot update available. (V{remote_version})")
-        await ctx.send(f"{message}")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(REMOTE_VERSION_URL) as response:
+            if response.status == 200:
+                remote_version = await response.text()
+                remote_version = remote_version.strip()
+                if remote_version != VERSION:
+                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot."
+                    bot_logger.info(message)
+                    # Send this message to a specific channel or log it
+
 
 # Run the bot
 def start_bot():
