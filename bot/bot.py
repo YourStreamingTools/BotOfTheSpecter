@@ -17,6 +17,7 @@ import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
 import twitchio
+from twitchio import Client
 from twitchio.ext import commands, eventsub, pubsub
 
 # Parse command-line arguments
@@ -71,6 +72,31 @@ def setup_logger(name, log_file, level=logging.INFO):
 
     return logger
 
+# Setup Token Refresh
+async def refresh_token_every_day():
+    while True:
+        await asyncio.sleep(86400)
+        await refresh_token(REFRESH_TOKEN)
+
+async def refresh_token(refresh_token):
+    url = 'https://id.twitch.tv/oauth2/token'
+    body = {
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh_token,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET,
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=body) as response:
+            response_json = await response.json()
+            new_access_token = response_json['access_token']
+            new_refresh_token = response_json.get('refresh_token', refresh_token)
+    
+    # Correctly update variables
+    global OAUTH_TOKEN, REFRESH_TOKEN
+    OAUTH_TOKEN = new_access_token
+    REFRESH_TOKEN = new_refresh_token
+
 # Setup bot logger
 bot_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
 bot_logger = setup_logger('bot', bot_log_file)
@@ -100,7 +126,7 @@ client = twitchio.Client(token=TWITCH_API_AUTH)
 async def main():
     channel_id_int = int(CHANNEL_ID)
     pubsub_pool = pubsub.PubSubPool(client)
-    await pubsub_pool.subscribe_channel(CHANNEL_AUTH, channel_id_int, [pubsub.PubSubBits, pubsub.PubSubSubscriptions, pubsub.PubSubChannelPoints])
+    await pubsub_pool.subscribe_channel(REFRESH_TOKEN, channel_id_int, [pubsub.PubSubBits, pubsub.PubSubSubscriptions, pubsub.PubSubChannelPoints])
     await pubsub_pool.listen()
 
 # Create an instance of your Bot class
@@ -162,70 +188,6 @@ conn.commit()
 # Initialize instances for the translator and shoutout queue
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
-
-# TwitchIO Config for Events -- DISABLED FOR NOW
-# config = {
-#     "irc_token": OAUTH_TOKEN,
-#     "client_secret": CLIENT_SECRET,
-# }
-# twitch_bot = twitchio.Client(config["irc_token"], client_secret = config["client_secret"], initial_channels = [CHANNEL_NAME])
-# es = eventsub.EventSubWSClient(twitch_bot)
-
-# @twitch_bot.event()
-# async def event_ready():
-#     await twitch_bot.join_channels([CHANNEL_NAME])
-#     await es.subscribe_channel_follows_v2(twitch_bot.user_id, twitch_bot.user_id, config["irc_token"])
-#     bot_logger.info(f"Bot logger initialized.")
-#     chat_logger.info(f"Chat logger initialized.")
-#     twitch_logger.info(f"Twitch logger initialized.")
-
-# @twitch_bot.event()
-# async def event_channel_join(CHANNEL_NAME):
-#     bot_logger.info(f"Bot has joined the channel: {CHANNEL_NAME}")
-#     channel = await twitch_bot.get_channel(CHANNEL_NAME)
-#     if channel:
-#         await channel.send("Hello, I have joined the channel!")
-#     else:
-#         bot_logger.warning("Channel not found, unable to send join message.")
-
-# @client.event
-# async def on_pubsub_channel_subscription(data):
-#     twitch_logger.info(f"Channel subscription event: {data}")
-#     if data['type'] == 'stream.online':
-#         await channel.send(f'The stream is now online, {BOT_USERNAME} is ready!')
-# TwitchIO Config for Events -- DISABLED FOR NOW
-
-# TwitchIO  Client Events -- DISABLED FOR NOW
-# @client.event
-# async def event_cheer(cheerer, message):
-#     twitch_logger.info(f"{cheerer.display_name} cheered {message.bits} bits!")
-#     await channel.send(f'{cheerer.display_name} cheered {message.bits} bits!')
-
-# @client.event
-# async def event_subscribe(subscriber):
-#     streak = subscriber.streak
-#     months = subscriber.cumulative_months
-#     gift = subscriber.is_gift
-#     giftanonymous = subscriber.is_anonymous
-#     if gift == False:
-#         if streak > 1:
-#             await channel.send(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
-#             twitch_logger.info(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months on a {streak} Month Streak at Tier: {subscriber.tier}!')
-#         if months > 2:
-#             await channel.send(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
-#             twitch_logger.info(f'{subscriber.display_name} has resubscribed for {subscriber.cumulative_months} Months at Tier: {subscriber.tier}!')
-#         else:
-#             await channel.send(f'{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!')
-#             twitch_logger.info(f"{subscriber.display_name} just subscribed to the channel at Tier: {subscriber.tier}!")
-#     else:
-#         if giftanonymous == True:
-#             await channel.send(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
-#             twitch_logger.info(f'Anonymous Gifter gifted {subscriber.cumulative_total} subs to the channel.')
-#         else:
-#             await channel.send(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
-#             twitch_logger.info(f'{subscriber.display_name} gifted {subscriber.cumulative_total} subs to the channel.')
-# TwitchIO  Client Events -- DISABLED FOR NOW
-
 bot_logger.info("Bot script started.")
 class Bot(commands.Bot):
     async def event_message(self, message):
@@ -404,7 +366,7 @@ class Bot(commands.Bot):
     async def cheerleader_command(ctx):
         headers = {
             'Client-ID': CLIENT_ID,
-            'Authorization': f'Bearer {CHANNEL_AUTH}'
+            'Authorization': f'Bearer {REFRESH_TOKEN}'
         }
         params = {
             'count': 1
@@ -1005,7 +967,7 @@ async def get_display_name(user_id):
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}"
+        "Authorization": f"Bearer {REFRESH_TOKEN}"
     }
 
     async with aiohttp.ClientSession() as session:
@@ -1088,7 +1050,7 @@ async def process_shoutouts():
         twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={shoutout_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
-            "Authorization": f"Bearer {CHANNEL_AUTH}",
+            "Authorization": f"Bearer {REFRESH_TOKEN}",
             "Client-ID": TWITCH_API_CLIENT_ID,
         }
         payload = {
@@ -1135,34 +1097,11 @@ async def check_auto_update(ctx):
         bot_logger.info(f"Bot update available. (V{remote_version})")
         await ctx.send(f"{message}")
 
-# Function to create the eventsub subscription
-# def create_eventsub_subscription(CHANNEL_NAME):
-#     headers = {
-#         'Client-ID': CLIENT_ID,
-#         'Authorization': f'Bearer {CHANNEL_AUTH}',
-#         'Content-Type': 'application/json'
-#     }
-#     json_data = {
-#         'type': 'channel.follow',
-#         'version': '2',
-#         'condition': {
-#             'broadcaster_user_id': CHANNEL_ID
-#         },
-#         'transport': {
-#             'method': 'webhook',
-#             'callback': CALLBACK_URL,
-#             'secret': WEBHOOK_SECRET
-#         }
-#     }
-#     response = requests.post('https://api.twitch.tv/helix/eventsub/subscriptions', headers=headers, json=json_data)
-#     print(response.json())
-#     pass
-
 # Run the bot
 def start_bot():
+    asyncio.get_event_loop().create_task(refresh_token_every_day())
+    asyncio.get_event_loop().create_task(check_auto_update())
     bot.run()
-    # check_auto_update()
-    # bot.loop.create_task(eventsub_client.listen(port={WEBHOOK_PORT}))
 
 if __name__ == '__main__':
     start_bot()
