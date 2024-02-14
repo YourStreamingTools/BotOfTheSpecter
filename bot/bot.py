@@ -192,10 +192,6 @@ shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 class Bot(commands.Bot):
     # Event Message to get the bot ready
-    async def event_message(self, message):
-        if message.echo:
-            return
-        await self.handle_commands(message)
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {BOT_USERNAME}')
         channel = self.get_channel(CHANNEL_NAME)
@@ -914,45 +910,44 @@ class Bot(commands.Bot):
             await ctx.send(f'Custom command removed: !{command}')
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+# Functions for all the commands
+##
+# Function to check all messages and push out a custom command.
+async def event_message(self, ctx, message):
+    if message.echo:
+            return
+    
+    # Get the message content
+    message_content = ctx.content.strip()
+    chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
+    
+    # Check if the message starts with an exclamation mark
+    if message_content.startswith('!'):
+        # Split the message into command and its arguments
+        parts = message_content.split()
+        command = parts[0][1:]  # Extract the command without '!'
+        args = parts[1:]  # Remaining parts are arguments
 
-    @bot.event
-    async def event_message(ctx):
-        if ctx.author.bot:
+        # Combine commands and aliases for checking
+        all_commands = builtin_commands | builtin_aliases
+
+        # If the command or alias is one of the built-in commands, process it using the bot's command processing
+        if command in all_commands:
+            await bot.process_commands(ctx)
             return
         
-        # Get the message content
-        message_content = ctx.content.strip()
-        chat_logger.info(f"Chat message from {ctx.author.name}: {ctx.content}")
+        # Check if the command exists in the database
+        cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+        result = cursor.fetchone()
         
-        # Check if the message starts with an exclamation mark
-        if message_content.startswith('!'):
-            # Split the message into command and its arguments
-            parts = message_content.split()
-            command = parts[0][1:]  # Extract the command without '!'
-            args = parts[1:]  # Remaining parts are arguments
-    
-            # Combine commands and aliases for checking
-            all_commands = builtin_commands | builtin_aliases
-    
-            # If the command or alias is one of the built-in commands, process it using the bot's command processing
-            if command in all_commands:
-                await bot.process_commands(ctx)
-                return
-            
-            # Check if the command exists in the database
-            cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
-            result = cursor.fetchone()
-            
-            if result:
-                response = result[0]
-                chat_logger.info(f"{command} command ran.")
-                await ctx.channel.send(response)
-            else:
-                chat_logger.info(f"{command} command not found.")
-                await ctx.channel.send(f'No such command found: !{command}')
+        if result:
+            response = result[0]
+            chat_logger.info(f"{command} command ran.")
+            await ctx.channel.send(response)
+        else:
+            chat_logger.info(f"{command} command not found.")
+            await ctx.channel.send(f'No such command found: !{command}')
 
-# Functions for all the commands
-##    
 # Function to get the current streaming category for the channel.
 async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
