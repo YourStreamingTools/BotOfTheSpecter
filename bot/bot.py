@@ -191,10 +191,16 @@ translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 class Bot(commands.Bot):
+    # Event Message to get the bot ready
     async def event_message(self, message):
         if message.echo:
             return
         await self.handle_commands(message)
+    async def event_ready(self):
+        bot_logger.info(f'Logged in as | {BOT_USERNAME}')
+        channel = self.get_channel(CHANNEL_NAME)
+        if channel:
+            await channel.send("The bot is now connected and ready!")
 
     @bot.command(name="commands", aliases=["cmds",])
     async def commands_command(ctx: commands.Context):
