@@ -34,7 +34,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 WEBHOOK_PORT = args.webhook_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "1.8.2"
+VERSION = "1.8.3"
 DECAPI = "" # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = "" # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f"" # CHANGE TO MAKE THIS WORK
@@ -1101,7 +1101,7 @@ async def check_auto_update():
                         channel = bot.get_channel(CHANNEL_NAME)
                         if channel:
                             await channel.send(message)
-        await asyncio.sleep(86400)
+        await asyncio.sleep(300)
 
 # Run the bot
 def start_bot():
