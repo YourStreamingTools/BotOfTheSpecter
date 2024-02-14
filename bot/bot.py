@@ -1097,8 +1097,9 @@ async def check_auto_update():
                 if remote_version != VERSION:
                     message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot."
                     bot_logger.info(message)
-                    # Send this message to a specific channel or log it
-
+                    channel = bot.get_channel(CHANNEL_NAME)
+                    if channel:
+                        await channel.send(message)
 
 # Run the bot
 def start_bot():
