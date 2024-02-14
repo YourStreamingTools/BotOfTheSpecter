@@ -125,7 +125,7 @@ if ($ModStatusOutput) {
   </div>
   <div class="top-bar-right">
     <ul class="menu">
-      <li><a class="popup-link" onclick="showPopup()">&copy; 2023 BotOfTheSpecter. All rights reserved.</a></li>
+      <li><a class="popup-link" onclick="showPopup()">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</a></li>
     </ul>
   </div>
 </nav>
