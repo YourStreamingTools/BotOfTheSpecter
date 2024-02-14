@@ -849,7 +849,7 @@ class Bot(commands.Bot):
     async def check_update_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-            VERSION = "1.8.1"
+            VERSION = "1.8.2"
             response = requests.get(REMOTE_VERSION_URL)
             remote_version = response.text.strip()
 
