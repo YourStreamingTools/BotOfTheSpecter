@@ -159,8 +159,9 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Initialize the translator
+# Initialize instances for the translator and shoutout queue
 translator = Translator(service_urls=['translate.google.com'])
+shoutout_queue = queue.Queue()
 
 # TwitchIO Config for Events -- DISABLED FOR NOW
 # config = {
@@ -1038,7 +1039,6 @@ def is_mod_or_broadcaster(user):
         return False
 
 # Function to trigger a twitch shoutout via Twitch API
-shoutout_queue = queue.Queue()
 async def trigger_twitch_shoutout(user_to_shoutout):
     # Fetching the shoutout user ID
     shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
