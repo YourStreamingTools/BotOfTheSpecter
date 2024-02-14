@@ -910,6 +910,7 @@ class Bot(commands.Bot):
             await ctx.send(f'Custom command removed: !{command}')
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+
 # Functions for all the commands
 ##
 # Function to check all messages and push out a custom command.
