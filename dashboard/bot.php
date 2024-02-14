@@ -93,6 +93,7 @@ if ($ModStatusOutput) {
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <!-- <?php echo "User: $username | $twitchUserId | $authToken | Port: $webhookPort"; ?> -->
+	<!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort"; ?> -->
   </head>
 <body>
 <!-- Navigation -->
