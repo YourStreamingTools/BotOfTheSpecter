@@ -11,3 +11,4 @@ dashboard/cache/*
 api/app/*.exe
 api/authusers.json
 logs/*
+bot/working.py
