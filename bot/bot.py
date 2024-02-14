@@ -1088,18 +1088,20 @@ async def fetch_json(url, headers=None):
 
 # Function for checking updates
 async def check_auto_update():
-    REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(REMOTE_VERSION_URL) as response:
-            if response.status == 200:
-                remote_version = await response.text()
-                remote_version = remote_version.strip()
-                if remote_version != VERSION:
-                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot."
-                    bot_logger.info(message)
-                    channel = bot.get_channel(CHANNEL_NAME)
-                    if channel:
-                        await channel.send(message)
+    while True:
+        REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(REMOTE_VERSION_URL) as response:
+                if response.status == 200:
+                    remote_version = await response.text()
+                    remote_version = remote_version.strip()
+                    if remote_version != VERSION:
+                        message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot."
+                        bot_logger.info(message)
+                        channel = bot.get_channel(CHANNEL_NAME)
+                        if channel:
+                            await channel.send(message)
+        await asyncio.sleep(86400)
 
 # Run the bot
 def start_bot():
