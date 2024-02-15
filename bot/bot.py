@@ -1122,7 +1122,7 @@ async def check_stream_online():
 def start_bot():
     asyncio.get_event_loop().create_task(refresh_token_every_day())
     asyncio.get_event_loop().create_task(check_auto_update())
-    asyncio.set_event_loop().create_task(check_stream_online())
+    asyncio.get_event_loop().create_task(check_stream_online())
     bot.run()
 
 if __name__ == '__main__':
