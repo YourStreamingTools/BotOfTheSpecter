@@ -1099,10 +1099,30 @@ async def check_auto_update():
                             await channel.send(message)
         await asyncio.sleep(300)
 
+# Function to check if the stream is online
+async def check_stream_online():
+    stream_was_offline = True
+    greeted_users = set()
+    while True:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}") as response:
+                text = await response.text()
+                # Check if the stream is offline
+                if "{CHANNEL_NAME} is offline" in text:
+                    stream_was_offline = True
+                else:
+                    # If the stream was previously offline and is now online, reset greeted users
+                    if stream_was_offline:
+                        greeted_users.clear()
+                        print("Stream is online. Resetting greeted users.")
+                    stream_was_offline = False
+        await asyncio.sleep(300)  # Check every 5 minutes
+
 # Run the bot
 def start_bot():
     asyncio.get_event_loop().create_task(refresh_token_every_day())
     asyncio.get_event_loop().create_task(check_auto_update())
+    asyncio.set_event_loop().create_task(check_stream_online())
     bot.run()
 
 if __name__ == '__main__':
