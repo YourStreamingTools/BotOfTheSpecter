@@ -76,8 +76,8 @@ def setup_logger(name, log_file, level=logging.INFO):
 # Setup Token Refresh
 async def refresh_token_every_day():
     while True:
+        await refresh_token(CHANNEL_AUTH)
         await asyncio.sleep(86400)
-        await refresh_token(REFRESH_TOKEN)
 
 async def refresh_token(refresh_token):
     url = 'https://id.twitch.tv/oauth2/token'
@@ -92,7 +92,6 @@ async def refresh_token(refresh_token):
             response_json = await response.json()
             new_access_token = response_json['access_token']
             new_refresh_token = response_json.get('refresh_token', refresh_token)
-    
     # Correctly update variables
     global OAUTH_TOKEN, REFRESH_TOKEN
     OAUTH_TOKEN = new_access_token
