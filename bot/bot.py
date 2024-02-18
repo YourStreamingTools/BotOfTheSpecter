@@ -73,30 +73,6 @@ def setup_logger(name, log_file, level=logging.INFO):
 
     return logger
 
-# Setup Token Refresh
-async def refresh_token_every_day():
-    while True:
-        await refresh_token(CHANNEL_AUTH)
-        await asyncio.sleep(86400)
-
-async def refresh_token(refresh_token):
-    url = 'https://id.twitch.tv/oauth2/token'
-    body = {
-        'grant_type': 'refresh_token',
-        'refresh_token': refresh_token,
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=body) as response:
-            response_json = await response.json()
-            new_access_token = response_json['access_token']
-            new_refresh_token = response_json.get('refresh_token', refresh_token)
-    # Correctly update variables
-    global OAUTH_TOKEN, REFRESH_TOKEN
-    OAUTH_TOKEN = new_access_token
-    REFRESH_TOKEN = new_refresh_token
-
 # Setup bot logger
 bot_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
 bot_logger = setup_logger('bot', bot_log_file)
@@ -189,6 +165,31 @@ conn.commit()
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
+
+# Setup Token Refresh
+async def refresh_token_every_day():
+    while True:
+        await refresh_token(CHANNEL_AUTH)
+        await asyncio.sleep(86400)
+
+async def refresh_token(refresh_token):
+    url = 'https://id.twitch.tv/oauth2/token'
+    body = {
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh_token,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET,
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=body) as response:
+            response_json = await response.json()
+            new_access_token = response_json['access_token']
+            new_refresh_token = response_json.get('refresh_token', refresh_token)
+    # Correctly update variables
+    global OAUTH_TOKEN, REFRESH_TOKEN
+    OAUTH_TOKEN = new_access_token
+    REFRESH_TOKEN = new_refresh_token
+
 class Bot(commands.Bot):
     # Event Message to get the bot ready
     async def event_ready(self):
