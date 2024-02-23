@@ -12,3 +12,4 @@ api/app/*.exe
 api/authusers.json
 logs/*
 bot/working.py
+bot/commands/*.db
