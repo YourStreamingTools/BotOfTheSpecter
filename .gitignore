@@ -13,7 +13,5 @@ api/authusers.json
 logs/*
 bot/working.py
 bot/commands/*.db
-ssl/cert.pem
-ssl/chain.pem
-ssl/fullchain.pem
+ssl/*.pem
 ssl/sites-available/*
