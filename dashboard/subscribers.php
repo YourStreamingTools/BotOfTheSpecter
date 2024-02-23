@@ -186,18 +186,22 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
         } elseif ($subscriptionPlanId == '3000') {
             $subscriptionTier = '3';
         } else {
-            $subscriptionTier = 'Unknown';
+            $subscriptionTier = '<font color="red">Unknown</font>';
         }
 
         // Check if $username is the same as $subscriberDisplayName
         if ($twitchDisplayName == $subscriberDisplayName) {
-            echo "<div class='subscriber-broadcaster'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span></div>";
+            echo "<div class='subscriber-broadcaster'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span></div>
+            ";
         } else {
             // Check if it's a gift subscription
             if ($isGift) {
-                echo "<div class='subscriber'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span><span>Gift Sub from $gifterName</span></div>";
+                echo "<div class='subscriber'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span><span>Gift Sub from $gifterName</span></div>
+                ";
+            // else show everything else as not gift subscription
             } else {
-                echo "<div class='subscriber'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span></div>";
+                echo "<div class='subscriber'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span></div>
+                ";
             }
         }
     endforeach;
