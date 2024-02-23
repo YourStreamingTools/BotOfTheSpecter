@@ -200,7 +200,10 @@ $followersForCurrentPage = array_slice($allFollowers, $startIndex, $followersPer
         ?>
         <div class="follower">
             <span><?php echo $followerDisplayName; ?></span>
-            <span class="follow-time"><?php echo date('Y F d H:i', strtotime($follower['followed_at'])); ?></span>
+            <span class="follow-time">
+              <?php echo date('d F Y', strtotime($follower['followed_at'])); ?><br>
+              <?php echo date('H:i', strtotime($follower['followed_at'])); ?>
+            </span>
         </div>
         <?php endforeach; ?>
     </div>
