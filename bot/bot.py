@@ -995,6 +995,25 @@ def is_mod_or_broadcaster(user):
     else:
         twitch_logger.info(f"User {user.name} does not have required permissions.")
         return False
+    
+def is_user_moderator(user):
+    # Send request to Twitch API to check if user is a moderator
+    headers = {
+        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    params = {
+        'broadcaster_id': f"YOUR_BROADCASTER_ID",
+        'user_name': user.name
+    }
+
+    response = requests.get('https://api.twitch.tv/helix/moderation/moderators', headers=headers, params=params)
+    if response.status_code == 200:
+        moderators = response.json()['data']
+        for mod in moderators:
+            if mod['user_name'] == user.name:
+                return True
+    return False
 
 # Function to trigger a twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout):
