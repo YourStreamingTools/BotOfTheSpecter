@@ -995,7 +995,7 @@ def is_mod_or_broadcaster(user):
     else:
         twitch_logger.info(f"User {user.name} does not have required permissions.")
         return False
-    
+
 def is_user_moderator(user):
     # Send request to Twitch API to check if user is a moderator
     headers = {
@@ -1003,15 +1003,15 @@ def is_user_moderator(user):
         "Client-ID": TWITCH_API_CLIENT_ID,
     }
     params = {
-        'broadcaster_id': f"YOUR_BROADCASTER_ID",
-        'user_name': user.name
+        "broadcaster_id": f"{CHANNEL_ID}",
+        "user_name": user.name
     }
 
-    response = requests.get('https://api.twitch.tv/helix/moderation/moderators', headers=headers, params=params)
+    response = requests.get("https://api.twitch.tv/helix/moderation/moderators", headers=headers, params=params)
     if response.status_code == 200:
-        moderators = response.json()['data']
+        moderators = response.json().get("data", [])
         for mod in moderators:
-            if mod['user_name'] == user.name:
+            if mod["user_name"].lower() == user.name.lower():
                 return True
     return False
 
