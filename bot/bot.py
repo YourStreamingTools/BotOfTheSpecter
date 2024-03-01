@@ -987,7 +987,7 @@ def is_mod_or_broadcaster(user):
         return True
 
     # Check if the user is a moderator
-    elif 'moderator' in user.get('badges', {}) or (hasattr(user, 'is_mod') and user.is_mod):
+    elif is_user_moderator(user):
         twitch_logger.info(f"User {user.name} is a Moderator")
         return True
 
