@@ -902,6 +902,7 @@ class Bot(commands.Bot):
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
+
     @bot.command(name='addcommand')
     async def add_command(ctx: commands.Context):
         chat_logger.info("Add Command ran.")
@@ -1013,6 +1014,7 @@ def is_user_moderator(user):
         for mod in moderators:
             if mod["user_name"].lower() == user.name.lower():
                 return True
+            return False
     return False
 
 # Function to trigger a twitch shoutout via Twitch API
