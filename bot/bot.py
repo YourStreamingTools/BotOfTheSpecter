@@ -257,6 +257,22 @@ class Bot(commands.Bot):
         chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
 
+    # Command to set stream title
+    #@bot.command(name='settitle')
+    #async def set_title(ctx, *, title: str):
+    #    # Update the stream title
+    #    # Here I will implement the logic to update the stream title
+    #    twitch_logger.info(f'Setting stream title to: {title}')
+    #    await ctx.send(f'Stream title updated to: {title}')
+
+    # Command to set stream game/category
+    #@bot.command(name='setgame')
+    #async def set_game(ctx, *, game: str):
+    #    # Update the stream game/category
+    #    # Here I will implement the logic to update the stream game/category
+    #    twitch_logger.info(f'Setting stream game to: {game}')
+    #    await ctx.send(f'Stream game updated to: {game}')
+
     @bot.command(name='timer')
     async def start_timer(ctx: commands.Context):
         chat_logger.info(f"Timer command ran.")
