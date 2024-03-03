@@ -82,6 +82,9 @@ chat_logs_button.pack(side=tk.LEFT, padx=5, pady=5)
 twitch_logs_button = tk.Button(buttons_frame, text="Twitch Logs", command=lambda: fetch_and_show_logs('twitch', text_area))
 twitch_logs_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+api_logs_button = tk.Button(buttons_frame, text="API Logs", command=lambda: fetch_and_show_logs('api', text_area))
+api_logs_button.pack(side=tk.LEFT, padx=5, pady=5)
+
 # Create a Text widget for displaying logs
 text_area = tk.Text(logs_tab)
 text_area.pack(expand=1, fill='both')
