@@ -174,6 +174,8 @@ async def refresh_token_every_day():
         await asyncio.sleep(86400)
 
 async def refresh_token(refresh_token):
+    global OAUTH_TOKEN, REFRESH_TOKEN
+    
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
         'grant_type': 'refresh_token',
@@ -186,8 +188,12 @@ async def refresh_token(refresh_token):
             response_json = await response.json()
             new_access_token = response_json['access_token']
             new_refresh_token = response_json.get('refresh_token', refresh_token)
-    # Correctly update variables
-    global OAUTH_TOKEN, REFRESH_TOKEN
+            
+            # Log the response details
+            log_message = "Refresh token response - Access token: %s, Refresh token: %s"
+            twitch_logger.info(log_message, new_access_token, new_refresh_token)
+
+    # Now, update the global variables
     OAUTH_TOKEN = new_access_token
     REFRESH_TOKEN = new_refresh_token
 
