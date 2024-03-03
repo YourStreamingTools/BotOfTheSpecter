@@ -252,26 +252,45 @@ class Bot(commands.Bot):
         # Sending the response message to the chat
         await ctx.send(response_message)
 
-    @bot.command(name='bot')
+    @bot.command(name="bot")
     async def bot_command(ctx: commands.Context):
         chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
 
     # Command to set stream title
-    #@bot.command(name='settitle')
-    #async def set_title(ctx, *, title: str):
-    #    # Update the stream title
-    #    # Here I will implement the logic to update the stream title
-    #    twitch_logger.info(f'Setting stream title to: {title}')
-    #    await ctx.send(f'Stream title updated to: {title}')
+    @bot.command(name="settitle")
+    async def set_title(ctx: commands.Context, title: str = None) -> None:
+        if is_mod_or_broadcaster(ctx.author):
+            if title is None:
+                await ctx.send(f"You must provide a title for the stream.")
+                return
+
+            # Update the stream title
+            await trigger_twitch_title_update(title)
+            twitch_logger.info(f'Setting stream title to: {title}')
+            await ctx.send(f'Stream title updated to: {title}')
+        else:
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     # Command to set stream game/category
-    #@bot.command(name='setgame')
-    #async def set_game(ctx, *, game: str):
-    #    # Update the stream game/category
-    #    # Here I will implement the logic to update the stream game/category
-    #    twitch_logger.info(f'Setting stream game to: {game}')
-    #    await ctx.send(f'Stream game updated to: {game}')
+    @bot.command(name="setgame")
+    async def set_game(ctx: commands.Context, game: str = None) -> None:
+        if is_mod_or_broadcaster(ctx.author):
+            if game is None:
+                await ctx.send(f"You must provide a game for the stream.")
+                return
+
+            # Get the game ID
+            game_id = await get_game_id(game)
+            if game_id:
+                # Update the stream game/category
+                await trigger_twitch_game_update(game_id)
+                twitch_logger.info(f'Setting stream game to: {game}')
+                await ctx.send(f'Stream game updated to: {game}')
+            else:
+                await ctx.send(f'Failed to update stream game. Game "{game}" not found.')
+        else:
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name='timer')
     async def start_timer(ctx: commands.Context):
@@ -1039,6 +1058,58 @@ def is_user_moderator(user):
                 return True
             return False
     return False
+
+# Function to trigger updating stream title or game
+async def trigger_twitch_title_update(new_title):
+    # Twitch API
+    url = "https://api.twitch.tv/helix/channels"
+    headers = {
+        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    params = {
+        "broadcaster_id": CHANNEL_ID,
+        "title": new_title
+    }
+    response = requests.patch(url, headers=headers, json=params)
+    if response.status_code == 200:
+        twitch_logger.info(f'Stream title updated to: {new_title}')
+    else:
+        twitch_logger.error(f'Failed to update stream title: {response.text}')
+
+async def trigger_twitch_game_update(new_game_id):
+    # Twitch API
+    url = "https://api.twitch.tv/helix/channels"
+    headers = {
+        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    params = {
+        "broadcaster_id": CHANNEL_ID,
+        "game_id": new_game_id
+    }
+    response = requests.patch(url, headers=headers, json=params)
+    if response.status_code == 200:
+        twitch_logger.info(f'Stream game updated to: {new_game_id}')
+    else:
+        twitch_logger.error(f'Failed to update stream game: {response.text}')
+
+async def get_game_id(game_name):
+    # Twitch API
+    url = "https://api.twitch.tv/helix/games/top"
+    headers = {
+        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    params = {
+        "name": game_name
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        if data and 'data' in data and len(data['data']) > 0:
+            return data['data'][0]['id']
+    return None
 
 # Function to trigger a twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout):
