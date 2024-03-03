@@ -307,6 +307,8 @@ def fetch_and_show_logs(log_type, text_area):
         logs = get_chat_logs()
     elif log_type == 'twitch':
         logs = get_twitch_logs()
+    elif log_type =='api':
+        logs = get_api_logs()
     else:
         logs = "Invalid log type"
 
@@ -334,6 +336,12 @@ def get_chat_logs():
 def get_twitch_logs():
     username = get_global_username()
     url = f"{LOGS_SERVER_URL}/twitch/{username}.txt"
+    response = requests.get(url)
+    return handle_response(response)
+
+def get_api_logs():
+    username = get_global_username()
+    url = f"{LOGS_SERVER_URL}/api/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
 
