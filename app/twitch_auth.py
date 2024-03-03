@@ -6,7 +6,6 @@ import requests
 import urllib.parse as urlparse
 import logging
 from decouple import config
-import json
 
 # Construct the log file path in the user's AppData directory
 appdata_dir = os.path.join(os.getenv('APPDATA'), 'BotOfTheSpecter', 'logs')
