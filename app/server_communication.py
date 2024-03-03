@@ -1,13 +1,9 @@
-import os
 import time
-import datetime
 import tkinter as tk
-import json
 import requests
 import paramiko
 import twitch_auth
 import mysql.connector
-import logging
 from decouple import config
 
 # Get variables
