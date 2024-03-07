@@ -1275,13 +1275,12 @@ async def start_websocket_server():
 
 # Run the bot
 def start_bot():
-    loop = asyncio.get_event_loop()
     # Schedule WebSocket server task
-    loop.create_task(start_websocket_server())
+    asyncio.get_event_loop().create_task(start_websocket_server())
     # Schedule bot tasks
-    loop.create_task(refresh_token_every_day())
-    loop.create_task(check_auto_update())
-    loop.create_task(check_stream_online())
+    # asyncio.get_event_loop().create_task(refresh_token_every_day())
+    asyncio.get_event_loop().create_task(check_auto_update())
+    asyncio.get_event_loop().create_task(check_stream_online())
     # Start the bot
     bot.run()
 
