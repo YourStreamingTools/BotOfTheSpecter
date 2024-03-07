@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import datetime
+import requests
 
 # App Imports
 from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs, fetch_counters_from_db
@@ -183,9 +184,24 @@ def fetch_counters_from_database(counter_type):
 
 # Placeholder function to convert Twitch user ID to username
 def get_username_from_user_id(user_id):
-    # Implement this function to fetch username from Twitch user ID
-    # For now, let's return some dummy usernames for testing
-    return f"Username {user_id}"
+    AuthToken = twitch_auth.global_auth_token
+    ClientID = twitch_auth.global_twitch_id
+    
+    # Make a request to the Twitch API
+    url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    headers = {
+        'Client-ID': ClientID,
+        'Authorization': f'Bearer {AuthToken}'
+    }
+    response = requests.get(url, headers=headers)
+
+    # Check if the request was successful
+    if response.status_code == 200:
+        data = response.json()
+        if data['data']:
+            username = data['data'][0]['login']  # Assuming the username is in the 'login' field
+            return username
+
 
 # Function to calculate duration
 def calculate_duration(start_time):
