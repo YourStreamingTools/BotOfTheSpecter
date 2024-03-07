@@ -135,7 +135,7 @@ def fetch_and_display_counters(counter_type):
         if counter_type == "Currently Lurking Users":
             processed_counters = []
             for user_id, start_time in counters:
-                username = get_usernames_from_user_id(user_id)
+                username = get_username_from_user_id(user_id)
                 duration = calculate_duration(start_time)
                 processed_counters.append((username, duration))
             counters = processed_counters
@@ -152,8 +152,8 @@ def fetch_and_display_counters(counter_type):
         # Resize columns to fit content
         for col in headings:
             counter_tree.column(col, width=100)
-            counter_tree.heading(col, text=col, anchor=tk.CENTER)
-            counter_tree.column(col, anchor=tk.CENTER)
+            counter_tree.heading(col, text=col, anchor=tk.LEFT)
+            counter_tree.column(col, anchor=tk.LEFT)
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
 
@@ -188,10 +188,6 @@ def get_username_from_user_id(user_id):
     
     # Make request to Twitch API
     response = requests.get(url, headers=headers)
-    
-    # Print request details for debugging
-    print("Request URL:", response.request.url)
-    print("Request Headers:", response.request.headers)
     
     # Check if the request was successful
     if response.status_code == 200:
