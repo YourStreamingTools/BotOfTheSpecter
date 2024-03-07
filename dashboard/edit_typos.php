@@ -1,5 +1,8 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
@@ -34,12 +37,19 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
 // Database connection for bot commands
-$db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+try {
+  $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
+  $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+  echo "Error connecting to the database: " . $e->getMessage();
+  exit();
+}
 
 // Fetch usernames from the user_typos table
 try {
-  $usernames = $db->query("SELECT username FROM user_typos")->fetchAll(PDO::FETCH_COLUMN);
+  $stmt = $db->prepare("SELECT username FROM user_typos");
+  $stmt->execute();
+  $usernames = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
   echo "Error fetching usernames: " . $e->getMessage();
   $usernames = [];
@@ -47,58 +57,65 @@ try {
 
 // Handling form submission for updating typo count
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'update') {
-    $formUsername = $_POST['username'] ?? '';
-    $typoCount = $_POST['typo_count'] ?? '';
+  $formUsername = $_POST['typo-username'] ?? '';
+  $typoCount = $_POST['typo_count'] ?? '';
 
-    if ($formUsername && is_numeric($typoCount)) {
-        try {
-            $stmt = $db->prepare("UPDATE user_typos SET typo_count = :typo_count WHERE username = :username");
-            $stmt->bindParam(':username', $formUsername);
-            $stmt->bindParam(':typo_count', $typoCount, PDO::PARAM_INT);
-            $stmt->execute();
-            echo "Typo count updated successfully for user {$formUsername}.";
-        } catch (PDOException $e) {
-            echo "Error: " . $e->getMessage();
-        }
-    } else {
-        echo "Invalid input.";
+  if ($formUsername && is_numeric($typoCount)) {
+    try {
+      $stmt = $db->prepare("UPDATE user_typos SET typo_count = :typo_count WHERE username = :username");
+      $stmt->bindParam(':username', $formUsername);
+      $stmt->bindParam(':typo_count', $typoCount, PDO::PARAM_INT);
+      $stmt->execute();
+      echo "Typo count updated successfully for user {$formUsername}.";
+    } catch (PDOException $e) {
+      echo "Error: " . $e->getMessage();
     }
+  } else {
+    echo "Invalid input.";
+  }
 }
 
 // Handling form submission for removing a user
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'remove') {
-    $formUsername = $_POST['username'] ?? '';
-
-    try {
-        $stmt = $db->prepare("DELETE FROM user_typos WHERE username = :username");
-        $stmt->bindParam(':username', $formUsername, PDO::PARAM_STR);
-        $stmt->execute();
-        echo "Typo record for user '$formUsername' has been removed.";
-    } catch (PDOException $e) {
-        echo 'Error: ' . $e->getMessage();
-    }
+  $formUsername = $_POST['typo-username-remove'] ?? ''  
+  try {
+    $stmt = $db->prepare("DELETE FROM user_typos WHERE username = :username");
+    $stmt->bindParam(':username', $formUsername, PDO::PARAM_STR);
+    $stmt->execute();
+    echo "Typo record for user '$formUsername' has been removed.";
+  } catch (PDOException $e) {
+    echo 'Error: ' . $e->getMessage();
+  }
 }
 
 // Fetch usernames and their current typo counts
 try {
-  $typoData = $db->query("SELECT username, typo_count FROM user_typos")->fetchAll(PDO::FETCH_ASSOC);
+  $stmt = $db->prepare("SELECT username, typo_count FROM user_typos");
+  $stmt->execute();
+  $typoData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   echo "Error fetching typo data: " . $e->getMessage();
   $typoData = [];
 }
+
 $status = "";
+
 // Check for AJAX request to get the current typo count
 if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET['username'])) {
   $requestedUsername = $_GET['username'];
-  // Fetch the current typo count for the requested username
-  $stmt = $db->prepare("SELECT typo_count FROM user_typos WHERE username = :username");
-  $stmt->bindParam(':username', $requestedUsername);
-  $stmt->execute();
-  $result = $stmt->fetch(PDO::FETCH_ASSOC);
-  if ($result) {
-    $status = $result['typo_count'];
-  } else {
-    $status = "0";
+  try {
+    $stmt = $db->prepare("SELECT typo_count FROM user_typos WHERE username = :username");
+    $stmt->bindParam(':username', $requestedUsername);
+    $stmt->execute();
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($result) {
+      $status = $result['typo_count'];
+    } else {
+      $status = "0";
+    }
+    echo $status;
+  } catch (PDOException $e) {
+      echo "Error: " . $e->getMessage();
   }
   exit;
 }
@@ -108,7 +125,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BotOfTheSpecter - Edit Typos</title>
@@ -116,10 +133,10 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
     <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
     <link rel="stylesheet" href="pagination.css">
     <script src="about.js"></script>
-  	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-  	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <script>var typoCounts = <?php echo $typoCountsJs ?></script>
-  </head>
+</head>
 <body>
 <!-- Navigation -->
 <div class="title-bar" data-responsive-toggle="mobile-menu" data-hide-for="medium">
@@ -149,53 +166,53 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
       <li><a href="profile.php">Profile</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
-  </div>
-  <div class="top-bar-right">
-    <ul class="menu">
-      <li><a class="popup-link" onclick="showPopup()">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</a></li>
-    </ul>
-  </div>
+    </div>
+    <div class="top-bar-right">
+      <ul class="menu">
+        <li><a class="popup-link" onclick="showPopup()">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</a></li>
+      </ul>
+    </div>
 </nav>
 <!-- /Navigation -->
 
 <div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<div class="row">
-  <div class="small-12 medium-6 columns">
-    <h2>Edit User Typos</h2>
-    <form action="" method="post">
-      <input type="hidden" name="action" value="update">
-      <label for="username">Username:</label>
-      <select id="username" name="username" required onchange="updateCurrentCount(this.value)">
-        <option value="">Select a user</option>
-        <?php foreach ($usernames as $name): ?>
-          <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
-        <?php endforeach; ?>
-      </select>
-      <div id="current-typo-count"></div>
-      <label for="typo_count">New Typo Count:</label>
-      <input type="number" id="typo_count" name="typo_count" required min="0">
-      <input type="submit" class="defult-button" value="Update Typo Count">
-    </form>
-    <?php echo "<p>$status</p>" ?>
+  <br>
+  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <div class="row">
+    <div class="small-12 medium-6 columns">
+      <h2>Edit User Typos</h2>
+      <form action="" method="post">
+        <input type="hidden" name="action" value="update">
+        <label for="typo-username">Username:</label>
+        <select id="typo-username" name="typo-username" required onchange="updateCurrentCount(this.value)">
+          <option value="">Select a user</option>
+          <?php foreach ($usernames as $typo_name): ?>
+            <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div id="current-typo-count"></div>
+        <label for="typo_count">New Typo Count:</label>
+        <input type="number" id="typo_count" name="typo_count" required min="0">
+        <input type="submit" class="defult-button" value="Update Typo Count">
+      </form>
+      <?php echo "<p>$status</p>" ?>
+    </div>
+    <div class="small-12 medium-6 columns">
+      <h2>Remove User Typo Record</h2>
+      <form action="" method="post">
+        <input type="hidden" name="action" value="remove">
+        <label for="typo-username-remove">Username:</label>
+        <select id="typo-username-remove" name="typo-username-remove" required onchange="updateCurrentCount(this.value)">
+          <option value="">Select a user</option>
+          <?php foreach ($usernames as $typo_name): ?>
+            <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
+          <?php endforeach; ?>
+        </select>
+        <input type="submit" class="defult-button" value="Remove Typo Record">
+      </form>
+    </div>
   </div>
-  <div class="small-12 medium-6 columns">
-    <h2>Remove User Typo Record</h2>
-    <form action="" method="post">
-      <input type="hidden" name="action" value="remove">
-      <label for="username">Username:</label>
-      <select id="username" name="username" required onchange="updateCurrentCount(this.value)">
-        <option value="">Select a user</option>
-        <?php foreach ($usernames as $name): ?>
-          <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
-        <?php endforeach; ?>
-      </select>
-      <input type="submit" class="defult-button" value="Remove Typo Record">
-    </form>
-  </div>
-</div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
