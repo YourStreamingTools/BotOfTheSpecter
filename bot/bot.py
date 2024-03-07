@@ -118,10 +118,10 @@ channel = bot.get_channel('{CHANNEL_NAME}')
 pubsub_client = pubsub.PubSubPool(bot_instance)
 
 # Create the database and table if it doesn't exist
-commands_directory = "/var/www/bot/commands"
-if not os.path.exists(commands_directory):
-    os.makedirs(commands_directory)
-database_file = os.path.join(commands_directory, f"{CHANNEL_NAME}_commands.db")
+database_directory = "/var/www/bot/commands"
+if not os.path.exists(database_directory):
+    os.makedirs(database_directory)
+database_file = os.path.join(database_directory, f"{CHANNEL_NAME}.db")
 conn = sqlite3.connect(database_file)
 cursor = conn.cursor()
 cursor.execute('''
@@ -163,6 +163,33 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS game_deaths (
         game_name TEXT PRIMARY KEY,
         death_count INTEGER DEFAULT 0
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS bits_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        user_name TEXT,
+        bits INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS subscription_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        user_name TEXT,
+        sub_plan TEXT,
+        months INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS followers_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        user_name TEXT,
+        followed_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 ''')
 conn.commit()
@@ -242,11 +269,216 @@ async def twitch_pubsub():
 
             while True:
                 response = await websocket.recv()
-                twitch_logger.fino(f"Received message from PubSub: {response}")  
+                twitch_logger.info(f"Received message from PubSub: {response}")
+                # Process the received message
+                await process_pubsub_message(response)
+
     except websockets.ConnectionClosedError:
         twitch_logger.error("Connection to Twitch PubSub closed unexpectedly.")
     except Exception as e:
         twitch_logger.exception("An error occurred in Twitch PubSub connection:", exc_info=e)
+
+async def process_pubsub_message(message):
+    try:
+        message_data = json.loads(message)
+        message_type = message_data["type"]
+
+        # Process based on message type
+        if message_type == "MESSAGE":
+            topic = message_data["data"]["topic"]
+            event_data = message_data["data"]["message"]
+            
+            # Process bits event
+            if topic.startswith("channel-bits-events-v2"):
+                bits_event_data = event_data
+                user_id = bits_event_data["user_id"]
+                user_name = bits_event_data["user_name"]
+                bits = bits_event_data["bits_used"]
+                await process_bits_event(user_id, user_name, bits)
+                
+            # Process subscription event
+            elif topic.startswith("channel-subscribe-events-v1"):
+                subscription_event_data = event_data
+                # Extract relevant information from the subscription event data
+                user_id = subscription_event_data["user_id"]
+                user_name = subscription_event_data["user_name"]
+                sub_plan = subscription_event_data["sub_plan"]
+                months = subscription_event_data["cumulative_months"]
+                await process_subscription_event(user_id, user_name, sub_plan, months)
+                
+            # Process follow event
+            elif topic.startswith("channel-followers"):
+                follow_event_data = event_data
+                user_id = follow_event_data["user_id"]
+                user_name = follow_event_data["user_name"]
+                followed_at = follow_event_data["followed_at"]
+
+                # Update the database with the follow event data
+                await process_followers_event(user_id, user_name, followed_at)
+                
+            # Process stream metadata update
+            elif topic.startswith("channel-broadcast-settings-update"):
+                stream_metadata = event_data
+                # Handle stream metadata update
+                
+            # Add more conditions to process other types of events as needed
+            else:
+                twitch_logger.warning(f"Received message with unknown topic: {topic}")
+
+    except Exception as e:
+        twitch_logger.exception("An error occurred while processing PubSub message:", exc_info=e)
+
+# Funtion for BITS
+async def process_bits_event(user_id, user_name, bits):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Check if the user exists in the database
+    cursor.execute('SELECT bits FROM bits_data WHERE user_id = ? OR user_name = ?', (user_id, user_name))
+    existing_bits = cursor.fetchone()
+
+    if existing_bits:
+        # Update the user's total bits count
+        total_bits = existing_bits[0] + bits
+        cursor.execute('''
+            UPDATE bits_data
+            SET bits = ?
+            WHERE user_id = ? OR user_name = ?
+        ''', (total_bits, user_id, user_name))
+        
+        # Send message to channel with total bits
+        await bot._ws.send_privmsg(f"#{CHANNEL_ID}", f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
+    else:
+        # Insert a new record for the user
+        cursor.execute('''
+            INSERT INTO bits_data (user_id, user_name, bits)
+            VALUES (?, ?, ?)
+        ''', (user_id, user_name, bits))
+        
+        # Send message to channel without total bits
+        await bot._ws.send_privmsg(f"#{CHANNEL_ID}", f"Thank you {user_name} for {bits} bits!")
+
+    conn.commit()
+    conn.close()
+
+# Funtion for SUBSCRIPTIONS
+async def process_subscription_event(subscription_event_data):
+    # Extract relevant information from the subscription event data
+    user_id = subscription_event_data["user_id"]
+    user_name = subscription_event_data["user_name"]
+    sub_plan = subscription_event_data["sub_plan"]
+    months = subscription_event_data["cumulative_months"]
+    is_gift = subscription_event_data.get("is_gift", False)
+
+    if is_gift:
+        await process_gift_subscription_event(user_id, user_name, sub_plan, months)
+    else:
+        await process_regular_subscription_event(user_id, user_name, sub_plan, months)
+
+async def process_regular_subscription_event(user_id, user_name, sub_plan, months):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Check if the user exists in the database
+    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
+    existing_subscription = cursor.fetchone()
+
+    if existing_subscription:
+        # User exists in the database
+        existing_sub_plan, existing_months = existing_subscription
+        if existing_sub_plan != sub_plan:
+            # User upgraded their subscription plan
+            cursor.execute('''
+                UPDATE subscription_data
+                SET sub_plan = ?, months = ?
+                WHERE user_id = ?
+            ''', (sub_plan, months, user_id))
+        else:
+            # User maintained the same subscription plan, update cumulative months
+            cursor.execute('''
+                UPDATE subscription_data
+                SET months = ?
+                WHERE user_id = ?
+            ''', (months, user_id))
+    else:
+        # User does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, user_name, sub_plan, months))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel & send the message to the channel
+    message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {months} months!"
+    await bot._ws.send_privmsg(f"#{CHANNEL_ID}", message)
+
+async def process_gift_subscription_event(gifter_id, gifter_name, recipient_id, recipient_name, sub_plan, months):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Check if the recipient exists in the database
+    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (recipient_id,))
+    existing_subscription = cursor.fetchone()
+
+    if existing_subscription:
+        # Recipient exists in the database
+        existing_sub_plan, existing_months = existing_subscription
+        if existing_sub_plan != sub_plan:
+            # Recipient upgraded their subscription plan
+            cursor.execute('''
+                UPDATE subscription_data
+                SET sub_plan = ?, months = ?
+                WHERE user_id = ?
+            ''', (sub_plan, months, recipient_id))
+        else:
+            # Recipient maintained the same subscription plan, update cumulative months
+            cursor.execute('''
+                UPDATE subscription_data
+                SET months = ?
+                WHERE user_id = ?
+            ''', (months, recipient_id))
+    else:
+        # Recipient does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (recipient_id, recipient_name, sub_plan, months))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel & send the message to the channel
+    message = f"Thank you {gifter_name} for gifting a {sub_plan} subscription to {recipient_name}! They are now a {sub_plan} subscriber for {months} months!"
+    await bot._ws.send_privmsg(f"#{CHANNEL_ID}", message)
+
+# Funtion for FOLLOWERS
+async def process_followers_event(user_id, user_name, followed_at):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Insert a new record for the follower
+    cursor.execute('''
+        INSERT INTO followers_data (user_id, user_name, followed_at)
+        VALUES (?, ?, ?)
+    ''', (user_id, user_name, followed_at))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel
+    message = f"Thank you {user_name} for following! Welcome to the channel!"
+
+    # Send the message to the channel
+    await bot._ws.send_privmsg(f"#{CHANNEL_ID}", message)
 
 class Bot(commands.Bot):
     # Event Message to get the bot ready
