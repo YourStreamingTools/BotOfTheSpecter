@@ -189,23 +189,23 @@ def calculate_duration(start_time):
     start_datetime = datetime.datetime.fromisoformat(start_time)
     duration = datetime.datetime.now() - start_datetime
     
-    # Calculate total number of months and days
-    total_months = duration.days // 30
-    remaining_days = duration.days % 30
+    # Calculate total number of days, hours, and minutes
+    total_days = duration.days
     total_hours, remaining_minutes = divmod(duration.seconds, 3600)
-    total_minutes, remaining_seconds = divmod(remaining_minutes, 60)
+    total_minutes, _ = divmod(remaining_minutes, 60)
 
     # Construct the duration string based on the duration
-    if total_months > 0:
+    if total_days >= 30:
+        total_months = total_days // 30
         if total_months == 1:
             return f"{total_months} month"
         else:
             return f"{total_months} months"
-    elif duration.days > 0:
-        if duration.days == 1:
-            return f"{duration.days} day"
+    elif total_days > 0:
+        if total_days == 1:
+            return f"{total_days} day"
         else:
-            return f"{duration.days} days"
+            return f"{total_days} days"
     elif total_hours > 0:
         if total_hours == 1:
             return f"{total_hours} hour"
