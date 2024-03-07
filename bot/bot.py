@@ -231,12 +231,18 @@ async def twitch_pubsub():
         }
     }
 
-    async with websockets.connect(url) as websocket:
-        await websocket.send(json.dumps(authentication))
+    try:
+        async with websockets.connect(url) as websocket:
+            await websocket.send(json.dumps(authentication))
 
-        while True:
-            response = await websocket.recv()
-            twitch_logger.info(f"Received message from PubSub: {response}")
+            while True:
+                response = await websocket.recv()
+                twitch_logger.info(f"Received message from PubSub: {response}")
+                
+    except websockets.ConnectionClosedError:
+        twitch_logger.error("Connection to Twitch PubSub closed unexpectedly.")
+    except Exception as e:
+        twitch_logger.exception("An error occurred in Twitch PubSub connection:", exc_info=e)
 
 class Bot(commands.Bot):
     # Event Message to get the bot ready
