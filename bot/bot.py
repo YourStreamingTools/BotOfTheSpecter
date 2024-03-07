@@ -10,6 +10,7 @@ import logging
 import subprocess
 import threading
 import websockets
+import ssl
 
 # Third-party imports
 import aiohttp
@@ -1270,8 +1271,13 @@ async def check_stream_online():
 
 # Start the WebSocket server
 async def start_websocket_server():
-    async with websockets.serve(counter, "localhost", WEBSOCKET_PORT):
-        await asyncio.Future()
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.load_cert_chain('/etc/letsencrypt/live/botofthespecter.com/fullchain.pem',
+                                '/etc/letsencrypt/live/botofthespecter.com/privkey.pem')
+
+    # Bind the SSL context to the WebSocket server
+    async with websockets.serve(counter, "localhost", WEBSOCKET_PORT, ssl=ssl_context):
+        await asyncio.Future() 
 
 # Run the bot
 def start_bot():
