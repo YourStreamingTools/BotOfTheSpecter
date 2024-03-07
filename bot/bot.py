@@ -220,7 +220,12 @@ async def twitch_pubsub():
     url = "wss://pubsub-edge.twitch.tv"
 
     # Twitch PubSub topics to subscribe to
-    topics = [f"channel-points-channel-v1.{CHANNEL_ID}", f"chat_moderator_actions.{CHANNEL_ID}"]
+    topics = [
+        f"channel-bits-events-v2.{CHANNEL_ID}",  # Bits
+        f"channel-subscribe-events-v1.{CHANNEL_ID}",  # Subscriptions
+        f"channel-followers.{CHANNEL_ID}",  # Follows
+        f"channel-broadcast-settings-update.{CHANNEL_ID}"  # Stream Metadata
+    ]
 
     # Authenticate and subscribe
     authentication = {
@@ -237,8 +242,7 @@ async def twitch_pubsub():
 
             while True:
                 response = await websocket.recv()
-                twitch_logger.info(f"Received message from PubSub: {response}")
-                
+                twitch_logger.fino(f"Received message from PubSub: {response}")  
     except websockets.ConnectionClosedError:
         twitch_logger.error("Connection to Twitch PubSub closed unexpectedly.")
     except Exception as e:
