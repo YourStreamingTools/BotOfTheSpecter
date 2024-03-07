@@ -56,6 +56,7 @@ $buildStatus = "<h1>" . htmlspecialchars($status) . "</h1>";
 <title>Overlay</title>
 <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
 <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+<meta http-equiv='refresh' content='10'>
 </head>
 <body>
 <?php echo $buildStatus; ?>
