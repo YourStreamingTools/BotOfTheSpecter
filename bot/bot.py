@@ -250,16 +250,14 @@ async def twitch_pubsub():
     topics = [
         f"channel-bits-events-v2.{CHANNEL_ID}",  # Bits
         f"channel-subscribe-events-v1.{CHANNEL_ID}",  # Subscriptions
-        f"channel-followers.{CHANNEL_ID}",  # Follows
-        f"channel-broadcast-settings-update.{CHANNEL_ID}"  # Stream Metadata
     ]
-
+    twitch_logger.info(f"Sub to the following topics: {topics}")
     # Authenticate and subscribe
     authentication = {
         "type": "LISTEN",
         "data": {
             "topics": topics,
-            "auth_token": f"{OAUTH_TOKEN}"
+            "auth_token": f"{CHANNEL_AUTH}"
         }
     }
 
@@ -305,21 +303,6 @@ async def process_pubsub_message(message):
                 sub_plan = subscription_event_data["sub_plan"]
                 months = subscription_event_data["cumulative_months"]
                 await process_subscription_event(user_id, user_name, sub_plan, months)
-                
-            # Process follow event
-            elif topic.startswith("channel-followers"):
-                follow_event_data = event_data
-                user_id = follow_event_data["user_id"]
-                user_name = follow_event_data["user_name"]
-                followed_at = follow_event_data["followed_at"]
-
-                # Update the database with the follow event data
-                await process_followers_event(user_id, user_name, followed_at)
-                
-            # Process stream metadata update
-            elif topic.startswith("channel-broadcast-settings-update"):
-                stream_metadata = event_data
-                # Handle stream metadata update
                 
             # Add more conditions to process other types of events as needed
             else:
