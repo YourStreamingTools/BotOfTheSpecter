@@ -9,6 +9,7 @@ from datetime import datetime
 import logging
 import subprocess
 import threading
+import websockets
 
 # Third-party imports
 import aiohttp
@@ -25,7 +26,8 @@ parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
 parser.add_argument("-channel", dest="target_channel", required=True, help="Target Twitch channel name")
 parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch user ID")
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
-parser.add_argument("-port", dest="webhook_port", required=True, type=int, help="Port for the webhook server")
+parser.add_argument("-hookport", dest="webhook_port", required=True, type=int, help="Port for the webhook server")
+parser.add_argument("-socketport", dest="websocket_port", required=True, type=int, help="Port for the websocket server")
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -33,6 +35,7 @@ CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 WEBHOOK_PORT = args.webhook_port
+WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
 VERSION = "1.11"
 DECAPI = "" # CHANGE TO MAKE THIS WORK
@@ -162,10 +165,11 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Initialize instances for the translator and shoutout queue
+# Initialize instances for the translator, shoutout queue and webshockets
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
+connected = set()
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -196,6 +200,17 @@ async def refresh_token(refresh_token):
     # Now, update the global variables
     OAUTH_TOKEN = new_access_token
     REFRESH_TOKEN = new_refresh_token
+
+# Setup Websockets
+async def counter(websocket, path):
+    global connected
+    connected.add(websocket)
+    try:
+        async for message in websocket:
+            for conn in connected:
+                await conn.send(message)
+    finally:
+        connected.remove(websocket)
 
 class Bot(commands.Bot):
     # Event Message to get the bot ready
@@ -1253,11 +1268,21 @@ async def check_stream_online():
                     stream_was_offline = False
         await asyncio.sleep(300)  # Check every 5 minutes
 
+# Start the WebSocket server
+async def start_websocket_server():
+    async with websockets.serve(counter, "localhost", WEBSOCKET_PORT):
+        await asyncio.Future()
+
 # Run the bot
 def start_bot():
-    asyncio.get_event_loop().create_task(refresh_token_every_day())
-    asyncio.get_event_loop().create_task(check_auto_update())
-    asyncio.get_event_loop().create_task(check_stream_online())
+    loop = asyncio.get_event_loop()
+    # Schedule WebSocket server task
+    loop.create_task(start_websocket_server())
+    # Schedule bot tasks
+    loop.create_task(refresh_token_every_day())
+    loop.create_task(check_auto_update())
+    loop.create_task(check_stream_online())
+    # Start the bot
     bot.run()
 
 if __name__ == '__main__':
