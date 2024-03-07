@@ -111,7 +111,21 @@ for counter_type in counter_types:
     counter_buttons[counter_type] = counter_button
 
 # Create a Text widget for displaying counter data
-text_area = tk.Text(counters_tab)
-text_area.pack(expand=1, fill='both')
+counter_text_area = tk.Text(counters_tab)
+counter_text_area.pack(expand=1, fill='both')
+
+# Function to fetch counters and display in the counter_text_area
+def fetch_and_display_counters(counter_type):
+    # Fetch counters from the database
+    counters = fetch_counters_from_db()
+    if counters:
+        # Clear previous content
+        counter_text_area.delete('1.0', tk.END)
+        # Display counters in the text area
+        counter_text_area.insert(tk.END, counters[counter_type])
+
+# Bind functions to counter buttons
+for counter_type, button in counter_buttons.items():
+    button.config(command=lambda t=counter_type: fetch_and_display_counters(t))
 
 window.mainloop()
