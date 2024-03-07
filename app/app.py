@@ -116,11 +116,16 @@ counter_text_area.pack(expand=1, fill='both')
 
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
-    counters = fetch_counters_from_db()  # Fetch all counters
+    counters = fetch_counters_from_db(counter_type)
     # Process counters and update UI
-    if counter_type in counters:
-        counter_text_area.insert(tk.END, counters[counter_type])
+    if counters is not None:
+        if isinstance(counters, tuple):
+            for counter in counters:
+                counter_text_area.insert(tk.END, str(counter) + '\n')
+        else:
+            for item in counters:
+                counter_text_area.insert(tk.END, str(item) + '\n')
     else:
-        counter_text_area.insert(tk.END, f"No data available for {counter_type}")
+        counter_text_area.insert(tk.END, f"No data available for {counter_type}\n")
 
 window.mainloop()
