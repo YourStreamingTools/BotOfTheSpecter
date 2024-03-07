@@ -136,11 +136,11 @@ if (isset($_GET['code'])) {
             $maxPort = 65535;
         
             // Query to find the maximum webshocket port number currently in use
-            $query = "SELECT MAX(webshocket_port) as max_webshocket_port FROM users";
+            $query = "SELECT MAX(websocket_port) as max_websocket_port FROM users";
             $result = mysqli_query($conn, $query);
             $row = mysqli_fetch_assoc($result);
         
-            $lastPort = $row['max_webshocket_port'] ? $row['max_webshocket_port'] : $basePort;
+            $lastPort = $row['max_websocket_port'] ? $row['max_websocket_port'] : $basePort;
             $newPort = $lastPort + 1;
         
             return ($newPort <= $maxPort) ? $newPort : null;
