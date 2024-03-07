@@ -782,77 +782,89 @@ class Bot(commands.Bot):
 
     @bot.command(name='deaths')
     async def deaths_command(ctx: commands.Context):
-        chat_logger.info("Deaths command ran.")
-        current_game = await get_current_stream_game()
+        try:
+            chat_logger.info("Deaths command ran.")
+            current_game = await get_current_stream_game()
 
-        # Retrieve the game-specific death count
-        cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
-        game_death_count = cursor.fetchone()
-        game_death_count = game_death_count[0] if game_death_count else 0
+            # Retrieve the game-specific death count
+            cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+            game_death_count = cursor.fetchone()
+            game_death_count = game_death_count[0] if game_death_count else 0
 
-        # Retrieve the total death count
-        cursor.execute('SELECT death_count FROM total_deaths')
-        total_death_count = cursor.fetchone()[0]
+            # Retrieve the total death count
+            cursor.execute('SELECT death_count FROM total_deaths')
+            total_death_count = cursor.fetchone()[0]
 
-        # Send the message
-        chat_logger.info(f"{ctx.author} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
-        await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+            # Send the message
+            chat_logger.info(f"{ctx.author} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
+            await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+        except Exception as e:
+            await ctx.send("An error occurred while executing the command.")
+            chat_logger.error(f"Error in deaths_command: {e}")
 
     @bot.command(name="deathadd", aliases=["death+",])
     async def deathadd_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
-            chat_logger.info("Death Add Command ran.")
-            current_game = await get_current_stream_game()
+            try:
+                chat_logger.info("Death Add Command ran.")
+                current_game = await get_current_stream_game()
 
-            # Increment game-specific death count
-            cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (?, 1) ON CONFLICT(game_name) DO UPDATE SET death_count = death_count + 1', (current_game,))
+                # Increment game-specific death count
+                cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (?, 1) ON CONFLICT(game_name) DO UPDATE SET death_count = death_count + 1', (current_game,))
 
-            # Increment total death count
-            cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
-            conn.commit()
+                # Increment total death count
+                cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
+                conn.commit()
 
-            # Retrieve updated counts
-            cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
-            game_death_count = cursor.fetchone()[0]
+                # Retrieve updated counts
+                cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+                game_death_count = cursor.fetchone()[0]
 
-            cursor.execute('SELECT death_count FROM total_deaths')
-            total_death_count = cursor.fetchone()[0]
+                cursor.execute('SELECT death_count FROM total_deaths')
+                total_death_count = cursor.fetchone()[0]
 
-            # Send the message
-            chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
-            chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
-            await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                # Send the message
+                chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
+                chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
+                await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+            except Exception as e:
+                await ctx.send("An error occurred while executing the command.")
+                chat_logger.error(f"Error in deaths_command: {e}")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, death add, but couldn't has they are not a moderator.")
-            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @bot.command(name="deathremove", aliases=["death-",])
     async def deathremove_command(ctx: commands.Context):
         if is_mod_or_broadcaster(ctx.author):
-            chat_logger.info("Death Remove Command Ran")
-            current_game = await get_current_stream_game()
+            try:
+                chat_logger.info("Death Remove Command Ran")
+                current_game = await get_current_stream_game()
 
-            # Decrement game-specific death count (ensure it doesn't go below 0)
-            cursor.execute('UPDATE game_deaths SET death_count = GREATEST(0, death_count - 1) WHERE game_name = ?', (current_game,))
+                # Decrement game-specific death count (ensure it doesn't go below 0)
+                cursor.execute('UPDATE game_deaths SET death_count = GREATEST(0, death_count - 1) WHERE game_name = ?', (current_game,))
 
-            # Decrement total death count (ensure it doesn't go below 0)
-            cursor.execute('UPDATE total_deaths SET death_count = GREATEST(0, death_count - 1)')
-            conn.commit()
+                # Decrement total death count (ensure it doesn't go below 0)
+                cursor.execute('UPDATE total_deaths SET death_count = GREATEST(0, death_count - 1)')
+                conn.commit()
 
-            # Retrieve updated counts
-            cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
-            game_death_count = cursor.fetchone()[0]
+                # Retrieve updated counts
+                cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+                game_death_count = cursor.fetchone()[0]
 
-            cursor.execute('SELECT death_count FROM total_deaths')
-            total_death_count = cursor.fetchone()[0]
+                cursor.execute('SELECT death_count FROM total_deaths')
+                total_death_count = cursor.fetchone()[0]
 
-            # Send the message
-            chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
-            chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
-            await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+                # Send the message
+                chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
+                chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
+                await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+            except Exception as e:
+                await ctx.send("An error occurred while executing the command.")
+                chat_logger.error(f"Error in deaths_command: {e}")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, death remove, but couldn't has they are not a moderator.")
-            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @bot.command(name='game')
     async def game_command(ctx: commands.Context):
