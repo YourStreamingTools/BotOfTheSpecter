@@ -253,6 +253,18 @@ label {
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
 }
 
+/* API Key Show and Hide */
+.api-key-wrapper {
+    background-color: #f0f0f0 !important;
+    padding: 10px !important;
+    margin-top: 10px !important;
+    display: none !important;
+}
+
+.api-text-black {
+    color: #000000 !important;
+}
+
 /* Darkmode Logs */
 h1, h2, h3 {
     color: #ffffff;
