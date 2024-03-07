@@ -197,20 +197,26 @@ def calculate_duration(start_time):
     # Construct the duration string based on the duration
     if total_days >= 30:
         total_months = total_days // 30
+        days_remaining = total_days % 30
         if total_months == 1:
-            return f"{total_months} month"
+            month_string = f"{total_months} month"
         else:
-            return f"{total_months} months"
+            month_string = f"{total_months} months"
+        if days_remaining == 1:
+            day_string = f"{days_remaining} day"
+        else:
+            day_string = f"{days_remaining} days"
+        return f"{month_string} and {day_string}"
     elif total_days > 0:
         if total_days == 1:
-            return f"{total_days} day"
+            return f"{total_days} day and {total_hours} hours"
         else:
-            return f"{total_days} days"
+            return f"{total_days} days and {total_hours} hours"
     elif total_hours > 0:
         if total_hours == 1:
-            return f"{total_hours} hour"
+            return f"{total_hours} hour and {total_minutes} minutes"
         else:
-            return f"{total_hours} hours"
+            return f"{total_hours} hours and {total_minutes} minutes"
     elif total_minutes > 0:
         if total_minutes == 1:
             return f"{total_minutes} minute"
