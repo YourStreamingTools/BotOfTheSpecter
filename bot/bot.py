@@ -174,7 +174,7 @@ connected = set()
 # Setup Token Refresh
 async def refresh_token_every_day():
     while True:
-        await refresh_token(CHANNEL_AUTH)
+        await refresh_token(REFRESH_TOKEN)
         await asyncio.sleep(86400)
 
 async def refresh_token(refresh_token):
