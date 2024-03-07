@@ -11,6 +11,7 @@ import subprocess
 import threading
 import websockets
 import ssl
+import json
 
 # Third-party imports
 import aiohttp
@@ -212,6 +213,30 @@ async def counter(websocket, path):
                 await conn.send(message)
     finally:
         connected.remove(websocket)
+
+# Setup Twitch PubSub
+async def twitch_pubsub():
+    # Twitch PubSub URL
+    url = "wss://pubsub-edge.twitch.tv"
+
+    # Twitch PubSub topics to subscribe to
+    topics = [f"channel-points-channel-v1.{CHANNEL_ID}", f"chat_moderator_actions.{CHANNEL_ID}"]
+
+    # Authenticate and subscribe
+    authentication = {
+        "type": "LISTEN",
+        "data": {
+            "topics": topics,
+            "auth_token": f"{OAUTH_TOKEN}"
+        }
+    }
+
+    async with websockets.connect(url) as websocket:
+        await websocket.send(json.dumps(authentication))
+
+        while True:
+            response = await websocket.recv()
+            twitch_logger.info(f"Received message from PubSub: {response}")
 
 class Bot(commands.Bot):
     # Event Message to get the bot ready
