@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 # App Imports
-from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs
+from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs, show_counter
 import twitch_auth
 import updates
 import about
@@ -97,21 +97,21 @@ auth_status_label.pack(pady=5)
 counters_tab = ttk.Frame(tab_control)
 tab_control.add(counters_tab, text='Counters')
 
-# Frame for holding counters and related elements in the "Counters" tab
-counters_tab_frame = tk.Frame(counters_tab)
-counters_tab_frame.pack(pady=5)
+# Frame for holding the buttons in the "Counters" tab
+counters_buttons_frame = tk.Frame(counters_tab)
+counters_buttons_frame.pack(side=tk.TOP, pady=5)
 
-# Example: Add a label to display a counter
-counter_label = tk.Label(counters_tab_frame, text="Counter: 0", font=("Arial", 14))
-counter_label.pack(pady=5)
+# Create buttons for each counter type
+counter_buttons = {}
 
-# Example: Add a button to increment the counter
-def increment_counter():
-    current_value = int(counter_label.cget("text").split(": ")[1])
-    new_value = current_value + 1
-    counter_label.config(text="Counter: " + str(new_value))
+counter_types = ["Currently Lurking Users", "Typo Counts", "Death Counts", "Hug Counts", "Kiss Counts"]
+for counter_type in counter_types:
+    counter_button = tk.Button(counters_buttons_frame, text=counter_type, command=lambda t=counter_type: show_counter(t, text_area))
+    counter_button.pack(side=tk.LEFT, padx=5, pady=5)
+    counter_buttons[counter_type] = counter_button
 
-increment_button = tk.Button(counters_tab_frame, text="Increment Counter", command=increment_counter)
-increment_button.pack(pady=5)
+# Create a Text widget for displaying counter data
+text_area = tk.Text(counters_tab)
+text_area.pack(expand=1, fill='both')
 
 window.mainloop()
