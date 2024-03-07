@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
 // Handling form submission for removing a user
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'remove') {
-  $formUsername = $_POST['typo-username-remove'] ?? ''  
+  $formUsername = $_POST['typo-username-remove'] ?? '';
   try {
     $stmt = $db->prepare("DELETE FROM user_typos WHERE username = :username");
     $stmt->bindParam(':username', $formUsername, PDO::PARAM_STR);
