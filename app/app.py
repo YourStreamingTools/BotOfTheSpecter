@@ -3,7 +3,8 @@ import os
 import tkinter as tk
 from tkinter import ttk
 import threading
-from datetime import datetime
+import datetime
+
 # App Imports
 from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs, fetch_counters_from_db
 import twitch_auth
@@ -115,10 +116,14 @@ for counter_type in counter_types:
 counter_type_label = tk.Label(counters_tab, text="Not Viewing Anything", font=("Arial", 12))
 counter_type_label.pack(pady=5, side=tk.TOP)
 
+# Create the Treeview widget
+counter_tree = ttk.Treeview(counters_tab, show='headings')
+counter_tree.pack(expand=True, fill='both')
+
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
     headings = get_table_headings(counter_type)
-    counters = fetch_counters_from_db(counter_type)  # Fetch counters based on counter_type
+    counters = fetch_counters_from_database(counter_type)  # Fetch counters based on counter_type
     
     # Clear existing data in the treeview
     for item in counter_tree.get_children():
@@ -126,25 +131,26 @@ def fetch_and_display_counters(counter_type):
     
     # Process counters and update UI
     if counters is not None:
+        if counter_type == "Currently Lurking Users":
+            # Convert user IDs to usernames and durations to human-readable format
+            processed_counters = []
+            for user_id, start_time in counters:
+                username = get_username_from_user_id(user_id)  # Function to get username from Twitch user ID
+                duration = calculate_duration(start_time)  # Function to calculate duration
+                processed_counters.append((username, duration))
+            counters = processed_counters
+        
         # Insert counter data into the treeview
         for counter in counters:
             counter_tree.insert('', 'end', values=counter)
+        
         # Update table headings
         counter_tree['columns'] = headings
         for col in headings:
             counter_tree.heading(col, text=col)
         
         # Update counter type label
-        if counter_type == "Currently Lurking Users":
-            counter_type_label.config(text="Viewing: Lurkers")
-        elif counter_type == "Typo Counts":
-            counter_type_label.config(text="Viewing: Typos")
-        elif counter_type == "Death Counts":
-            counter_type_label.config(text="Viewing: Death Overview")
-        elif counter_type == "Hug Counts":
-            counter_type_label.config(text="Viewing: User Hugs")
-        elif counter_type == "Kiss Counts":
-            counter_type_label.config(text="Viewing: User Kisses")
+        get_table_headings(counter_type)
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
 
@@ -163,8 +169,28 @@ def get_table_headings(counter_type):
     else:
         return ['Total', 'Count']
 
-# Create the Treeview widget
-counter_tree = ttk.Treeview(counters_tab, show='headings')
-counter_tree.pack(expand=True, fill='both')
+# Placeholder function to fetch counters from the database
+def fetch_counters_from_database(counter_type):
+    # Implement this function to fetch counters from the database
+    # For now, let's return some dummy data for testing
+    if counter_type == "Currently Lurking Users":
+        return [("user_id_1", "2023-12-20T15:28:56.554343"), ("user_id_2", "2023-11-15T10:30:00.000000")]
+    else:
+        return []
+
+# Placeholder function to convert Twitch user ID to username
+def get_username_from_user_id(user_id):
+    # Implement this function to fetch username from Twitch user ID
+    # For now, let's return some dummy usernames for testing
+    return f"Username {user_id}"
+
+# Function to calculate duration
+def calculate_duration(start_time):
+    start_datetime = datetime.datetime.fromisoformat(start_time)
+    duration = datetime.datetime.now() - start_datetime
+    days = duration.days
+    hours, remainder = divmod(duration.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{days} day(s), {hours} hour(s), {minutes} minute(s)"
 
 window.mainloop()
