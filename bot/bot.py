@@ -1322,6 +1322,7 @@ def start_bot():
     # asyncio.get_event_loop().create_task(refresh_token_every_day())
     asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(check_stream_online())
+    asyncio.get_event_loop().create_task(twitch_pubsub())
     # Start the bot
     bot.run()
 
