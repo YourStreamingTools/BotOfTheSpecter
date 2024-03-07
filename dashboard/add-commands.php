@@ -88,6 +88,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       <li class="is-active"><a href="add-commands.php">Add Bot Command</a></li>
       <li><a href="edit_typos.php">Edit Typos</a></li>
       <li><a href="app.php">Download App</a></li>
+      <li><a href="profile.php">Profile</a></li>
       <li><a href="logout.php">Logout</a></li>
     </ul>
   </div>
