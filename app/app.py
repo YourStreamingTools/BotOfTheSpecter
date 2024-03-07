@@ -149,8 +149,11 @@ def fetch_and_display_counters(counter_type):
         for col in headings:
             counter_tree.heading(col, text=col)
         
-        # Update counter type label
-        get_table_headings(counter_type)
+        # Resize columns to fit content
+        for col in headings:
+            counter_tree.column(col, width=tk.FIXED)
+            counter_tree.heading(col, text=col, anchor=tk.CENTER)
+            counter_tree.column(col, anchor=tk.CENTER)
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
 
