@@ -9,6 +9,7 @@ BotOfTheSpecter is a comprehensive Twitch chat bot designed to enhance the strea
 - **Moderation**: Automated moderation tools for maintaining a healthy chat environment.
 - **Followers, Subscribers, and VIPs**: Fetch and display detailed data about the channel's followers, subscribers, and VIPs.
 - **Custom Commands**: Create and manage custom chat commands.
+- **Subscription and Bits Alerts**: The bot now responds to subscriptions and bits in chat, enhancing viewer interaction and engagement.
 
 ### User Management
 - **Authentication**: Secure login system with Twitch OAuth.
@@ -26,8 +27,5 @@ BotOfTheSpecter is a comprehensive Twitch chat bot designed to enhance the strea
 ## Changelog
 
 ### Version 2.0
-- Added modules for handling date and time operations (`datetime`) and making HTTP requests (`requests`).
-- Integrated a new function `fetch_counters_from_db` from the `server_communication` module for database operations.
-- Expanded import statement in `app.py` to include `fetch_counters_from_db`.
-- Added modules `os` and `sqlite3` to `server_communication.py`.
-- Updated `updates.py` to set the VERSION variable as "2.0".
+- Added a "Counters" feature to the app, providing users with real-time metrics and analytics directly within the interface.
+- Enhanced Twitch integration: the bot now responds to subscriptions and bits in chat, improving viewer interaction and engagement.
