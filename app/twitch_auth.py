@@ -19,7 +19,8 @@ logging.basicConfig(filename=log_file_path, level=logging.INFO)
 CLIENT_ID="" # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET="" # CHANGE TO MAKE THIS WORK
 REDIRECT_URI = "http://localhost:5000/auth"
-AUTH_URL = f"https://id.twitch.tv/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope=openid user:read:email moderator:manage:shoutouts chat:read chat:edit moderation:read moderator:read:followers channel:read:vips channel:read:subscriptions moderator:read:chatters bits:read"
+IDScope = "openid channel:bot channel:moderate user:read:email user:read:chat user:write:chat moderator:manage:shoutouts chat:read chat:edit moderation:read moderator:read:followers channel:read:redemptions channel:read:vips channel:manage:vips channel:read:subscriptions moderator:read:chatters bits:read channel:manage:ads channel:read:ads channel:manage:schedule clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:shoutouts moderator:manage:shoutouts user:read:blocked_users user:manage:blocked_users"
+AUTH_URL = f"https://id.twitch.tv/oauth2/authorize?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope={IDScope}"
 
 class AuthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
