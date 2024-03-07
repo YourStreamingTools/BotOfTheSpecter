@@ -192,7 +192,6 @@ def get_username_from_user_id(user_id):
     # Check if the request was successful
     if response.status_code == 200:
         data = response.json()
-        print("API Response:", data)
         if 'data' in data and data['data']:
             return data['data'][0]['display_name']
     else:
