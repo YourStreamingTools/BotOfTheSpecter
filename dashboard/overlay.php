@@ -19,19 +19,19 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
             $authToken = $user['access_token'];
             if ($username && $authToken) {
                 include 'sqlite.php';
-                $decApiUrl = "https://decapi.me/twitch/game/" . $username;
+                $decApiUrl = "https://decapi.me/twitch/game/" . urlencode($username);
                 $currentGame = trim(file_get_contents($decApiUrl));
                 $currentGameDeathCount = 0;
                 foreach ($gameDeaths as $gameDeath) {
-                    if (strcasecmp($gameDeath['game_name'], $currentGameName) == 0) {
+                    if (strcasecmp($gameDeath['game_name'], $currentGame) == 0) {
                         $currentGameDeathCount = $gameDeath['death_count'];
                         break;
                     }
                 }
                 if ($currentGameDeathCount > 0) {
-                    $status = "<div>Current Game Death Count: " . htmlspecialchars($currentGameName) . ": " . htmlspecialchars($currentGameDeathCount) . "</div>"
+                    $status = "Current Game Death Count for " . htmlspecialchars($currentGame) . ": " . htmlspecialchars($currentGameDeathCount) . "";
                 } else {
-                    $status = "<div>Current Game: " . htmlspecialchars($currentGameName) . " has no recorded deaths.</div>";
+                    $status = "Current Game: " . htmlspecialchars($currentGame) . " has no recorded deaths.";
                 }
             } else {
                 $status = "No username or authentication token found.";
@@ -39,7 +39,7 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
         } else {
             $status = "No user found for the provided API key.";
         }
-        
+
         $stmt->close();
     } else {
         $status = "Failed to prepare the statement.";
