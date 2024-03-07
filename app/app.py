@@ -156,6 +156,9 @@ def fetch_and_display_counters(counter_type):
         for col in headings:
             counter_tree.column(col, width=100)
             counter_tree.column(col, anchor="w")
+        
+        # Update the counter type label to indicate viewing after loading
+        counter_type_label.config(text=f"Viewing {counter_type}")
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
     
