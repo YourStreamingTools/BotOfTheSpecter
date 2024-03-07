@@ -44,7 +44,6 @@ $countType= '';
     <script src="about.js"></script>
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
   </head>
 <body>
 <!-- Navigation -->
