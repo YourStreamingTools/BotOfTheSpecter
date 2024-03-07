@@ -93,9 +93,13 @@ text_area.pack(expand=1, fill='both')
 auth_status_label = tk.Label(logs_tab, text="", fg="red")
 auth_status_label.pack(pady=5)
 
-# Create a "Counters" tab
+# Create the "Counters" tab
 counters_tab = ttk.Frame(tab_control)
 tab_control.add(counters_tab, text='Counters')
+
+# Create a label to display the current counter type
+counter_type_label = tk.Label(counters_tab, text="Currently Lurking Users", font=("Arial", 12))
+counter_type_label.pack(pady=5)
 
 # Frame for holding the buttons in the "Counters" tab
 counters_buttons_frame = tk.Frame(counters_tab)
@@ -103,12 +107,15 @@ counters_buttons_frame.pack(side=tk.TOP, pady=5)
 
 # Create buttons for each counter type
 counter_buttons = {}
-
-counter_types = ["Currently Lurking Users", "Typo Counts", "Death Counts", "Hug Counts", "Kiss Counts"]
+counter_types = ["Currently Lurking Users", "Typo Counts", "Deaths Overview", "Hug Counts", "Kiss Counts"]
 for counter_type in counter_types:
     counter_button = tk.Button(counters_buttons_frame, text=counter_type, command=lambda t=counter_type: fetch_and_display_counters(t))
     counter_button.pack(side=tk.LEFT, padx=5, pady=5)
     counter_buttons[counter_type] = counter_button
+
+# Create the Treeview widget
+counter_tree = ttk.Treeview(counters_tab, show='headings')
+counter_tree.pack(expand=True, fill='both')
 
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
@@ -148,13 +155,5 @@ def get_table_headings(counter_type):
         return ['Username', 'Kiss Count']
     else:
         return []
-
-# Create the Treeview widget
-counter_tree = ttk.Treeview(counters_tab, show='headings')
-counter_tree.pack(expand=True, fill='both')
-
-# Create a label to display the current counter type
-counter_type_label = tk.Label(counters_tab, text="Currently Lurking Users", font=("Arial", 12))
-counter_type_label.pack(pady=5)
 
 window.mainloop()
