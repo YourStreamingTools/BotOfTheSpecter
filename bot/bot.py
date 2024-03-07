@@ -251,8 +251,10 @@ async def twitch_pubsub():
         f"channel-bits-events-v2.{CHANNEL_ID}",  # Bits
         f"channel-subscribe-events-v1.{CHANNEL_ID}",  # Subscriptions
     ]
-    twitch_logger.info(f"Sub to the following topics: {topics}")
-    # Authenticate and subscribe
+
+    # Log what Topics we're asking for.
+    twitch_logger.info(f"PubSub Topics: {topics}")
+
     authentication = {
         "type": "LISTEN",
         "data": {
@@ -261,20 +263,22 @@ async def twitch_pubsub():
         }
     }
 
-    try:
-        async with websockets.connect(url) as websocket:
-            await websocket.send(json.dumps(authentication))
+    while True:
+        try:
+            async with websockets.connect(url) as websocket:
+                await websocket.send(json.dumps(authentication))
 
-            while True:
-                response = await websocket.recv()
-                twitch_logger.info(f"Received message from PubSub: {response}")
-                # Process the received message
-                await process_pubsub_message(response)
+                while True:
+                    response = await websocket.recv()
+                    twitch_logger.info(f"Received message from PubSub: {response}")
+                    # Process the received message
+                    await process_pubsub_message(response)
 
-    except websockets.ConnectionClosedError:
-        twitch_logger.error("Connection to Twitch PubSub closed unexpectedly.")
-    except Exception as e:
-        twitch_logger.exception("An error occurred in Twitch PubSub connection:", exc_info=e)
+        except websockets.ConnectionClosedError:
+            twitch_logger.error("Connection to Twitch PubSub closed unexpectedly. Retrying...")
+            await asyncio.sleep(10)  # Wait before retrying
+        except Exception as e:
+            twitch_logger.exception("An error occurred in Twitch PubSub connection:", exc_info=e)
 
 async def process_pubsub_message(message):
     try:
