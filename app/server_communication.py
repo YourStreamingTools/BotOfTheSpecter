@@ -344,7 +344,8 @@ def get_api_logs():
     return handle_response(response)
 
 # Function to fetch counters from the SQLite database using SSH
-def fetch_counters_from_db():
+def fetch_counters_from_db(counter_type):
+    conn = None  # Initialize the connection variable
     try:
         # Establish SSH connection
         ssh = paramiko.SSHClient()
@@ -352,7 +353,7 @@ def fetch_counters_from_db():
         ssh.connect(REMOTE_SSH_HOST, port=REMOTE_SSH_PORT, username=REMOTE_SSH_USERNAME, password=REMOTE_SSH_PASSWORD)
         
         # Get the username
-        username = twitch_auth.get_global_username()
+        username = get_global_username()
 
         # Path to the SQLite database file on the server
         db_file_path = f"/var/www/bot/commands/{username}.db"
@@ -371,6 +372,10 @@ def fetch_counters_from_db():
         # Connect to the downloaded database file
         conn = sqlite3.connect(local_db_file_path)
         cursor = conn.cursor()
+
+        # Fetch typo counts
+        cursor.execute("SELECT * FROM user_typos ORDER BY typo_count DESC")
+        typos = cursor.fetchall()
 
         # Fetch lurkers
         cursor.execute("SELECT user_id, start_time FROM lurk_times")
@@ -400,6 +405,7 @@ def fetch_counters_from_db():
         cursor.execute("SELECT username, kiss_count FROM kiss_counts")
         kiss_counts = cursor.fetchall()
 
+        return typos, lurkers, total_deaths, game_deaths, total_hugs, hug_counts, total_kisses, kiss_counts
 
     except Exception as e:
         print("Error fetching counters from the SQLite database:", e)
