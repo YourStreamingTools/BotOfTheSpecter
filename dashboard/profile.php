@@ -23,12 +23,10 @@ $user_id = $user['id'];
 $username = $user['username'];
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
-$is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
-$broadcasterID = $twitchUserId;
+$signup_date = $user['signup_date'];
+$last_login = $user['last_login'];
 $authToken = $access_token;
-$webhookPort = $user['webhook_port'];
-$websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
@@ -96,7 +94,7 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 <p><strong>Display Name:</strong> <?php echo $twitchDisplayName; ?></p>
 <p><strong>You Joined:</strong> <span id="localSignupDate"></span></p>
 <p><strong>Your Last Login:</strong> <span id="localLastLogin"></span></p>
-<p><strong>The TimeZone:</strong> <?php echo $timezone; ?></p>
+<p><strong>Time Zone:</strong> <?php echo $timezone; ?></p>
 <p><strong>Your API Key:</strong> <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
 <button type="button" class="defult-button" id="show-api-key">Show API Key</button>
 <button type="button" class="defult-button" id="hide-api-key" style="display:none;">Hide API Key</button>
