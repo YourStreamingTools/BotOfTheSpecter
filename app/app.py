@@ -124,7 +124,7 @@ counter_tree.pack(expand=True, fill='both')
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
     headings = get_table_headings(counter_type)
-    counters = fetch_counters_from_database(counter_type)  # Fetch counters based on counter_type
+    counters = fetch_counters_from_db(counter_type)  # Fetch counters based on counter_type
     
     # Clear existing data in the treeview
     for item in counter_tree.get_children():
@@ -172,15 +172,6 @@ def get_table_headings(counter_type):
         return ['Username', 'Kiss Count']
     else:
         return ['Total', 'Count']
-
-# Placeholder function to fetch counters from the database
-def fetch_counters_from_database(counter_type):
-    # Implement this function to fetch counters from the database
-    # For now, let's return some dummy data for testing
-    if counter_type == "Currently Lurking Users":
-        return [("user_id_1", "2023-12-20T15:28:56.554343"), ("user_id_2", "2023-11-15T10:30:00.000000")]
-    else:
-        return []
 
 # Placeholder function to convert Twitch user ID to username
 def get_username_from_user_id(user_id):
