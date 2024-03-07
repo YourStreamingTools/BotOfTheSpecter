@@ -918,13 +918,12 @@ class Bot(commands.Bot):
     async def typo_command(ctx: commands.Context, *, mentioned_username: str = None):
         chat_logger.info("Typo Command ran.")
         # Check if the broadcaster is running the command
-        if ctx.author.name.lower() == CHANNEL_NAME.lower():
-            await ctx.send(f"Dear Streamer, you can never have a typo in your own channel.")
+        if mentioned_username and mentioned_username.lower() == CHANNEL_NAME.lower():
+            await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
             return
 
         # Determine the target user: mentioned user or the command caller
-        mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
-        target_user = mentioned_username_lower.lstrip('@')
+        target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
 
         # Increment typo count in the database
         cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
@@ -935,8 +934,8 @@ class Bot(commands.Bot):
         typo_count = cursor.fetchone()[0]
 
         # Send the message
-        chat_logger.info(f"{target_user} has done a new typo in chat, they're count is now at {typo_count}.")
-        await ctx.send(f"Congratulations {target_user}, you've done a typo! {target_user} you've done a typo in chat {typo_count} times.")
+        chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
+        await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
     
     @bot.command(name="typos", aliases=("typocount",))
     async def typos_command(ctx: commands.Context, *, mentioned_username: str = None):
