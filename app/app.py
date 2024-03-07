@@ -135,7 +135,7 @@ def fetch_and_display_counters(counter_type):
         if counter_type == "Currently Lurking Users":
             processed_counters = []
             for user_id, start_time in counters:
-                username = get_usernames_from_user_ids(user_id)
+                username = get_usernames_from_user_id(user_id)
                 duration = calculate_duration(start_time)
                 processed_counters.append((username, duration))
             counters = processed_counters
@@ -173,12 +173,12 @@ def get_table_headings(counter_type):
         return ['Total', 'Count']
 
 # Function to convert Twitch user ID to username
-def get_usernames_from_user_ids(user_ids):
+def get_username_from_user_id(user_id):
     AuthToken = twitch_auth.global_auth_token
     ClientID = twitch_auth.CLIENT_ID
     
-    # Construct the URL with user IDs
-    url = "https://api.twitch.tv/helix/users"
+    # Construct the URL with user ID
+    url = f"https://api.twitch.tv/helix/users?id={user_id}"
     
     # Set headers
     headers = {
@@ -186,26 +186,19 @@ def get_usernames_from_user_ids(user_ids):
         'Authorization': 'Bearer ' + AuthToken
     }
     
-    # Construct the query parameters
-    params = {'id': user_ids}
-    
     # Make request to Twitch API
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=headers)
     
     # Print request details for debugging
     print("Request URL:", response.request.url)
     print("Request Headers:", response.request.headers)
-    print("Request Parameters:", params)
     
     # Check if the request was successful
     if response.status_code == 200:
         data = response.json()
         print("API Response:", data)
-        if 'data' in data:
-            usernames = {}
-            for user in data['data']:
-                usernames[user['id']] = user['display_name']
-            return usernames
+        if 'data' in data and data['data']:
+            return data['data'][0]['display_name']
     else:
         print("API Request failed with status code:", response.status_code)
     return None
