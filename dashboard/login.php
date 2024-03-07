@@ -116,20 +116,35 @@ if (isset($_GET['code'])) {
         // Database connect
         require_once "db_connect.php";
 
-        function generateUniquePort($conn) {
+        function generateUniqueWebHookPort($conn) {
             $basePort = 8000;
             $maxPort = 9000;
         
-            // Query to find the maximum port number currently in use
-            $query = "SELECT MAX(webhook_port) as max_port FROM users";
+            // Query to find the maximum webhook port number currently in use
+            $query = "SELECT MAX(webhook_port) as max_webhook_port FROM users";
             $result = mysqli_query($conn, $query);
             $row = mysqli_fetch_assoc($result);
         
-            $lastPort = $row['max_port'] ? $row['max_port'] : $basePort;
+            $lastPort = $row['max_webhook_port'] ? $row['max_webhook_port'] : $basePort;
             $newPort = $lastPort + 1;
         
-            return ($newPort <= $maxPort) ? $newPort : null; // Return null if max port number exceeded
+            return ($newPort <= $maxPort) ? $newPort : null;
         }
+        
+        function generateUniqueWebShocketPort($conn) {
+            $basePort = 49152;
+            $maxPort = 65535;
+        
+            // Query to find the maximum webshocket port number currently in use
+            $query = "SELECT MAX(webshocket_port) as max_webshocket_port FROM users";
+            $result = mysqli_query($conn, $query);
+            $row = mysqli_fetch_assoc($result);
+        
+            $lastPort = $row['max_webshocket_port'] ? $row['max_webshocket_port'] : $basePort;
+            $newPort = $lastPort + 1;
+        
+            return ($newPort <= $maxPort) ? $newPort : null;
+        }        
 
         // Insert/update user data
         $insertQuery = "INSERT INTO users (username, access_token, api_key, profile_image, twitch_user_id, twitch_display_name, webhook_port, is_admin)
@@ -138,10 +153,11 @@ if (isset($_GET['code'])) {
             
         $stmt = mysqli_prepare($conn, $insertQuery);
         $last_login = date('Y-m-d H:i:s');
-        $uniquePort = generateUniquePort($conn); // Generate unique port
+        $uniqueWebHookPort = generateUniqueWebHookPort($conn);
+        $uniqueWebShocketPort = generateUniqueWebShocketPort($conn);
             
         // Bind the generated port number for new users, and the last login date
-        mysqli_stmt_bind_param($stmt, 'is', $uniquePort, $last_login);
+        mysqli_stmt_bind_param($stmt, 'is', $uniqueWebHookPort, $last_login);
         
         if (mysqli_stmt_execute($stmt)) {
             // Redirect the user to the dashboard
