@@ -117,7 +117,7 @@ counter_text_area.pack(expand=1, fill='both')
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
     # Fetch counters from the database
-    counters = fetch_counters_from_db()
+    counters = fetch_counters_from_db(counter_type)
     if counters:
         # Clear previous content
         counter_text_area.delete('1.0', tk.END)
