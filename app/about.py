@@ -15,7 +15,7 @@ def show_about_message():
     version_label.pack(pady=5)
 
     description_text = (
-        "This application allows you to view bot logs without the need to log into the website.\n\n"
+        "This application allows you to view everything about the bot without the need to log into our website.\n\n"
         "You can check if the bot is currently running using the 'Check Bot Status' button.\n"
         "You can run the bot from this app if the bot isn't running by using the 'Run Bot' Button.\n"
         "You can stop the bot if with wish the bot to stop working.\n"
