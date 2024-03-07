@@ -135,10 +135,8 @@ def fetch_and_display_counters(counter_type):
         if counter_type == "Currently Lurking Users":
             processed_counters = []
             for user_id, start_time in counters:
-                username = get_username_from_user_id(user_id)
-                if username is None:
-                    username = "Unknown"
-                duration = calculate_duration(start_time)  # Function to calculate duration
+                username = get_usernames_from_user_ids(user_id)
+                duration = calculate_duration(start_time)
                 processed_counters.append((username, duration))
             counters = processed_counters
         
@@ -175,12 +173,12 @@ def get_table_headings(counter_type):
         return ['Total', 'Count']
 
 # Function to convert Twitch user ID to username
-def get_username_from_user_id(user_id):
+def get_usernames_from_user_ids(user_ids):
     AuthToken = twitch_auth.global_auth_token
     ClientID = twitch_auth.global_twitch_id
     
     # Construct the URL with user IDs
-    url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    url = "https://api.twitch.tv/helix/users"
     
     # Set headers
     headers = {
@@ -188,15 +186,20 @@ def get_username_from_user_id(user_id):
         'Authorization': 'Bearer ' + AuthToken
     }
     
+    # Construct the query parameters
+    params = {'id': user_ids}
+    
     # Make request to Twitch API
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, params=params)
     
     # Check if the request was successful
     if response.status_code == 200:
         data = response.json()
-        if data['data']:
-            username = data['data'][0]['display_name']
-            return username
+        if 'data' in data:
+            usernames = {}
+            for user in data['data']:
+                usernames[user['id']] = user['display_name']
+            return usernames
     return None
 
 # Function to calculate duration
