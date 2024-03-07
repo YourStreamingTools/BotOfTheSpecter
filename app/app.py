@@ -114,31 +114,44 @@ for counter_type in counter_types:
 counter_text_area = tk.Text(counters_tab)
 counter_text_area.pack(expand=1, fill='both')
 
-# Create a Treeview widget to display the counters in a table format
-counter_tree = ttk.Treeview(counters_tab)
-counter_tree.pack(expand=1, fill='both')
-
-# Add columns to the Treeview
-counter_tree["columns"] = ("Value")
-
-# Configure column headings
-counter_tree.heading("#0", text="Counter Type")
-counter_tree.heading("Value", text="Value")
-
-# Function to fetch counters and display in the counter_tree
+# Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
+    headings = get_table_headings(counter_type)
     counters = fetch_counters_from_db(counter_type)  # Fetch counters based on counter_type
-    # Clear existing items in counter_tree
-    counter_tree.delete(*counter_tree.get_children())
+    
+    # Clear existing data in the treeview
+    for item in counter_tree.get_children():
+        counter_tree.delete(item)
+    
     # Process counters and update UI
     if counters is not None:
-        if isinstance(counters, tuple):
-            for counter in counters:
-                counter_tree.insert("", tk.END, text=counter_type, values=(counter,))
-        else:
-            for item in counters:
-                counter_tree.insert("", tk.END, text=counter_type, values=(item,))
+        # Insert counter data into the treeview
+        for counter in counters:
+            counter_tree.insert('', 'end', values=counter)
+        # Update table headings
+        counter_tree['columns'] = headings
+        for col in headings:
+            counter_tree.heading(col, text=col)
     else:
-        counter_tree.insert("", tk.END, text=counter_type, values=("No data available",))
+        counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
+
+# Function to get table headings based on counter type
+def get_table_headings(counter_type):
+    if counter_type == "Currently Lurking Users":
+        return ['Username', 'Lurk Duration']
+    elif counter_type == "Typo Counts":
+        return ['Username', 'Typo Count']
+    elif counter_type == "Deaths Overview":
+        return ['Category', 'Count']
+    elif counter_type == "Hug Counts":
+        return ['Username', 'Hug Count']
+    elif counter_type == "Kiss Counts":
+        return ['Username', 'Kiss Count']
+    else:
+        return []
+
+# Create the Treeview widget
+counter_tree = ttk.Treeview(counters_tab, show='headings')
+counter_tree.pack(expand=True, fill='both')
 
 window.mainloop()
