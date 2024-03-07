@@ -11,7 +11,7 @@
 - **Imports**: The import statement from the `server_communication` module has been expanded to include `fetch_counters_from_db`, enhancing the app's capability to interact with the backend or a database for additional data retrieval purposes.
 
 ##### Extended
-- **UI Components**: The addition of a new "Counters" tab within the application's GUI suggests a significant enhancement to the user interface, likely providing users with additional data or analytics directly within the app.
+- **UI Components**: The addition of a new "Counters" tab within the application's GUI is a significant enhancement to the user interface, providing you with additional data and analytics directly within the app.
 
 #### **server_communication.py**
 
