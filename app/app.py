@@ -133,10 +133,11 @@ def fetch_and_display_counters(counter_type):
     # Process counters and update UI
     if counters is not None:
         if counter_type == "Currently Lurking Users":
-            # Convert user IDs to usernames and durations to human-readable format
             processed_counters = []
             for user_id, start_time in counters:
-                username = get_username_from_user_id(user_id)  # Function to get username from Twitch user ID
+                username = get_username_from_user_id(user_id)
+                if username is None:
+                    username = "Unknown"
                 duration = calculate_duration(start_time)  # Function to calculate duration
                 processed_counters.append((username, duration))
             counters = processed_counters
@@ -152,7 +153,7 @@ def fetch_and_display_counters(counter_type):
         
         # Resize columns to fit content
         for col in headings:
-            counter_tree.column(col, width=tk.FIXED)
+            counter_tree.column(col, width=100)
             counter_tree.heading(col, text=col, anchor=tk.CENTER)
             counter_tree.column(col, anchor=tk.CENTER)
     else:
@@ -173,26 +174,30 @@ def get_table_headings(counter_type):
     else:
         return ['Total', 'Count']
 
-# Placeholder function to convert Twitch user ID to username
+# Function to convert Twitch user ID to username
 def get_username_from_user_id(user_id):
     AuthToken = twitch_auth.global_auth_token
     ClientID = twitch_auth.global_twitch_id
     
-    # Make a request to the Twitch API
+    # Construct the URL with user IDs
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    
+    # Set headers
     headers = {
         'Client-ID': ClientID,
-        'Authorization': f'Bearer {AuthToken}'
+        'Authorization': 'Bearer ' + AuthToken
     }
+    
+    # Make request to Twitch API
     response = requests.get(url, headers=headers)
-
+    
     # Check if the request was successful
     if response.status_code == 200:
         data = response.json()
         if data['data']:
-            username = data['data'][0]['login']  # Assuming the username is in the 'login' field
+            username = data['display_name']
             return username
-
+    return None
 
 # Function to calculate duration
 def calculate_duration(start_time):
