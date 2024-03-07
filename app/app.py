@@ -3,6 +3,7 @@ import os
 import tkinter as tk
 from tkinter import ttk
 import threading
+from datetime import datetime
 # App Imports
 from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs, fetch_counters_from_db
 import twitch_auth
@@ -160,7 +161,7 @@ def get_table_headings(counter_type):
     elif counter_type == "Kiss Counts":
         return ['Username', 'Kiss Count']
     else:
-        return []
+        return ['Total', 'Count']
 
 # Create the Treeview widget
 counter_tree = ttk.Treeview(counters_tab, show='headings')
