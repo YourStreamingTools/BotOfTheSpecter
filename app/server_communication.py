@@ -373,39 +373,35 @@ def fetch_counters_from_db(counter_type):
         conn = sqlite3.connect(local_db_file_path)
         cursor = conn.cursor()
 
-        # Fetch typo counts
-        cursor.execute("SELECT * FROM user_typos ORDER BY typo_count DESC")
-        typos = cursor.fetchall()
-
-        # Fetch lurkers
-        cursor.execute("SELECT user_id, start_time FROM lurk_times")
-        lurkers = cursor.fetchall()
-
-        # Fetch total deaths
-        cursor.execute("SELECT death_count FROM total_deaths")
-        total_deaths = cursor.fetchone()
-
-        # Fetch game-specific deaths
-        cursor.execute("SELECT game_name, death_count FROM game_deaths")
-        game_deaths = cursor.fetchall()
-
-        # Fetch total hug counts
-        cursor.execute("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts")
-        total_hugs = cursor.fetchone()
-
-        # Fetch hug username-specific counts
-        cursor.execute("SELECT username, hug_count FROM hug_counts")
-        hug_counts = cursor.fetchall()
-
-        # Fetch total kiss counts
-        cursor.execute("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts")
-        total_kisses = cursor.fetchone()
-
-        # Fetch kiss counts
-        cursor.execute("SELECT username, kiss_count FROM kiss_counts")
-        kiss_counts = cursor.fetchall()
-
-        return typos, lurkers, total_deaths, game_deaths, total_hugs, hug_counts, total_kisses, kiss_counts
+        # Depending on the counter_type, fetch the corresponding data
+        if counter_type == "Typo Counts":
+            cursor.execute("SELECT * FROM user_typos ORDER BY typo_count DESC")
+            typos = cursor.fetchall()
+            return typos
+        elif counter_type == "Currently Lurking Users":
+            cursor.execute("SELECT user_id, start_time FROM lurk_times")
+            lurkers = cursor.fetchall()
+            return lurkers
+        elif counter_type == "Death Counts":
+            cursor.execute("SELECT death_count FROM total_deaths")
+            total_deaths = cursor.fetchone()
+            cursor.execute("SELECT game_name, death_count FROM game_deaths")
+            game_deaths = cursor.fetchall()
+            return total_deaths, game_deaths
+        elif counter_type == "Hug Counts":
+            cursor.execute("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts")
+            total_hugs = cursor.fetchone()
+            cursor.execute("SELECT username, hug_count FROM hug_counts")
+            hug_counts = cursor.fetchall()
+            return total_hugs, hug_counts
+        elif counter_type == "Kiss Counts":
+            cursor.execute("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts")
+            total_kisses = cursor.fetchone()
+            cursor.execute("SELECT username, kiss_count FROM kiss_counts")
+            kiss_counts = cursor.fetchall()
+            return total_kisses, kiss_counts
+        else:
+            return None
 
     except Exception as e:
         print("Error fetching counters from the SQLite database:", e)
