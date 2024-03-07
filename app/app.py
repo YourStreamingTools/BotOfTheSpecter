@@ -154,7 +154,7 @@ def get_table_headings(counter_type):
         return ['Username', 'Lurk Duration']
     elif counter_type == "Typo Counts":
         return ['Username', 'Typo Count']
-    elif counter_type == "Deaths Overview":
+    elif counter_type == "Death Counts":
         return ['Category', 'Count']
     elif counter_type == "Hug Counts":
         return ['Username', 'Hug Count']
