@@ -112,7 +112,7 @@ for counter_type in counter_types:
 
 # Create a label to display the current counter type
 counter_type_label = tk.Label(counters_tab, text="Not Viewing Anything", font=("Arial", 12))
-counter_type_label.pack(pady=5)
+counter_type_label.pack(pady=5, side=tk.TOP)
 
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
@@ -134,7 +134,16 @@ def fetch_and_display_counters(counter_type):
             counter_tree.heading(col, text=col)
         
         # Update counter type label
-        counter_type_label.config(text=f"Viewing: {counter_type}")
+        if counter_type == "Currently Lurking Users":
+            counter_type_label.config(text="Viewing: Lurkers")
+        elif counter_type == "Typo Counts":
+            counter_type_label.config(text="Viewing: Typos")
+        elif counter_type == "Death Counts":
+            counter_type_label.config(text="Viewing: Death Overview")
+        elif counter_type == "Hug Counts":
+            counter_type_label.config(text="Viewing: User Hugs")
+        elif counter_type == "Kiss Counts":
+            counter_type_label.config(text="Viewing: User Kisses")
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
 
