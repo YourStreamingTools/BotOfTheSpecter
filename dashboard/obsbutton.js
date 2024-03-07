@@ -1,8 +1,8 @@
 function showOBSInfo() {
   // Create a new HTML element to display the popup content
   var popup = document.createElement("div");
-  popup.innerHTML = "<p>This website is fully compatible with any streaming software:<br>OBS, SLOBS, xSplit, Wirecast, etc.</p>" +
-                    "<p>All you have to do it add the following link followed by your API key on the profile page into a browser source and it works:<br>https://dashboard.botofthespecter.com/overlay.php?auth=API_KEY</p>";
+  popup.innerHTML = "<p style='color: black;'>This website is fully compatible with any streaming software:<br>OBS, SLOBS, xSplit, Wirecast, etc.</p>" +
+                    "<p style='color: black;'>All you have to do it add the following link followed by your API key on the profile page into a browser source and it works:<br>https://dashboard.botofthespecter.com/overlay.php?auth=API_KEY</p>";
 
 
   // Apply some CSS styles to the popup
@@ -13,6 +13,7 @@ function showOBSInfo() {
   popup.style.width = "500px";
   popup.style.padding = "20px";
   popup.style.backgroundColor = "#FFFFFF";
+  popup.style.color = "#000000";
   popup.style.borderRadius = "5px";
   popup.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.5)";
   popup.style.zIndex = "9999";
