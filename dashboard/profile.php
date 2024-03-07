@@ -105,10 +105,10 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 <a href="logout.php" type="button" class="logout-button">Logout</a>
 </div>
 <!-- Include the JavaScript files -->
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="profile.js"></script>
 <script src="obsbutton.js" defer></script>
 <script src="timezone.js"></script>
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
 
