@@ -188,9 +188,35 @@ def get_username_from_user_id(user_id):
 def calculate_duration(start_time):
     start_datetime = datetime.datetime.fromisoformat(start_time)
     duration = datetime.datetime.now() - start_datetime
-    days = duration.days
-    hours, remainder = divmod(duration.seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{days} day(s), {hours} hour(s), {minutes} minute(s)"
+    
+    # Calculate total number of months and days
+    total_months = duration.days // 30
+    remaining_days = duration.days % 30
+    total_hours, remaining_minutes = divmod(duration.seconds, 3600)
+    total_minutes, remaining_seconds = divmod(remaining_minutes, 60)
+
+    # Construct the duration string based on the duration
+    if total_months > 0:
+        if total_months == 1:
+            return f"{total_months} month"
+        else:
+            return f"{total_months} months"
+    elif duration.days > 0:
+        if duration.days == 1:
+            return f"{duration.days} day"
+        else:
+            return f"{duration.days} days"
+    elif total_hours > 0:
+        if total_hours == 1:
+            return f"{total_hours} hour"
+        else:
+            return f"{total_hours} hours"
+    elif total_minutes > 0:
+        if total_minutes == 1:
+            return f"{total_minutes} minute"
+        else:
+            return f"{total_minutes} minutes"
+    else:
+        return "Just now"
 
 window.mainloop()
