@@ -1,12 +1,19 @@
 import os
 import time
 import tkinter as tk
+from tkinter import ttk
 import requests
 import paramiko
 import twitch_auth
 import mysql.connector
 from decouple import config
 import sqlite3
+import datetime
+
+# Define the window
+window = tk.Tk()
+counter_tree = ttk.Treeview(window)
+counter_type_label = tk.Label(window, text="")
 
 # Get variables
 REMOTE_SSH_HOST="" # CHANGE TO MAKE THIS WORK
@@ -343,6 +350,16 @@ def get_api_logs():
     response = requests.get(url)
     return handle_response(response)
 
+def handle_response(response):
+    if response.status_code == 200:
+        # Split the response text by lines, reverse it, and join it back together
+        lines = response.text.strip().split('\n')
+        reversed_text = '\n'.join(reversed(lines))
+        return reversed_text
+    else:
+        # If the page is not found, it might mean the username is incorrect or there are no logs
+        return {'error': f'No logs found or access denied, status code {response.status_code}'}
+
 # Function to fetch counters from the SQLite database using SSH
 def fetch_counters_from_db(counter_type):
     conn = None  # Initialize the connection variable
@@ -383,23 +400,17 @@ def fetch_counters_from_db(counter_type):
             lurkers = cursor.fetchall()
             return lurkers
         elif counter_type == "Death Counts":
-            cursor.execute("SELECT death_count FROM total_deaths")
-            total_deaths = cursor.fetchone()
             cursor.execute("SELECT game_name, death_count FROM game_deaths")
             game_deaths = cursor.fetchall()
-            return total_deaths, game_deaths
+            return game_deaths
         elif counter_type == "Hug Counts":
-            cursor.execute("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts")
-            total_hugs = cursor.fetchone()
             cursor.execute("SELECT username, hug_count FROM hug_counts")
             hug_counts = cursor.fetchall()
-            return total_hugs, hug_counts
+            return hug_counts
         elif counter_type == "Kiss Counts":
-            cursor.execute("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts")
-            total_kisses = cursor.fetchone()
             cursor.execute("SELECT username, kiss_count FROM kiss_counts")
             kiss_counts = cursor.fetchall()
-            return total_kisses, kiss_counts
+            return kiss_counts
         else:
             return None
 
@@ -413,12 +424,127 @@ def fetch_counters_from_db(counter_type):
         if ssh:
             ssh.close()
 
-def handle_response(response):
-    if response.status_code == 200:
-        # Split the response text by lines, reverse it, and join it back together
-        lines = response.text.strip().split('\n')
-        reversed_text = '\n'.join(reversed(lines))
-        return reversed_text
+# Function to fetch counters and display in the counter_text_area
+def fetch_and_display_counters(counter_type):
+    headings = get_table_headings(counter_type)
+    counters = fetch_counters_from_db(counter_type)  # Fetch counters based on counter_type
+    
+    # Clear existing data in the treeview
+    for item in counter_tree.get_children():
+        counter_tree.delete(item)
+    
+    # Update the counter type label to reflect the loading message after a short delay
+    counter_type_label.config(text=f"Loading {counter_type}...")
+    window.update()  # Update the GUI to ensure label change is visible
+    
+    # Schedule a function to update the label and process the data after a delay
+    window.after(500, process_counters, counter_type, counters, headings)
+
+# Function to process counters and update UI
+def process_counters(counter_type, counters, headings):
+    if counters is not None:
+        if counter_type == "Currently Lurking Users":
+            processed_counters = []
+            for user_id, start_time in counters:
+                username = get_username_from_user_id(user_id)
+                duration = calculate_duration(start_time)
+                processed_counters.append((username, duration))
+            counters = processed_counters
+        
+        # Insert counter data into the treeview
+        for counter in counters:
+            counter_tree.insert('', 'end', values=counter)
+        
+        # Update table headings
+        counter_tree['columns'] = headings
+        for col in headings:
+            counter_tree.heading(col, text=col, anchor="w")
+        
+        # Resize columns to fit content
+        for col in headings:
+            counter_tree.column(col, width=100)
+            counter_tree.column(col, anchor="w")
+        
+        # Update the counter type label to indicate viewing after loading
+        counter_type_label.config(text=f"Viewing {counter_type}")
     else:
-        # If the page is not found, it might mean the username is incorrect or there are no logs
-        return {'error': f'No logs found or access denied, status code {response.status_code}'}
+        counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
+
+# Function to get table headings based on counter type
+def get_table_headings(counter_type):
+    if counter_type == "Currently Lurking Users":
+        return ['Username', 'Lurk Duration']
+    elif counter_type == "Typo Counts":
+        return ['Username', 'Typo Count']
+    elif counter_type == "Death Counts":
+        return ['Category', 'Count']
+    elif counter_type == "Hug Counts":
+        return ['Username', 'Hug Count']
+    elif counter_type == "Kiss Counts":
+        return ['Username', 'Kiss Count']
+    else:
+        return ['Total', 'Count']
+
+# Function to convert Twitch user ID to username
+def get_username_from_user_id(user_id):
+    AuthToken = twitch_auth.global_auth_token
+    ClientID = twitch_auth.CLIENT_ID
+    
+    # Construct the URL with user ID
+    url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    
+    # Set headers
+    headers = {
+        'Client-ID': ClientID,
+        'Authorization': 'Bearer ' + AuthToken
+    }
+    
+    # Make request to Twitch API
+    response = requests.get(url, headers=headers)
+    
+    # Check if the request was successful
+    if response.status_code == 200:
+        data = response.json()
+        if 'data' in data and data['data']:
+            return data['data'][0]['display_name']
+    else:
+        print("API Request failed with status code:", response.status_code)
+    return None
+
+# Function to calculate duration
+def calculate_duration(start_time):
+    start_datetime = datetime.datetime.fromisoformat(start_time)
+    duration = datetime.datetime.now() - start_datetime
+    
+    # Calculate total number of days, hours, and minutes
+    total_days = duration.days
+    total_hours, remaining_minutes = divmod(duration.seconds, 3600)
+    total_minutes, _ = divmod(remaining_minutes, 60)
+
+    # Construct the duration string based on the duration
+    if total_days >= 30:
+        total_months = total_days // 30
+        days_remaining = total_days % 30
+        if total_months == 1:
+            month_string = f"{total_months} month"
+        else:
+            month_string = f"{total_months} months"
+        if days_remaining == 1:
+            day_string = f"{days_remaining} day"
+        else:
+            day_string = f"{days_remaining} days"
+        return f"{month_string}, {day_string}, {total_hours} hours, {total_minutes} minutes"
+    elif total_days > 0:
+        if total_days == 1:
+            return f"{total_days} day, {total_hours} hours, {total_minutes} minutes"
+        else:
+            return f"{total_days} days, {total_hours} hours, {total_minutes} minutes"
+    elif total_hours > 0:
+        if total_hours == 1:
+            return f"{total_hours} hour, {total_minutes} minutes"
+        else:
+            return f"{total_hours} hours, {total_minutes} minutes"
+    elif total_minutes > 1:
+        return f"{total_minutes} minutes"
+    else:
+        return "Just now"
