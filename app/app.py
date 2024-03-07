@@ -152,8 +152,8 @@ def fetch_and_display_counters(counter_type):
         # Resize columns to fit content
         for col in headings:
             counter_tree.column(col, width=100)
-            counter_tree.heading(col, text=col, anchor=tk.LEFT)
-            counter_tree.column(col, anchor=tk.LEFT)
+            counter_tree.heading(col, text=col, anchor="left")
+            counter_tree.column(col, anchor="left")
         
         # Update the label text to display the current counter type
         counter_type_label.config(text=counter_type)
