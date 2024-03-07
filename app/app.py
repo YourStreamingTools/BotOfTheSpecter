@@ -206,22 +206,19 @@ def calculate_duration(start_time):
             day_string = f"{days_remaining} day"
         else:
             day_string = f"{days_remaining} days"
-        return f"{month_string} and {day_string}"
+        return f"{month_string}, {day_string}, {total_hours} hours, {total_minutes} minutes"
     elif total_days > 0:
         if total_days == 1:
-            return f"{total_days} day and {total_hours} hours"
+            return f"{total_days} day, {total_hours} hours, {total_minutes} minutes"
         else:
-            return f"{total_days} days and {total_hours} hours"
+            return f"{total_days} days, {total_hours} hours, {total_minutes} minutes"
     elif total_hours > 0:
         if total_hours == 1:
-            return f"{total_hours} hour and {total_minutes} minutes"
+            return f"{total_hours} hour, {total_minutes} minutes"
         else:
-            return f"{total_hours} hours and {total_minutes} minutes"
-    elif total_minutes > 0:
-        if total_minutes == 1:
-            return f"{total_minutes} minute"
-        else:
-            return f"{total_minutes} minutes"
+            return f"{total_hours} hours, {total_minutes} minutes"
+    elif total_minutes > 1:
+        return f"{total_minutes} minutes"
     else:
         return "Just now"
 
