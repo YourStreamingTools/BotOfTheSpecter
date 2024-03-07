@@ -1,4 +1,3 @@
-<META http-equiv="refresh" content="60">
 <?php
 try {
     $db = new PDO("sqlite:/var/www/bot/commands/{$username}_commands.db");
