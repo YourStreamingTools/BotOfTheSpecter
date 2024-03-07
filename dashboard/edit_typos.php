@@ -41,7 +41,7 @@ try {
   $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
   $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-  echo "Error connecting to the database: " . $e->getMessage();
+  $status = "Error connecting to the database: " . $e->getMessage();
   exit();
 }
 
@@ -51,7 +51,7 @@ try {
   $stmt->execute();
   $usernames = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
-  echo "Error fetching usernames: " . $e->getMessage();
+  $status = "Error fetching usernames: " . $e->getMessage();
   $usernames = [];
 }
 
@@ -66,12 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
       $stmt->bindParam(':username', $formUsername);
       $stmt->bindParam(':typo_count', $typoCount, PDO::PARAM_INT);
       $stmt->execute();
-      echo "Typo count updated successfully for user {$formUsername}.";
+      $status = "Typo count updated successfully for user {$formUsername}.";
     } catch (PDOException $e) {
-      echo "Error: " . $e->getMessage();
+      $status = "Error: " . $e->getMessage();
     }
   } else {
-    echo "Invalid input.";
+    $status = "Invalid input.";
   }
 }
 
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $stmt = $db->prepare("DELETE FROM user_typos WHERE username = :username");
     $stmt->bindParam(':username', $formUsername, PDO::PARAM_STR);
     $stmt->execute();
-    echo "Typo record for user '$formUsername' has been removed.";
+    $status = "Typo record for user '$formUsername' has been removed.";
   } catch (PDOException $e) {
     echo 'Error: ' . $e->getMessage();
   }
@@ -94,7 +94,7 @@ try {
   $stmt->execute();
   $typoData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-  echo "Error fetching typo data: " . $e->getMessage();
+  $status = "Error fetching typo data: " . $e->getMessage();
   $typoData = [];
 }
 
@@ -115,7 +115,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET
     }
     echo $status;
   } catch (PDOException $e) {
-      echo "Error: " . $e->getMessage();
+      $status = "Error: " . $e->getMessage();
   }
   exit;
 }
