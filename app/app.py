@@ -110,10 +110,6 @@ for counter_type in counter_types:
     counter_button.pack(side=tk.LEFT, padx=5, pady=5)
     counter_buttons[counter_type] = counter_button
 
-# Create a Text widget for displaying counter data
-counter_text_area = tk.Text(counters_tab)
-counter_text_area.pack(expand=1, fill='both')
-
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
     headings = get_table_headings(counter_type)
@@ -132,6 +128,9 @@ def fetch_and_display_counters(counter_type):
         counter_tree['columns'] = headings
         for col in headings:
             counter_tree.heading(col, text=col)
+        
+        # Update counter type label
+        counter_type_label.config(text=counter_type)
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
 
@@ -153,5 +152,9 @@ def get_table_headings(counter_type):
 # Create the Treeview widget
 counter_tree = ttk.Treeview(counters_tab, show='headings')
 counter_tree.pack(expand=True, fill='both')
+
+# Create a label to display the current counter type
+counter_type_label = tk.Label(counters_tab, text="Currently Lurking Users", font=("Arial", 12))
+counter_type_label.pack(pady=5)
 
 window.mainloop()
