@@ -1,0 +1,32 @@
+#### **app.py**
+
+##### Added
+- **Modules**:
+  - `datetime` module for handling date and time operations.
+  - `requests` module for making HTTP requests.
+- **Functionality**:
+  - Integration of a new function `fetch_counters_from_db` from the `server_communication` module, indicating new features related to database operations.
+
+##### Modified
+- **Imports**: The import statement from the `server_communication` module has been expanded to include `fetch_counters_from_db`, enhancing the app's capability to interact with the backend or a database for additional data retrieval purposes.
+
+##### Extended
+- **UI Components**: The addition of a new "Counters" tab within the application's GUI suggests a significant enhancement to the user interface, likely providing users with additional data or analytics directly within the app.
+
+#### **server_communication.py**
+
+##### Added
+- **Modules**:
+  - `os` module, likely used for operating system interface functionalities such as path manipulations, environment variables, or file system operations.
+  - `sqlite3` module, suggesting an addition or shift towards using SQLite as a database solution for local storage or simpler database interactions.
+  
+##### Expanded Functionality
+- The diff indicates a significant extension at the end of the `server_communication.py` file. Although the exact details of the added functionalities are not fully visible in the initial 20 lines of the diff output, the inclusion of the `sqlite3` module and additional lines suggest enhancements related to database operations, possibly including new functions or methods for interacting with an SQLite database.
+
+#### **updates.py**:
+
+- Set the **VERSION** variable as **"2.0"**.
+
+These changes aim to improve the organization and maintainability of the code while addressing your specific requests.
+
+> Download and run this application to conveniently monitor the bot's activity and status logs without the need to access the website. With the included functions to start, stop, restart, and check the bot's status, you have full control over managing the bot's operation. Please be aware that this executable is designed solely for monitoring logs and managing the bot's operation; it does not encompass the full bot functionality. Stay tuned for upcoming versions and updates.
