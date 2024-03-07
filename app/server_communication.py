@@ -1,3 +1,4 @@
+import os
 import time
 import tkinter as tk
 import requests
@@ -5,6 +6,7 @@ import paramiko
 import twitch_auth
 import mysql.connector
 from decouple import config
+import sqlite3
 
 # Get variables
 REMOTE_SSH_HOST="" # CHANGE TO MAKE THIS WORK
@@ -340,6 +342,44 @@ def get_api_logs():
     url = f"{LOGS_SERVER_URL}/api/{username}.txt"
     response = requests.get(url)
     return handle_response(response)
+
+# Function to fetch counters from the SQLite database using SSH
+def fetch_counters_from_db():
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(REMOTE_SSH_HOST, port=REMOTE_SSH_PORT, username=REMOTE_SSH_USERNAME, password=REMOTE_SSH_PASSWORD)
+        
+        # Get the username
+        username = get_global_username()
+
+        # Path to the SQLite database file on the server
+        db_file_path = f"/var/www/bot/commands/{username}.db"
+        
+        # Path to save the SQLite database file locally
+        appdata_path = os.getenv('APPDATA')
+        db_directory = os.path.join(appdata_path, 'BotOfTheSpecter')
+        os.makedirs(db_directory, exist_ok=True)
+        local_db_file_path = os.path.join(db_directory, f"{username}.db")
+
+        # Download the database file
+        sftp = ssh.open_sftp()
+        sftp.get(db_file_path, local_db_file_path)
+        sftp.close()
+
+        # Connect to the downloaded database file
+        conn = sqlite3.connect(local_db_file_path)
+        cursor = conn.cursor()
+
+    except Exception as e:
+        print("Error fetching counters from the SQLite database:", e)
+        return None
+    finally:
+        # Close connections and clean up resources
+        if conn:
+            conn.close()
+        if ssh:
+            ssh.close()
 
 def handle_response(response):
     if response.status_code == 200:
