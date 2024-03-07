@@ -130,10 +130,15 @@ def fetch_and_display_counters(counter_type):
     for item in counter_tree.get_children():
         counter_tree.delete(item)
     
-    # Update the counter type label to reflect the loading message
+    # Update the counter type label to reflect the loading message after a short delay
     counter_type_label.config(text=f"Loading {counter_type}...")
+    window.update()  # Update the GUI to ensure label change is visible
     
-    # Process counters and update UI
+    # Schedule a function to update the label and process the data after a delay
+    window.after(500, process_counters, counter_type, counters, headings)
+
+# Function to process counters and update UI
+def process_counters(counter_type, counters, headings):
     if counters is not None:
         if counter_type == "Currently Lurking Users":
             processed_counters = []
@@ -150,7 +155,7 @@ def fetch_and_display_counters(counter_type):
         # Update table headings
         counter_tree['columns'] = headings
         for col in headings:
-            counter_tree.heading(col, text=col, anchor=tk.CENTER)
+            counter_tree.heading(col, text=col, anchor="w")
         
         # Resize columns to fit content
         for col in headings:
@@ -161,9 +166,6 @@ def fetch_and_display_counters(counter_type):
         counter_type_label.config(text=f"Viewing {counter_type}")
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
-    
-    # Update the counter type label after loading
-    counter_type_label.config(text=counter_type)
 
 # Function to get table headings based on counter type
 def get_table_headings(counter_type):
