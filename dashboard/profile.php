@@ -26,6 +26,7 @@ $twitch_profile_image_url = $user['profile_image'];
 $twitchUserId = $user['twitch_user_id'];
 $signup_date = $user['signup_date'];
 $last_login = $user['last_login'];
+$api_key = $user['api_key'];
 $authToken = $access_token;
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
