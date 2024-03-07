@@ -20,7 +20,7 @@
   - `os`: Module for operating system interface functionalities.
   - `sqlite3`: Module for SQLite database interactions.
 
-### **updates.py**
+#### **updates.py**
 
 - Set the **VERSION** variable as **"2.0"**.
 
