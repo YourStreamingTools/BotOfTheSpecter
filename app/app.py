@@ -93,4 +93,25 @@ text_area.pack(expand=1, fill='both')
 auth_status_label = tk.Label(logs_tab, text="", fg="red")
 auth_status_label.pack(pady=5)
 
+# Create a "Counters" tab
+counters_tab = ttk.Frame(tab_control)
+tab_control.add(counters_tab, text='Counters')
+
+# Frame for holding counters and related elements in the "Counters" tab
+counters_tab_frame = tk.Frame(counters_tab)
+counters_tab_frame.pack(pady=5)
+
+# Example: Add a label to display a counter
+counter_label = tk.Label(counters_tab_frame, text="Counter: 0", font=("Arial", 14))
+counter_label.pack(pady=5)
+
+# Example: Add a button to increment the counter
+def increment_counter():
+    current_value = int(counter_label.cget("text").split(": ")[1])
+    new_value = current_value + 1
+    counter_label.config(text="Counter: " + str(new_value))
+
+increment_button = tk.Button(counters_tab_frame, text="Increment Counter", command=increment_counter)
+increment_button.pack(pady=5)
+
 window.mainloop()
