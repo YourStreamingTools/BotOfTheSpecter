@@ -195,7 +195,7 @@ def get_username_from_user_id(user_id):
     if response.status_code == 200:
         data = response.json()
         if data['data']:
-            username = data['display_name']
+            username = data['data'][0]['display_name']
             return username
     return None
 
