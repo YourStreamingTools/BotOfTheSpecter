@@ -1,19 +1,12 @@
 import os
 import time
 import tkinter as tk
-from tkinter import ttk
 import requests
 import paramiko
 import twitch_auth
 import mysql.connector
 from decouple import config
 import sqlite3
-import datetime
-
-# Define the window
-window = tk.Tk()
-counter_tree = ttk.Treeview(window)
-counter_type_label = tk.Label(window, text="")
 
 # Get variables
 REMOTE_SSH_HOST="" # CHANGE TO MAKE THIS WORK
