@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 # App Imports
-from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs, show_counter
+from server_communication import check_bot_status, run_bot, stop_bot, restart_bot, fetch_and_show_logs, fetch_counters_from_db
 import twitch_auth
 import updates
 import about
