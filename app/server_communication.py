@@ -344,7 +344,7 @@ def get_api_logs():
     return handle_response(response)
 
 # Function to fetch counters from the SQLite database using SSH
-def fetch_counters_from_db(REMOTE_SSH_HOST, REMOTE_SSH_PORT, REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD):
+def fetch_counters_from_db(counter_type):
     try:
         # Establish SSH connection
         ssh = paramiko.SSHClient()
@@ -372,7 +372,7 @@ def fetch_counters_from_db(REMOTE_SSH_HOST, REMOTE_SSH_PORT, REMOTE_SSH_USERNAME
         conn = sqlite3.connect(local_db_file_path)
         cursor = conn.cursor()
 
-        # Example: Fetch typo counts
+        # Fetch typo counts
         cursor.execute("SELECT * FROM user_typos ORDER BY typo_count DESC")
         typos = cursor.fetchall()
 
