@@ -22,3 +22,12 @@ BotOfTheSpecter is a comprehensive Twitch chat bot designed to enhance the strea
 ### Logging System
 - **Extensive Logging**: Detailed logs for bot activities, chat messages, Twitch events, and script errors.
 - **Log Management**: Easy access and review of different log types via the dashboard.
+
+## Changelog
+
+### Version 2.0
+- Added modules for handling date and time operations (`datetime`) and making HTTP requests (`requests`).
+- Integrated a new function `fetch_counters_from_db` from the `server_communication` module for database operations.
+- Expanded import statement in `app.py` to include `fetch_counters_from_db`.
+- Added modules `os` and `sqlite3` to `server_communication.py`.
+- Updated `updates.py` to set the VERSION variable as "2.0".
