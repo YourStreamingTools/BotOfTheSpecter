@@ -123,6 +123,10 @@ counter_tree.pack(expand=True, fill='both')
 
 # Function to fetch counters and display in the counter_text_area
 def fetch_and_display_counters(counter_type):
+    # Display a message while loading lurking users
+    counter_type_label.config(text="Loading currently lurking users...")
+    counter_type_label.update()
+
     headings = get_table_headings(counter_type)
     counters = fetch_counters_from_db(counter_type)  # Fetch counters based on counter_type
     
@@ -147,18 +151,18 @@ def fetch_and_display_counters(counter_type):
         # Update table headings
         counter_tree['columns'] = headings
         for col in headings:
-            counter_tree.heading(col, text=col)
+            counter_tree.heading(col, text=col, anchor=tk.CENTER)
         
         # Resize columns to fit content
         for col in headings:
             counter_tree.column(col, width=100)
-            counter_tree.heading(col, text=col, anchor="w")
             counter_tree.column(col, anchor="w")
-        
-        # Update the label text to display the current counter type
-        counter_type_label.config(text=counter_type)
     else:
+        # Display a message if no data is available
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
+
+    # Reset the counter type label
+    counter_type_label.config(text="Not Viewing Anything")
 
 # Function to get table headings based on counter type
 def get_table_headings(counter_type):
