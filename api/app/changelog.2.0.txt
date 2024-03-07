@@ -19,9 +19,6 @@
 - **Modules**:
   - `os` module, likely used for operating system interface functionalities such as path manipulations, environment variables, or file system operations.
   - `sqlite3` module, suggesting an addition or shift towards using SQLite as a database solution for local storage or simpler database interactions.
-  
-##### Expanded Functionality
-- The diff indicates a significant extension at the end of the `server_communication.py` file. Although the exact details of the added functionalities are not fully visible in the initial 20 lines of the diff output, the inclusion of the `sqlite3` module and additional lines suggest enhancements related to database operations, possibly including new functions or methods for interacting with an SQLite database.
 
 #### **updates.py**:
 
