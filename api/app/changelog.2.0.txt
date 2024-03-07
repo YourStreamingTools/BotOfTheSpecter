@@ -1,29 +1,29 @@
 #### **app.py**
 
-##### Added
+#### Added
 - **Modules**:
-  - `datetime` module for handling date and time operations.
-  - `requests` module for making HTTP requests.
+  - `datetime`: Module for handling date and time operations.
+  - `requests`: Module for making HTTP requests.
 - **Functionality**:
-  - Integration of a new function `fetch_counters_from_db` from the `server_communication` module, indicating new features related to database operations.
+  - Integration of a new function `fetch_counters_from_db` from the `server_communication` module, enabling database operations.
 
-##### Modified
-- **Imports**: The import statement from the `server_communication` module has been expanded to include `fetch_counters_from_db`, enhancing the app's capability to interact with the backend or a database for additional data retrieval purposes.
+#### Modified
+- **Imports**: Expanded import statement to include `fetch_counters_from_db` from `server_communication` module.
 
-##### Extended
-- **UI Components**: The addition of a new "Counters" tab within the application's GUI is a significant enhancement to the user interface, providing you with additional data and analytics directly within the app.
+#### Extended
+- **UI Components**: Added a new "Counters" tab within the application's GUI, enhancing user interface with additional data and analytics.
 
 #### **server_communication.py**
 
 ##### Added
 - **Modules**:
-  - `os` module, likely used for operating system interface functionalities such as path manipulations, environment variables, or file system operations.
-  - `sqlite3` module, suggesting an addition or shift towards using SQLite as a database solution for local storage or simpler database interactions.
+  - `os`: Module for operating system interface functionalities.
+  - `sqlite3`: Module for SQLite database interactions.
 
-#### **updates.py**:
+### **updates.py**
 
 - Set the **VERSION** variable as **"2.0"**.
 
-These changes aim to improve the organization and maintainability of the code while addressing your specific requests.
+These updates aim to improve code organization, enhance functionality, and provide better user experience. 
 
-> Download and run this application to conveniently monitor the bot's activity and status logs without the need to access the website. With the included functions to start, stop, restart, and check the bot's status, you have full control over managing the bot's operation. Please be aware that this executable is designed solely for monitoring logs and managing the bot's operation; it does not encompass the full bot functionality. Stay tuned for upcoming versions and updates.
+> Download and run this application to conveniently monitor the bot's activity and status logs without accessing the website. The included functions allow you to start, stop, restart, and check the bot's status. Please note that this executable is solely for monitoring logs and managing the bot's operation; it does not encompass the full bot functionality. Stay tuned for future updates.
