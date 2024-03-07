@@ -17,7 +17,7 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
     if ($user) {
         $user_id = $user['id'];
         $websocket_port = $user['websocket_port'];
-        $wsUrl = "ws://" . $baseUrl . ":" . $websocket_port;
+        $wsUrl = "wss://" . $baseUrl . ":" . $websocket_port;
     } else {
         $status = "Nothing found";
     }
