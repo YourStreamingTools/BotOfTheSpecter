@@ -1532,7 +1532,7 @@ async def check_stream_online():
                     # If the stream was previously offline and is now online, reset greeted users
                     if stream_was_offline:
                         greeted_users.clear()
-                        print("Stream is online. Resetting greeted users.")
+                        bot_logger.info("Stream is online. Resetting greeted users.")
                     stream_was_offline = False
         await asyncio.sleep(300)  # Check every 5 minutes
 
