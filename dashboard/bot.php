@@ -28,7 +28,7 @@ $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $webhookPort = $user['webhook_port'];
-$webshocketPort = $user['webshocket_port'];
+$websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
@@ -93,7 +93,7 @@ if ($ModStatusOutput) {
     <script src="about.js"></script>
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <!-- <?php echo "User: $username | $twitchUserId | $authToken | Webhook Port: $webhookPort | WebShocket Port: $webshocketPort"; ?> -->
+    <!-- <?php echo "User: $username | $twitchUserId | $authToken | Webhook Port: $webhookPort | WebShocket Port: $websocketPort"; ?> -->
 	<!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort"; ?> -->
   </head>
 <body>
