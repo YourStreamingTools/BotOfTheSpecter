@@ -19,6 +19,20 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
             $authToken = $user['access_token'];
             if ($username && $authToken) {
                 include 'sqlite.php';
+                $decApiUrl = "https://decapi.me/twitch/game/" . $username;
+                $currentGame = trim(file_get_contents($decApiUrl));
+                $currentGameDeathCount = 0;
+                foreach ($gameDeaths as $gameDeath) {
+                    if (strcasecmp($gameDeath['game_name'], $currentGameName) == 0) {
+                        $currentGameDeathCount = $gameDeath['death_count'];
+                        break;
+                    }
+                }
+                if ($currentGameDeathCount > 0) {
+                    $status = "<div>Current Game Death Count: " . htmlspecialchars($currentGameName) . ": " . htmlspecialchars($currentGameDeathCount) . "</div>"
+                } else {
+                    $status = "<div>Current Game: " . htmlspecialchars($currentGameName) . " has no recorded deaths.</div>";
+                }
             } else {
                 $status = "No username or authentication token found.";
             }
