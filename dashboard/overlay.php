@@ -16,7 +16,9 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
         if ($result->num_rows > 0) {
             $user = $result->fetch_assoc();
             $username = $user['username'];
-            if ($username) { 
+            $access_token = $user['access_token'];
+            $authToken = $access_token;
+            if ($username && $access_token) { 
                 include 'sqlite.php';
             } else { 
                 $status = "No username found."
