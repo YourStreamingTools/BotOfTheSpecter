@@ -114,18 +114,31 @@ for counter_type in counter_types:
 counter_text_area = tk.Text(counters_tab)
 counter_text_area.pack(expand=1, fill='both')
 
-# Function to fetch counters and display in the counter_text_area
+# Create a Treeview widget to display the counters in a table format
+counter_tree = ttk.Treeview(counters_tab)
+counter_tree.pack(expand=1, fill='both')
+
+# Add columns to the Treeview
+counter_tree["columns"] = ("Value")
+
+# Configure column headings
+counter_tree.heading("#0", text="Counter Type")
+counter_tree.heading("Value", text="Value")
+
+# Function to fetch counters and display in the counter_tree
 def fetch_and_display_counters(counter_type):
-    counters = fetch_counters_from_db(counter_type)
+    counters = fetch_counters_from_db(counter_type)  # Fetch counters based on counter_type
+    # Clear existing items in counter_tree
+    counter_tree.delete(*counter_tree.get_children())
     # Process counters and update UI
     if counters is not None:
         if isinstance(counters, tuple):
             for counter in counters:
-                counter_text_area.insert(tk.END, str(counter) + '\n')
+                counter_tree.insert("", tk.END, text=counter_type, values=(counter,))
         else:
             for item in counters:
-                counter_text_area.insert(tk.END, str(item) + '\n')
+                counter_tree.insert("", tk.END, text=counter_type, values=(item,))
     else:
-        counter_text_area.insert(tk.END, f"No data available for {counter_type}\n")
+        counter_tree.insert("", tk.END, text=counter_type, values=("No data available",))
 
 window.mainloop()
