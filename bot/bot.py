@@ -1526,7 +1526,7 @@ async def check_stream_online():
             async with session.get(f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}") as response:
                 text = await response.text()
                 # Check if the stream is offline
-                if "{CHANNEL_NAME} is offline" in text:
+                if f"{CHANNEL_NAME} is offline" in text:
                     stream_was_offline = True
                 else:
                     # If the stream was previously offline and is now online, reset greeted users
