@@ -344,8 +344,9 @@ def get_api_logs():
     return handle_response(response)
 
 # Function to fetch counters from the SQLite database using SSH
-def fetch_counters_from_db():
+def fetch_counters_from_db(REMOTE_SSH_HOST, REMOTE_SSH_PORT, REMOTE_SSH_USERNAME, REMOTE_SSH_PASSWORD):
     try:
+        # Establish SSH connection
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(REMOTE_SSH_HOST, port=REMOTE_SSH_PORT, username=REMOTE_SSH_USERNAME, password=REMOTE_SSH_PASSWORD)
@@ -370,6 +371,40 @@ def fetch_counters_from_db():
         # Connect to the downloaded database file
         conn = sqlite3.connect(local_db_file_path)
         cursor = conn.cursor()
+
+        # Example: Fetch typo counts
+        cursor.execute("SELECT * FROM user_typos ORDER BY typo_count DESC")
+        typos = cursor.fetchall()
+
+        # Fetch lurkers
+        cursor.execute("SELECT user_id, start_time FROM lurk_times")
+        lurkers = cursor.fetchall()
+
+        # Fetch total deaths
+        cursor.execute("SELECT death_count FROM total_deaths")
+        total_deaths = cursor.fetchone()
+
+        # Fetch game-specific deaths
+        cursor.execute("SELECT game_name, death_count FROM game_deaths")
+        game_deaths = cursor.fetchall()
+        
+        # Fetch total hug counts
+        cursor.execute("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts")
+        total_hugs = cursor.fetchone()
+
+        # Fetch hug username-specific counts
+        cursor.execute("SELECT username, hug_count FROM hug_counts")
+        hug_counts = cursor.fetchall()
+        
+        # Fetch total kiss counts
+        cursor.execute("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts")
+        total_kisses = cursor.fetchone()
+        
+        # Fetch kiss counts
+        cursor.execute("SELECT username, kiss_count FROM kiss_counts")
+        kiss_counts = cursor.fetchall()
+
+        return typos, lurkers, total_deaths, game_deaths, total_hugs, hug_counts, total_kisses, kiss_counts
 
     except Exception as e:
         print("Error fetching counters from the SQLite database:", e)
