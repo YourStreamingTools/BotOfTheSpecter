@@ -8,7 +8,7 @@ try {
     $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch typo counts
-    $getTypos = $db->query("SELECT * FROM user_typos");
+    $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
     $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch Lurkers
