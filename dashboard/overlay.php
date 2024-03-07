@@ -8,7 +8,7 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
     $api_key = $_GET['auth'];
 
     // Prepare the SQL statement to prevent SQL injection
-    if ($stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?")) {
+    if ($stmt = $conn->prepare("SELECT username, access_token FROM users WHERE api_key = ?")) {
         $stmt->bind_param("s", $api_key);
         $stmt->execute();
 
@@ -16,12 +16,11 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
         if ($result->num_rows > 0) {
             $user = $result->fetch_assoc();
             $username = $user['username'];
-            $access_token = $user['access_token'];
-            $authToken = $access_token;
-            if ($username && $access_token) { 
+            $authToken = $user['access_token'];
+            if ($username && $authToken) {
                 include 'sqlite.php';
-            } else { 
-                $status = "No username found."
+            } else {
+                $status = "No username or authentication token found.";
             }
         } else {
             $status = "No user found for the provided API key.";
