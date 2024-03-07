@@ -441,7 +441,7 @@ class Bot(commands.Bot):
     async def cheerleader_command(ctx):
         headers = {
             'Client-ID': CLIENT_ID,
-            'Authorization': f'Bearer {REFRESH_TOKEN}'
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
         }
         params = {
             'count': 1
@@ -1026,7 +1026,7 @@ async def get_display_name(user_id):
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
-        "Authorization": f"Bearer {REFRESH_TOKEN}"
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
 
     async with aiohttp.ClientSession() as session:
@@ -1062,7 +1062,7 @@ def is_mod_or_broadcaster(user):
 def is_user_moderator(user):
     # Send request to Twitch API to check if user is a moderator
     headers = {
-        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": TWITCH_API_CLIENT_ID,
     }
     params = {
@@ -1084,7 +1084,7 @@ async def trigger_twitch_title_update(new_title):
     # Twitch API
     url = "https://api.twitch.tv/helix/channels"
     headers = {
-        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": TWITCH_API_CLIENT_ID,
     }
     params = {
@@ -1101,7 +1101,7 @@ async def trigger_twitch_game_update(new_game_id):
     # Twitch API
     url = "https://api.twitch.tv/helix/channels"
     headers = {
-        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": TWITCH_API_CLIENT_ID,
     }
     params = {
@@ -1118,7 +1118,7 @@ async def get_game_id(game_name):
     # Twitch API
     url = "https://api.twitch.tv/helix/games/top"
     headers = {
-        "Authorization": f"Bearer {REFRESH_TOKEN}",
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": TWITCH_API_CLIENT_ID,
     }
     params = {
@@ -1181,7 +1181,7 @@ async def process_shoutouts():
         twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={shoutout_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
-            "Authorization": f"Bearer {REFRESH_TOKEN}",
+            "Authorization": f"Bearer {CHANNEL_AUTH}",
             "Client-ID": TWITCH_API_CLIENT_ID,
         }
         payload = {
