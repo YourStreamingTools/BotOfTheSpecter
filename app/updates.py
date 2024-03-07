@@ -5,7 +5,7 @@ from tkinter import messagebox
 from icon import icon_path
 
 REMOTE_VERSION_URL = "https://api.botofthespecter.com/version_control.txt"
-VERSION = "1.9"
+VERSION = "2.0"
 
 def custom_messagebox(title, message, buttons):
     result = None
