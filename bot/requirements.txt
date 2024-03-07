@@ -4,3 +4,4 @@ aiohttp
 requests
 Flask
 translate
+websockets
