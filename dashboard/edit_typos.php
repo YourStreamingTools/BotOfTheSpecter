@@ -19,18 +19,22 @@ $userSTMT->bind_param("s", $access_token);
 $userSTMT->execute();
 $userResult = $userSTMT->get_result();
 $user = $userResult->fetch_assoc();
-$loggedInUsername = $user['username'];
+$user_id = $user['id'];
+$username = $user['username'];
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
+$broadcasterID = $twitchUserId;
 $authToken = $access_token;
+$webhookPort = $user['webhook_port'];
+$websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
 // Database connection for bot commands
-$db = new PDO("sqlite:/var/www/bot/commands/{$loggedInUsername}_commands.db");
+$db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 // Fetch usernames from the user_typos table
@@ -115,7 +119,6 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <script>var typoCounts = <?php echo $typoCountsJs ?></script>
-    <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
   </head>
 <body>
 <!-- Navigation -->
