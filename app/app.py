@@ -154,6 +154,9 @@ def fetch_and_display_counters(counter_type):
             counter_tree.column(col, width=100)
             counter_tree.heading(col, text=col, anchor=tk.LEFT)
             counter_tree.column(col, anchor=tk.LEFT)
+        
+        # Update the label text to display the current counter type
+        counter_type_label.config(text=counter_type)
     else:
         counter_tree.insert('', 'end', values=[f"No data available for {counter_type}"])
 
