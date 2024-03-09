@@ -202,7 +202,7 @@ connected = set()
 # Setup Token Refresh
 async def refresh_token_every_day():
     global REFRESH_TOKEN
-    next_refresh_time = time.time() + 86400  # Default to 24 hours later; adjust based on actual token response later
+    next_refresh_time = time.time() + 14400  # Default to 4 hours
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
