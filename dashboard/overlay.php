@@ -38,18 +38,17 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
                     $status = "Current Game: " . htmlspecialchars($currentGame) . " has no recorded deaths.";
                 }
             } else {
-                $status = "No username or authentication token found.";
+                $status = "I'm sorry, there was a problem accessing your data. Please try again later.";
             }
         } else {
-            $status = "No user found for the provided API key.";
+            $status = "I'm sorry, we couldn't find your data in our system. Please make sure you're using the correct API key.";
         }
-
         $stmt->close();
     } else {
-        $status = "Failed to prepare the statement.";
+        $status = "I'm sorry, there was an issue connecting to our system. Please try again later.";
     }
 } else {
-    $status = 'API key not provided. Find your API Key on your profile: <a href="https://dashboard.botofthespecter.com/profile.php">HERE</a>';
+    $status = "I'm sorry, we can't display your data without your API key. You can find your API Key on your <a href='https://dashboard.botofthespecter.com/profile.php'>profile page</a>.";
 }
 $buildStatus = "<h2>" . $status . "</h2>";
 ?>
