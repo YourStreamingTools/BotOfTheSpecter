@@ -207,10 +207,21 @@ async def refresh_token_every_day():
     next_refresh_time = time.time() + 86400  # Default to 24 hours later; adjust based on actual token response later
     while True:
         current_time = time.time()
+        time_until_expiration = next_refresh_time - current_time
+
         if current_time >= next_refresh_time:
             REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
-        # Wait for a short period before checking again, to avoid constant loop iteration when not near expiration
-        await asyncio.sleep(60)  # Check every minute
+        else:
+            if time_until_expiration > 3600:  # More than 1 hour until expiration
+                sleep_time = 3600  # Check again in 1 hour
+            elif time_until_expiration > 300:  # More than 5 minutes until expiration
+                sleep_time = 300  # Check again in 5 minutes
+            else:
+                sleep_time = 60  # Check every minute when close to expiration
+            
+            # Log only when the check frequency changes or is about to refresh
+            twitch_logger.info(f"Next token check in {sleep_time // 60} minutes. Token is still valid for {time_until_expiration // 60} minutes and {time_until_expiration % 60} seconds.")
+            await asyncio.sleep(sleep_time)  # Wait before checking again, based on the time until expiration
 
 async def refresh_token(current_refresh_token):
     global OAUTH_TOKEN, REFRESH_TOKEN
