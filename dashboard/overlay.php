@@ -22,7 +22,7 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
                 // Fetch game-specific deaths
                 $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths");
                 $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
-                
+
                 $decApiUrl = "https://decapi.me/twitch/game/" . urlencode($username);
                 $currentGame = trim(file_get_contents($decApiUrl));
                 $currentGameDeathCount = 0;
@@ -49,9 +49,9 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
         $status = "Failed to prepare the statement.";
     }
 } else {
-    $status = "API key not provided.";
+    $status = 'API key not provided. Find your API Key on your profile: <a href="https://dashboard.botofthespecter.com/profile.php">HERE</a>';
 }
-$buildStatus = "<h1>" . htmlspecialchars($status) . "</h1>";
+$buildStatus = "<h2>" . $status . "</h2>";
 ?>
 <!DOCTYPE html>
 <html lang="en">
