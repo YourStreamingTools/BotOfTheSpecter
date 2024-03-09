@@ -8,7 +8,6 @@ import datetime
 from datetime import datetime
 import logging
 import subprocess
-import threading
 import websockets
 import ssl
 import json
@@ -21,8 +20,7 @@ import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
 import twitchio
-from twitchio import Client
-from twitchio.ext import commands, eventsub, pubsub
+from twitchio.ext import commands, pubsub
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
