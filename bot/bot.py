@@ -937,7 +937,7 @@ class Bot(commands.Bot):
     async def typo_command(ctx: commands.Context, *, mentioned_username: str = None):
         chat_logger.info("Typo Command ran.")
         # Check if the broadcaster is running the command
-        if ctx.author.lower() and mentioned_username.lower() == CHANNEL_NAME.lower():
+        if ctx.author.name.lower() or mentioned_username.lower() == CHANNEL_NAME.lower():
             await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
             return
 
