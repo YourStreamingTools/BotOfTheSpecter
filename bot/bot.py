@@ -12,6 +12,7 @@ import threading
 import websockets
 import ssl
 import json
+import time
 
 # Third-party imports
 import aiohttp
@@ -39,7 +40,7 @@ CHANNEL_AUTH = args.channel_auth_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "2.0"
+VERSION = "2.1"
 DECAPI = "" # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = "" # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f"" # CHANGE TO MAKE THIS WORK
@@ -203,9 +204,13 @@ connected = set()
 # Setup Token Refresh
 async def refresh_token_every_day():
     global REFRESH_TOKEN
+    next_refresh_time = time.time() + 86400  # Default to 24 hours later; adjust based on actual token response later
     while True:
-        REFRESH_TOKEN = await refresh_token(REFRESH_TOKEN)
-        await asyncio.sleep(86400)
+        current_time = time.time()
+        if current_time >= next_refresh_time:
+            REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
+        # Wait for a short period before checking again, to avoid constant loop iteration when not near expiration
+        await asyncio.sleep(60)  # Check every minute
 
 async def refresh_token(current_refresh_token):
     global OAUTH_TOKEN, REFRESH_TOKEN
@@ -221,16 +226,19 @@ async def refresh_token(current_refresh_token):
             response_json = await response.json()
             new_access_token = response_json['access_token']
             new_refresh_token = response_json.get('refresh_token', current_refresh_token)
+            expires_in = response_json['expires_in']
             
-            # Log the response details
-            log_message = "Refresh token response - Access token: %s, Refresh token: %s"
-            # Assuming twitch_logger is defined elsewhere
-            twitch_logger.info(log_message, new_access_token, new_refresh_token)
-
-            # Update the global variables
+            # Update the global variables with the new tokens
             OAUTH_TOKEN = new_access_token
             REFRESH_TOKEN = new_refresh_token
-            return new_refresh_token
+            
+            # Calculate the next refresh time to be a bit before the token actually expires
+            next_refresh_time = time.time() + expires_in - 300  # Refresh 5 minutes before actual expiration
+            
+            log_message = "Refreshed token. New Access Token: {}, New Refresh Token: {}, Expires in: {}".format(new_access_token, new_refresh_token, expires_in)
+            twitch_logger.info(log_message)
+
+            return new_refresh_token, next_refresh_time
 
 # Setup Websockets
 async def counter(websocket, path):
