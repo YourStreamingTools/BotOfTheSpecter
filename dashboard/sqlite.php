@@ -46,7 +46,7 @@ try {
     $totalDeaths = $getTotalDeaths->fetch(PDO::FETCH_ASSOC);
 
     // Fetch game-specific deaths
-    $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths");
+    $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
     $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
     
     // Fetch total hug counts
@@ -54,7 +54,7 @@ try {
     $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC);
 
     // Fetch hug username-specific counts
-    $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts");
+    $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
     $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
     
     // Fetch total kiss counts
@@ -62,7 +62,7 @@ try {
     $totalKisses = $getTotalKisses->fetch(PDO::FETCH_ASSOC);
     
     // Fetch kiss counts
-    $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts");
+    $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
     $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Calculate lurk durations for each user
