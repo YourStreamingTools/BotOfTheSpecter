@@ -1,12 +1,11 @@
 <?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
-require_once "db_connect.php";
 $status = "";
 
 // Check if auth parameter is provided and not empty
 if (isset($_GET['auth']) && !empty($_GET['auth'])) {
     $api_key = $_GET['auth'];
-
+    require_once "db_connect.php";
     // Prepare the SQL statement to prevent SQL injection
     if ($stmt = $conn->prepare("SELECT username, access_token FROM users WHERE api_key = ?")) {
         $stmt->bind_param("s", $api_key);
@@ -18,7 +17,12 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
             $username = $user['username'];
             $authToken = $user['access_token'];
             if ($username && $authToken) {
-                include 'sqlite.php';
+                $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
+                $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                // Fetch game-specific deaths
+                $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths");
+                $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
+                
                 $decApiUrl = "https://decapi.me/twitch/game/" . urlencode($username);
                 $currentGame = trim(file_get_contents($decApiUrl));
                 $currentGameDeathCount = 0;
