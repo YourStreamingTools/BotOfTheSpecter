@@ -202,17 +202,17 @@ connected = set()
 
 # Setup Token Refresh
 async def refresh_token_every_day():
+    global REFRESH_TOKEN
     while True:
-        await refresh_token(REFRESH_TOKEN)
+        REFRESH_TOKEN = await refresh_token(REFRESH_TOKEN)
         await asyncio.sleep(86400)
 
-async def refresh_token(refresh_token):
+async def refresh_token(current_refresh_token):
     global OAUTH_TOKEN, REFRESH_TOKEN
-    
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
         'grant_type': 'refresh_token',
-        'refresh_token': refresh_token,
+        'refresh_token': current_refresh_token,
         'client_id': CLIENT_ID,
         'client_secret': CLIENT_SECRET,
     }
@@ -220,15 +220,17 @@ async def refresh_token(refresh_token):
         async with session.post(url, data=body) as response:
             response_json = await response.json()
             new_access_token = response_json['access_token']
-            new_refresh_token = response_json.get('refresh_token', refresh_token)
+            new_refresh_token = response_json.get('refresh_token', current_refresh_token)
             
             # Log the response details
             log_message = "Refresh token response - Access token: %s, Refresh token: %s"
+            # Assuming twitch_logger is defined elsewhere
             twitch_logger.info(log_message, new_access_token, new_refresh_token)
 
-    # Now, update the global variables
-    OAUTH_TOKEN = new_access_token
-    REFRESH_TOKEN = new_refresh_token
+            # Update the global variables
+            OAUTH_TOKEN = new_access_token
+            REFRESH_TOKEN = new_refresh_token
+            return new_refresh_token
 
 # Setup Websockets
 async def counter(websocket, path):
@@ -1537,7 +1539,7 @@ def start_bot():
     # Schedule WebSocket server task
     asyncio.get_event_loop().create_task(start_websocket_server())
     # Schedule bot tasks
-    # asyncio.get_event_loop().create_task(refresh_token_every_day())
+    asyncio.get_event_loop().create_task(refresh_token_every_day())
     asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(check_stream_online())
     asyncio.get_event_loop().create_task(twitch_pubsub())
