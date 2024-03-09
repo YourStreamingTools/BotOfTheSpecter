@@ -89,13 +89,29 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 
 <div class="row column">
 <br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br><br>
-<p><strong>Your Username:</strong> <?php echo $username; ?></p>
-<p><strong>Display Name:</strong> <?php echo $twitchDisplayName; ?></p>
-<p><strong>You Joined:</strong> <span id="localSignupDate"></span></p>
-<p><strong>Your Last Login:</strong> <span id="localLastLogin"></span></p>
-<p><strong>Time Zone:</strong> <?php echo $timezone; ?></p>
+<h1><?php echo "$greeting! <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<table class="dark-mode-table">
+  <tr>
+    <td><strong>Your Username:</strong></td>
+    <td><?php echo $username; ?></td>
+  </tr>
+  <tr>
+    <td><strong>Display Name:</strong></td>
+    <td><?php echo $twitchDisplayName; ?></td>
+  </tr>
+  <tr>
+    <td><strong>You Joined:</strong></td>
+    <td><span id="localSignupDate"></span></td>
+  </tr>
+  <tr>
+    <td><strong>Your Last Login:</strong></td>
+    <td><span id="localLastLogin"></span></td>
+  </tr>
+  <tr>
+    <td><strong>Time Zone:</strong></td>
+    <td><?php echo $timezone; ?></td>
+  </tr>
+</table>
 <p><strong>Your API Key:</strong> <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
 <button type="button" class="defult-button" id="show-api-key">Show API Key</button>
 <button type="button" class="defult-button" id="hide-api-key" style="display:none;">Hide API Key</button>
