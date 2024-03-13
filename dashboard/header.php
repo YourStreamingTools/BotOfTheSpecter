@@ -8,7 +8,7 @@
       <li class="menu-text">BotOfTheSpecter</li>
       <li <?php if($_SERVER['REQUEST_URI'] == '/bot.php') echo 'class="is-active"'; ?>><a href="bot.php">Dashboard</a></li>
       <li>
-        <a <?php if(strpos($_SERVER['REQUEST_URI'], 'mods.php') !== false || strpos($_SERVER['REQUEST_URI'], 'followers.php') !== false || strpos($_SERVER['REQUEST_URI'], 'subscribers.php') !== false || strpos($_SERVER['REQUEST_URI'], 'vips.php') !== false) echo 'class="is-active"'; ?>>Twitch Data</a>
+        <a>Twitch Data</a>
         <ul class="vertical menu" data-dropdown-menu>
           <li <?php if($_SERVER['REQUEST_URI'] == '/mods.php') echo 'class="is-active"'; ?>><a href="mods.php">View Mods</a></li>
           <li <?php if($_SERVER['REQUEST_URI'] == '/followers.php') echo 'class="is-active"'; ?>><a href="followers.php">View Followers</a></li>
