@@ -233,21 +233,28 @@ async def refresh_token(current_refresh_token):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, data=body) as response:
-                response_json = await response.json()
-                new_access_token = response_json['access_token']
-                new_refresh_token = response_json.get('refresh_token', current_refresh_token)
+                if response.status == 200:
+                    response_json = await response.json()
+                    new_access_token = response_json.get('access_token')
+                    if new_access_token:
+                        # Token refreshed successfully
+                        new_refresh_token = response_json.get('refresh_token', current_refresh_token)
 
-                # Update the global variables with the new tokens
-                OAUTH_TOKEN = new_access_token
-                REFRESH_TOKEN = new_refresh_token
+                        # Update the global variables with the new tokens
+                        OAUTH_TOKEN = new_access_token
+                        REFRESH_TOKEN = new_refresh_token
 
-                # Calculate the next refresh time to be 5 minutes before the 4-hour mark
-                next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes, so we refresh before actual expiration
+                        # Calculate the next refresh time to be 5 minutes before the 4-hour mark
+                        next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes, so we refresh before actual expiration
 
-                log_message = "Refreshed token. New Access Token: {}, New Refresh Token: {}".format(new_access_token, new_refresh_token)
-                twitch_logger.info(log_message)
+                        log_message = "Refreshed token. New Access Token: {}, New Refresh Token: {}".format(new_access_token, new_refresh_token)
+                        twitch_logger.info(log_message)
 
-                return new_refresh_token, next_refresh_time
+                        return new_refresh_token, next_refresh_time
+                    else:
+                        twitch_logger.error("Token refresh failed: 'access_token' not found in response")
+                else:
+                    twitch_logger.error(f"Token refresh failed: HTTP {response.status}")
     except Exception as e:
         # Log the error if token refresh fails
         twitch_logger.error(f"Token refresh failed: {e}")
