@@ -149,18 +149,18 @@ if (isset($_GET['code'])) {
         }        
 
         // Insert/update user data
-        $insertQuery = "INSERT INTO users (username, access_token, api_key, profile_image, twitch_user_id, twitch_display_name, webhook_port, is_admin)
-                        VALUES ('$twitchUsername', '$accessToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', ?, 0)
-                        ON DUPLICATE KEY UPDATE access_token = '$accessToken', profile_image = '$profileImageUrl', twitch_user_id = '$twitchUserId', twitch_display_name = '$twitchDisplayName', last_login = ?";
-            
+        $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, webhook_port, is_admin)
+        VALUES ('$twitchUsername', '$accessToken', '$refreshToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', ?, 0)
+        ON DUPLICATE KEY UPDATE access_token = '$accessToken', refresh_token = '$refreshToken', profile_image = '$profileImageUrl', twitch_user_id = '$twitchUserId', twitch_display_name = '$twitchDisplayName', last_login = ?";
+        
         $stmt = mysqli_prepare($conn, $insertQuery);
         $last_login = date('Y-m-d H:i:s');
         $uniqueWebHookPort = generateUniqueWebHookPort($conn);
         $uniqueWebShocketPort = generateUniqueWebShocketPort($conn);
-            
+
         // Bind the generated port number for new users, and the last login date
         mysqli_stmt_bind_param($stmt, 'is', $uniqueWebHookPort, $last_login);
-        
+
         if (mysqli_stmt_execute($stmt)) {
             // Redirect the user to the dashboard
             header('Location: bot.php');
