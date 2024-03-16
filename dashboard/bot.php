@@ -27,6 +27,7 @@ $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
+$refreshToken = $user['refresh_token'];
 $webhookPort = $user['webhook_port'];
 $websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
@@ -94,7 +95,7 @@ if ($ModStatusOutput) {
   	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
   	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <!-- <?php echo "User: $username | $twitchUserId | $authToken | Webhook Port: $webhookPort | WebShocket Port: $websocketPort"; ?> -->
-	<!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -port $webhookPort"; ?> -->
+	<!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -hookport $webhookPort -socketport $websocketPort"; ?> -->
   </head>
 <body>
 <!-- Navigation -->
