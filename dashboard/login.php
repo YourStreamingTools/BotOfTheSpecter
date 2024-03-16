@@ -25,11 +25,11 @@ if (!isset($_SESSION['access_token']) && !isset($_GET['code'])) {
     exit;
 }
 
-// If an authorization code is present, exchange it for an access token
+// If an authorization code is present, exchange it for an access token and refresh token
 if (isset($_GET['code'])) {
     $code = $_GET['code'];
 
-    // Exchange the authorization code for an access token
+    // Exchange the authorization code for an access token and refresh token
     $tokenURL = 'https://id.twitch.tv/oauth2/token';
     $postData = array(
         'client_id' => $clientID,
@@ -60,12 +60,14 @@ if (isset($_GET['code'])) {
 
     curl_close($curl);
 
-    // Extract the access token from the response
+    // Extract the access token and refresh token from the response
     $responseData = json_decode($response, true);
     $accessToken = $responseData['access_token'];
+    $refreshToken = $responseData['refresh_token'];
 
-    // Store the access token in the session
+    // Store the access token and refresh token in the session
     $_SESSION['access_token'] = $accessToken;
+    $_SESSION['refresh_token'] = $refreshToken;
 
     // Fetch the user's Twitch username and profile image URL
     $userInfoURL = 'https://api.twitch.tv/helix/users';
