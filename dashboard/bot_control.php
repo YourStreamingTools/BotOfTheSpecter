@@ -83,8 +83,8 @@ function getBotStatus($statusScriptPath, $username, $logPath) {
     }
 }
 
-function startBot($botScriptPath, $username, $twitchUserId, $authToken, $webhookPort, $websocketPort, $logPath) {
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -hookport $webhookPort -socketport $websocketPort";
+function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $webhookPort, $websocketPort, $logPath) {
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -hookport $webhookPort -socketport $websocketPort";
     $output = shell_exec($command . ' > /dev/null 2>&1 &');
     sleep(3);
 
