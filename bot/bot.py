@@ -27,6 +27,7 @@ parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
 parser.add_argument("-channel", dest="target_channel", required=True, help="Target Twitch channel name")
 parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch user ID")
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
+parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refresh Token for authentication")
 parser.add_argument("-hookport", dest="webhook_port", required=True, type=int, help="Port for the webhook server")
 parser.add_argument("-socketport", dest="websocket_port", required=True, type=int, help="Port for the websocket server")
 args = parser.parse_args()
@@ -35,18 +36,18 @@ args = parser.parse_args()
 CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
+REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
 VERSION = "2.3"
-DECAPI = "" # CHANGE TO MAKE THIS WORK
-WEBHOOK_SECRET = "" # CHANGE TO MAKE THIS WORK
-CALLBACK_URL = f"" # CHANGE TO MAKE THIS WORK
-OAUTH_TOKEN = "" # CHANGE TO MAKE THIS WORK
-CLIENT_ID = "" # CHANGE TO MAKE THIS WORK
-CLIENT_SECRET = "" # CHANGE TO MAKE THIS WORK
-TWITCH_API_AUTH = "" # CHANGE TO MAKE THIS WORK
-REFRESH_TOKEN = CHANNEL_AUTH
+DECAPI = ""  # CHANGE TO MAKE THIS WORK
+WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
+CALLBACK_URL = f""  # CHANGE TO MAKE THIS WORK
+OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
+CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
+CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
+TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "timer", "ping", "cheerleader", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove", "so"}
