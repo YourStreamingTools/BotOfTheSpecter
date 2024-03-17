@@ -26,7 +26,7 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 
 ## Coming Soon!
 
-### Custom Commands (Coming Soon) {#coming-soon}
+### Custom Commands {#coming-soon}
 - **Personalize Your Chat Experience**: Soon, you'll be able to create and manage custom commands to tailor your chat experience.
 - **Enhanced Interaction**: Engage with your viewers in unique ways by setting up custom responses and actions.
 - **Flexible Configuration**: Easily manage and update your custom commands through the user-friendly dashboard.
