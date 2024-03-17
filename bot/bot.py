@@ -755,7 +755,7 @@ class Bot(commands.Bot):
             await ctx.send("An error occurred while translating the message.")
 
     @bot.command(name='cheerleader')
-    async def cheerleader_command(ctx):
+    async def cheerleader_command(ctx: commands.Context):
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -772,8 +772,33 @@ class Bot(commands.Bot):
                 await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
             else:
                 await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
+        elif response.status_code == 401:
+            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
         else:
             await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+
+    @bot.command(name='mybits')
+    async def mybits_command(ctx: commands.Context):
+        user_id = str(ctx.author.id)
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        params = {
+            'user_id': user_id
+        }
+        response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            if data['data']:
+                user_bits = data['data'][0]['score']
+                await ctx.send(f"You have given {user_bits} bits in total.")
+            else:
+                await ctx.send("You haven't given any bits yet.")
+        elif response.status_code == 401:
+            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+        else:
+            await ctx.send("Sorry, I couldn't fetch your bits information.")
 
     @bot.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
