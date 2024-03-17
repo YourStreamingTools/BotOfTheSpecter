@@ -95,7 +95,7 @@ twitch_logger = setup_logger('twitch', twitch_log_file)
 api_log_file = os.path.join(webroot, api_logs, f"{CHANNEL_NAME}.txt")
 api_logger = setup_logger("api", api_log_file)
 
-# Create the bot instance and connect to TwitchAPI
+# Create the bot instance
 bot = commands.Bot(
     token=OAUTH_TOKEN,
     prefix="!",
@@ -104,18 +104,28 @@ bot = commands.Bot(
 )
 twitch_logger.info("Created the bot instance")
 
-client = twitchio.Client(token=TWITCH_API_AUTH)
+# Initialize your client with the CHANNEL_AUTH token:
+client = twitchio.Client(token=CHANNEL_AUTH)
+pubsub_pool = pubsub.PubSubPool(client)
+
 async def main():
     channel_id_int = int(CHANNEL_ID)
     pubsub_pool = pubsub.PubSubPool(client)
-    await pubsub_pool.subscribe_channel(REFRESH_TOKEN, channel_id_int, [pubsub.PubSubBits, pubsub.PubSubSubscriptions, pubsub.PubSubChannelPoints])
+    await pubsub_pool.subscribe_to_channel(CHANNEL_AUTH, channel_id_int, [pubsub.PubSubBits, pubsub.PubSubSubscriptions, pubsub.PubSubChannelPoints])
+    pubsub_pool.on_message(event_handler)
     await pubsub_pool.listen()
+
+async def event_handler(message):
+    if message.type == pubsub.PubSubBits:
+        bot_logger.info(f"Bits: {message.data}")
+    elif message.type == pubsub.PubSubSubscriptions:
+        bot_logger.info(f"Subscription: {message.data}")
+    elif message.type == pubsub.PubSubChannelPoints:
+        bot_logger.info(f"Channel Points: {message.data}")
 
 # Create an instance of your Bot class
 bot_instance = bot
 channel = bot.get_channel('{CHANNEL_NAME}')
-# Define the pubsub_client outside the class
-pubsub_client = pubsub.PubSubPool(bot_instance)
 
 # Create the database and table if it doesn't exist
 database_directory = "/var/www/bot/commands"
@@ -499,6 +509,13 @@ async def process_followers_event(user_id, user_name, followed_at):
 
 class Bot(commands.Bot):
     # Event Message to get the bot ready
+    def __init__(self):
+        super().__init__(
+            token=OAUTH_TOKEN,
+            prefix='!',
+            initial_channels=[CHANNEL_NAME],
+            nick=BOT_USERNAME
+        )
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {BOT_USERNAME}')
         channel = self.get_channel(CHANNEL_NAME)
