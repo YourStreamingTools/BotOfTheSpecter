@@ -8,7 +8,7 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 ### Twitch Integration
 - **Moderation**: Keep your chat environment healthy with automated moderation tools.
 - **Follower, Subscriber, and VIP Insights**: Gain insights into your channel's audience with detailed data on followers, subscribers, and VIPs.
-- **Custom Commands**: Personalize your chat experience by creating and managing custom commands.
+- **Custom Commands**: Personalize your chat experience by creating and managing custom commands. [More Info](#coming-soon)
 - **Subscription and Bits Alerts**: Enhance viewer engagement by allowing the bot to respond to subscriptions and bits in chat.
 
 ### User Management
@@ -23,6 +23,15 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 ### Logging System
 - **Comprehensive Logs**: Review detailed logs covering bot activities, chat messages, Twitch events, and script errors.
 - **Easy Log Management**: Access and manage different log types conveniently through the dashboard.
+
+## Coming Soon!
+
+### Custom Commands (Coming Soon) {#coming-soon}
+- **Personalize Your Chat Experience**: Soon, you'll be able to create and manage custom commands to tailor your chat experience.
+- **Enhanced Interaction**: Engage with your viewers in unique ways by setting up custom responses and actions.
+- **Flexible Configuration**: Easily manage and update your custom commands through the user-friendly dashboard.
+
+Stay tuned for updates on the release of the Custom Commands feature!
 
 ## Changelog
 
