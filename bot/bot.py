@@ -49,7 +49,7 @@ CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "timer", "ping", "cheerleader", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove", "so"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
@@ -573,6 +573,10 @@ class Bot(commands.Bot):
     async def bot_command(ctx: commands.Context):
         chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
+    
+    @bot.command(name='roadmap')
+    async def roadmap_command(ctx: commands.Context):
+        await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
 
     # Command to set stream title
     @bot.command(name="settitle")
@@ -791,8 +795,9 @@ class Bot(commands.Bot):
         if response.status_code == 200:
             data = response.json()
             if data['data']:
-                user_bits = data['data'][0]['score']
-                await ctx.send(f"You have given {user_bits} bits in total.")
+                user_bits = data['data'][0]
+                bits = "{:,}".format(user_bits['score'])
+                await ctx.send(f"You have given {bits} bits in total.")
             else:
                 await ctx.send("You haven't given any bits yet.")
         elif response.status_code == 401:
