@@ -26,7 +26,19 @@ BotOfTheSpecter is a comprehensive Twitch chat bot designed to enhance the strea
 
 ## Changelog
 
-### Version 2.0
+### Version 2.5 - Bot
+- **Twitch Integration Update:**
+  - Updated Twitch integration for improved functionality, including changes to client initialization and method naming conventions.
+   
+- **Bot Constructor and Commands:**
+  - Introduced a constructor for the bot class to initialize specific parameters, along with new commands such as `roadmap` and `mybits` for enhanced user interaction.
+   
+- **Token Handling and Error Fixes:**
+  - Revised token handling for better security and corrected various errors related to token references and method calls, ensuring seamless functionality with the Twitch API.
+
+View Full Changlog [Version 2.5](/bot/changelog/2.5.md)
+
+### Version 2.0 - Application
 - Added a "Counters" feature to the app, providing users with real-time metrics and analytics directly within the interface.
 - Enhanced Twitch integration: the bot now responds to subscriptions and bits in chat, improving viewer interaction and engagement.
 
