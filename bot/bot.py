@@ -223,7 +223,7 @@ async def refresh_token_every_day():
             await asyncio.sleep(sleep_time)  # Wait before checking again, based on the time until expiration
 
 async def refresh_token(current_refresh_token):
-    global OAUTH_TOKEN, REFRESH_TOKEN
+    global CHANNEL_AUTH, REFRESH_TOKEN
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
         'grant_type': 'refresh_token',
@@ -242,7 +242,7 @@ async def refresh_token(current_refresh_token):
                         new_refresh_token = response_json.get('refresh_token', current_refresh_token)
 
                         # Update the global variables with the new tokens
-                        OAUTH_TOKEN = new_access_token
+                        CHANNEL_AUTH = new_access_token
                         REFRESH_TOKEN = new_refresh_token
 
                         # Calculate the next refresh time to be 5 minutes before the 4-hour mark
