@@ -1,1 +1,0 @@
-> Download and run this application to view bot logs without the need to log into the website. Please note that this executable is solely for viewing bot logs and is not the full bot application. Stay tuned for more versions and updates in the future.
