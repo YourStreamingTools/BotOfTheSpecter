@@ -35,17 +35,20 @@ Stay tuned for updates on the release of the Custom Commands feature!
 
 ## Changelog
 
-### Version 2.5 - Bot
-- **Twitch Integration Enhancements:**
-  - Improved Twitch integration with updates to client initialization and method naming conventions.
-   
-- **Bot Constructor and Commands:**
-  - Introduce a bot class constructor for initializing specific parameters, along with new user commands such as `roadmap` and `mybits` for enhanced interaction.
-   
-- **Token Handling and Error Fixes:**
-  - Enhance token handling for improved security and resolve various errors related to token references and method calls, ensuring seamless functionality with the Twitch API.
+### Version 2.6 - Bot
 
-[View Full Changelog for Version 2.5](/bot/changelog/2.5.md)
+- **Lurking Command Enhancements:**
+  - Improved lurking command functionality to accurately calculate months.
+  - Updated code logic for month calculation, providing more precise results.
+   
+- **Followage Command Improvements:**
+  - Enhanced followage command to handle cases where users do not follow the channel.
+  - Added conditions to display appropriate messages when users do not follow, improving user experience.
+   
+- **Logging Enhancements:**
+  - Implemented logging for the followage command, providing better insights into user interactions.
+   
+[View Full Changelog for Version 2.6](/bot/changelog/2.6.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
