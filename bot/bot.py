@@ -50,7 +50,7 @@ CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
-mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove", "so"}
+mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove", "so", "checkupdate"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
 # Logs
