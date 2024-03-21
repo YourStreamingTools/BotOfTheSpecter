@@ -867,12 +867,14 @@ class Bot(commands.Bot):
                 elapsed_time = datetime.now() - start_time
     
                 # Calculate the duration
-                days, seconds = divmod(elapsed_time.total_seconds(), 86400)
-                hours, remainder = divmod(seconds, 3600)
-                minutes, seconds = divmod(remainder, 60)
+                days = elapsed_time.days
+                months = days // 30
+                days %= 30
+                hours, seconds = divmod(elapsed_time.seconds, 3600)
+                minutes, seconds = divmod(seconds, 60)
     
                 # Build the time string
-                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
     
                 # Send the lurk time message
