@@ -40,7 +40,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "2.5"
+VERSION = "2.6"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f""  # CHANGE TO MAKE THIS WORK
@@ -1239,10 +1239,13 @@ class Bot(commands.Bot):
                     api_logger.info(f"{response}")
                     if response.status == 200:
                         followage_text = await response.text()
-
-                        # Send the response message as received from DecAPI
-                        chat_logger.info(f"{target_user} has been following for: {followage_text}.")
-                        await ctx.send(f"{target_user} has been following for: {followage_text}")
+                        api_logger.info(f"{followage_text}")
+                        if f"{target_user} does not follow {CHANNEL_NAME}" in followage_text:
+                            await ctx.send(f"{target_user} does not follow {CHANNEL_NAME}.")
+                            chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
+                        else:
+                            chat_logger.info(f"{target_user} has been following for: {followage_text}.")
+                            await ctx.send(f"{target_user} has been following for: {followage_text}")
                     else:
                         chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
                         await ctx.send(f"Failed to retrieve followage information for {target_user}.")
