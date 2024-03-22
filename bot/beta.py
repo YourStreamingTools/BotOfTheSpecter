@@ -200,6 +200,12 @@ cursor.execute('''
         followed_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS quotes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote TEXT
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue and webshockets
@@ -413,6 +419,29 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+
+    @commands.command(name='quote')
+    async def quote_command(self, ctx, number: int = None):
+        if number is None:  # If no number is provided, get a random quote
+            cursor.execute("SELECT quote FROM quotes ORDER BY RANDOM() LIMIT 1")
+            quote = cursor.fetchone()
+            if quote:
+                await ctx.send("Random Quote: " + quote[0])
+            else:
+                await ctx.send("No quotes available.")
+        else:  # If a number is provided, retrieve the quote by its ID
+            cursor.execute("SELECT quote FROM quotes WHERE id = ?", (number,))
+            quote = cursor.fetchone()
+            if quote:
+                await ctx.send(f"Quote {number}: " + quote[0])
+            else:
+                await ctx.send(f"No quote found with ID {number}.")
+
+    @commands.command(name='quoteadd')
+    async def quote_add_command(self, ctx, *, quote):
+        cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
+        conn.commit()
+        await ctx.send("Quote added successfully: " + quote)
 
     # Command to set stream title
     @commands.command(name='settitle')
@@ -1114,13 +1143,19 @@ class BotOfTheSpecter(commands.Bot):
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info(f"Shoutout command running from {ctx.author}")
             if user_to_shoutout is None:
-                    chat_logger.error(f"Shoutout command missing username parameter.")
-                    await ctx.send(f"Usage: !so @username")
-                    return
+                chat_logger.error(f"Shoutout command missing username parameter.")
+                await ctx.send(f"Usage: !so @username")
+                return
             try:
                 chat_logger.info(f"Shoutout command trying to run.")
                 # Remove @ from the username if present
                 user_to_shoutout = user_to_shoutout.lstrip('@')
+
+                # Check if the user exists on Twitch
+                if not await is_valid_twitch_user(user_to_shoutout):
+                    chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout")
+                    await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
+                    return
 
                 chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
 
@@ -1149,7 +1184,7 @@ class BotOfTheSpecter(commands.Bot):
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't has they are not a moderator.")
+            chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='addcommand')
@@ -1193,6 +1228,31 @@ class BotOfTheSpecter(commands.Bot):
 
 # Functions for all the commands
 ##
+# Function  to check if the user is a real user on Twitch
+async def is_valid_twitch_user(user_to_shoutout):
+    # Twitch API endpoint to check if a user exists
+    url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
+
+    # Headers including the Twitch Client ID (replace with your actual client ID)
+    headers = {
+        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+
+    # Send a GET request to the Twitch API
+    response = requests.get(url, headers=headers)
+
+    # Check if the response is successful and if the user exists
+    if response.status_code == 200:
+        data = response.json()
+        if data['data']:
+            return True  # User exists
+        else:
+            return False  # User does not exist
+    else:
+        # If there's an error with the request or response, return False
+        return False
+
 # Function to get the current streaming category for the channel.
 async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
