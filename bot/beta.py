@@ -79,6 +79,10 @@ def setup_logger(name, log_file, level=logging.INFO):
 
     return logger
 
+# Function to get today's date in the required format
+def get_today_date():
+    return datetime.now().strftime("%d-%m-%Y")
+
 # Setup bot logger
 bot_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
 bot_logger = setup_logger('bot', bot_log_file)
@@ -96,9 +100,11 @@ api_log_file = os.path.join(webroot, api_logs, f"{CHANNEL_NAME}.txt")
 api_logger = setup_logger("api", api_log_file)
 
 # Setup chat history logger
-chat_history_log_file = os.path.join(webroot, chat_history_logs, f"{CHANNEL_NAME}.txt")
+chat_history_folder = os.path.join(webroot, chat_history_logs, CHANNEL_NAME)
+if not os.path.exists(chat_history_folder):
+    os.makedirs(chat_history_folder)
+chat_history_log_file = os.path.join(chat_history_folder, f"{get_today_date()}.txt")
 chat_history_logger = setup_logger('chat_history', chat_history_log_file)
-
 
 # Initialize your client with the CHANNEL_AUTH token:
 client = twitchio.Client(token=CHANNEL_AUTH)
