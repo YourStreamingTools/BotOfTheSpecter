@@ -30,7 +30,7 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
-$db = new PDO("sqlite:/var/www/bot/commands/{$username}_commands.db");
+$db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
