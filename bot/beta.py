@@ -59,9 +59,10 @@ bot_logs = os.path.join(logs_directory, "bot")
 chat_logs = os.path.join(logs_directory, "chat")
 twitch_logs = os.path.join(logs_directory, "twitch")
 api_logs = os.path.join(logs_directory, "api")
+chat_history_logs = os.path.join(logs_directory, "chat_history")
 
 # Ensure directories exist
-for directory in [logs_directory, bot_logs, chat_logs, twitch_logs, api_logs]:
+for directory in [logs_directory, bot_logs, chat_logs, twitch_logs, api_logs, chat_history_logs]:
     directory_path = os.path.join(webroot, directory)
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
@@ -93,6 +94,11 @@ twitch_logger = setup_logger('twitch', twitch_log_file)
 # Setup API logger
 api_log_file = os.path.join(webroot, api_logs, f"{CHANNEL_NAME}.txt")
 api_logger = setup_logger("api", api_log_file)
+
+# Setup chat history logger
+chat_history_log_file = os.path.join(webroot, chat_history_logs, f"{CHANNEL_NAME}.txt")
+chat_history_logger = setup_logger('chat_history', chat_history_log_file)
+
 
 # Initialize your client with the CHANNEL_AUTH token:
 client = twitchio.Client(token=CHANNEL_AUTH)
@@ -285,14 +291,14 @@ async def twitch_pubsub():
 
                 while True:
                     response = await websocket.recv()
-                    # twitch_logger.info(f"Received message from PubSub: {response}")
                     # Process the received message
                     await process_pubsub_message(response)
 
         except websockets.ConnectionClosedError:
-            # twitch_logger.error("Connection to Twitch PubSub closed unexpectedly. Retrying...")
+            # Handle connection closed error
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
+            # Handle other exceptions
             twitch_logger.exception("An error occurred in Twitch PubSub connection:", exc_info=e)
 
 async def process_pubsub_message(message):
@@ -339,25 +345,25 @@ class BotOfTheSpecter(commands.Bot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
-        await channel.send(f"/me is connected and ready!")
+        await channel.send(f"/me is connected and ready! Running V{VERSION}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
-        # Log the message content & make sure the bot ignores its own messages
-        chat_logger.info(f"Chat message from {message.author.name}: {message.content}")
+        await self.handle_commands(message)
+        await self.handle_chat(message)
+
         if message.echo:
             return
 
         # Continue only if it's not a built-in command or alias
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
-        
+
         if message_content.startswith('!'):
             command = message_content.split()[0][1:]  # Extract the command without '!'
             if command in builtin_commands or command in builtin_aliases:
-                chat_logger.info(f"{message.author.name} used a built in command called: {command}")
-                await self.handle_commands(message)
+                chat_logger.info(f"{message.author.name} used a built-in command called: {command}")
                 return  # It's a built-in command or alias, do nothing more
-            
+
             # Check if the command exists in a hypothetical database and respond
             cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
             result = cursor.fetchone()
@@ -371,7 +377,12 @@ class BotOfTheSpecter(commands.Bot):
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
 
-    @commands.command(name="commands", aliases=["cmds",])
+    async def handle_chat(self, message):
+        # Log the message content
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+        return
+
+    @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
         is_mod = is_mod_or_broadcaster(ctx.author)
 
@@ -388,7 +399,7 @@ class BotOfTheSpecter(commands.Bot):
         # Sending the response message to the chat
         await ctx.send(response_message)
 
-    @commands.command(name="bot")
+    @commands.command(name='bot')
     async def bot_command(self, ctx):
         chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
@@ -398,7 +409,7 @@ class BotOfTheSpecter(commands.Bot):
         await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
 
     # Command to set stream title
-    @commands.command(name="settitle")
+    @commands.command(name='settitle')
     async def set_title(self, ctx, title: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if title is None:
@@ -413,7 +424,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     # Command to set stream game/category
-    @commands.command(name="setgame")
+    @commands.command(name='setgame')
     async def set_game(self, ctx, game: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if game is None:
@@ -532,7 +543,7 @@ class BotOfTheSpecter(commands.Bot):
             bot_logger.error(f"Error Pinging. {output}")
             await ctx.send(f'Error pinging')
     
-    @commands.command(name="translate")
+    @commands.command(name='translate')
     async def translate_command(self, ctx):
         # Get the message content after the command
         message = ctx.message.content[len("!translate "):]
@@ -668,7 +679,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
 
-    @commands.command(name="lurking")
+    @commands.command(name='lurking')
     async def lurking_command(self, ctx):
         try:
             user_id = str(ctx.author.id)
@@ -706,7 +717,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in lurking_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
 
-    @commands.command(name="lurklead")
+    @commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
         try:
             cursor.execute('SELECT user_id, start_time FROM lurk_times')
@@ -749,7 +760,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in lurklead_command: {e}")
             await ctx.send("Oops, something went wrong while trying to find the lurk leader.")
 
-    @commands.command(name="unlurk", aliases=("back",))
+    @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
         try:
             user_id = str(ctx.author.id)
@@ -835,7 +846,7 @@ class BotOfTheSpecter(commands.Bot):
         chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
         await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
     
-    @commands.command(name="typos", aliases=("typocount",))
+    @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         chat_logger.info("Typos Command ran.")
         # Check if the broadcaster is running the command
@@ -856,7 +867,7 @@ class BotOfTheSpecter(commands.Bot):
         chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
         await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
 
-    @commands.command(name="edittypos", aliases=("edittypo",))
+    @commands.command(name='edittypos', aliases=('edittypo',))
     async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info("Edit Typos Command ran.")
@@ -907,7 +918,7 @@ class BotOfTheSpecter(commands.Bot):
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
-    @commands.command(name="removetypos", aliases=("removetypo",))
+    @commands.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         chat_logger.info("Remove Typos Command ran.")
         try:
@@ -969,7 +980,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send(f"An error occurred while executing the command. {e}")
             chat_logger.error(f"Error in deaths_command: {e}")
 
-    @commands.command(name="deathadd", aliases=["death+",])
+    @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
             try:
@@ -1009,7 +1020,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to use the command, death add, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
-    @commands.command(name="deathremove", aliases=["death-",])
+    @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
             try:
@@ -1072,7 +1083,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
 
-    @commands.command(name="checkupdate")
+    @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
@@ -1091,7 +1102,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
             await ctx.reply("You must be a moderator or the broadcaster to use this command.")
     
-    @commands.command(name="so", aliases=("shoutout",))
+    @commands.command(name='so', aliases=('shoutout',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         chat_logger.info(f"Shoutout command attempting to run.")
         if is_mod_or_broadcaster(ctx.author):
@@ -1136,7 +1147,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='addcommand')
-    async def add_command(self, ctx):
+    async def add_command_command(self, ctx):
         chat_logger.info("Add Command ran.")
         # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
@@ -1156,7 +1167,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='removecommand')
-    async def remove_command(self, ctx):
+    async def remove_command_command(self, ctx):
         chat_logger.info("Remove Command ran.")
         # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
