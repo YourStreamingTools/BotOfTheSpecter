@@ -11,6 +11,8 @@ import subprocess
 import websockets
 import json
 import time
+import random
+import base64
 
 # Third-party imports
 import aiohttp
@@ -20,6 +22,7 @@ from translate import Translator
 from googletrans import Translator, LANGUAGES
 import twitchio
 from twitchio.ext import commands, pubsub
+import streamlink
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -47,6 +50,8 @@ OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
+TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
+SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove", "so", "checkupdate"}
@@ -477,6 +482,11 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f'Failed to update stream game. Game "{game}" not found.')
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+    
+    @commands.command(name='song')
+    async def get_current_song(ctx):
+        await ctx.send("Please stand by, checking what song is currently playing...")
+        await get_song_info_command(ctx)
 
     @commands.command(name='timer')
     async def start_timer(self, ctx):
@@ -1499,6 +1509,110 @@ async def check_stream_online():
                         bot_logger.info("Stream is online. Resetting greeted users.")
                     stream_was_offline = False
         await asyncio.sleep(300)  # Check every 5 minutes
+
+# Function to get the current playing song
+async def get_song_info_command(self, ctx):
+    song_info = await self.get_song_info()
+    if "error" in song_info:
+        error_message = song_info["error"]
+        api_logger.info(f"Error: {error_message}")
+        await ctx.send(error_message)
+    else:
+        artist = song_info.get('artist', '')
+        song = song_info.get('song', '')
+        message = f"The current song is: {song} by {artist}"
+        api_logger.info(message)
+        await ctx.send(message)
+
+async def get_song_info(self):
+    # Test validity of GQL OAuth token
+    if not await twitch_gql_token_valid():
+        return {"error": "Twitch GQL Token Expired"}
+
+    # Record stream audio
+    random_file_name = str(random.randint(10000000, 99999999))
+    working_dir = "/var/www/logs/songs"
+    stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
+    raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
+    if not await self.record_stream(stream_recording_file):
+        return {"error": "Stream is not available"}
+        
+    # Convert Stream Audio into Raw Format for Shazam
+    if not await self.convert_to_raw_audio(stream_recording_file, raw_recording_file):
+        return {"error": "Error converting stream audio from ACC to raw PCM s16le"}
+
+    # Encode raw audio to base64
+    with open(raw_recording_file, "rb") as song:
+        songBytes = song.read()
+        songb64 = base64.b64encode(songBytes)
+
+        # Detect the song
+        matches = await self.detect_song(songb64)
+
+        if "track" in matches.keys():
+            artist = matches["track"].get("subtitle", "")
+            song_title = matches["track"].get("title", "")
+            return {"artist": artist, "song": song_title}
+        else:
+            return {"error": "The current song can not be identified."}
+
+async def twitch_gql_token_valid(self):
+    url = "https://gql.twitch.tv/gql"
+    headers = {
+        "Client-Id": CLIENT_ID,
+        "Content-Type": "text/plain",
+        "Authorization": f"OAuth {TWITCH_GQL}"
+    }
+    data = [
+        {
+            "operationName": "SyncedSettingsEmoteAnimations",
+                "variables": {},
+                "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "64ac5d385b316fd889f8c46942a7c7463a1429452ef20ffc5d0cd23fcc4ecf30"
+                }
+            }
+        }
+    ]
+    response = await requests.post(url, headers=headers, json=data, timeout=10)
+    return response.status_code == 200
+
+async def detect_song(self, raw_audio_b64):
+        url = "https://shazam.p.rapidapi.com/songs/v2/detect"
+        querystring = {"timezone":"Australia/Sydney","locale":"en-US"}
+        headers = {
+            "content-type": "text/plain",
+            "X-RapidAPI-Key": SHAZAM_API,
+            "X-RapidAPI-Host": "shazam.p.rapidapi.com"
+        }
+        response = await requests.post(url, data=raw_audio_b64, headers=headers, params=querystring, timeout=15)
+        return response.json()
+
+async def convert_to_raw_audio(self, in_file, out_file):
+    proc = await subprocess.run([self.ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", "-f", "s16le", out_file], 
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, check=False, shell=True)
+    return proc.returncode == 0
+
+async def record_stream(self, outfile, max_bytes=200):
+    session = streamlink.Streamlink()
+    session.set_plugin_option("twitch", "api-header", [("Authorization", f"OAuth {TWITCH_GQL}")])
+    streams = session.streams(self.twitch_url)
+    if len(streams) == 0 or "worst" not in streams.keys():
+        return False
+    stream_obj = streams["worst"]
+    fd = stream_obj.open()
+    chunk = 1024
+    num_bytes = 0
+    data = b''
+    while num_bytes <= max_bytes*1024:
+        data += fd.read(chunk)
+        num_bytes+=chunk
+    fd.close()
+    with open(outfile, "wb") as file:
+        file.write(data)
+    return os.path.exists(outfile) 
 
 # Funtion for BITS
 async def process_bits_event(self, user_id, user_name, bits):
