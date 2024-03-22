@@ -35,10 +35,15 @@ try {
     // Decode the JSON response
     $userData = json_decode($response, true);
 
-    // Map user IDs to usernames
-    $usernames = [];
-    foreach ($userData['data'] as $user) {
-        $usernames[$user['id']] = $user['display_name'];
+    // Check if data exists and is not null
+    if (isset($userData['data']) && is_array($userData['data'])) {
+        // Map user IDs to usernames
+        $usernames = [];
+        foreach ($userData['data'] as $user) {
+            $usernames[$user['id']] = $user['display_name'];
+        }
+    } else {
+        $usernames = [];
     }
 
     // Fetch total deaths
