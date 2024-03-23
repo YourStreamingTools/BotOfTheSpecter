@@ -78,18 +78,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<p style="color: white;">Select the command you want to remove:</p>
-<form method="post" action="">
-    <div class="row small-3 columns">
-        <label for="remove_command">Command to Remove:</label>
-        <select name="remove_command" id="remove_command" required>
-            <?php foreach ($commands as $command): ?>
-                <option value="<?php echo $command; ?>"><?php echo $command; ?></option>
-            <?php endforeach; ?>
-        </select>
-    </div>
-    <input type="submit" class="defult-button" value="Remove Command">
-</form>
+<?php if (!empty($commands)): ?>
+    <p style="color: white;">Select the command you want to remove:</p>
+    <form method="post" action="">
+        <div class="row small-3 columns">
+            <label for="remove_command">Command to Remove:</label>
+            <select name="remove_command" id="remove_command" required>
+                <?php foreach ($commands as $command): ?>
+                    <option value="<?php echo $command; ?>"><?php echo $command; ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <input type="submit" class="defult-button" value="Remove Command">
+    </form>
+<?php else: ?>
+    <p>No commands to remove.</p>
+<?php endif; ?>
 <?php echo $status; ?>
 </div>
 
