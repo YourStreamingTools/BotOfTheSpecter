@@ -28,6 +28,7 @@ $authToken = $access_token;
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+$status = "";
 
 // Connect to the SQLite database
 $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
