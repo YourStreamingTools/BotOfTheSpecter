@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['command_to_edit'], $_P
             <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
                 <option value="">Select a Command...</option>
                 <?php foreach ($commands as $command): ?>
-                    <option value="<?php echo $command['command']; ?>"><?php echo $command['command']; ?></option>
+                    <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
