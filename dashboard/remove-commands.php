@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<p style="color: red;">Select the command you want to remove:</p>
+<p style="color: white;">Select the command you want to remove:</p>
 <form method="post" action="">
     <div class="row small-3 columns">
         <label for="remove_command">Command to Remove:</label>
