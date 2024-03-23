@@ -83,23 +83,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['command_to_edit'], $_P
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<p style="color: white;">Select the command you want to remove:</p>
-<form method="post" action="">
-    <div class="row small-3 columns">
-        <label for="command_to_edit">Command to Edit:</label>
-        <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
-            <option value="">Select a Command...</option>
-            <?php foreach ($commands as $command): ?>
-                <option value="<?php echo $command['command']; ?>"><?php echo $command['command']; ?></option>
-            <?php endforeach; ?>
-        </select>
-    </div>
-    <div class="row small-12 columns">
-        <label for="command_response">Response:</label>
-        <input type="text" name="command_response" id="command_response" value="" required>
-    </div>
-    <input type="submit" class="button" value="Update Command">
-</form>
+<?php if (!empty($commands)): ?>
+    <p style="color: white;">Select the command you want to edit:</p>
+    <form method="post" action="">
+        <div class="row small-3 columns">
+            <label for="command_to_edit">Command to Edit:</label>
+            <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
+                <option value="">Select a Command...</option>
+                <?php foreach ($commands as $command): ?>
+                    <option value="<?php echo $command['command']; ?>"><?php echo $command['command']; ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="row small-12 columns">
+            <label for="command_response">Response:</label>
+            <input type="text" name="command_response" id="command_response" value="" required>
+        </div>
+        <input type="submit" class="button" value="Update Command">
+    </form>
+<?php else: ?>
+    <p>No commands available to edit.</p>
+<?php endif; ?>
 <?php echo $status; ?>
 </div>
 
