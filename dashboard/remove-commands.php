@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
             <label for="remove_command">Command to Remove:</label>
             <select name="remove_command" id="remove_command" required>
                 <?php foreach ($commands as $command): ?>
-                    <option value="<?php echo $command; ?>"><?php echo $command; ?></option>
+                    <option value="<?php echo $command; ?>">!<?php echo $command; ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
