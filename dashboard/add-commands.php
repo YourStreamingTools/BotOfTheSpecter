@@ -85,6 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
         <input type="submit" class="defult-button" value="Add Command">
     </form>
+    <br>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
         <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
             <p style="color: green;">Command "<?php echo $_POST['command']; ?>" has been successfully added to the database.</p>
