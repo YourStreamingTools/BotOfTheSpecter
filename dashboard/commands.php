@@ -51,31 +51,36 @@ include 'sqlite.php';
 <!-- /Navigation -->
 
 <div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<div class="row">
-  <div class="columns">
-    <h4>Bot Commands</h4>
-    <table class="bot-table">
-      <thead>
-        <tr>
-          <th>Command</th>
-          <th>Response</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($commands as $command): ?>
-          <tr>
-            <td>!<?php echo $command['command']; ?></td>
-            <td><?php echo $command['response']; ?></td>
-            <td>Enabled</td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
+  <br>
+  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <div class="row">
+    <div class="columns">
+      <h4>Bot Commands</h4>
+      <?php if (empty($commands)): ?>
+        <p>No commands found.</p>
+      <?php else: ?>
+        <table class="bot-table">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Response</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($commands as $command): ?>
+              <tr>
+                <td>!<?php echo $command['command']; ?></td>
+                <td><?php echo $command['response']; ?></td>
+                <td>Enabled</td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php endif; ?>
+    </div>
   </div>
-</div>
+<br><br><br>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
