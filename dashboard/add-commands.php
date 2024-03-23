@@ -68,24 +68,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!-- /Navigation -->
 
 <div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<p style='color: red;'>When adding the commands into this site, please don't put the "exclamation mark" for your command, this does it automatically.</p>
-<form method="post" action="">
-    <div class="row">
-        <div class="small-12 medium-6 column">
-            <label for="command">Command:</label>
-            <input type="text" name="command" id="command" required>
+    <br>
+    <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <br>
+    <p style='color: red;'>When adding the commands into this site, please don't put the "exclamation mark" for your command, this does it automatically.</p>
+    <form method="post" action="">
+        <div class="row">
+            <div class="small-12 medium-6 column">
+                <label for="command">Command:</label>
+                <input type="text" name="command" id="command" required>
+            </div>
+            <div class="small-12 medium-6 column">
+                <label for="response">Response:</label>
+                <input type="text" name="response" id="response" required>
+            </div>
         </div>
-        <div class="small-12 medium-6 column">
-            <label for="response">Response:</label>
-            <input type="text" name="response" id="response" required>
-        </div>
-    </div>
-    <input type="submit" class="defult-button" value="Add Command">
-</form>
-</div>
+        <input type="submit" class="defult-button" value="Add Command">
+    </form>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+        <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
+            <p style="color: green;">Command "<?php echo $_POST['command']; ?>" has been successfully added to the database.</p>
+        <?php endif; ?>
+    <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
