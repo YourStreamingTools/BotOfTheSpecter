@@ -55,20 +55,21 @@ include 'sqlite.php';
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <div class="row">
   <div class="columns">
-    <p style='color: red;'>Disclaimer: Due to the coding proccess, commands in here will not be active in chat, <b>YET</b>, this is coming soon.</p>
     <h4>Bot Commands</h4>
     <table class="bot-table">
       <thead>
         <tr>
           <th>Command</th>
           <th>Response</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
         <?php foreach ($commands as $command): ?>
           <tr>
-            <td><?php echo $command['command']; ?></td>
+            <td>!<?php echo $command['command']; ?></td>
             <td><?php echo $command['response']; ?></td>
+            <td>Enabled</td>
           </tr>
         <?php endforeach; ?>
       </tbody>
