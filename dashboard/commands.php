@@ -59,7 +59,8 @@ include 'sqlite.php';
       <?php if (empty($commands)): ?>
         <p>No commands found.</p>
       <?php else: ?>
-        <table class="bot-table">
+        <input type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+        <table class="bot-table" id="commandsTable">
           <thead>
             <tr>
               <th>Command</th>
@@ -86,5 +87,6 @@ include 'sqlite.php';
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
+<script src="search.js"></script>
 </body>
 </html>
