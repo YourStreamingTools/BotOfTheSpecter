@@ -113,19 +113,20 @@ a {
 
 /* New Bot Table */
 .bot-table {
-    border: none;
     border-style: solid;
-    border-color: #111111;
+    border-color: #ffffff;
     background-color: #111111;
+    border-width: 1px;
 }
 
 .bot-table td, 
-.bot-table tr {
+.bot-table tr,
+.bot-table th {
     color: #ffffff;
-    border: none;
     border-style: solid;
-    border-color: #111111;
+    border-color: #ffffff;
     background-color: #111111;
+    border-width: 1px;
 }
 
 .counter-table {
