@@ -95,11 +95,9 @@ function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refresh
 function killBot($pid) {
     $output = shell_exec("kill $pid > /dev/null 2>&1 &");
     sleep(3);
-
     if (isset($output) && strpos($output, 'error') !== false) {
         return false;
     }    
     return true;
 }
-
 ?>
