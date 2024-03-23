@@ -9,9 +9,10 @@ from datetime import datetime
 import logging
 import subprocess
 import websockets
-import ssl
 import json
 import time
+import random
+import base64
 
 # Third-party imports
 import aiohttp
@@ -21,6 +22,7 @@ from translate import Translator
 from googletrans import Translator, LANGUAGES
 import twitchio
 from twitchio.ext import commands, pubsub
+import streamlink
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -40,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "2.6"
+VERSION = "3.0"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f""  # CHANGE TO MAKE THIS WORK
@@ -62,9 +64,10 @@ bot_logs = os.path.join(logs_directory, "bot")
 chat_logs = os.path.join(logs_directory, "chat")
 twitch_logs = os.path.join(logs_directory, "twitch")
 api_logs = os.path.join(logs_directory, "api")
+chat_history_logs = os.path.join(logs_directory, "chat_history")
 
 # Ensure directories exist
-for directory in [logs_directory, bot_logs, chat_logs, twitch_logs, api_logs]:
+for directory in [logs_directory, bot_logs, chat_logs, twitch_logs, api_logs, chat_history_logs]:
     directory_path = os.path.join(webroot, directory)
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
@@ -80,6 +83,10 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.addHandler(handler)
 
     return logger
+
+# Function to get today's date in the required format
+def get_today_date():
+    return datetime.now().strftime("%d-%m-%Y")
 
 # Setup bot logger
 bot_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
@@ -97,14 +104,12 @@ twitch_logger = setup_logger('twitch', twitch_log_file)
 api_log_file = os.path.join(webroot, api_logs, f"{CHANNEL_NAME}.txt")
 api_logger = setup_logger("api", api_log_file)
 
-# Create the bot instance
-bot = commands.Bot(
-    token=OAUTH_TOKEN,
-    prefix="!",
-    initial_channels=[CHANNEL_NAME],
-    nick="BotOfTheSpecter",
-)
-twitch_logger.info("Created the bot instance")
+# Setup chat history logger
+chat_history_folder = os.path.join(webroot, chat_history_logs, CHANNEL_NAME)
+if not os.path.exists(chat_history_folder):
+    os.makedirs(chat_history_folder)
+chat_history_log_file = os.path.join(chat_history_folder, f"{get_today_date()}.txt")
+chat_history_logger = setup_logger('chat_history', chat_history_log_file)
 
 # Initialize your client with the CHANNEL_AUTH token:
 client = twitchio.Client(token=CHANNEL_AUTH)
@@ -124,10 +129,6 @@ async def event_handler(message):
         bot_logger.info(f"Subscription: {message.data}")
     elif message.type == pubsub.PubSubChannelPoints:
         bot_logger.info(f"Channel Points: {message.data}")
-
-# Create an instance of your Bot class
-bot_instance = bot
-channel = bot.get_channel('{CHANNEL_NAME}')
 
 # Create the database and table if it doesn't exist
 database_directory = "/var/www/bot/commands"
@@ -204,6 +205,12 @@ cursor.execute('''
         followed_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS quotes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote TEXT
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue and webshockets
@@ -272,17 +279,6 @@ async def refresh_token(current_refresh_token):
         # Log the error if token refresh fails
         twitch_logger.error(f"Token refresh failed: {e}")
 
-# Setup Websockets
-async def counter(websocket, path):
-    global connected
-    connected.add(websocket)
-    try:
-        async for message in websocket:
-            for conn in connected:
-                await conn.send(message)
-    finally:
-        connected.remove(websocket)
-
 # Setup Twitch PubSub
 async def twitch_pubsub():
     # Twitch PubSub URL
@@ -312,14 +308,14 @@ async def twitch_pubsub():
 
                 while True:
                     response = await websocket.recv()
-                    twitch_logger.info(f"Received message from PubSub: {response}")
                     # Process the received message
                     await process_pubsub_message(response)
 
         except websockets.ConnectionClosedError:
-            twitch_logger.error("Connection to Twitch PubSub closed unexpectedly. Retrying...")
+            # Handle connection closed error
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
+            # Handle other exceptions
             twitch_logger.exception("An error occurred in Twitch PubSub connection:", exc_info=e)
 
 async def process_pubsub_message(message):
@@ -357,205 +353,62 @@ async def process_pubsub_message(message):
     except Exception as e:
         twitch_logger.exception("An error occurred while processing PubSub message:", exc_info=e)
 
-# Funtion for BITS
-async def process_bits_event(user_id, user_name, bits):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
-    # Check if the user exists in the database
-    cursor.execute('SELECT bits FROM bits_data WHERE user_id = ? OR user_name = ?', (user_id, user_name))
-    existing_bits = cursor.fetchone()
-
-    if existing_bits:
-        # Update the user's total bits count
-        total_bits = existing_bits[0] + bits
-        cursor.execute('''
-            UPDATE bits_data
-            SET bits = ?
-            WHERE user_id = ? OR user_name = ?
-        ''', (total_bits, user_id, user_name))
-        
-        # Send message to channel with total bits
-        await bot._ws.send_privmsg(f"#{CHANNEL_ID}", f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
-    else:
-        # Insert a new record for the user
-        cursor.execute('''
-            INSERT INTO bits_data (user_id, user_name, bits)
-            VALUES (?, ?, ?)
-        ''', (user_id, user_name, bits))
-        
-        # Send message to channel without total bits
-        await bot._ws.send_privmsg(f"#{CHANNEL_ID}", f"Thank you {user_name} for {bits} bits!")
-
-    conn.commit()
-    conn.close()
-
-# Funtion for SUBSCRIPTIONS
-async def process_subscription_event(subscription_event_data):
-    # Extract relevant information from the subscription event data
-    user_id = subscription_event_data["user_id"]
-    user_name = subscription_event_data["user_name"]
-    sub_plan = subscription_event_data["sub_plan"]
-    months = subscription_event_data["cumulative_months"]
-    is_gift = subscription_event_data.get("is_gift", False)
-
-    if is_gift:
-        await process_gift_subscription_event(user_id, user_name, sub_plan, months)
-    else:
-        await process_regular_subscription_event(user_id, user_name, sub_plan, months)
-
-async def process_regular_subscription_event(user_id, user_name, sub_plan, months):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
-    # Check if the user exists in the database
-    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
-    existing_subscription = cursor.fetchone()
-
-    if existing_subscription:
-        # User exists in the database
-        existing_sub_plan, existing_months = existing_subscription
-        if existing_sub_plan != sub_plan:
-            # User upgraded their subscription plan
-            cursor.execute('''
-                UPDATE subscription_data
-                SET sub_plan = ?, months = ?
-                WHERE user_id = ?
-            ''', (sub_plan, months, user_id))
-        else:
-            # User maintained the same subscription plan, update cumulative months
-            cursor.execute('''
-                UPDATE subscription_data
-                SET months = ?
-                WHERE user_id = ?
-            ''', (months, user_id))
-    else:
-        # User does not exist in the database, insert new record
-        cursor.execute('''
-            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, user_name, sub_plan, months))
-
-    # Commit changes to the database
-    conn.commit()
-    conn.close()
-
-    # Construct the message to be sent to the channel & send the message to the channel
-    message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {months} months!"
-    await bot._ws.send_privmsg(f"#{CHANNEL_ID}", message)
-
-async def process_gift_subscription_event(gifter_id, gifter_name, recipient_id, recipient_name, sub_plan, months):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
-    # Check if the recipient exists in the database
-    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (recipient_id,))
-    existing_subscription = cursor.fetchone()
-
-    if existing_subscription:
-        # Recipient exists in the database
-        existing_sub_plan, existing_months = existing_subscription
-        if existing_sub_plan != sub_plan:
-            # Recipient upgraded their subscription plan
-            cursor.execute('''
-                UPDATE subscription_data
-                SET sub_plan = ?, months = ?
-                WHERE user_id = ?
-            ''', (sub_plan, months, recipient_id))
-        else:
-            # Recipient maintained the same subscription plan, update cumulative months
-            cursor.execute('''
-                UPDATE subscription_data
-                SET months = ?
-                WHERE user_id = ?
-            ''', (months, recipient_id))
-    else:
-        # Recipient does not exist in the database, insert new record
-        cursor.execute('''
-            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (?, ?, ?, ?)
-        ''', (recipient_id, recipient_name, sub_plan, months))
-
-    # Commit changes to the database
-    conn.commit()
-    conn.close()
-
-    # Construct the message to be sent to the channel & send the message to the channel
-    message = f"Thank you {gifter_name} for gifting a {sub_plan} subscription to {recipient_name}! They are now a {sub_plan} subscriber for {months} months!"
-    await bot._ws.send_privmsg(f"#{CHANNEL_ID}", message)
-
-# Funtion for FOLLOWERS
-async def process_followers_event(user_id, user_name, followed_at):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
-    # Insert a new record for the follower
-    cursor.execute('''
-        INSERT INTO followers_data (user_id, user_name, followed_at)
-        VALUES (?, ?, ?)
-    ''', (user_id, user_name, followed_at))
-
-    # Commit changes to the database
-    conn.commit()
-    conn.close()
-
-    # Construct the message to be sent to the channel
-    message = f"Thank you {user_name} for following! Welcome to the channel!"
-
-    # Send the message to the channel
-    await bot._ws.send_privmsg(f"#{CHANNEL_ID}", message)
-
-class Bot(commands.Bot):
+class BotOfTheSpecter(commands.Bot):
     # Event Message to get the bot ready
-    def __init__(self):
-        super().__init__(
-            token=OAUTH_TOKEN,
-            prefix='!',
-            initial_channels=[CHANNEL_NAME],
-            nick=BOT_USERNAME
-        )
+    def __init__(self, token, prefix, channel_name):
+        super().__init__(token=token, prefix=prefix, initial_channels=[channel_name])
+        self.channel_name = channel_name
+
     async def event_ready(self):
-        bot_logger.info(f'Logged in as | {BOT_USERNAME}')
-        channel = self.get_channel(CHANNEL_NAME)
-        if channel:
-            await channel.send("The bot is now connected and ready!")
-            
+        bot_logger.info(f'Logged in as | {self.nick}')
+        channel = self.get_channel(self.channel_name)
+        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
-        # Log the message content & make sure the bot ignores its own messages
-        chat_logger.info(f"Chat message from {message.author.name}: {message.content}")
+        # Ignore messages from the bot itself
         if message.echo:
             return
 
-        # It's important to process commands if the message is a command
+        # Check for a valid author before proceeding
+        if message.author is None:
+            bot_logger.warning("Received a message without a valid author.")
+            return
+
+        # Handle commands
         await self.handle_commands(message)
 
-        # Custom command processing (if not using built-in command processing)
-        message_content = message.content.strip()
+        # Additional custom message handling logic
+        await self.handle_chat(message)
 
-        # Check if the message starts with an exclamation mark for commands
+    async def handle_chat(self, message):
+        # Log the message content
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+        
+        # Continue only if it's not a built-in command or alias
+        message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
+
         if message_content.startswith('!'):
-            parts = message_content.split()
-            command = parts[0][1:]  # Extract the command without '!'
+            command = message_content.split()[0][1:]  # Extract the command without '!'
+            if command in builtin_commands or command in builtin_aliases:
+                chat_logger.info(f"{message.author.name} used a built-in command called: {command}")
+                return  # It's a built-in command or alias, do nothing more
 
             # Check if the command exists in a hypothetical database and respond
             cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
             result = cursor.fetchone()
 
-        if result:
-            response = result[0]
-            chat_logger.info(f"{command} command ran.")
-            await message.channel.send(response)
-        else:
-            chat_logger.info(f"{command} command not found.")
-            await message.channel.send(f'No such command found: !{command}')
+            if result:
+                response = result[0]
+                chat_logger.info(f"{command} command ran.")
+                await message.channel.send(response)
+            else:
+                chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
+                # await message.channel.send(f'No such command found: !{command}')
+                pass
 
-    @bot.command(name="commands", aliases=["cmds",])
-    async def commands_command(ctx: commands.Context):
+    @commands.command(name='commands', aliases=['cmds',])
+    async def commands_command(self, ctx):
         is_mod = is_mod_or_broadcaster(ctx.author)
 
         if is_mod:
@@ -571,18 +424,41 @@ class Bot(commands.Bot):
         # Sending the response message to the chat
         await ctx.send(response_message)
 
-    @bot.command(name="bot")
-    async def bot_command(ctx: commands.Context):
+    @commands.command(name='bot')
+    async def bot_command(self, ctx):
         chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
     
-    @bot.command(name='roadmap')
-    async def roadmap_command(ctx: commands.Context):
+    @commands.command(name='roadmap')
+    async def roadmap_command(self, ctx):
         await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
 
+    @commands.command(name='quote')
+    async def quote_command(self, ctx, number: int = None):
+        if number is None:  # If no number is provided, get a random quote
+            cursor.execute("SELECT quote FROM quotes ORDER BY RANDOM() LIMIT 1")
+            quote = cursor.fetchone()
+            if quote:
+                await ctx.send("Random Quote: " + quote[0])
+            else:
+                await ctx.send("No quotes available.")
+        else:  # If a number is provided, retrieve the quote by its ID
+            cursor.execute("SELECT quote FROM quotes WHERE id = ?", (number,))
+            quote = cursor.fetchone()
+            if quote:
+                await ctx.send(f"Quote {number}: " + quote[0])
+            else:
+                await ctx.send(f"No quote found with ID {number}.")
+
+    @commands.command(name='quoteadd')
+    async def quote_add_command(self, ctx, *, quote):
+        cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
+        conn.commit()
+        await ctx.send("Quote added successfully: " + quote)
+
     # Command to set stream title
-    @bot.command(name="settitle")
-    async def set_title(ctx: commands.Context, title: str = None) -> None:
+    @commands.command(name='settitle')
+    async def set_title(self, ctx, title: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if title is None:
                 await ctx.send(f"You must provide a title for the stream.")
@@ -596,8 +472,8 @@ class Bot(commands.Bot):
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     # Command to set stream game/category
-    @bot.command(name="setgame")
-    async def set_game(ctx: commands.Context, game: str = None) -> None:
+    @commands.command(name='setgame')
+    async def set_game(self, ctx, game: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if game is None:
                 await ctx.send(f"You must provide a game for the stream.")
@@ -614,9 +490,14 @@ class Bot(commands.Bot):
                 await ctx.send(f'Failed to update stream game. Game "{game}" not found.')
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+    
+    @commands.command(name='song')
+    async def get_current_song(ctx):
+        await ctx.send("Please stand by, checking what song is currently playing...")
+        await get_song_info_command(ctx)
 
-    @bot.command(name='timer')
-    async def start_timer(ctx: commands.Context):
+    @commands.command(name='timer')
+    async def start_timer(self, ctx):
         chat_logger.info(f"Timer command ran.")
         content = ctx.message.content.strip()
         try:
@@ -657,8 +538,8 @@ class Bot(commands.Bot):
 
         await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
 
-    @bot.command(name='hug')
-    async def hug_command(ctx: commands.Context, *, mentioned_username: str = None):
+    @commands.command(name='hug')
+    async def hug_command(self, ctx, *, mentioned_username: str = None):
         if mentioned_username:
             target_user = mentioned_username.lstrip('@')
 
@@ -677,8 +558,8 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to run the command without user mentioned.")
             await ctx.send("Usage: !hug @username")
 
-    @bot.command(name='kiss')
-    async def kiss_command(ctx: commands.Context, *, mentioned_username: str = None):
+    @commands.command(name='kiss')
+    async def kiss_command(self, ctx, *, mentioned_username: str = None):
         if mentioned_username:
             target_user = mentioned_username.lstrip('@')
 
@@ -697,8 +578,8 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to run the command without user mentioned.")
             await ctx.send("Usage: !kiss @username")
 
-    @bot.command(name='ping')
-    async def ping_command(ctx: commands.Context):
+    @commands.command(name='ping')
+    async def ping_command(self, ctx):
         chat_logger.info(f"Ping command ran.")
         # Using subprocess to run the ping command
         result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
@@ -715,8 +596,8 @@ class Bot(commands.Bot):
             bot_logger.error(f"Error Pinging. {output}")
             await ctx.send(f'Error pinging')
     
-    @bot.command(name="translate")
-    async def translate_command(ctx: commands.Context):
+    @commands.command(name='translate')
+    async def translate_command(self, ctx):
         # Get the message content after the command
         message = ctx.message.content[len("!translate "):]
 
@@ -760,8 +641,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Translating error: {e}")
             await ctx.send("An error occurred while translating the message.")
 
-    @bot.command(name='cheerleader')
-    async def cheerleader_command(ctx: commands.Context):
+    @commands.command(name='cheerleader')
+    async def cheerleader_command(self, ctx):
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -783,8 +664,8 @@ class Bot(commands.Bot):
         else:
             await ctx.send("Sorry, I couldn't fetch the leaderboard.")
 
-    @bot.command(name='mybits')
-    async def mybits_command(ctx: commands.Context):
+    @commands.command(name='mybits')
+    async def mybits_command(self, ctx):
         user_id = str(ctx.author.id)
         headers = {
             'Client-ID': CLIENT_ID,
@@ -807,8 +688,8 @@ class Bot(commands.Bot):
         else:
             await ctx.send("Sorry, I couldn't fetch your bits information.")
 
-    @bot.command(name='lurk')
-    async def lurk_command(ctx: commands.Context):
+    @commands.command(name='lurk')
+    async def lurk_command(self, ctx):
         try:
             user_id = str(ctx.author.id)
             now = datetime.now()
@@ -851,8 +732,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
 
-    @bot.command(name="lurking")
-    async def lurking_command(ctx: commands.Context):
+    @commands.command(name='lurking')
+    async def lurking_command(self, ctx):
         try:
             user_id = str(ctx.author.id)
     
@@ -889,8 +770,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in lurking_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
 
-    @bot.command(name="lurklead")
-    async def lurklead_command(ctx: commands.Context):
+    @commands.command(name='lurklead')
+    async def lurklead_command(self, ctx):
         try:
             cursor.execute('SELECT user_id, start_time FROM lurk_times')
             lurkers = cursor.fetchall()
@@ -932,8 +813,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in lurklead_command: {e}")
             await ctx.send("Oops, something went wrong while trying to find the lurk leader.")
 
-    @bot.command(name="unlurk", aliases=("back",))
-    async def unlurk_command(ctx: commands.Context):
+    @commands.command(name='unlurk', aliases=('back',))
+    async def unlurk_command(self, ctx):
         try:
             user_id = str(ctx.author.id)
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -970,8 +851,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in unlurk_command: {e}")
             await ctx.send(f"Oops, something went wrong with the unlurk command.")
 
-    @bot.command(name='uptime')
-    async def uptime_command(ctx: commands.Context):
+    @commands.command(name='uptime')
+    async def uptime_command(self, ctx):
         chat_logger.info("Uptime Command ran.")
         uptime_url = f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}"
         try:
@@ -995,8 +876,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error retrieving uptime: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check uptime.")
     
-    @bot.command(name='typo')
-    async def typo_command(ctx: commands.Context, *, mentioned_username: str = None):
+    @commands.command(name='typo')
+    async def typo_command(self, ctx, *, mentioned_username: str = None):
         chat_logger.info("Typo Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower() or (mentioned_username and mentioned_username.lower() == CHANNEL_NAME.lower()):
@@ -1018,8 +899,8 @@ class Bot(commands.Bot):
         chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
         await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
     
-    @bot.command(name="typos", aliases=("typocount",))
-    async def typos_command(ctx: commands.Context, *, mentioned_username: str = None):
+    @commands.command(name='typos', aliases=('typocount',))
+    async def typos_command(self, ctx, *, mentioned_username: str = None):
         chat_logger.info("Typos Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -1039,8 +920,8 @@ class Bot(commands.Bot):
         chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
         await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
 
-    @bot.command(name="edittypos", aliases=("edittypo",))
-    async def edit_typo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
+    @commands.command(name='edittypos', aliases=('edittypo',))
+    async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info("Edit Typos Command ran.")
             try:
@@ -1090,8 +971,8 @@ class Bot(commands.Bot):
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
-    @bot.command(name="removetypos", aliases=("removetypo",))
-    async def remove_typos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
+    @commands.command(name='removetypos', aliases=('removetypo',))
+    async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         chat_logger.info("Remove Typos Command ran.")
         try:
             if is_mod_or_broadcaster(ctx.author):
@@ -1130,8 +1011,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
 
-    @bot.command(name='deaths')
-    async def deaths_command(ctx: commands.Context):
+    @commands.command(name='deaths')
+    async def deaths_command(self, ctx):
         try:
             chat_logger.info("Deaths command ran.")
             current_game = await get_current_stream_game()
@@ -1152,8 +1033,8 @@ class Bot(commands.Bot):
             await ctx.send(f"An error occurred while executing the command. {e}")
             chat_logger.error(f"Error in deaths_command: {e}")
 
-    @bot.command(name="deathadd", aliases=["death+",])
-    async def deathadd_command(ctx: commands.Context):
+    @commands.command(name='deathadd', aliases=['death+',])
+    async def deathadd_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
             try:
                 chat_logger.info("Death Add Command ran.")
@@ -1192,8 +1073,8 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to use the command, death add, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
-    @bot.command(name="deathremove", aliases=["death-",])
-    async def deathremove_command(ctx: commands.Context):
+    @commands.command(name='deathremove', aliases=['death-',])
+    async def deathremove_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
             try:
                 chat_logger.info("Death Remove Command Ran")
@@ -1224,14 +1105,14 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to use the command, death remove, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
-    @bot.command(name='game')
-    async def game_command(ctx: commands.Context):
+    @commands.command(name='game')
+    async def game_command(self, ctx):
         current_game = await get_current_stream_game()
         chat_logger.info(f"Game Command has been ran. Current game is: {current_game}")
         await ctx.send(f"The current game we're playing is: {current_game}")
 
-    @bot.command(name='followage')
-    async def followage_command(ctx: commands.Context, *, mentioned_username: str = None):
+    @commands.command(name='followage')
+    async def followage_command(self, ctx, *, mentioned_username: str = None):
         chat_logger.info("Follow Age Command ran.")
         target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
         followage_url = f"https://decapi.me/twitch/followage/{CHANNEL_NAME}/{target_user}?token={DECAPI}"
@@ -1255,8 +1136,8 @@ class Bot(commands.Bot):
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
 
-    @bot.command(name="checkupdate")
-    async def check_update_command(ctx: commands.Context):
+    @commands.command(name='checkupdate')
+    async def check_update_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
             response = requests.get(REMOTE_VERSION_URL)
@@ -1274,19 +1155,25 @@ class Bot(commands.Bot):
             chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
             await ctx.reply("You must be a moderator or the broadcaster to use this command.")
     
-    @bot.command(name="so", aliases=("shoutout",))
-    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
+    @commands.command(name='so', aliases=('shoutout',))
+    async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         chat_logger.info(f"Shoutout command attempting to run.")
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info(f"Shoutout command running from {ctx.author}")
             if user_to_shoutout is None:
-                    chat_logger.error(f"Shoutout command missing username parameter.")
-                    await ctx.send(f"Usage: !so @username")
-                    return
+                chat_logger.error(f"Shoutout command missing username parameter.")
+                await ctx.send(f"Usage: !so @username")
+                return
             try:
                 chat_logger.info(f"Shoutout command trying to run.")
                 # Remove @ from the username if present
                 user_to_shoutout = user_to_shoutout.lstrip('@')
+
+                # Check if the user exists on Twitch
+                if not await is_valid_twitch_user(user_to_shoutout):
+                    chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout")
+                    await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
+                    return
 
                 chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
 
@@ -1315,11 +1202,11 @@ class Bot(commands.Bot):
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't has they are not a moderator.")
+            chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
-    @bot.command(name='addcommand')
-    async def add_command(ctx: commands.Context):
+    @commands.command(name='addcommand')
+    async def add_command_command(self, ctx):
         chat_logger.info("Add Command ran.")
         # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
@@ -1338,8 +1225,8 @@ class Bot(commands.Bot):
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
-    @bot.command(name='removecommand')
-    async def remove_command(ctx: commands.Context):
+    @commands.command(name='removecommand')
+    async def remove_command_command(self, ctx):
         chat_logger.info("Remove Command ran.")
         # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
@@ -1359,6 +1246,31 @@ class Bot(commands.Bot):
 
 # Functions for all the commands
 ##
+# Function  to check if the user is a real user on Twitch
+async def is_valid_twitch_user(user_to_shoutout):
+    # Twitch API endpoint to check if a user exists
+    url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
+
+    # Headers including the Twitch Client ID (replace with your actual client ID)
+    headers = {
+        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+
+    # Send a GET request to the Twitch API
+    response = requests.get(url, headers=headers)
+
+    # Check if the response is successful and if the user exists
+    if response.status_code == 200:
+        data = response.json()
+        if data['data']:
+            return True  # User exists
+        else:
+            return False  # User does not exist
+    else:
+        # If there's an error with the request or response, return False
+        return False
+
 # Function to get the current streaming category for the channel.
 async def get_current_stream_game():
     url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
@@ -1606,20 +1518,285 @@ async def check_stream_online():
                     stream_was_offline = False
         await asyncio.sleep(300)  # Check every 5 minutes
 
-# Start the WebSocket server
-async def start_websocket_server():
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ssl_context.load_cert_chain('/etc/letsencrypt/live/botofthespecter.com/fullchain.pem',
-                                '/etc/letsencrypt/live/botofthespecter.com/privkey.pem')
+# Function to get the current playing song
+async def get_song_info_command(self, ctx):
+    song_info = await self.get_song_info()
+    if "error" in song_info:
+        error_message = song_info["error"]
+        api_logger.info(f"Error: {error_message}")
+        await ctx.send(error_message)
+    else:
+        artist = song_info.get('artist', '')
+        song = song_info.get('song', '')
+        message = f"The current song is: {song} by {artist}"
+        api_logger.info(message)
+        await ctx.send(message)
 
-    # Bind the SSL context to the WebSocket server
-    async with websockets.serve(counter, "localhost", WEBSOCKET_PORT, ssl=ssl_context):
-        await asyncio.Future() 
+async def get_song_info(self):
+    # Test validity of GQL OAuth token
+    if not await twitch_gql_token_valid():
+        return {"error": "Twitch GQL Token Expired"}
+
+    # Record stream audio
+    random_file_name = str(random.randint(10000000, 99999999))
+    working_dir = "/var/www/logs/songs"
+    stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
+    raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
+    if not await self.record_stream(stream_recording_file):
+        return {"error": "Stream is not available"}
+        
+    # Convert Stream Audio into Raw Format for Shazam
+    if not await self.convert_to_raw_audio(stream_recording_file, raw_recording_file):
+        return {"error": "Error converting stream audio from ACC to raw PCM s16le"}
+
+    # Encode raw audio to base64
+    with open(raw_recording_file, "rb") as song:
+        songBytes = song.read()
+        songb64 = base64.b64encode(songBytes)
+
+        # Detect the song
+        matches = await self.detect_song(songb64)
+
+        if "track" in matches.keys():
+            artist = matches["track"].get("subtitle", "")
+            song_title = matches["track"].get("title", "")
+            return {"artist": artist, "song": song_title}
+        else:
+            return {"error": "The current song can not be identified."}
+
+async def twitch_gql_token_valid(self):
+    url = "https://gql.twitch.tv/gql"
+    headers = {
+        "Client-Id": CLIENT_ID,
+        "Content-Type": "text/plain",
+        "Authorization": f"OAuth {TWITCH_GQL}"
+    }
+    data = [
+        {
+            "operationName": "SyncedSettingsEmoteAnimations",
+                "variables": {},
+                "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "64ac5d385b316fd889f8c46942a7c7463a1429452ef20ffc5d0cd23fcc4ecf30"
+                }
+            }
+        }
+    ]
+    response = await requests.post(url, headers=headers, json=data, timeout=10)
+    return response.status_code == 200
+
+async def detect_song(self, raw_audio_b64):
+        url = "https://shazam.p.rapidapi.com/songs/v2/detect"
+        querystring = {"timezone":"Australia/Sydney","locale":"en-US"}
+        headers = {
+            "content-type": "text/plain",
+            "X-RapidAPI-Key": SHAZAM_API,
+            "X-RapidAPI-Host": "shazam.p.rapidapi.com"
+        }
+        response = await requests.post(url, data=raw_audio_b64, headers=headers, params=querystring, timeout=15)
+        return response.json()
+
+async def convert_to_raw_audio(self, in_file, out_file):
+    proc = await subprocess.run([self.ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", "-f", "s16le", out_file], 
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, check=False, shell=True)
+    return proc.returncode == 0
+
+async def record_stream(self, outfile, max_bytes=200):
+    session = streamlink.Streamlink()
+    session.set_plugin_option("twitch", "api-header", [("Authorization", f"OAuth {TWITCH_GQL}")])
+    streams = session.streams(self.twitch_url)
+    if len(streams) == 0 or "worst" not in streams.keys():
+        return False
+    stream_obj = streams["worst"]
+    fd = stream_obj.open()
+    chunk = 1024
+    num_bytes = 0
+    data = b''
+    while num_bytes <= max_bytes*1024:
+        data += fd.read(chunk)
+        num_bytes+=chunk
+    fd.close()
+    with open(outfile, "wb") as file:
+        file.write(data)
+    return os.path.exists(outfile) 
+
+# Funtion for BITS
+async def process_bits_event(self, user_id, user_name, bits):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Check if the user exists in the database
+    cursor.execute('SELECT bits FROM bits_data WHERE user_id = ? OR user_name = ?', (user_id, user_name))
+    existing_bits = cursor.fetchone()
+
+    if existing_bits:
+        # Update the user's total bits count
+        total_bits = existing_bits[0] + bits
+        cursor.execute('''
+            UPDATE bits_data
+            SET bits = ?
+            WHERE user_id = ? OR user_name = ?
+        ''', (total_bits, user_id, user_name))
+        
+        # Send message to channel with total bits
+        channel = self.get_channel(f"{CHANNEL_NAME}")
+        await channel.send(f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
+    else:
+        # Insert a new record for the user
+        cursor.execute('''
+            INSERT INTO bits_data (user_id, user_name, bits)
+            VALUES (?, ?, ?)
+        ''', (user_id, user_name, bits))
+        
+        # Send message to channel without total bits
+        channel = self.get_channel(f"{CHANNEL_NAME}")
+        await channel.send(f"Thank you {user_name} for {bits} bits!")
+
+    conn.commit()
+    conn.close()
+
+# Funtion for SUBSCRIPTIONS
+async def process_subscription_event(subscription_event_data):
+    # Extract relevant information from the subscription event data
+    user_id = subscription_event_data["user_id"]
+    user_name = subscription_event_data["user_name"]
+    sub_plan = subscription_event_data["sub_plan"]
+    months = subscription_event_data["cumulative_months"]
+    is_gift = subscription_event_data.get("is_gift", False)
+
+    if is_gift:
+        await process_gift_subscription_event(user_id, user_name, sub_plan, months)
+    else:
+        await process_regular_subscription_event(user_id, user_name, sub_plan, months)
+
+async def process_regular_subscription_event(self, user_id, user_name, sub_plan, months):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Check if the user exists in the database
+    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
+    existing_subscription = cursor.fetchone()
+
+    if existing_subscription:
+        # User exists in the database
+        existing_sub_plan, existing_months = existing_subscription
+        if existing_sub_plan != sub_plan:
+            # User upgraded their subscription plan
+            cursor.execute('''
+                UPDATE subscription_data
+                SET sub_plan = ?, months = ?
+                WHERE user_id = ?
+            ''', (sub_plan, months, user_id))
+        else:
+            # User maintained the same subscription plan, update cumulative months
+            cursor.execute('''
+                UPDATE subscription_data
+                SET months = ?
+                WHERE user_id = ?
+            ''', (months, user_id))
+    else:
+        # User does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, user_name, sub_plan, months))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel & send the message to the channel
+    message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {months} months!"
+    
+    # Send the message to the channel
+    channel = self.get_channel(f"{CHANNEL_NAME}")
+    await channel.send(f"{message}")
+
+async def process_gift_subscription_event(self, gifter_id, gifter_name, recipient_id, recipient_name, sub_plan, months):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Check if the recipient exists in the database
+    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (recipient_id,))
+    existing_subscription = cursor.fetchone()
+
+    if existing_subscription:
+        # Recipient exists in the database
+        existing_sub_plan, existing_months = existing_subscription
+        if existing_sub_plan != sub_plan:
+            # Recipient upgraded their subscription plan
+            cursor.execute('''
+                UPDATE subscription_data
+                SET sub_plan = ?, months = ?
+                WHERE user_id = ?
+            ''', (sub_plan, months, recipient_id))
+        else:
+            # Recipient maintained the same subscription plan, update cumulative months
+            cursor.execute('''
+                UPDATE subscription_data
+                SET months = ?
+                WHERE user_id = ?
+            ''', (months, recipient_id))
+    else:
+        # Recipient does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (recipient_id, recipient_name, sub_plan, months))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel & send the message to the channel
+    message = f"Thank you {gifter_name} for gifting a {sub_plan} subscription to {recipient_name}! They are now a {sub_plan} subscriber for {months} months!"
+    
+    # Send the message to the channel
+    channel = self.get_channel(f"{CHANNEL_NAME}")
+    await channel.send(f"{message}")
+
+# Funtion for FOLLOWERS
+async def process_followers_event(self, user_id, user_name, followed_at):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Insert a new record for the follower
+    cursor.execute('''
+        INSERT INTO followers_data (user_id, user_name, followed_at)
+        VALUES (?, ?, ?)
+    ''', (user_id, user_name, followed_at))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel
+    message = f"Thank you {user_name} for following! Welcome to the channel!"
+
+    # Send the message to the channel
+    channel = self.get_channel(f"{CHANNEL_NAME}")
+    await channel.send(f"{message}")
+
+# Here is the BOT
+bot = BotOfTheSpecter(
+    token=OAUTH_TOKEN,
+    prefix='!',
+    channel_name=CHANNEL_NAME
+)
+
+# Errors
+@bot.event
+async def event_command_error(ctx, error):
+    bot_logger.error(f"Error occurred: {error}")
 
 # Run the bot
 def start_bot():
-    # Schedule WebSocket server task
-    asyncio.get_event_loop().create_task(start_websocket_server())
     # Schedule bot tasks
     asyncio.get_event_loop().create_task(refresh_token_every_day())
     asyncio.get_event_loop().create_task(check_auto_update())
