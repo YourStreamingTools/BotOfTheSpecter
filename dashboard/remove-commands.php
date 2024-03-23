@@ -36,8 +36,26 @@ $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 // Fetch list of commands from the database
 $commandQuery = $db->query("SELECT command FROM custom_commands");
 $commands = $commandQuery->fetchAll(PDO::FETCH_COLUMN);
-?>
 
+// Check if the form was submitted
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
+    $commandToRemove = $_POST['remove_command'];
+
+    // Prepare a delete statement
+    $deleteStmt = $db->prepare("DELETE FROM custom_commands WHERE command = ?");
+    $deleteStmt->bindParam(1, $commandToRemove, PDO::PARAM_STR);
+
+    // Execute the delete statement
+    try {
+        $deleteStmt->execute();
+        // Success message 
+        $status = "Command removed successfully";
+    } catch (PDOException $e) {
+        // Handle potential errors here
+        $status = "Error removing command: " . $e->getMessage();
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,6 +89,7 @@ $commands = $commandQuery->fetchAll(PDO::FETCH_COLUMN);
     </div>
     <input type="submit" class="defult-button" value="Remove Command">
 </form>
+<?php echo $status; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
