@@ -117,6 +117,7 @@ a {
     border-color: #ffffff;
     background-color: #111111;
     border-width: 1px;
+    width: 100%;
 }
 
 .bot-table td, 
