@@ -71,7 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<p style='color: red;'>Disclaimer: Due to the coding proccess, adding commands in here will not make them active with the bot, <b>YET</b>, this is coming soon.<br>Please also note, while adding the commands into this site, please don't put the "exclamation mark" for your command, this does it automatically.</p>
+<p style='color: red;'>When adding the commands into this site, please don't put the "exclamation mark" for your command, this does it automatically.</p>
 <form method="post" action="">
     <div class="row">
         <div class="small-12 medium-6 column">
