@@ -109,7 +109,7 @@ if ($ModStatusOutput) {
 <?php echo $BotModMessage; ?>
 <?php echo $statusOutput; ?>
 <br>
-<table class="bot-table">
+<table class="bot-actions">
   <tr>
     <td><form action="" method="post"><button class="bot-button" type="submit" name="runBot">Run Bot</button></form></td>
     <td><form action="" method="post"><button class="bot-button" type="submit" name="botStatus">Check Bot Status</button></form></td>
