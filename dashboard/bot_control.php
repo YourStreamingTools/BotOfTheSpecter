@@ -86,8 +86,6 @@ function getBotStatus($statusScriptPath, $username, $logPath) {
 function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $webhookPort, $websocketPort, $logPath) {
     $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -hookport $webhookPort -socketport $websocketPort";
     $output = shell_exec($command . ' > /dev/null 2>&1 &');
-    sleep(3);
-
     if (!empty($output) && strpos($output, 'error') !== false) {
         return false;
     }
