@@ -129,6 +129,21 @@ a {
     border-width: 1px;
 }
 
+/* Table for Bot Actions */
+.bot-actions {
+    border-color: #111111;
+    background-color: #111111;
+}
+
+.bot-actions td, 
+.bot-actions tr,
+.bot-actions th {
+    color: #111111;
+    border-style: solid;
+    border-color: #111111;
+    background-color: #111111;
+}
+
 .counter-table {
     border-color: #ffffff;
     background-color: #111111;
