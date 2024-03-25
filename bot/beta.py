@@ -1649,8 +1649,7 @@ async def convert_to_raw_audio(in_file, out_file):
 
 async def record_stream(outfile):
     try:
-        session = streamlink.Streamlink()
-        session.set_plugin_option("twitch", "api-header", [("Authorization", f"OAuth {TWITCH_GQL}")])
+        session = streamlink.Streamlink(plugin_headers={"twitch": {"Authorization": f"OAuth {TWITCH_GQL}"}})
         streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}")
         if len(streams) == 0 or "worst" not in streams.keys():
             return False
@@ -1659,7 +1658,7 @@ async def record_stream(outfile):
         chunk = 1024
         num_bytes = 0
         data = b''
-        max_bytes=200
+        max_bytes = 200
         while num_bytes <= max_bytes * 1024:
             data += fd.read(chunk)
             num_bytes += chunk
