@@ -36,6 +36,8 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 require_once "Parsedown.php";
 $markdownParser = new Parsedown();
+include 'bot_control.php';
+include 'sqlite.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
