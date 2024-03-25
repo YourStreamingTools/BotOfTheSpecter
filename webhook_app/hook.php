@@ -41,6 +41,40 @@ switch($msg_type){
 // Process incoming EventSub notification
 function process_notification($headers, $body, $user){
     switch($body->subscription->type){
+        case "channel.follow":
+            // Handle channel follow notification
+            $user_id = $body->event->user_id; // Follower's user ID
+            $user_name = $body->event->user_name; // Follower's user name
+        
+            // Path to the SQLite database
+            $SQLite = "/var/www/bot/commands/$user.db";
+        
+            // Attempt to connect to the SQLite database
+            try {
+                $db = new SQLite3($SQLite);
+            } catch (Exception $e) {
+                eventsub_log("Error Connecting to DB: " . $e->getMessage());
+                die();
+            }
+        
+            // Prepare the SQL statement for adding a follower
+            $stmt = $db->prepare('INSERT INTO followers_data (user_id, user_name) VALUES (:user_id, :user_name)');
+            if ($stmt) {
+                // Bind the parameters to the query
+                $stmt->bindValue(':user_id', $user_id, SQLITE3_TEXT);
+                $stmt->bindValue(':user_name', $user_name, SQLITE3_TEXT);
+        
+                // Execute the query and check if it was successful
+                $result = $stmt->execute();
+                if ($result) {
+                    eventsub_log("Follower added successfully with user ID: $user_id and user name: $user_name");
+                } else {
+                    eventsub_log("Error adding follower to the database");
+                }
+            } else {
+                eventsub_log("Error preparing statement for inserting follower");
+            }
+            break;
         case "channel.raid":
             // Handle channel raid notification
             $raider_name = $body->event->from_broadcaster_user_name; // Raider's name
@@ -58,7 +92,7 @@ function process_notification($headers, $body, $user){
             }
 
             // Prepare the SQL statement for adding a raid
-            $stmt = $db->prepare('INSERT INTO raids (raider_name, viewers) VALUES (:raider_name, :viewers)');
+            $stmt = $db->prepare('INSERT INTO raid_data (raider_name, viewers) VALUES (:raider_name, :viewers)');
             if ($stmt) {
                 // Bind the parameters to the query
                 $stmt->bindValue(':raider_name', $raider_name, SQLITE3_TEXT);
