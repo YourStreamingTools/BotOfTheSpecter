@@ -33,6 +33,7 @@ $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
+$refreshToken = $user['refresh_token'];
 $webhookPort = $user['webhook_port'];
 $websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
