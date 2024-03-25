@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.0"
+VERSION = "3.1"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f""  # CHANGE TO MAKE THIS WORK
@@ -500,9 +500,14 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='song')
-    async def get_current_song(ctx):
+    async def get_current_song(self, ctx):
         await ctx.send("Please stand by, checking what song is currently playing...")
-        await get_song_info_command(ctx)
+        try:
+            song_info = await get_song_info_command(self)
+            await ctx.send(song_info)
+        except Exception as e:
+            chat_logger.error(f"An error occurred while getting current song: {e}")
+            await ctx.send("Sorry, there was an error retrieving the current song.")
 
     @commands.command(name='timer')
     async def start_timer(self, ctx):
@@ -1527,76 +1532,98 @@ async def check_stream_online():
         await asyncio.sleep(300)  # Check every 5 minutes
 
 # Function to get the current playing song
-async def get_song_info_command(self, ctx):
-    song_info = await self.get_song_info()
-    if "error" in song_info:
-        error_message = song_info["error"]
-        api_logger.info(f"Error: {error_message}")
-        await ctx.send(error_message)
-    else:
-        artist = song_info.get('artist', '')
-        song = song_info.get('song', '')
-        message = f"The current song is: {song} by {artist}"
-        api_logger.info(message)
-        await ctx.send(message)
-
-async def get_song_info(self):
-    # Test validity of GQL OAuth token
-    if not await twitch_gql_token_valid():
-        return {"error": "Twitch GQL Token Expired"}
-
-    # Record stream audio
-    random_file_name = str(random.randint(10000000, 99999999))
-    working_dir = "/var/www/logs/songs"
-    stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
-    raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
-    if not await self.record_stream(stream_recording_file):
-        return {"error": "Stream is not available"}
-        
-    # Convert Stream Audio into Raw Format for Shazam
-    if not await self.convert_to_raw_audio(stream_recording_file, raw_recording_file):
-        return {"error": "Error converting stream audio from ACC to raw PCM s16le"}
-
-    # Encode raw audio to base64
-    with open(raw_recording_file, "rb") as song:
-        songBytes = song.read()
-        songb64 = base64.b64encode(songBytes)
-
-        # Detect the song
-        matches = await self.detect_song(songb64)
-
-        if "track" in matches.keys():
-            artist = matches["track"].get("subtitle", "")
-            song_title = matches["track"].get("title", "")
-            return {"artist": artist, "song": song_title}
+async def get_song_info_command(self):
+    try:
+        song_info = await get_song_info()
+        if "error" in song_info:
+            error_message = song_info["error"]
+            chat_logger.error(f"Error: {error_message}")
+            return error_message
         else:
-            return {"error": "The current song can not be identified."}
+            artist = song_info.get('artist', '')
+            song = song_info.get('song', '')
+            message = f"The current song is: {song} by {artist}"
+            chat_logger.info(message)
+            return message
+    except Exception as e:
+        api_logger.error(f"An error occurred while getting song info: {e}")
+        return "Error: Failed to get song information."
 
-async def twitch_gql_token_valid(self):
-    url = "https://gql.twitch.tv/gql"
-    headers = {
-        "Client-Id": CLIENT_ID,
-        "Content-Type": "text/plain",
-        "Authorization": f"OAuth {TWITCH_GQL}"
-    }
-    data = [
-        {
-            "operationName": "SyncedSettingsEmoteAnimations",
-                "variables": {},
-                "extensions": {
-                "persistedQuery": {
-                    "version": 1,
-                    "sha256Hash": "64ac5d385b316fd889f8c46942a7c7463a1429452ef20ffc5d0cd23fcc4ecf30"
+async def get_song_info():
+    try:
+        # Test validity of GQL OAuth token
+        if not await twitch_gql_token_valid():
+            return {"error": "Twitch GQL Token Expired"}
+
+        # Record stream audio
+        random_file_name = str(random.randint(10000000, 99999999))
+        working_dir = "/var/www/logs/songs"
+        stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
+        raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
+        outfile = os.path.join(working_dir, f"{random_file_name}.acc")
+        if not await record_stream(outfile):
+            return {"error": "Stream is not available"}
+
+        # Convert Stream Audio into Raw Format for Shazam
+        if not await convert_to_raw_audio(stream_recording_file, raw_recording_file):
+            return {"error": "Error converting stream audio from ACC to raw PCM s16le"}
+
+        # Encode raw audio to base64
+        with open(raw_recording_file, "rb") as song:
+            songBytes = song.read()
+            songb64 = base64.b64encode(songBytes)
+
+            # Detect the song
+            matches = await detect_song(songb64)
+
+            if "track" in matches.keys():
+                artist = matches["track"].get("subtitle", "")
+                song_title = matches["track"].get("title", "")
+                return {"artist": artist, "song": song_title}
+            else:
+                return {"error": "The current song can not be identified."}
+    except Exception as e:
+        api_logger.error(f"An error occurred while getting song info: {e}")
+        return {"error": "Failed to get song information."}
+
+async def twitch_gql_token_valid():
+    try:
+        url = "https://gql.twitch.tv/gql"
+        headers = {
+            "Client-Id": CLIENT_ID,
+            "Content-Type": "text/plain",
+            "Authorization": f"OAuth {TWITCH_GQL}"
+        }
+        data = [
+            {
+                "operationName": "SyncedSettingsEmoteAnimations",
+                    "variables": {},
+                    "extensions": {
+                    "persistedQuery": {
+                        "version": 1,
+                        "sha256Hash": "64ac5d385b316fd889f8c46942a7c7463a1429452ef20ffc5d0cd23fcc4ecf30"
+                    }
                 }
             }
-        }
-    ]
-    response = await requests.post(url, headers=headers, json=data, timeout=10)
-    return response.status_code == 200
+        ]
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=data, timeout=10) as response:
+                # Log the status code received
+                api_logger.info(f"Twitch GQL token validation response status code: {response.status}")
+
+                if response.status == 200:
+                    return True
+                else:
+                    api_logger.error(f"Twitch GQL token validation failed with status code: {response.status}")
+                    return False
+    except Exception as e:
+        api_logger.error(f"An error occurred while checking Twitch GQL token validity: {e}")
+        return False
 
 async def detect_song(self, raw_audio_b64):
+    try:
         url = "https://shazam.p.rapidapi.com/songs/v2/detect"
-        querystring = {"timezone":"Australia/Sydney","locale":"en-US"}
+        querystring = {"timezone": "Australia/Sydney", "locale": "en-US"}
         headers = {
             "content-type": "text/plain",
             "X-RapidAPI-Key": SHAZAM_API,
@@ -1604,31 +1631,45 @@ async def detect_song(self, raw_audio_b64):
         }
         response = await requests.post(url, data=raw_audio_b64, headers=headers, params=querystring, timeout=15)
         return response.json()
+    except Exception as e:
+        api_logger.error(f"An error occurred while detecting song: {e}")
+        return {}
 
-async def convert_to_raw_audio(self, in_file, out_file):
-    proc = await subprocess.run([self.ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", "-f", "s16le", out_file], 
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, check=False, shell=True)
-    return proc.returncode == 0
-
-async def record_stream(self, outfile, max_bytes=200):
-    session = streamlink.Streamlink()
-    session.set_plugin_option("twitch", "api-header", [("Authorization", f"OAuth {TWITCH_GQL}")])
-    streams = session.streams(self.twitch_url)
-    if len(streams) == 0 or "worst" not in streams.keys():
+async def convert_to_raw_audio(in_file, out_file):
+    try:
+        ffmpeg_path = "/usr/bin/ffmpeg"
+        proc = await subprocess.run([ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a",
+                                      "pcm_s16le", "-f", "s16le", out_file],
+                                     stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL, check=False, shell=True)
+        return proc.returncode == 0
+    except Exception as e:
+        api_logger.error(f"An error occurred while converting audio: {e}")
         return False
-    stream_obj = streams["worst"]
-    fd = stream_obj.open()
-    chunk = 1024
-    num_bytes = 0
-    data = b''
-    while num_bytes <= max_bytes*1024:
-        data += fd.read(chunk)
-        num_bytes+=chunk
-    fd.close()
-    with open(outfile, "wb") as file:
-        file.write(data)
-    return os.path.exists(outfile) 
+
+async def record_stream(outfile):
+    try:
+        headers = {"Authorization": f"OAuth {TWITCH_GQL}"}
+        session = streamlink.Streamlink()
+        streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}", twitch_headers=headers)
+        if len(streams) == 0 or "worst" not in streams.keys():
+            return False
+        stream_obj = streams["worst"]
+        fd = stream_obj.open()
+        chunk = 1024
+        num_bytes = 0
+        data = b''
+        max_bytes = 200
+        while num_bytes <= max_bytes * 1024:
+            data += fd.read(chunk)
+            num_bytes += chunk
+        fd.close()
+        with open(outfile, "wb") as file:
+            file.write(data)
+        return os.path.exists(outfile)
+    except Exception as e:
+        api_logger.error(f"An error occurred while recording stream: {e}")
+        return False
 
 # Funtion for BITS
 async def process_bits_event(self, user_id, user_name, bits):
