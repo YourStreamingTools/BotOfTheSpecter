@@ -182,6 +182,44 @@ function process_notification($headers, $body, $user){
             } else {
                 eventsub_log("Error preparing statement for inserting subscription");
             }
+            break;
+        case "channel.subscription.message":
+            // Handle re-subscription to the channel
+            $user_id = $body->event->user_id; // Subscriber's user ID
+            $user_name = $body->event->user_name; // Subscriber's name
+            $sub_plan = $body->event->tier; // Subscription tier/plan
+            $cumulative_months = $body->event->cumulative_months; // Total number of months subscribed
+
+            // Path to the SQLite database
+            $SQLite = "/var/www/bot/commands/$user.db";
+
+            // Attempt to connect to the SQLite database
+            try {
+                $db = new SQLite3($SQLite);
+            } catch (Exception $e) {
+                eventsub_log("Error Connecting to DB: " . $e->getMessage());
+                die();
+            }
+
+            // Prepare the SQL statement for updating subscription data
+            $stmt = $db->prepare('UPDATE subscription_data SET months = :months, sub_plan = :sub_plan, user_name = :user_name WHERE user_id = :user_id');
+            if ($stmt) {
+                // Bind the parameters to the query
+                $stmt->bindValue(':months', $cumulative_months, SQLITE3_INTEGER);
+                $stmt->bindValue(':sub_plan', $sub_plan, SQLITE3_TEXT);
+                $stmt->bindValue(':user_name', $user_name, SQLITE3_TEXT);
+                $stmt->bindValue(':user_id', $user_id, SQLITE3_TEXT);
+        
+                // Execute the query and check if it was successful
+                $result = $stmt->execute();
+                if ($result) {
+                    eventsub_log("Subscription updated successfully for user ID: $user_id with cumulative months: $cumulative_months");
+                } else {
+                    eventsub_log("Error updating subscription for user ID: $user_id");
+                }
+            } else {
+                eventsub_log("Error preparing statement for updating subscription");
+            }
             break;            
         case "stream.online":
             // Handle stream online notification
