@@ -39,6 +39,7 @@ $greeting = 'Hello';
 $statusOutput = 'Bot Status: Unknown';
 $pid = '';
 include 'bot_control.php';
+include 'sqlite.php';
 
 // Twitch API URL
 $modurl = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
@@ -89,7 +90,7 @@ if ($ModStatusOutput) {
 <html lang="en">
   <head>
     <!-- Headder -->
-    <?php include('headder.php'); ?>
+    <?php include('header.php'); ?>
     <!-- /Headder -->
   </head>
 <body>
