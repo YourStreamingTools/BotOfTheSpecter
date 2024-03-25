@@ -9,6 +9,9 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
+// Page Title
+$title = "Download App";
+
 // Connect to database
 require_once "db_connect.php";
 
@@ -37,21 +40,13 @@ $markdownParser = new Parsedown();
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BotOfTheSpecter - Download App</title>
-    <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
-    <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
-    <link rel="stylesheet" href="pagination.css">
-    <script src="about.js"></script>
-  	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-  	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/11.0.0/markdown-it.min.js"></script>
-    <!-- <?php echo "User: $username | $twitchUserId | $authToken | Port: $webhookPort"; ?> -->
+    <!-- Headder -->
+    <?php include('headder.php'); ?>
+    <!-- /Headder -->
   </head>
 <body>
 <!-- Navigation -->
-<?php include('header.php'); ?>
+<?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
 <div class="row column">
