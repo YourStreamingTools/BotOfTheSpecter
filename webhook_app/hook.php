@@ -145,6 +145,44 @@ function process_notification($headers, $body, $user){
                 eventsub_log("Error preparing statement for inserting cheer");
             }
             break;
+        case "channel.subscribe":
+            // Handle channel subscribe notification
+            $user_id = $body->event->user_id; // Subscriber's user ID
+            $user_name = $body->event->user_name; // Subscriber's name
+            $sub_plan = $body->event->tier; // Subscription tier/plan
+            $months = 1; // Placeholder value for their first sub to the channel, being their first month.
+
+            // Path to the SQLite database
+            $SQLite = "/var/www/bot/commands/$user.db";
+
+            // Attempt to connect to the SQLite database
+            try {
+                $db = new SQLite3($SQLite);
+            } catch (Exception $e) {
+                eventsub_log("Error Connecting to DB: " . $e->getMessage());
+                die();
+            }
+
+            // Prepare the SQL statement for adding subscription data
+            $stmt = $db->prepare('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (:user_id, :user_name, :sub_plan, :months)');
+            if ($stmt) {
+                // Bind the parameters to the query
+                $stmt->bindValue(':user_id', $user_id, SQLITE3_TEXT);
+                $stmt->bindValue(':user_name', $user_name, SQLITE3_TEXT);
+                $stmt->bindValue(':sub_plan', $sub_plan, SQLITE3_TEXT);
+                $stmt->bindValue(':months', $months, SQLITE3_INTEGER);
+        
+                // Execute the query and check if it was successful
+                $result = $stmt->execute();
+                if ($result) {
+                    eventsub_log("Subscription added successfully with user ID: $user_id, user name: $user_name, subscription plan: $sub_plan, and months: $months");
+                } else {
+                    eventsub_log("Error adding subscription to the database");
+                }
+            } else {
+                eventsub_log("Error preparing statement for inserting subscription");
+            }
+            break;            
         case "stream.online":
             // Handle stream online notification
             // Extract relevant data from the notification
