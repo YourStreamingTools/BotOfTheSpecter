@@ -108,7 +108,43 @@ function process_notification($headers, $body, $user){
             } else {
                 eventsub_log("Error preparing statement for inserting raid");
             }
-            break;              
+            break;
+        case "channel.cheer":
+            // Handle channel cheer notification
+            $user_id = $body->event->user_id; // Cheering user's ID
+            $user_name = $body->event->user_name; // Cheering user's name
+            $bits = $body->event->bits; // Number of bits cheered
+
+            // Path to the SQLite database
+            $SQLite = "/var/www/bot/commands/$user.db";
+
+            // Attempt to connect to the SQLite database
+            try {
+                $db = new SQLite3($SQLite);
+            } catch (Exception $e) {
+                eventsub_log("Error Connecting to DB: " . $e->getMessage());
+                die();
+            }
+
+            // Prepare the SQL statement for adding cheer data
+            $stmt = $db->prepare('INSERT INTO bits_data (user_id, user_name, bits) VALUES (:user_id, :user_name, :bits)');
+            if ($stmt) {
+                // Bind the parameters to the query
+                $stmt->bindValue(':user_id', $user_id, SQLITE3_TEXT);
+                $stmt->bindValue(':user_name', $user_name, SQLITE3_TEXT);
+                $stmt->bindValue(':bits', $bits, SQLITE3_INTEGER);
+        
+                // Execute the query and check if it was successful
+                $result = $stmt->execute();
+                if ($result) {
+                    eventsub_log("Cheer added successfully with user ID: $user_id, user name: $user_name, and bits: $bits");
+                } else {
+                    eventsub_log("Error adding cheer to the database");
+                }
+            } else {
+                eventsub_log("Error preparing statement for inserting cheer");
+            }
+            break;
         case "stream.online":
             // Handle stream online notification
             // Extract relevant data from the notification
