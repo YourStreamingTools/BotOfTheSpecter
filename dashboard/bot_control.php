@@ -2,8 +2,31 @@
 <?php
 $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
-$logPath = "/var/www/dashboard/logs/script/$username.txt";
+$logPath = "/var/www/logs/script/$username.txt";
 $statusOutput = getBotStatus($statusScriptPath, $username, $logPath);
+$directory = dirname($logPath);
+
+// Check if the directory exists, if not, create it
+if (!file_exists($directory)) {
+    // Attempt to create the directory with full permissions
+    if (!mkdir($directory, 0777, true)) {
+        echo "Failed to create directory: $directory";
+        exit;
+    }
+}
+
+// Open the file in write mode ('w')
+$file = fopen($logPath, 'w');
+
+// Check if the file handle was successfully created
+if ($file === false) {
+    echo "Failed to create/open the file: $logPath";
+    exit;
+}
+
+// Close the file handle
+fclose($file);
+
 
 if (isset($_POST['runBot'])) {
     if (isBotRunning($statusScriptPath, $username, $logPath)) {
@@ -84,11 +107,20 @@ function getBotStatus($statusScriptPath, $username, $logPath) {
 }
 
 function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $webhookPort, $websocketPort, $logPath) {
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -hookport $webhookPort -socketport $websocketPort";
-    $output = shell_exec($command . ' > /dev/null 2>&1 &');
+    // Append the log path to the command
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -hookport $webhookPort -socketport $websocketPort >> $logPath 2>&1 &";
+    
+    // Execute the command
+    $output = shell_exec($command);
+
+    sleep(1);
+
+    // Check for errors in the output
     if (!empty($output) && strpos($output, 'error') !== false) {
         return false;
     }
+    
+    // Bot started successfully
     return true;
 }
 
