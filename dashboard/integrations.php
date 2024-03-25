@@ -34,6 +34,8 @@ $webhookPort = $user['webhook_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+include 'bot_control.php';
+include 'sqlite.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
