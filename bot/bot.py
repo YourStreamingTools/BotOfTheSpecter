@@ -206,6 +206,14 @@ cursor.execute('''
     )
 ''')
 cursor.execute('''
+    CREATE TABLE IF NOT EXISTS raid_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        raider_name TEXT,
+        viewers INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+''')
+cursor.execute('''
     CREATE TABLE IF NOT EXISTS quotes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         quote TEXT
