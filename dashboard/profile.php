@@ -34,6 +34,8 @@ $authToken = $access_token;
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+include 'bot_control.php';
+include 'sqlite.php';
 
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
 date_default_timezone_set('Australia/Sydney');
@@ -87,9 +89,9 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 </div>
 <!-- Include the JavaScript files -->
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="profile.js"></script>
-<script src="obsbutton.js" defer></script>
-<script src="timezone.js"></script>
+<script src="/js/profile.js"></script>
+<script src="/js/obsbutton.js" defer></script>
+<script src="/js/timezone.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
 
