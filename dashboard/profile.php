@@ -84,7 +84,7 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 <button type="button" class="defult-button" id="show-api-key">Show API Key</button>
 <button type="button" class="defult-button" id="hide-api-key" style="display:none;">Hide API Key</button>
 <br><br>
-<button type="button" class="defult-button" onclick="showOBSInfo()">HOW TO PUT ON YOUR STREAM</button>
+<button type="button" class="defult-button" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
 <br><br>
 <a href="logout.php" type="button" class="logout-button">Logout</a>
 </div>
