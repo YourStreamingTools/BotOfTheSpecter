@@ -28,10 +28,15 @@ $broadcasterID = $user['twitch_user_id'];
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
-$accessToken = $access_token;
+$authToken = $access_token;
+$refreshToken = $user['refresh_token'];
+$webhookPort = $user['webhook_port'];
+$websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+include 'bot_control.php';
+include 'sqlite.php';
 
 // API endpoint to fetch moderators
 $moderatorsURL = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=$broadcasterID";
@@ -42,7 +47,7 @@ do {
     // Set up cURL request with headers
     $curl = curl_init($moderatorsURL);
     curl_setopt($curl, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken,
+        'Authorization: Bearer ' . $authToken,
         'Client-ID: ' . $clientID
     ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
@@ -95,7 +100,7 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
 <html lang="en">
   <head>
     <!-- Headder -->
-    <?php include('headder.php'); ?>
+    <?php include('header.php'); ?>
     <!-- /Headder -->
   </head>
 <body>
