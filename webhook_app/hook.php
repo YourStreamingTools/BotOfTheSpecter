@@ -303,15 +303,6 @@ function handle_unknown_reason() {
     eventsub_log("Unknown revocation reason received. Subscription revoked.");
 }
 
-// Function to log events
-function eventsub_log($msg){
-    global $EVENTSUB_LOG;
-    $msg .= "\n";
-    $file = fopen($EVENTSUB_LOG, "a");
-    fwrite($file, $msg);
-    fclose($file);
-}
-
 // Verify the authenticity of the incoming request
 function verify_request($headers, $body){
     global $SECRET;
