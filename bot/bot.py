@@ -1166,7 +1166,7 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"{message}")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
-            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='so', aliases=('shoutout',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
