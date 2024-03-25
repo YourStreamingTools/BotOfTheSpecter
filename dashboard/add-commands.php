@@ -35,6 +35,8 @@ $authToken = $access_token;
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+include 'bot_control.php';
+include 'sqlite.php';
 
 $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
