@@ -1,5 +1,8 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
@@ -8,6 +11,9 @@ if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
 }
+
+// Page Title
+$title = "Add Bot Commands";
 
 // Connect to database
 require_once "db_connect.php";
@@ -51,20 +57,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BotOfTheSpecter - Add Bot Commands</title>
-    <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
-    <link rel="stylesheet" href="https://cdn.yourstreaming.tools/css/custom.css">
-    <link rel="stylesheet" href="pagination.css">
-    <script src="about.js"></script>
-  	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-  	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
+    <!-- Headder -->
+    <?php include('headder.php'); ?>
+    <!-- /Headder -->
   </head>
 <body>
 <!-- Navigation -->
-<?php include('header.php'); ?>
+<?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
 <div class="row column">
