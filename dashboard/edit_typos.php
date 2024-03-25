@@ -130,7 +130,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 <html lang="en">
   <head>
     <!-- Headder -->
-    <?php include('headder.php'); ?>
+    <?php include('header.php'); ?>
     <!-- /Headder -->
   </head>
 <body>
