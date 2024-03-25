@@ -25,13 +25,18 @@ $user = $result->fetch_assoc();
 $user_id = $user['id'];
 $username = $user['username'];
 $broadcasterID = $user['twitch_user_id'];
-$accessToken = $access_token;
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
+$authToken = $access_token;
+$refreshToken = $user['refresh_token'];
+$webhookPort = $user['webhook_port'];
+$websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+include 'bot_control.php';
+include 'sqlite.php';
 
 // API endpoint to fetch followers
 $allFollowers = [];
@@ -134,7 +139,7 @@ $followersForCurrentPage = array_slice($allFollowers, $startIndex, $followersPer
 <html lang="en">
   <head>
     <!-- Headder -->
-    <?php include('headder.php'); ?>
+    <?php include('header.php'); ?>
     <!-- /Headder -->
   </head>
 <body>
