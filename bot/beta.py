@@ -206,6 +206,14 @@ cursor.execute('''
     )
 ''')
 cursor.execute('''
+    CREATE TABLE IF NOT EXISTS raid_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        raider_name TEXT,
+        viewers INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+''')
+cursor.execute('''
     CREATE TABLE IF NOT EXISTS quotes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         quote TEXT
@@ -366,12 +374,25 @@ class BotOfTheSpecter(commands.Bot):
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
-        await self.handle_commands(message)
-        await self.handle_chat(message)
-
+        # Ignore messages from the bot itself
         if message.echo:
             return
 
+        # Check for a valid author before proceeding
+        if message.author is None:
+            bot_logger.warning("Received a message without a valid author.")
+            return
+
+        # Handle commands
+        await self.handle_commands(message)
+
+        # Additional custom message handling logic
+        await self.handle_chat(message)
+
+    async def handle_chat(self, message):
+        # Log the message content
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+        
         # Continue only if it's not a built-in command or alias
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
 
@@ -393,11 +414,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
-
-    async def handle_chat(self, message):
-        # Log the message content
-        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-        return
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
@@ -484,9 +500,14 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='song')
-    async def get_current_song(ctx):
+    async def get_current_song(self, ctx):
         await ctx.send("Please stand by, checking what song is currently playing...")
-        await get_song_info_command(ctx)
+        try:
+            song_info = await self.get_song_info_command()
+            await ctx.send(song_info)
+        except Exception as e:
+            chat_logger.error(f"An error occurred while getting current song: {e}")
+            await ctx.send("Sorry, there was an error retrieving the current song.")
 
     @commands.command(name='timer')
     async def start_timer(self, ctx):
@@ -1486,7 +1507,7 @@ async def check_auto_update():
                     if remote_version != VERSION:
                         message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                         bot_logger.info(message)
-                        channel = CHANNEL_NAME
+                        channel = bot.get_channel(CHANNEL_NAME)
                         if channel:
                             await channel.send(message)
         await asyncio.sleep(1800)
@@ -1511,18 +1532,18 @@ async def check_stream_online():
         await asyncio.sleep(300)  # Check every 5 minutes
 
 # Function to get the current playing song
-async def get_song_info_command(self, ctx):
+async def get_song_info_command(self):
     song_info = await self.get_song_info()
     if "error" in song_info:
         error_message = song_info["error"]
         api_logger.info(f"Error: {error_message}")
-        await ctx.send(error_message)
+        return error_message
     else:
         artist = song_info.get('artist', '')
         song = song_info.get('song', '')
         message = f"The current song is: {song} by {artist}"
         api_logger.info(message)
-        await ctx.send(message)
+        return message
 
 async def get_song_info(self):
     # Test validity of GQL OAuth token
