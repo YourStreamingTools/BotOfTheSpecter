@@ -32,6 +32,8 @@ $authToken = $access_token;
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+include 'bot_control.php';
+include 'sqlite.php';
 
 $logContent = '';
 $logTypeDisplay = '';
