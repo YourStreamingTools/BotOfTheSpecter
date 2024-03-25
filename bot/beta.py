@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.0"
+VERSION = "3.1"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f""  # CHANGE TO MAKE THIS WORK
@@ -1649,8 +1649,9 @@ async def convert_to_raw_audio(in_file, out_file):
 
 async def record_stream(outfile):
     try:
-        session = streamlink.Streamlink(plugin_headers={"twitch": {"Authorization": f"OAuth {TWITCH_GQL}"}})
-        streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}")
+        headers = {"Authorization": f"OAuth {TWITCH_GQL}"}
+        session = streamlink.Streamlink()
+        streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}", twitch_headers=headers)
         if len(streams) == 0 or "worst" not in streams.keys():
             return False
         stream_obj = streams["worst"]
