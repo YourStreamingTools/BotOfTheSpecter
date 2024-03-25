@@ -5,7 +5,7 @@ function showOBSInfo() {
                     "<p style='color: black;'>All you have to do it add the following links followed by your API key on the profile page into a browser source and it works:</p>" +
                     "<ul>" +
                     "<li>Death Overlay: https://overlay.botofthespecter.com/deaths.php?auth=API_KEY</li>" +
-                    "<li>Stream End Credits: https://overlay.botofthespecter.com/credits.php?auth=API_KEY</li>" +
+                    "<li>Stream End Credits: https://overlay.botofthespecter.com/credits.php?auth=API_KEY (Coming Soon)</li>" +
                     "</ul>";
 
   // Apply some CSS styles to the popup
