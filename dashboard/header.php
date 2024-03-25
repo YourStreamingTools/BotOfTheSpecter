@@ -8,6 +8,5 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/11.0.0/markdown-it.min.js"></script>
     <link rel="stylesheet" href="css/custom.css">
     <script src="/js/about.js"></script>
-    <script>var typoCounts = <?php echo $typoCountsJs ?></script>
     <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
     <!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -hookport $webhookPort -socketport $websocketPort"; ?> -->
