@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
 <html lang="en">
   <head>
     <!-- Headder -->
-    <?php include('headder.php'); ?>
+    <?php include('header.php'); ?>
     <!-- /Headder -->
   </head>
 <body>
