@@ -397,6 +397,9 @@ class BotOfTheSpecter(commands.Bot):
         # Additional custom message handling logic
         await self.handle_chat(message)
 
+        # Additonal welcome message handling logic
+        await self.welcome_message(message)
+
     # Function to handle chat messages
     async def handle_chat(self, message):
         # Log the message content
@@ -424,6 +427,8 @@ class BotOfTheSpecter(commands.Bot):
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
 
+    # Function to handle welcome messages
+    async def welcome_message(self, message):
         # Check if the user is a VIP or MOD
         is_vip = await is_user_vip(message.author.id)
         is_mod = await is_user_moderator(message.author)
@@ -481,8 +486,7 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_back_message)
                 else:
                     # New user
-                    cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
-                    conn.commit()
+                    await user_is_seen(message.author.name)
                     new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
                     await message.channel.send(new_user_welcome_message)
         else:
@@ -577,7 +581,7 @@ class BotOfTheSpecter(commands.Bot):
     async def get_current_song(self, ctx):
         await ctx.send("Please stand by, checking what song is currently playing...")
         try:
-            song_info = await get_song_info_command(self)
+            song_info = await get_song_info_command()
             await ctx.send(song_info)
         except Exception as e:
             chat_logger.error(f"An error occurred while getting current song: {e}")
@@ -1403,7 +1407,6 @@ def is_mod_or_broadcaster(user):
 
     # Check if the user is a moderator
     elif is_user_moderator(user):
-        twitch_logger.info(f"User {user.name} is a Moderator")
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
@@ -1428,10 +1431,10 @@ def is_user_moderator(user):
         moderators = response.json().get("data", [])
         for mod in moderators:
             if mod["user_name"].lower() == user.name.lower():
+                twitch_logger.info(f"User {user.name} is a Moderator")
                 return True
             return False
     return False
-
 
 # Function to check if a user is a VIP of the channel using the Twitch API
 def is_user_vip(user_id):
@@ -1448,6 +1451,8 @@ def is_user_vip(user_id):
             vips = response.json().get("data", [])
             for vip in vips:
                 if vip["user_id"] == user_id:
+                    user_name = vip.get("user_name", "")
+                    twitch_logger.info(f"User {user_name} is a VIP Member")
                     return True
             return False
     except requests.RequestException as e:
@@ -1456,8 +1461,16 @@ def is_user_vip(user_id):
 
 # Function to add user to the table of known users
 async def user_is_seen(username):
-    cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
-    conn.commit()
+    try:
+        database_directory = "/var/www/bot/commands"
+        database_file = os.path.join(database_directory, f"{CHANNEL_NAME}.db")
+        conn = sqlite3.connect(database_file)
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
@@ -1634,7 +1647,7 @@ async def check_stream_online():
         await asyncio.sleep(300)  # Check every 5 minutes
 
 # Function to get the current playing song
-async def get_song_info_command(self):
+async def get_song_info_command():
     try:
         song_info = await get_song_info()
         if "error" in song_info:
@@ -1722,16 +1735,18 @@ async def twitch_gql_token_valid():
         api_logger.error(f"An error occurred while checking Twitch GQL token validity: {e}")
         return False
 
-async def detect_song(self, raw_audio_b64):
+async def detect_song(raw_audio_b64):
     try:
         url = "https://shazam.p.rapidapi.com/songs/v2/detect"
         querystring = {"timezone": "Australia/Sydney", "locale": "en-US"}
         headers = {
-            "content-type": "text/plain",
+            "content-type": "application/octet-stream",
             "X-RapidAPI-Key": SHAZAM_API,
             "X-RapidAPI-Host": "shazam.p.rapidapi.com"
         }
-        response = await requests.post(url, data=raw_audio_b64, headers=headers, params=querystring, timeout=15)
+        # Convert base64 encoded audio to bytes
+        audio_bytes = base64.b64decode(raw_audio_b64)
+        response = await requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
         return response.json()
     except Exception as e:
         api_logger.error(f"An error occurred while detecting song: {e}")
@@ -1740,20 +1755,22 @@ async def detect_song(self, raw_audio_b64):
 async def convert_to_raw_audio(in_file, out_file):
     try:
         ffmpeg_path = "/usr/bin/ffmpeg"
-        proc = await subprocess.run([ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a",
-                                      "pcm_s16le", "-f", "s16le", out_file],
-                                     stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.DEVNULL, check=False, shell=True)
-        return proc.returncode == 0
+        proc = await asyncio.create_subprocess_exec(
+            ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", "-f", "s16le", out_file,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL)
+        # Wait for the subprocess to finish
+        returncode = await proc.wait()
+        return returncode == 0
     except Exception as e:
         api_logger.error(f"An error occurred while converting audio: {e}")
         return False
 
 async def record_stream(outfile):
     try:
-        headers = {"Authorization": f"OAuth {TWITCH_GQL}"}
         session = streamlink.Streamlink()
-        streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}", twitch_headers=headers)
+        session.set_option("http-headers", {"Authorization": f"OAuth {TWITCH_GQL}"})
+        streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}")
         if len(streams) == 0 or "worst" not in streams.keys():
             return False
         stream_obj = streams["worst"]
