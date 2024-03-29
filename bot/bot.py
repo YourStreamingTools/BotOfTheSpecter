@@ -390,15 +390,15 @@ class BotOfTheSpecter(commands.Bot):
         if message.author is None:
             bot_logger.warning("Received a message without a valid author.")
             return
+        
+        # Handle commands
+        await self.handle_commands(message)
 
         # Additional custom message handling logic
         await self.handle_chat(message)
 
         # Additonal welcome message handling logic
         await self.welcome_message(message)
-
-        # Handle commands
-        await self.handle_commands(message)
 
     # Function to handle chat messages
     async def handle_chat(self, message):
@@ -1586,15 +1586,26 @@ async def process_shoutouts():
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status in (200, 204):
+                    if response.status == 429:
+                        # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
+                        retry_after = 180  # 3 minutes in seconds
+                        twitch_logger.warning(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
+                        await asyncio.sleep(retry_after)
+                        continue  # Retry the request
+                    elif response.status in (200, 204):
                         twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
                         await asyncio.sleep(180)  # Wait for 3 minutes before processing the next shoutout
                     else:
                         twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                        # Retry the request (exponential backoff can be implemented here)
+                        await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+                        continue
                     shoutout_queue.task_done()
-        except Exception as e:
+        except aiohttp.ClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
-            shoutout_queue.task_done()
+            # Retry the request (exponential backoff can be implemented here)
+            await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+            continue
 
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
