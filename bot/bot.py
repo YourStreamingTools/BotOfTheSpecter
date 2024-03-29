@@ -223,7 +223,8 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS seen_users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
-        welcome_message TEXT DEFAULT NULL
+        welcome_message TEXT DEFAULT NULL,
+        status TEXT DEFAULT 'True'
     )
 ''')
 conn.commit()
@@ -434,53 +435,59 @@ class BotOfTheSpecter(commands.Bot):
         if user_data:
             user_status = True
             welcome_message = user_data[2]
+            user_status_enabled = user_data[3]
         else:
             user_status = False
             welcome_message = None
+            user_status_enabled = 'True'
 
-        if is_vip:
-            # VIP user
-            if user_status and welcome_message:
-                # Returning user with custom welcome message
-                await message.channel.send(welcome_message)
-            elif user_status:
-                # Returning user
-                vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {message.author.name}!"
-                await message.channel.send(vip_welcome_message)
+        if user_status_enabled == 'True':
+            if is_vip:
+                # VIP user
+                if user_status and welcome_message:
+                    # Returning user with custom welcome message
+                    await message.channel.send(welcome_message)
+                elif user_status:
+                    # Returning user
+                    vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {message.author.name}!"
+                    await message.channel.send(vip_welcome_message)
+                else:
+                    # New user
+                    await user_is_seen(message.author.name)
+                    new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {message.author.name} a warm welcome!"
+                    await message.channel.send(new_vip_welcome_message)
+            elif is_mod:
+                # Moderator user
+                if user_status and welcome_message:
+                    # Returning user with custom welcome message
+                    await message.channel.send(welcome_message)
+                elif user_status:
+                    # Returning user
+                    mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased!"
+                    await message.channel.send(mod_welcome_message)
+                else:
+                    # New user
+                    await user_is_seen(message.author.name)
+                    new_mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased! Let's give {message.author.name} a warm welcome!"
+                    await message.channel.send(new_mod_welcome_message)
             else:
-                # New user
-                await user_is_seen(message.author.name)
-                new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {message.author.name} a warm welcome!"
-                await message.channel.send(new_vip_welcome_message)
-        elif is_mod:
-            # Moderator user
-            if user_status and welcome_message:
-                # Returning user with custom welcome message
-                await message.channel.send(welcome_message)
-            elif user_status:
-                # Returning user
-                mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased!"
-                await message.channel.send(mod_welcome_message)
-            else:
-                # New user
-                await user_is_seen(message.author.name)
-                new_mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased! Let's give {message.author.name} a warm welcome!"
-                await message.channel.send(new_mod_welcome_message)
+                # Non-VIP and Non-mod user
+                if user_status and welcome_message:
+                    # Returning user with custom welcome message
+                    await message.channel.send(welcome_message)
+                elif user_status:
+                    # Returning user
+                    welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
+                    await message.channel.send(welcome_back_message)
+                else:
+                    # New user
+                    cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
+                    conn.commit()
+                    new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
+                    await message.channel.send(new_user_welcome_message)
         else:
-            # Non-VIP and Non-mod user
-            if user_status and welcome_message:
-                # Returning user with custom welcome message
-                await message.channel.send(welcome_message)
-            elif user_status:
-                # Returning user
-                welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
-                await message.channel.send(welcome_back_message)
-            else:
-                # New user
-                cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
-                conn.commit()
-                new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
-                await message.channel.send(new_user_welcome_message)
+            # Status disabled for user
+            chat_logger.info(f"Message not sent for {message.author.name} as status is disabled.")
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
