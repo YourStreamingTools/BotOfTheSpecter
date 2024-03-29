@@ -1358,6 +1358,7 @@ def is_mod_or_broadcaster(user):
         twitch_logger.info(f"User {user.name} does not have required permissions.")
         return False
 
+# Function to check if a user is a MOD of the channel using the Twitch API
 def is_user_moderator(user):
     # Send request to Twitch API to check if user is a moderator
     headers = {
@@ -1376,6 +1377,28 @@ def is_user_moderator(user):
             if mod["user_name"].lower() == user.name.lower():
                 return True
             return False
+    return False
+
+
+# Function to check if a user is a VIP of the channel using the Twitch API
+def is_user_vip(user_id):
+    headers = {
+        'Client-ID': TWITCH_API_CLIENT_ID,
+        'Authorization': f'Bearer {CHANNEL_AUTH}',
+    }
+    params = {
+        'broadcaster_id': CHANNEL_ID
+    }
+    try:
+        response = requests.get('https://api.twitch.tv/helix/channels/vips', headers=headers, params=params)
+        if response.status_code == 200:
+            vips = response.json().get("data", [])
+            for vip in vips:
+                if vip["user_id"] == user_id:
+                    return True
+            return False
+    except requests.RequestException as e:
+        print(f"Failed to retrieve VIP status: {e}")
     return False
 
 # Function to trigger updating stream title or game
