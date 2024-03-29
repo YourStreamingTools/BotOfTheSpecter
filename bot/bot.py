@@ -481,8 +481,7 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_back_message)
                 else:
                     # New user
-                    cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
-                    conn.commit()
+                    await user_is_seen(message.author.name)
                     new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
                     await message.channel.send(new_user_welcome_message)
         else:
@@ -1456,8 +1455,16 @@ def is_user_vip(user_id):
 
 # Function to add user to the table of known users
 async def user_is_seen(username):
-    cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
-    conn.commit()
+    try:
+        database_directory = "/var/www/bot/commands"
+        database_file = os.path.join(database_directory, f"{CHANNEL_NAME}.db")
+        conn = sqlite3.connect(database_file)
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
