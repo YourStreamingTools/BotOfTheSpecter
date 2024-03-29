@@ -422,19 +422,48 @@ class BotOfTheSpecter(commands.Bot):
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
 
+        # Check if the user is a VIP or MOD
+        is_vip = await is_user_vip(message.author.id)
+        is_mod = await is_user_moderator(message.author)
+
         # Check if the user is new or returning
         cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name,))
         user_status = cursor.fetchone()
-        if user_status:
-            # User is returning
-            welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
-            await message.channel.send(welcome_back_message)
+
+        if is_vip:
+            # VIP user
+            if user_status:
+                # Returning user
+                vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {message.author.name}!"
+                await message.channel.send(vip_welcome_message)
+            else:
+                # New user
+                await user_is_seen(message.author.name)
+                new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {message.author.name} a warm welcome!"
+                await message.channel.send(new_vip_welcome_message)
+        elif is_mod:
+            # Moderator user
+            if user_status:
+                # Returning user
+                mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased!"
+                await message.channel.send(mod_welcome_message)
+            else:
+                # New user
+                await user_is_seen(message.author.name)
+                new_mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased! Let's give {message.author.name} a warm welcome!"
+                await message.channel.send(new_mod_welcome_message)
         else:
-            # User is new
-            cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
-            conn.commit()
-            new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
-            await message.channel.send(new_user_welcome_message)
+            # Non-VIP and Non-mod user
+            if user_status:
+                # Returning user
+                welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
+                await message.channel.send(welcome_back_message)
+            else:
+                # New user
+                cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
+                conn.commit()
+                new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
+                await message.channel.send(new_user_welcome_message)
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
@@ -1400,6 +1429,11 @@ def is_user_vip(user_id):
     except requests.RequestException as e:
         print(f"Failed to retrieve VIP status: {e}")
     return False
+
+# Function to add user to the table of known users
+async def user_is_seen(username):
+    cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
+    conn.commit()
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
