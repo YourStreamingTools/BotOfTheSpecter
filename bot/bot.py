@@ -391,14 +391,14 @@ class BotOfTheSpecter(commands.Bot):
             bot_logger.warning("Received a message without a valid author.")
             return
 
-        # Handle commands
-        await self.handle_commands(message)
-
         # Additional custom message handling logic
         await self.handle_chat(message)
 
         # Additonal welcome message handling logic
         await self.welcome_message(message)
+
+        # Handle commands
+        await self.handle_commands(message)
 
     # Function to handle chat messages
     async def handle_chat(self, message):
@@ -1629,21 +1629,23 @@ async def check_auto_update():
 
 # Function to check if the stream is online
 async def check_stream_online():
-    stream_was_offline = True
-    greeted_users = set()
+    stream_offline = True
+    offline_logged = False
     while True:
         async with aiohttp.ClientSession() as session:
             async with session.get(f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}") as response:
                 text = await response.text()
                 # Check if the stream is offline
                 if f"{CHANNEL_NAME} is offline" in text:
-                    stream_was_offline = True
+                    if offline_logged == False:
+                        bot_logger.info("Stream is now offline.")
+                    stream_offline = True
                 else:
                     # If the stream was previously offline and is now online, reset greeted users
-                    if stream_was_offline:
-                        greeted_users.clear()
-                        bot_logger.info("Stream is online. Resetting greeted users.")
-                    stream_was_offline = False
+                    if stream_offline:
+                        bot_logger.info("Stream is online.")
+                    stream_offline = False
+                    offline_logged = True
         await asyncio.sleep(300)  # Check every 5 minutes
 
 # Function to get the current playing song
