@@ -219,6 +219,12 @@ cursor.execute('''
         quote TEXT
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS seen_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue and webshockets
@@ -389,10 +395,11 @@ class BotOfTheSpecter(commands.Bot):
         # Additional custom message handling logic
         await self.handle_chat(message)
 
+    # Function to handle chat messages
     async def handle_chat(self, message):
         # Log the message content
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-        
+
         # Continue only if it's not a built-in command or alias
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
 
@@ -414,6 +421,20 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
+
+        # Check if the user is new or returning
+        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name,))
+        user_status = cursor.fetchone()
+        if user_status:
+            # User is returning
+            welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
+            await message.channel.send(welcome_back_message)
+        else:
+            # User is new
+            cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
+            conn.commit()
+            new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
+            await message.channel.send(new_user_welcome_message)
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
