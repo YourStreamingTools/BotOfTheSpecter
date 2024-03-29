@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.1"
+VERSION = "3.2"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = f""  # CHANGE TO MAKE THIS WORK
@@ -219,6 +219,13 @@ cursor.execute('''
         quote TEXT
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS seen_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        welcome_message TEXT DEFAULT NULL
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue and webshockets
@@ -389,10 +396,11 @@ class BotOfTheSpecter(commands.Bot):
         # Additional custom message handling logic
         await self.handle_chat(message)
 
+    # Function to handle chat messages
     async def handle_chat(self, message):
         # Log the message content
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-        
+
         # Continue only if it's not a built-in command or alias
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
 
@@ -414,6 +422,65 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
+
+        # Check if the user is a VIP or MOD
+        is_vip = await is_user_vip(message.author.id)
+        is_mod = await is_user_moderator(message.author)
+
+        # Check if the user is new or returning
+        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name,))
+        user_data = cursor.fetchone()
+
+        if user_data:
+            user_status = True
+            welcome_message = user_data[2]
+        else:
+            user_status = False
+            welcome_message = None
+
+        if is_vip:
+            # VIP user
+            if user_status and welcome_message:
+                # Returning user with custom welcome message
+                await message.channel.send(welcome_message)
+            elif user_status:
+                # Returning user
+                vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {message.author.name}!"
+                await message.channel.send(vip_welcome_message)
+            else:
+                # New user
+                await user_is_seen(message.author.name)
+                new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {message.author.name} a warm welcome!"
+                await message.channel.send(new_vip_welcome_message)
+        elif is_mod:
+            # Moderator user
+            if user_status and welcome_message:
+                # Returning user with custom welcome message
+                await message.channel.send(welcome_message)
+            elif user_status:
+                # Returning user
+                mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased!"
+                await message.channel.send(mod_welcome_message)
+            else:
+                # New user
+                await user_is_seen(message.author.name)
+                new_mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased! Let's give {message.author.name} a warm welcome!"
+                await message.channel.send(new_mod_welcome_message)
+        else:
+            # Non-VIP and Non-mod user
+            if user_status and welcome_message:
+                # Returning user with custom welcome message
+                await message.channel.send(welcome_message)
+            elif user_status:
+                # Returning user
+                welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
+                await message.channel.send(welcome_back_message)
+            else:
+                # New user
+                cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (message.author.name,))
+                conn.commit()
+                new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
+                await message.channel.send(new_user_welcome_message)
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
@@ -1166,7 +1233,7 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"{message}")
         else:
             chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
-            await ctx.reply("You must be a moderator or the broadcaster to use this command.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='so', aliases=('shoutout',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
@@ -1337,6 +1404,7 @@ def is_mod_or_broadcaster(user):
         twitch_logger.info(f"User {user.name} does not have required permissions.")
         return False
 
+# Function to check if a user is a MOD of the channel using the Twitch API
 def is_user_moderator(user):
     # Send request to Twitch API to check if user is a moderator
     headers = {
@@ -1356,6 +1424,33 @@ def is_user_moderator(user):
                 return True
             return False
     return False
+
+
+# Function to check if a user is a VIP of the channel using the Twitch API
+def is_user_vip(user_id):
+    headers = {
+        'Client-ID': TWITCH_API_CLIENT_ID,
+        'Authorization': f'Bearer {CHANNEL_AUTH}',
+    }
+    params = {
+        'broadcaster_id': CHANNEL_ID
+    }
+    try:
+        response = requests.get('https://api.twitch.tv/helix/channels/vips', headers=headers, params=params)
+        if response.status_code == 200:
+            vips = response.json().get("data", [])
+            for vip in vips:
+                if vip["user_id"] == user_id:
+                    return True
+            return False
+    except requests.RequestException as e:
+        print(f"Failed to retrieve VIP status: {e}")
+    return False
+
+# Function to add user to the table of known users
+async def user_is_seen(username):
+    cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
+    conn.commit()
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
