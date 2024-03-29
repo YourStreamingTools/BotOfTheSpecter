@@ -222,7 +222,8 @@ cursor.execute('''
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS seen_users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT
+        username TEXT,
+        welcome_message TEXT DEFAULT NULL
     )
 ''')
 conn.commit()
@@ -428,11 +429,21 @@ class BotOfTheSpecter(commands.Bot):
 
         # Check if the user is new or returning
         cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name,))
-        user_status = cursor.fetchone()
+        user_data = cursor.fetchone()
+
+        if user_data:
+            user_status = True
+            welcome_message = user_data[2]
+        else:
+            user_status = False
+            welcome_message = None
 
         if is_vip:
             # VIP user
-            if user_status:
+            if user_status and welcome_message:
+                # Returning user with custom welcome message
+                await message.channel.send(welcome_message)
+            elif user_status:
                 # Returning user
                 vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {message.author.name}!"
                 await message.channel.send(vip_welcome_message)
@@ -443,7 +454,10 @@ class BotOfTheSpecter(commands.Bot):
                 await message.channel.send(new_vip_welcome_message)
         elif is_mod:
             # Moderator user
-            if user_status:
+            if user_status and welcome_message:
+                # Returning user with custom welcome message
+                await message.channel.send(welcome_message)
+            elif user_status:
                 # Returning user
                 mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased!"
                 await message.channel.send(mod_welcome_message)
@@ -454,7 +468,10 @@ class BotOfTheSpecter(commands.Bot):
                 await message.channel.send(new_mod_welcome_message)
         else:
             # Non-VIP and Non-mod user
-            if user_status:
+            if user_status and welcome_message:
+                # Returning user with custom welcome message
+                await message.channel.send(welcome_message)
+            elif user_status:
                 # Returning user
                 welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
                 await message.channel.send(welcome_back_message)
