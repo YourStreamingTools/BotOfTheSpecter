@@ -75,7 +75,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <br>
     <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
-    <p style='color: red;'>When adding the commands into this site, please don't put the "exclamation mark" for your command, this does it automatically.</p>
+    <p style='color: red;'>
+    When adding commands via this site, please note the following:<br>
+    <strong>1. Avoid using the exclamation mark (!) in your command.</strong> This will be automatically added.<br>
+    <strong>2. Ensure the bot is stopped before adding commands here.</strong> This allows the bot to view all existing commands.<br>
+    <strong>3. Alternatively, you or your moderators can add commands during a stream using the command !addcommand.</strong> 
+    <br>Example: !addcommand mycommand This is my command
+    </p>
     <form method="post" action="">
         <div class="row">
             <div class="small-12 medium-6 column">
