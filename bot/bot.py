@@ -42,10 +42,10 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.2"
+VERSION = "3.3"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
-CALLBACK_URL = f""  # CHANGE TO MAKE THIS WORK
+CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
@@ -1768,7 +1768,7 @@ async def detect_song(raw_audio_b64):
             "X-RapidAPI-Host": "shazam.p.rapidapi.com"
         }
         # Convert base64 encoded audio to bytes
-        audio_bytes = base64.b64decode(raw_audio_b64)
+        audio_bytes = raw_audio_b64
         response = requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
         return response.json()
     except Exception as e:
