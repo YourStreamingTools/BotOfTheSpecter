@@ -179,6 +179,13 @@ cursor.execute('''
     )
 ''')
 cursor.execute('''
+    CREAT TABLE IF NOT EXISTS custom_counts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        command TEXT NOT NULL,
+        count INTEGER NOT NULL
+    )
+''')
+cursor.execute('''
     CREATE TABLE IF NOT EXISTS bits_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT,
@@ -410,7 +417,11 @@ class BotOfTheSpecter(commands.Bot):
 
         if message_content.startswith('!'):
             command_parts = message_content.split()
-            command = message_content.split()[0][1:]  # Extract the command without '!'
+            command = command_parts[0][1:]  # Extract the command without '!'
+
+            # Log all command usage
+            chat_logger.info(f"{message.author.name} used the command: {command}")
+
             if command in builtin_commands or command in builtin_aliases:
                 chat_logger.info(f"{message.author.name} used a built-in command called: {command}")
                 return  # It's a built-in command or alias, do nothing more
@@ -423,10 +434,16 @@ class BotOfTheSpecter(commands.Bot):
                 response = result[0]
                 # Check if the user has a custom API URL
                 if 'customapi.' in response:
-                    url = re.search(r'customapi\.(\S+)', response).group(1)
+                    url = re.search(r'(customapi\.(\S+))', response).group(1)
                     api_response = fetch_api_response(url)
                     response = response.replace(f"(customapi.{url})", api_response)
-                chat_logger.info(f"{command} command ran.")
+                if '(count)' in response:
+                    count_match = re.search(r'\((\d+)\)', response)
+                    if count_match:
+                        count = int(count_match.group(1))
+                        await update_custom_count(command, count)
+                        response = response.replace(f"(count)", str(count))
+                chat_logger.info(f"{command} command ran with response: {response}")
                 await message.channel.send(response)
             else:
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
@@ -1498,6 +1515,19 @@ def fetch_api_response(url):
             return f"Error: {response.status_code}"
     except Exception as e:
         return f"Error: {str(e)}"
+
+# Function to update custom counts
+def update_custom_count(command, count):
+    cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command))
+    result = cursor.fetchone()
+    
+    if result:
+        count = result[0]
+        new_count = count + 1
+        cursor.execute('UPDATE custom_counts SET count = ? WHERE command = ?', (new_count, command))
+        conn.commit()
+    else:
+        cursor.execute('INSERT INTO custom_counts (command, count) VALUES (?, ?)', (command, 1))
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
