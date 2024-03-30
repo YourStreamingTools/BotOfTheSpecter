@@ -458,22 +458,23 @@ class BotOfTheSpecter(commands.Bot):
 
     # Function to handle welcome messages
     async def handle_welcome_message(self, message):
+        user_trigger = message.autor.name
         # Check if the user is in the list of already seen users
         if message.author.id in temp_seen_users:
-            twitch_logger.info(f"{message.author.name} has already had their welcome message.")
+            twitch_logger.info(f"{user_trigger} has already had their welcome message.")
             return
         
         # Check if the user is the broadcaster
-        if message.author.name.lower() == CHANNEL_NAME.lower():
+        if user_trigger.lower() == CHANNEL_NAME.lower():
             twitch_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
             return
         
         # Check if the user is a VIP or MOD
         is_vip = is_user_vip(message.author.id)
-        is_mod = is_user_moderator(message.author.name)
+        is_mod = is_user_moderator(user_trigger)
 
         # Check if the user is new or returning
-        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name))
+        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (user_trigger))
         user_data = cursor.fetchone()
 
         if user_data:
@@ -481,13 +482,13 @@ class BotOfTheSpecter(commands.Bot):
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
             temp_seen_users.add(message.author.id)
-            twitch_logger.info(f"{message.author.name} has been found in the database.")
+            twitch_logger.info(f"{user_trigger} has been found in the database.")
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
             temp_seen_users.add(message.author.id)
-            twitch_logger.info(f"{message.author.name} has not been found in the database.")
+            twitch_logger.info(f"{user_trigger} has not been found in the database.")
 
         if user_status_enabled == 'True':
             if is_vip:
@@ -497,12 +498,12 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {message.author.name}!"
+                    vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {user_trigger}!"
                     await message.channel.send(vip_welcome_message)
                 else:
                     # New user
-                    await user_is_seen(message.author.name)
-                    new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {message.author.name} a warm welcome!"
+                    await user_is_seen(user_trigger)
+                    new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {user_trigger} a warm welcome!"
                     await message.channel.send(new_vip_welcome_message)
             elif is_mod:
                 # Moderator user
@@ -511,12 +512,12 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased!"
+                    mod_welcome_message = f"MOD ON DUTY! Welcome in {user_trigger}. The power of the sword has increased!"
                     await message.channel.send(mod_welcome_message)
                 else:
                     # New user
-                    await user_is_seen(message.author.name)
-                    new_mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased! Let's give {message.author.name} a warm welcome!"
+                    await user_is_seen(user_trigger)
+                    new_mod_welcome_message = f"MOD ON DUTY! Welcome in {user_trigger}. The power of the sword has increased! Let's give {user_trigger} a warm welcome!"
                     await message.channel.send(new_mod_welcome_message)
             else:
                 # Non-VIP and Non-mod user
@@ -525,16 +526,16 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
+                    welcome_back_message = f"Welcome back {user_trigger}, glad to see you again!"
                     await message.channel.send(welcome_back_message)
                 else:
                     # New user
-                    await user_is_seen(message.author.name)
-                    new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
+                    await user_is_seen(user_trigger)
+                    new_user_welcome_message = f"{user_trigger} is new to the community, let's give them a warm welcome!"
                     await message.channel.send(new_user_welcome_message)
         else:
             # Status disabled for user
-            chat_logger.info(f"Message not sent for {message.author.name} as status is disabled.")
+            chat_logger.info(f"Message not sent for {user_trigger} as status is disabled.")
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
