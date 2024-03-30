@@ -41,9 +41,6 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 
-$db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   if (isset($_POST['command']) && isset($_POST['response'])) {
       $newCommand = $_POST['command'];
@@ -78,8 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <p style='color: red;'>
     When adding commands via this site, please note the following:<br>
     <strong>1. Avoid using the exclamation mark (!) in your command.</strong> This will be automatically added.<br>
-    <strong>2. Ensure the bot is stopped before adding commands here.</strong> This allows the bot to view all existing commands.<br>
-    <strong>3. Alternatively, you or your moderators can add commands during a stream using the command !addcommand.</strong> 
+    <strong>2. Alternatively, you or your moderators can add commands during a stream using the command !addcommand.</strong> 
     <br>Example: !addcommand mycommand This is my command
     </p>
     <form method="post" action="">
