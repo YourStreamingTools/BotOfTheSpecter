@@ -440,13 +440,12 @@ class BotOfTheSpecter(commands.Bot):
                         api_response = fetch_api_response(url)
                         response = response.replace(f"(customapi.{url})", api_response)
                 if '(count)' in response:
-                    count_match = re.search(r'\((\d+)\)', response)
-                    if count_match:
-                        await update_custom_count(command)
-                        get_count = await get_custom_count(command)
-                        response = response.replace(f"(count)", get_count)
-                    else:
-                        chat_logger.error(f"No match")
+                    try:
+                        update_custom_count(command)
+                        get_count = get_custom_count(command)
+                        response = response.replace('(count)', str(get_count))
+                    except Exception as e:
+                        chat_logger.error(f"{e}")
                 chat_logger.info(f"{command} command ran with response: {response}")
                 await message.channel.send(response)
             else:
@@ -1548,8 +1547,9 @@ def get_custom_count(command):
     cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command,))
     result = cursor.fetchone()
     if result:
-        current_count = result[0]
-        return current_count
+        return result[0]
+    else:
+        return 0
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
