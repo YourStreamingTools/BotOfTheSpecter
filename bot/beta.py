@@ -435,15 +435,17 @@ class BotOfTheSpecter(commands.Bot):
                 # Check if the user has a custom API URL
                 if '(customapi.' in response:
                     url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                    url = url_match.group(1)
-                    api_response = fetch_api_response(url)
-                    response = response.replace(f"(customapi.{url})", api_response)
+                    if url_match:
+                        url = url_match.group(1)
+                        api_response = fetch_api_response(url)
+                        response = response.replace(f"(customapi.{url})", api_response)
                 if '(count)' in response:
-                    count_match = re.search(r'\((\d+)\)', response)
-                    if count_match:
-                        count = int(count_match.group(1))
-                        await update_custom_count(command, count)
-                        response = response.replace(f"(count)", str(count))
+                    try:
+                        update_custom_count(command)
+                        get_count = get_custom_count(command)
+                        response = response.replace('(count)', str(get_count))
+                    except Exception as e:
+                        chat_logger.error(f"{e}")
                 chat_logger.info(f"{command} command ran with response: {response}")
                 await message.channel.send(response)
             else:
@@ -520,19 +522,31 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
         is_mod = is_mod_or_broadcaster(ctx.author)
-
+        
+        # Fetch custom commands from the database
+        cursor.execute('SELECT command FROM custom_commands')
+        custom_commands = [row[0] for row in cursor.fetchall()]
+        
+        # Construct the list of custom commands
+        custom_commands_list = ", ".join(sorted(f"!{command}" for command in custom_commands))
+    
         if is_mod:
-            # If the user is a mod, include both mod_commands and builtin_commands
+            # If the user is a mod, include both custom_commands and builtin_commands
             all_commands = list(mod_commands) + list(builtin_commands)
-            commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
         else:
             # If the user is not a mod, only include builtin_commands
-            commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
-
+            all_commands = list(builtin_commands)
+        
+        # Construct the list of available commands to the user
+        commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
+    
+        # Construct the response messages
         response_message = f"Available commands to you: {commands_list}"
-
-        # Sending the response message to the chat
+        custom_response_message = f"Available Custom Commands: {custom_commands_list}"
+    
+        # Sending the response messages to the chat
         await ctx.send(response_message)
+        await ctx.send(custom_response_message)
 
     @commands.command(name='bot')
     async def bot_command(self, ctx):
@@ -1513,22 +1527,29 @@ def fetch_api_response(url):
         if response.status_code == 200:
             return response.text
         else:
-            return f"Error: {response.status_code}"
+            return f"Status Error: {response.status_code}"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Exception Error: {str(e)}"
 
 # Function to update custom counts
-def update_custom_count(command, count):
-    cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command))
+def update_custom_count(command):
+    cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command,))
     result = cursor.fetchone()
-    
     if result:
-        count = result[0]
-        new_count = count + 1
+        current_count = result[0]
+        new_count = current_count + 1
         cursor.execute('UPDATE custom_counts SET count = ? WHERE command = ?', (new_count, command))
-        conn.commit()
     else:
         cursor.execute('INSERT INTO custom_counts (command, count) VALUES (?, ?)', (command, 1))
+    conn.commit()
+
+def get_custom_count(command):
+    cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command,))
+    result = cursor.fetchone()
+    if result:
+        return result[0]
+    else:
+        return 0
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
