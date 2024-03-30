@@ -1770,6 +1770,12 @@ async def detect_song(raw_audio_b64):
         # Convert base64 encoded audio to bytes
         audio_bytes = raw_audio_b64
         response = requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
+        # Check requests remaining for the API
+        if "x-ratelimit-requests-remaining" in response.headers:
+            requests_left = response.headers['x-ratelimit-requests-remaining']
+            api_logger.info(f"There are {requests_left} requests lefts for the song command")
+            if requests_left == 0:
+                return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
         return response.json()
     except Exception as e:
         api_logger.error(f"An error occurred while detecting song: {e}")
