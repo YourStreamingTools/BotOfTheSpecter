@@ -236,11 +236,12 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Initialize instances for the translator, shoutout queue and webshockets
+# Initialize instances for the translator, shoutout queue, webshockets and welcome messages
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
+temp_seen_users = set()
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -455,6 +456,10 @@ class BotOfTheSpecter(commands.Bot):
 
     # Function to handle welcome messages
     async def welcome_message(self, message):
+        # Check if the user is in the list of already seen users
+        if message.author.id in temp_seen_users:
+            return
+        
         # Check if the user is a VIP or MOD
         is_vip = await is_user_vip(message.author.id)
         is_mod = await is_user_moderator(message.author)
@@ -467,10 +472,12 @@ class BotOfTheSpecter(commands.Bot):
             user_status = True
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
+            temp_seen_users.add(message.author.id)
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
+            temp_seen_users.add(message.author.id)
 
         if user_status_enabled == 'True':
             if is_vip:
@@ -1736,9 +1743,11 @@ async def check_stream_online():
                 if stream_online != stream_state:
                     if stream_online:
                         bot_logger.info(f"Stream is now online.")
+                        temp_seen_users.clear()
                     else:
                         if not offline_logged:
                             bot_logger.info(f"Stream is now offline.")
+                            temp_seen_users.clear()
                             offline_logged = True
                     stream_state = stream_online
                 elif stream_online:
