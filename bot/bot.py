@@ -179,7 +179,7 @@ cursor.execute('''
     )
 ''')
 cursor.execute('''
-    CREAT TABLE IF NOT EXISTS custom_counts (
+    CREATE TABLE IF NOT EXISTS custom_counts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         command TEXT NOT NULL,
         count INTEGER NOT NULL
