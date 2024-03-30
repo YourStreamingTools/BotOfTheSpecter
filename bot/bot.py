@@ -409,6 +409,7 @@ class BotOfTheSpecter(commands.Bot):
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
 
         if message_content.startswith('!'):
+            command_parts = message_content.split()
             command = message_content.split()[0][1:]  # Extract the command without '!'
             if command in builtin_commands or command in builtin_aliases:
                 chat_logger.info(f"{message.author.name} used a built-in command called: {command}")
@@ -420,6 +421,11 @@ class BotOfTheSpecter(commands.Bot):
 
             if result:
                 response = result[0]
+                # Check if the user has a custom API URL
+                if 'customapi.' in response:
+                    url = re.search(r'customapi\.(\S+)', response).group(1)
+                    api_response = fetch_api_response(url)
+                    response = response.replace(f"(customapi.{url})", api_response)
                 chat_logger.info(f"{command} command ran.")
                 await message.channel.send(response)
             else:
@@ -1481,6 +1487,17 @@ async def user_is_seen(username):
         conn.close()
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
+
+# Function to fetch custom API responses
+def fetch_api_response(url):
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.text
+        else:
+            return f"Error: {response.status_code}"
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
