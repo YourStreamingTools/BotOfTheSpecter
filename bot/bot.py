@@ -462,6 +462,10 @@ class BotOfTheSpecter(commands.Bot):
         if message.author.id in temp_seen_users:
             return
         
+        # Check if the user is the broadcaster
+        if message.author.lower() == CHANNEL_NAME.lower():
+            return
+        
         # Check if the user is a VIP or MOD
         is_vip = await is_user_vip(message.author.id)
         is_mod = await is_user_moderator(message.author)
