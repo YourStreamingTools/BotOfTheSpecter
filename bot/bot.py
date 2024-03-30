@@ -1513,9 +1513,9 @@ def fetch_api_response(url):
         if response.status_code == 200:
             return response.text
         else:
-            return f"Error: {response.status_code}"
+            return f"Status Error: {response.status_code}"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Exception Error: {str(e)}"
 
 # Function to update custom counts
 def update_custom_count(command, count):
