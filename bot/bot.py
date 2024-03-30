@@ -549,6 +549,7 @@ class BotOfTheSpecter(commands.Bot):
             return
         
         cursor.execute("DELETE FROM quotes WHERE ID = ?", (number,))
+        conn.commit()
         await ctx.send(f"Quote {number} has been removed.")
 
     # Command to set stream title
