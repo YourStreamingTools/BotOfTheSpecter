@@ -1725,6 +1725,7 @@ async def get_song_info():
             if "track" in matches.keys():
                 artist = matches["track"].get("subtitle", "")
                 song_title = matches["track"].get("title", "")
+                api_logger.info(f"Identified song: {song_title} by {artist}.")
                 return {"artist": artist, "song": song_title}
             else:
                 return {"error": "The current song can not be identified."}
@@ -1781,7 +1782,7 @@ async def detect_song(raw_audio_b64):
         # Check requests remaining for the API
         if "x-ratelimit-requests-remaining" in response.headers:
             requests_left = response.headers['x-ratelimit-requests-remaining']
-            api_logger.info(f"There are {requests_left} requests lefts for the song command")
+            api_logger.info(f"There are {requests_left} requests lefts for the song command.")
             if requests_left == 0:
                 return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
         return response.json()
