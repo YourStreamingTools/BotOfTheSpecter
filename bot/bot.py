@@ -435,9 +435,10 @@ class BotOfTheSpecter(commands.Bot):
                 # Check if the user has a custom API URL
                 if '(customapi.' in response:
                     url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                    url = url_match.group(1)
-                    api_response = fetch_api_response(url)
-                    response = response.replace(f"(customapi.{url})", api_response)
+                    if url_match:
+                        url = url_match.group(1)
+                        api_response = fetch_api_response(url)
+                        response = response.replace(f"(customapi.{url})", api_response)
                 if '(count)' in response:
                     count_match = re.search(r'\((\d+)\)', response)
                     if count_match:
@@ -1531,16 +1532,15 @@ def fetch_api_response(url):
 
 # Function to update custom counts
 def update_custom_count(command, count):
-    cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command))
+    cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command,))
     result = cursor.fetchone()
-    
     if result:
-        count = result[0]
-        new_count = count + 1
+        current_count = result[0]
+        new_count = current_count + 1
         cursor.execute('UPDATE custom_counts SET count = ? WHERE command = ?', (new_count, command))
-        conn.commit()
     else:
         cursor.execute('INSERT INTO custom_counts (command, count) VALUES (?, ?)', (command, 1))
+    conn.commit()
 
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
