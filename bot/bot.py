@@ -443,7 +443,7 @@ class BotOfTheSpecter(commands.Bot):
                     count_match = re.search(r'\((\d+)\)', response)
                     if count_match:
                         await update_custom_count(command)
-                        get_count = get_custom_count(command)
+                        get_count = await get_custom_count(command)
                         response = response.replace(f"(count)", get_count)
                     else:
                         chat_logger.error(f"No match")
