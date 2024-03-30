@@ -38,14 +38,6 @@ $status = "";
 include 'bot_control.php';
 include 'sqlite.php';
 
-// Connect to the SQLite database
-$db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-// Fetch list of commands from the database
-$getCommands = $db->query("SELECT * FROM custom_commands");
-$commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
-
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['command_to_edit'], $_POST['command_response'])) {
     // Update the response for the selected command
