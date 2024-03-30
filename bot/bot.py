@@ -1650,7 +1650,8 @@ async def check_auto_update():
 
 # Function to check if the stream is online
 async def check_stream_online():
-    stream_offline = True
+    stream_online = False
+    stream_state = False
     offline_logged = False
     while True:
         async with aiohttp.ClientSession() as session:
@@ -1658,15 +1659,22 @@ async def check_stream_online():
                 text = await response.text()
                 # Check if the stream is offline
                 if f"{CHANNEL_NAME} is offline" in text:
-                    if offline_logged == False:
-                        bot_logger.info("Stream is now offline.")
-                    stream_offline = True
+                    stream_online = False
                 else:
-                    # If the stream was previously offline and is now online, reset greeted users
-                    if stream_offline:
-                        bot_logger.info("Stream is online.")
-                    stream_offline = False
-                    offline_logged = True
+                    stream_online = True
+
+                # Stream state change
+                if stream_online != stream_state:
+                    if stream_online:
+                        bot_logger.info(f"Stream is now online.")
+                    else:
+                        if not offline_logged:
+                            bot_logger.info(f"Stream is now offline.")
+                            offline_logged = True
+                    stream_state = stream_online
+                elif stream_online:
+                    offline_logged = False
+
         await asyncio.sleep(300)  # Check every 5 minutes
 
 # Function to get the current playing song
