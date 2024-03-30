@@ -433,8 +433,9 @@ class BotOfTheSpecter(commands.Bot):
             if result:
                 response = result[0]
                 # Check if the user has a custom API URL
-                if 'customapi.' in response:
-                    url = re.search(r'(customapi\.(\S+))', response).group(1)
+                if '(customapi.' in response:
+                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                    url = url_match.group(1)
                     api_response = fetch_api_response(url)
                     response = response.replace(f"(customapi.{url})", api_response)
                 if '(count)' in response:
