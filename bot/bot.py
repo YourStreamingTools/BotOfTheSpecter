@@ -1763,7 +1763,7 @@ async def detect_song(raw_audio_b64):
         url = "https://shazam.p.rapidapi.com/songs/v2/detect"
         querystring = {"timezone": "Australia/Sydney", "locale": "en-US"}
         headers = {
-            "content-type": "application/octet-stream",
+            "content-type": "text/plain",
             "X-RapidAPI-Key": SHAZAM_API,
             "X-RapidAPI-Host": "shazam.p.rapidapi.com"
         }
