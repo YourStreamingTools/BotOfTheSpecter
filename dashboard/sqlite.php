@@ -71,7 +71,7 @@ try {
     $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch Custom Counts
-    $getCustomCounts = $db->query("SELECT commnd, count FROM custom_counts ORDER BY count DESC");
+    $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
     $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Calculate lurk durations for each user
