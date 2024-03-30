@@ -61,6 +61,7 @@ $countType= '';
     <li class="tabs-title <?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="#deaths">Deaths Overview</a></li>
     <li class="tabs-title <?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="#hugs">Hug Counts</a></li>
     <li class="tabs-title <?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="#kisses">Kiss Counts</a></li>
+    <li class="tabs-title <?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="#custom">Custom Counts</a></li>
 </ul>
 <div class="tabs-content" data-tabs-content="countTabs">
   <div class="tabs-panel <?php echo $countType === 'lurking' ? 'is-active' : ''; ?>" id="lurking">
@@ -180,6 +181,27 @@ $countType= '';
           <tr>
             <td><?php echo htmlspecialchars($kissCount['username']); ?></td>
             <td><?php echo htmlspecialchars($kissCount['kiss_count']); ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </pre>
+  </div>
+  <div class="tabs-panel <?php echo $countType === 'custom' ? 'is-active' : ''; ?>" id="custom">
+    <h3>Custom Counts</h3>
+    <pre>
+      <table class="counter-table">
+        <thead>
+          <tr>
+            <th>Command</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($customCounts as $customCount): ?>
+          <tr>
+            <td><?php echo htmlspecialchars($customCount['command']); ?></td>
+            <td><?php echo htmlspecialchars($customCount['count']); ?></td>
           </tr>
           <?php endforeach; ?>
         </tbody>
