@@ -42,7 +42,7 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 // Query to fetch commands from the database
-$fetchCommandsSql = "SELECT command_name, usage_text FROM commands";
+$fetchCommandsSql = "SELECT * FROM commands";
 $result = $conn->query($fetchCommandsSql);
 $commands = array();
 
@@ -83,7 +83,9 @@ if ($result->num_rows > 0) {
           <thead>
             <tr>
               <th>Command</th>
-              <th>Response</th>
+              <th>Functionality</th>
+              <th>Example Response</th>
+              <th>Usage Level</th>
             </tr>
           </thead>
           <tbody>
@@ -91,6 +93,8 @@ if ($result->num_rows > 0) {
             <tr>
               <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
               <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
+              <td><?php echo htmlspecialchars($command['response']);?></td>
+              <td><?php echo htmlspecialchars($command['level']); ?></td>
             </tr>
             <?php endforeach; ?>
           </tbody>
