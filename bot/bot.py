@@ -401,11 +401,11 @@ class BotOfTheSpecter(commands.Bot):
         # Handle commands
         await self.handle_commands(message)
 
-        # Additional custom message handling logic
-        await self.handle_chat(message)
-
         # Additonal welcome message handling logic
         await self.welcome_message(message)
+        
+        # Additional custom message handling logic
+        await self.handle_chat(message)
 
     # Function to handle chat messages
     async def handle_chat(self, message):
