@@ -1769,7 +1769,7 @@ async def detect_song(raw_audio_b64):
         }
         # Convert base64 encoded audio to bytes
         audio_bytes = base64.b64decode(raw_audio_b64)
-        response = await requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
+        response = requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
         return response.json()
     except Exception as e:
         api_logger.error(f"An error occurred while detecting song: {e}")
