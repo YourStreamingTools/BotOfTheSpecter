@@ -38,14 +38,6 @@ $status = "";
 include 'bot_control.php';
 include 'sqlite.php';
 
-// Connect to the SQLite database
-$db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-// Fetch list of commands from the database
-$commandQuery = $db->query("SELECT command FROM custom_commands");
-$commands = $commandQuery->fetchAll(PDO::FETCH_COLUMN);
-
 // Check if the form was submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
     $commandToRemove = $_POST['remove_command'];
@@ -88,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
             <label for="remove_command">Command to Remove:</label>
             <select name="remove_command" id="remove_command" required>
                 <?php foreach ($commands as $command): ?>
-                    <option value="<?php echo $command; ?>">!<?php echo $command; ?></option>
+                    <option value="<?php echo htmlspecialchars($command['command']); ?>">!<?php echo htmlspecialchars($command['command']); ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -97,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
 <?php else: ?>
     <p>No commands to remove.</p>
 <?php endif; ?>
-<?php echo $status; ?>
+<?php echo "<br>$status"; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
