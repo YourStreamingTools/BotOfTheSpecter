@@ -520,19 +520,31 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
         is_mod = is_mod_or_broadcaster(ctx.author)
-
+        
+        # Fetch custom commands from the database
+        cursor.execute('SELECT command FROM custom_commands')
+        custom_commands = [row[0] for row in cursor.fetchall()]
+        
+        # Construct the list of custom commands
+        custom_commands_list = ", ".join(sorted(f"!{command}" for command in custom_commands))
+    
         if is_mod:
-            # If the user is a mod, include both mod_commands and builtin_commands
+            # If the user is a mod, include both custom_commands and builtin_commands
             all_commands = list(mod_commands) + list(builtin_commands)
-            commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
         else:
             # If the user is not a mod, only include builtin_commands
-            commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
-
+            all_commands = list(builtin_commands)
+        
+        # Construct the list of available commands to the user
+        commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
+    
+        # Construct the response messages
         response_message = f"Available commands to you: {commands_list}"
-
-        # Sending the response message to the chat
+        custom_response_message = f"Available Custom Commands: {custom_commands_list}"
+    
+        # Sending the response messages to the chat
         await ctx.send(response_message)
+        await ctx.send(custom_response_message)
 
     @commands.command(name='bot')
     async def bot_command(self, ctx):
