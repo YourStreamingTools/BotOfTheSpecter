@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.2"
+VERSION = "3.4"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -53,8 +53,8 @@ TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
-mod_commands = {"addcommand", "removecommand", "removetypos", "edittypos", "deathadd", "deathremove", "so", "checkupdate"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "checkupdate"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
 # Logs
@@ -176,6 +176,13 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS game_deaths (
         game_name TEXT PRIMARY KEY,
         death_count INTEGER DEFAULT 0
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS custom_counts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        command TEXT NOT NULL,
+        count INTEGER NOT NULL
     )
 ''')
 cursor.execute('''
@@ -390,7 +397,7 @@ class BotOfTheSpecter(commands.Bot):
         if message.author is None:
             bot_logger.warning("Received a message without a valid author.")
             return
-
+        
         # Handle commands
         await self.handle_commands(message)
 
@@ -409,7 +416,12 @@ class BotOfTheSpecter(commands.Bot):
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
 
         if message_content.startswith('!'):
-            command = message_content.split()[0][1:]  # Extract the command without '!'
+            command_parts = message_content.split()
+            command = command_parts[0][1:]  # Extract the command without '!'
+
+            # Log all command usage
+            chat_logger.info(f"{message.author.name} used the command: {command}")
+
             if command in builtin_commands or command in builtin_aliases:
                 chat_logger.info(f"{message.author.name} used a built-in command called: {command}")
                 return  # It's a built-in command or alias, do nothing more
@@ -420,7 +432,19 @@ class BotOfTheSpecter(commands.Bot):
 
             if result:
                 response = result[0]
-                chat_logger.info(f"{command} command ran.")
+                # Check if the user has a custom API URL
+                if '(customapi.' in response:
+                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                    url = url_match.group(1)
+                    api_response = fetch_api_response(url)
+                    response = response.replace(f"(customapi.{url})", api_response)
+                if '(count)' in response:
+                    count_match = re.search(r'\((\d+)\)', response)
+                    if count_match:
+                        count = int(count_match.group(1))
+                        await update_custom_count(command, count)
+                        response = response.replace(f"(count)", str(count))
+                chat_logger.info(f"{command} command ran with response: {response}")
                 await message.channel.send(response)
             else:
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
@@ -542,12 +566,22 @@ class BotOfTheSpecter(commands.Bot):
         conn.commit()
         await ctx.send("Quote added successfully: " + quote)
 
+    @commands.command(name='removequote')
+    async def quote_remove_command(self, ctx, number: int = None):
+        if number is None:
+            ctx.send("Please specify the ID to remove.")
+            return
+        
+        cursor.execute("DELETE FROM quotes WHERE ID = ?", (number,))
+        conn.commit()
+        await ctx.send(f"Quote {number} has been removed.")
+
     # Command to set stream title
     @commands.command(name='settitle')
     async def set_title(self, ctx, title: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if title is None:
-                await ctx.send(f"You must provide a title for the stream.")
+                await ctx.send(f"Stream titles can not be blank. You must provide a title for the stream.")
                 return
 
             # Update the stream title
@@ -1472,6 +1506,30 @@ async def user_is_seen(username):
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
 
+# Function to fetch custom API responses
+def fetch_api_response(url):
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.text
+        else:
+            return f"Error: {response.status_code}"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# Function to update custom counts
+def update_custom_count(command, count):
+    cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command))
+    result = cursor.fetchone()
+    
+    if result:
+        count = result[0]
+        new_count = count + 1
+        cursor.execute('UPDATE custom_counts SET count = ? WHERE command = ?', (new_count, command))
+        conn.commit()
+    else:
+        cursor.execute('INSERT INTO custom_counts (command, count) VALUES (?, ?)', (command, 1))
+
 # Function to trigger updating stream title or game
 async def trigger_twitch_title_update(new_title):
     # Twitch API
@@ -1586,15 +1644,26 @@ async def process_shoutouts():
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status in (200, 204):
+                    if response.status == 429:
+                        # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
+                        retry_after = 180  # 3 minutes in seconds
+                        twitch_logger.warning(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
+                        await asyncio.sleep(retry_after)
+                        continue  # Retry the request
+                    elif response.status in (200, 204):
                         twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
                         await asyncio.sleep(180)  # Wait for 3 minutes before processing the next shoutout
                     else:
                         twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                        # Retry the request (exponential backoff can be implemented here)
+                        await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+                        continue
                     shoutout_queue.task_done()
-        except Exception as e:
+        except aiohttp.ClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
-            shoutout_queue.task_done()
+            # Retry the request (exponential backoff can be implemented here)
+            await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+            continue
 
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
@@ -1629,21 +1698,31 @@ async def check_auto_update():
 
 # Function to check if the stream is online
 async def check_stream_online():
-    stream_was_offline = True
-    greeted_users = set()
+    stream_online = False
+    stream_state = False
+    offline_logged = False
     while True:
         async with aiohttp.ClientSession() as session:
             async with session.get(f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}") as response:
                 text = await response.text()
                 # Check if the stream is offline
                 if f"{CHANNEL_NAME} is offline" in text:
-                    stream_was_offline = True
+                    stream_online = False
                 else:
-                    # If the stream was previously offline and is now online, reset greeted users
-                    if stream_was_offline:
-                        greeted_users.clear()
-                        bot_logger.info("Stream is online. Resetting greeted users.")
-                    stream_was_offline = False
+                    stream_online = True
+
+                # Stream state change
+                if stream_online != stream_state:
+                    if stream_online:
+                        bot_logger.info(f"Stream is now online.")
+                    else:
+                        if not offline_logged:
+                            bot_logger.info(f"Stream is now offline.")
+                            offline_logged = True
+                    stream_state = stream_online
+                elif stream_online:
+                    offline_logged = False
+
         await asyncio.sleep(300)  # Check every 5 minutes
 
 # Function to get the current playing song
@@ -1694,6 +1773,7 @@ async def get_song_info():
             if "track" in matches.keys():
                 artist = matches["track"].get("subtitle", "")
                 song_title = matches["track"].get("title", "")
+                api_logger.info(f"Identified song: {song_title} by {artist}.")
                 return {"artist": artist, "song": song_title}
             else:
                 return {"error": "The current song can not be identified."}
@@ -1740,13 +1820,19 @@ async def detect_song(raw_audio_b64):
         url = "https://shazam.p.rapidapi.com/songs/v2/detect"
         querystring = {"timezone": "Australia/Sydney", "locale": "en-US"}
         headers = {
-            "content-type": "application/octet-stream",
+            "content-type": "text/plain",
             "X-RapidAPI-Key": SHAZAM_API,
             "X-RapidAPI-Host": "shazam.p.rapidapi.com"
         }
         # Convert base64 encoded audio to bytes
-        audio_bytes = base64.b64decode(raw_audio_b64)
-        response = await requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
+        audio_bytes = raw_audio_b64
+        response = requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
+        # Check requests remaining for the API
+        if "x-ratelimit-requests-remaining" in response.headers:
+            requests_left = response.headers['x-ratelimit-requests-remaining']
+            api_logger.info(f"There are {requests_left} requests lefts for the song command.")
+            if requests_left == 0:
+                return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
         return response.json()
     except Exception as e:
         api_logger.error(f"An error occurred while detecting song: {e}")
