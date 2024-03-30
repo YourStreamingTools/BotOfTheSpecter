@@ -542,6 +542,15 @@ class BotOfTheSpecter(commands.Bot):
         conn.commit()
         await ctx.send("Quote added successfully: " + quote)
 
+    @commands.command(name='removequote')
+    async def quote_remove_command(self, ctx, number: int = None):
+        if number is None:
+            ctx.send("Please specify the ID to remove.")
+            return
+        
+        cursor.execute("DELETE FROM quotes WHERE ID = ?", (number,))
+        await ctx.send(f"Quote {number} has been removed.")
+
     # Command to set stream title
     @commands.command(name='settitle')
     async def set_title(self, ctx, title: str = None) -> None:
