@@ -394,6 +394,9 @@ class BotOfTheSpecter(commands.Bot):
         if message.echo:
             return
 
+        # Log the message content
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+
         # Check for a valid author before proceeding
         if message.author is None:
             bot_logger.warning("Received a message without a valid author.")
@@ -403,19 +406,15 @@ class BotOfTheSpecter(commands.Bot):
         await self.handle_commands(message)
 
         # Additonal welcome message handling logic
-        await self.welcome_message(message)
+        await self.handle_welcome_message(message)
         
         # Additional custom message handling logic
-        await self.handle_chat(message)
+        await self.handle_custom_command(message)
 
     # Function to handle chat messages
-    async def handle_chat(self, message):
-        # Log the message content
-        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-
-        # Continue only if it's not a built-in command or alias
+    async def handle_custom_command(self, message):
+        # Get message content to check if the message is a custom command
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
-
         if message_content.startswith('!'):
             command_parts = message_content.split()
             command = command_parts[0][1:]  # Extract the command without '!'
@@ -453,9 +452,12 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
+        else:
+            # Message is not a command at all
+            pass
 
     # Function to handle welcome messages
-    async def welcome_message(self, message):
+    async def handle_welcome_message(self, message):
         # Check if the user is in the list of already seen users
         if message.author.id in temp_seen_users:
             return
