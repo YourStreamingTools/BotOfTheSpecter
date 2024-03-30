@@ -106,6 +106,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
         // Process and append follower information to the array
         $followersData = json_decode($response, true);
         $allFollowers = array_merge($allFollowers, $followersData['data']);
+        $followerCount = $followersData['total'];
 
         // Save the data to the cache file
         file_put_contents($cacheFile, json_encode($allFollowers));
@@ -114,7 +115,6 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
         // Check if there are more pages of followers
         $cursor = $followersData['pagination']['cursor'] ?? null;
         $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&after=$cursor";
-
     } while ($cursor);
   }
 }
@@ -162,7 +162,7 @@ $followersForCurrentPage = array_slice($allFollowers, $startIndex, $followersPer
 <!-- Followers Content Container (initially hidden) -->
 <div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
     <?php if (isset($_GET['load']) && $_GET['load'] == 'followers'): ?>
-    <h1>Your Followers:</h1>
+    <h1>Your Followers: (<?php echo $followerCount; ?>)</h1>
     <h3><?php echo $liveData ?></h3>
     <div class="followers-grid">
         <?php foreach ($followersForCurrentPage as $follower) : 
