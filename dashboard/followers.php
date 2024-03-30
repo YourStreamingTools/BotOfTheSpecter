@@ -106,7 +106,6 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
         // Process and append follower information to the array
         $followersData = json_decode($response, true);
         $allFollowers = array_merge($allFollowers, $followersData['data']);
-        $followerCount = $followersData['total'];
 
         // Save the data to the cache file
         file_put_contents($cacheFile, json_encode($allFollowers));
@@ -134,6 +133,50 @@ $endIndex = $startIndex + $followersPerPage;
 
 // Get followers for the current page
 $followersForCurrentPage = array_slice($allFollowers, $startIndex, $followersPerPage);
+
+// Set up cURL request with headers
+$curl = curl_init($followersURL);
+curl_setopt($curl, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ' . $authToken,
+    'Client-ID: ' . $clientID
+]);
+curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
+// Execute cURL request
+$response = curl_exec($curl);
+
+if ($response === false) {
+    // Handle cURL error
+    $errorInfo = curl_getinfo($curl);
+    $errorMessage = 'cURL error: ' . curl_error($curl);
+    $errorDetails = 'URL: ' . $errorInfo['url'] . ' | HTTP Code: ' . $errorInfo['http_code'];
+
+    // Log the error to a file for debugging
+    error_log($errorMessage . ' | ' . $errorDetails, 3, 'curl_errors.log');
+
+    echo 'An error occurred while fetching data. Please try again later.';
+    exit;
+}
+
+if ($response === false) {
+    // Handle cURL error
+    echo 'cURL error: ' . curl_error($curl);
+    exit;
+}
+
+$httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+if ($httpCode !== 200) {
+    // Handle non-successful HTTP response
+    $HTTPError = 'HTTP error: ' . $httpCode;
+    echo "$HTTPError";
+    exit;
+}
+
+curl_close($curl);
+
+// Process and append follower information to the array
+$followersData = json_decode($response, true);
+$followerCount = $followersData['total'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
