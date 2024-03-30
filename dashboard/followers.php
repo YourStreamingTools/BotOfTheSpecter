@@ -66,7 +66,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
         // Set up cURL request with headers
         $curl = curl_init($followersURL);
         curl_setopt($curl, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $accessToken,
+            'Authorization: Bearer ' . $authToken,
             'Client-ID: ' . $clientID
         ]);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
