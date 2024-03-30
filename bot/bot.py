@@ -409,10 +409,10 @@ class BotOfTheSpecter(commands.Bot):
         await self.handle_welcome_message(message)
         
         # Additional custom message handling logic
-        await self.handle_custom_command(message)
+        await self.handle_chat(message)
 
     # Function to handle chat messages
-    async def handle_custom_command(self, message):
+    async def handle_chat(self, message):
         # Get message content to check if the message is a custom command
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
         if message_content.startswith('!'):
@@ -460,18 +460,20 @@ class BotOfTheSpecter(commands.Bot):
     async def handle_welcome_message(self, message):
         # Check if the user is in the list of already seen users
         if message.author.id in temp_seen_users:
+            twitch_logger.info(f"{message.author.name} has already had their welcome message.")
             return
         
         # Check if the user is the broadcaster
-        if message.author.lower() == CHANNEL_NAME.lower():
+        if message.author.name.lower() == CHANNEL_NAME.lower():
+            twitch_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
             return
         
         # Check if the user is a VIP or MOD
-        is_vip = await is_user_vip(message.author.id)
-        is_mod = await is_user_moderator(message.author)
+        is_vip = is_user_vip(message.author.id)
+        is_mod = is_user_moderator(message.author.name)
 
         # Check if the user is new or returning
-        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name,))
+        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name))
         user_data = cursor.fetchone()
 
         if user_data:
@@ -479,11 +481,13 @@ class BotOfTheSpecter(commands.Bot):
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
             temp_seen_users.add(message.author.id)
+            twitch_logger.info(f"{message.author.name} has been found in the database.")
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
             temp_seen_users.add(message.author.id)
+            twitch_logger.info(f"{message.author.name} has not been found in the database.")
 
         if user_status_enabled == 'True':
             if is_vip:
@@ -1467,7 +1471,7 @@ def is_mod_or_broadcaster(user):
         return True
 
     # Check if the user is a moderator
-    elif is_user_moderator(user):
+    elif is_user_mod(user):
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
@@ -1476,7 +1480,7 @@ def is_mod_or_broadcaster(user):
         return False
 
 # Function to check if a user is a MOD of the channel using the Twitch API
-def is_user_moderator(user):
+def is_user_mod(user):
     # Send request to Twitch API to check if user is a moderator
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -1512,12 +1516,33 @@ def is_user_vip(user_id):
             vips = response.json().get("data", [])
             for vip in vips:
                 if vip["user_id"] == user_id:
-                    user_name = vip.get("user_name", "")
+                    user_name = vip["user_name"]
                     twitch_logger.info(f"User {user_name} is a VIP Member")
                     return True
             return False
     except requests.RequestException as e:
         print(f"Failed to retrieve VIP status: {e}")
+    return False
+
+# Function to check if a user is a MOD of the channel using the Twitch API
+def is_user_moderator(user):
+    # Send request to Twitch API to check if user is a moderator
+    headers = {
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    params = {
+        "broadcaster_id": f"{CHANNEL_ID}",
+    }
+
+    response = requests.get("https://api.twitch.tv/helix/moderation/moderators", headers=headers, params=params)
+    if response.status_code == 200:
+        moderators = response.json().get("data", [])
+        for mod in moderators:
+            if mod["user_login"] == user:
+                twitch_logger.info(f"User {user.name} is a Moderator")
+                return True
+            return False
     return False
 
 # Function to add user to the table of known users
