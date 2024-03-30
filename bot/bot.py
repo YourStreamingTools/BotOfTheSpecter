@@ -440,11 +440,11 @@ class BotOfTheSpecter(commands.Bot):
                         api_response = fetch_api_response(url)
                         response = response.replace(f"(customapi.{url})", api_response)
                 if '(count)' in response:
-                    count_match = re.search(r'\((\w+)\)', response)
+                    count_match = re.search(r'\((\d+)\)', response)
                     if count_match:
-                        count_placeholder = count_match.group(0)
-                        count = await update_custom_count(command)
-                        response = response.replace(count_placeholder, str(count))
+                        count = int(count_match.group(1))
+                        await update_custom_count(command, count)
+                        response = response.replace(f"(count)", str(count))
                 chat_logger.info(f"{command} command ran with response: {response}")
                 await message.channel.send(response)
             else:
@@ -1531,7 +1531,7 @@ def fetch_api_response(url):
         return f"Exception Error: {str(e)}"
 
 # Function to update custom counts
-def update_custom_count(command, count):
+def update_custom_count(command):
     cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command,))
     result = cursor.fetchone()
     if result:
