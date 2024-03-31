@@ -1022,8 +1022,8 @@ class BotOfTheSpecter(commands.Bot):
             if not stream_online:
                 await ctx.send("Sorry, I can only create clips while the stream is online.")
                 return
-        
-            # Headers & Parmas for TwitchAPI
+
+            # Headers & Params for TwitchAPI
             headers = {
                 "Client-ID": TWITCH_API_CLIENT_ID,
                 "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -1037,11 +1037,62 @@ class BotOfTheSpecter(commands.Bot):
                 clip_id = clip_data['data'][0]['id']
                 clip_url = f"http://clips.twitch.tv/{clip_id}"
                 await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
+
+                # Create a stream marker
+                marker_description = f"Clip created by {ctx.author.name}"
+                marker_payload = {
+                    "user_id": CHANNEL_ID,
+                    "description": marker_description
+                }
+                marker_headers = {
+                    "Client-ID": TWITCH_API_CLIENT_ID,
+                    "Authorization": f"Bearer {CHANNEL_AUTH}",
+                    "Content-Type": "application/json"
+                }
+                marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
+                if marker_response.status_code == 200:
+                    marker_data = marker_response.json()
+                    marker_created_at = marker_data['data'][0]['created_at']
+                    twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
+
             else:
-                await ctx.send(f"Failed to create clip. Status code: {clip_response.status_code}")
+                await ctx.send(f"Failed to create clip.")
+                twitch_logger.error(f"Status code: {clip_response.status_code}")
         except requests.exceptions.RequestException as e:
             twitch_logger(f"Error making clip: {e}")
             await ctx.send("An error occurred while making the request. Please try again later.")
+
+    @commands.command(name='marker')
+    async def marker_command(self, ctx, *, description: str):
+        if is_mod_or_broadcaster(ctx.author):
+            if description:
+                marker_description = description
+            else:
+                marker_description = f"Marker made by {ctx.author.name}"
+            try:
+                marker_payload = {
+                    "user_id": CHANNEL_ID,
+                    "description": marker_description
+                }
+                marker_headers = {
+                    "Client-ID": TWITCH_API_CLIENT_ID,
+                    "Authorization": f"Bearer {CHANNEL_AUTH}",
+                    "Content-Type": "application/json"
+                }
+                marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
+                if marker_response.status_code == 200:
+                    marker_data = marker_response.json()
+                    marker_created_at = marker_data['data'][0]['created_at']
+                    await ctx.send(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
+                else:
+                    await ctx.send("Failed to create a stream marker.")
+            except requests.exceptions.RequestException as e:
+                twitch_logger(f"Error creating stream marker: {e}")
+                await ctx.send("An error occurred while making the request. Please try again later.")
+        else:
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
