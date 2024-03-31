@@ -872,11 +872,12 @@ class BotOfTheSpecter(commands.Bot):
 
                 # Calculate the duration
                 days, seconds = divmod(lurk_duration.total_seconds(), 86400)
+                months, days = divmod(days, 30)
                 hours, remainder = divmod(seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
 
                 # Create time string
-                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
                 # Inform the user of their previous lurk time
@@ -937,32 +938,33 @@ class BotOfTheSpecter(commands.Bot):
         try:
             cursor.execute('SELECT user_id, start_time FROM lurk_times')
             lurkers = cursor.fetchall()
-    
+
             longest_lurk = None
             longest_lurk_user_id = None
             now = datetime.now()
-    
+
             for user_id, start_time in lurkers:
                 start_time = datetime.fromisoformat(start_time)
                 lurk_duration = now - start_time
-    
+
                 if longest_lurk is None or lurk_duration > longest_lurk:
                     longest_lurk = lurk_duration
                     longest_lurk_user_id = user_id
-    
+
             if longest_lurk_user_id:
                 display_name = await get_display_name(longest_lurk_user_id)
-    
+
                 if display_name:
                     # Calculate the duration
                     days, seconds = divmod(longest_lurk.total_seconds(), 86400)
+                    months, days = divmod(days, 30)
                     hours, remainder = divmod(seconds, 3600)
                     minutes, seconds = divmod(remainder, 60)
-    
+
                     # Build the time string
-                    periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                    periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                     time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-    
+
                     # Send the message
                     await ctx.send(f"{display_name} is currently lurking the most with {time_string} on the clock.")
                     chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
@@ -993,11 +995,12 @@ class BotOfTheSpecter(commands.Bot):
 
                 # Calculate the duration
                 days, seconds = divmod(elapsed_time.total_seconds(), 86400)
+                months, days = divmod(days, 30)
                 hours, remainder = divmod(seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
 
                 # Build the time string
-                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
                 # Log the unlurk command execution and send a response
