@@ -1016,6 +1016,33 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in unlurk_command: {e}")
             await ctx.send(f"Oops, something went wrong with the unlurk command.")
 
+    @commands.command(name='clip')
+    async def clip_command(self, ctx):
+        try:
+            if not stream_online:
+                await ctx.send("Sorry, I can only create clips while the stream is online.")
+                return
+        
+            # Headers & Parmas for TwitchAPI
+            headers = {
+                "Client-ID": TWITCH_API_CLIENT_ID,
+                "Authorization": f"Bearer {CHANNEL_AUTH}"
+            }
+            params = {
+                "broadcaster_id": CHANNEL_ID
+            }
+            clip_response = requests.post('https://api.twitch.tv/helix/clips', headers=headers, params=params)
+            if clip_response.status_code == 200:
+                clip_data = clip_response.json()
+                clip_id = clip_data['data'][0]['id']
+                clip_url = f"http://clips.twitch.tv/{clip_id}"
+                await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
+            else:
+                await ctx.send(f"Failed to create clip. Status code: {clip_response.status_code}")
+        except requests.exceptions.RequestException as e:
+            twitch_logger(f"Error making clip: {e}")
+            await ctx.send("An error occurred while making the request. Please try again later.")
+
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
         chat_logger.info("Uptime Command ran.")
@@ -1416,7 +1443,7 @@ async def is_valid_twitch_user(user_to_shoutout):
     # Twitch API endpoint to check if a user exists
     url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
 
-    # Headers including the Twitch Client ID (replace with your actual client ID)
+    # Headers including the Twitch Client ID
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -1768,6 +1795,7 @@ async def check_auto_update():
 
 # Function to check if the stream is online
 async def check_stream_online():
+    global stream_online
     stream_online = False
     stream_state = False
     offline_logged = False
