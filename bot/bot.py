@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.5"
+VERSION = "3.6"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -53,8 +53,8 @@ TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
-mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "checkupdate"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
 
 # Logs
@@ -1061,7 +1061,7 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"Failed to create clip.")
                 twitch_logger.error(f"Status code: {clip_response.status_code}")
         except requests.exceptions.RequestException as e:
-            twitch_logger(f"Error making clip: {e}")
+            twitch_logger.error(f"Error making clip: {e}")
             await ctx.send("An error occurred while making the request. Please try again later.")
 
     @commands.command(name='marker')
@@ -1089,10 +1089,53 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     await ctx.send("Failed to create a stream marker.")
             except requests.exceptions.RequestException as e:
-                twitch_logger(f"Error creating stream marker: {e}")
+                twitch_logger.error(f"Error creating stream marker: {e}")
                 await ctx.send("An error occurred while making the request. Please try again later.")
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+
+    @commands.command(name='subscription', aliases=['mysub'])
+    async def subscription_command(self, ctx):
+        try:
+            # Headers & Params for Twitch API
+            user_id = ctx.author.id
+            headers = {
+                "Client-ID": TWITCH_API_CLIENT_ID,
+                "Authorization": f"Bearer {CHANNEL_AUTH}"
+            }
+            params = {
+                "broadcaster_id": CHANNEL_ID,
+                "user_id": user_id
+            }
+            subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
+
+            if subscription_response.status_code == 200:
+                subscription_data = subscription_response.json()
+                subscriptions = subscription_data.get('data', [])
+
+                if subscriptions:
+                    # Iterate over each subscription
+                    for subscription in subscriptions:
+                        user_name = subscription['user_name']
+                        tier = subscription['tier']
+                        is_gift = subscription['is_gift']
+                        gifter_name = subscription['gifter_name'] if is_gift else None
+
+                        # Prepare message based on subscription status
+                        if is_gift:
+                            await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is Tier {tier}.")
+                        else:
+                            await ctx.send(f"{user_name}, you are currently subscribed at Tier {tier}.")
+                else:
+                    # If no subscriptions found for the provided user ID
+                    await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
+            else:
+                await ctx.send(f"Failed to retrieve subscription information. Please try again later.")
+                twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status_code}")
+
+        except requests.exceptions.RequestException as e:
+            twitch_logger.error(f"Error retrieving subscription information: {e}")
+            await ctx.send("An error occurred while making the request. Please try again later.")
 
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
