@@ -33,32 +33,20 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 
 Stay tuned for updates on the release of the Custom Commands feature!
 
-## Changelog
+### Version 3.5 - BotOfTheSpecter
 
-### Version 3.0 - BotOfTheSpecter
+- **Welcome Message Handling**:
+  - Enhanced logic for smoother initialization.
+- **Quote Management Commands**:
+  - Easily add/remove quotes to the database.
+- **Cheerleader Command**:
+  - Shows the top cheerer in the channel.
+- **Twitch API Integration**:
+  - Verify moderator status for enhanced security.
+- **Subscription Event Processing**:
+  - Efficient handling of subscription events.
 
-- **Major Overhaul:**
-  - Significant enhancements in functionality, operations, and capabilities.
-
-- **Websocket and SSL Configuration:**
-  - Transitioned away from custom websocket handling and SSL setup for future communication improvements.
-
-- **Event Processing Streamlining:**
-  - Simplified event processing for bits, subscriptions, and follows.
-
-- **New Features and Commands:**
-  - Added `random`, `base64`, and `streamlink` dependencies for expanded functionality.
-  - Introduced chat history logging and quotes database management.
-  - Implemented song detection feature and enhanced command handling.
-
-- **User Validation and Error Handling:**
-  - Improved Twitch user validation before command processing.
-  - Introduced comprehensive error handling for command processing.
-
-- **Bot Class and Initialization Changes:**
-  - Redefined bot initialization and command parsing logic for enhanced flexibility and user interaction.
-
-[View Full Changelog for Version 3.0](/bot/changelog/3.0.md)
+[View Full Changelog for Version 3.5](/bot/changelog/3.5.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
