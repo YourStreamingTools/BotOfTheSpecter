@@ -1107,8 +1107,12 @@ class BotOfTheSpecter(commands.Bot):
                 "broadcaster_id": CHANNEL_ID,
                 "user_id": user_id
             }
+            tier_mapping = {
+                "1000": "Tier 1",
+                "2000": "Tier 2",
+                "3000": "Tier 3"
+            }
             subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
-
             if subscription_response.status_code == 200:
                 subscription_data = subscription_response.json()
                 subscriptions = subscription_data.get('data', [])
@@ -1120,12 +1124,13 @@ class BotOfTheSpecter(commands.Bot):
                         tier = subscription['tier']
                         is_gift = subscription['is_gift']
                         gifter_name = subscription['gifter_name'] if is_gift else None
+                        tier_name = tier_mapping.get(tier, tier)
 
                         # Prepare message based on subscription status
                         if is_gift:
-                            await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is Tier {tier}.")
+                            await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
                         else:
-                            await ctx.send(f"{user_name}, you are currently subscribed at Tier {tier}.")
+                            await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
                 else:
                     # If no subscriptions found for the provided user ID
                     await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
