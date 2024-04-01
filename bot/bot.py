@@ -55,7 +55,7 @@ SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
-builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
+builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
 # Logs
 webroot = "/var/www/"
