@@ -46,7 +46,6 @@ Stay tuned for updates on the release of these exciting features!
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
-- Improved Twitch integration: the bot now responds to subscriptions and bits in chat, boosting viewer interaction and engagement.
 
 [View Full Changelog for Version 2.0](/api/app/changelog.2.0.md)
 
