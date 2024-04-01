@@ -34,7 +34,7 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.5 - BotOfTheSpecter
+### Version 3.6 - BotOfTheSpecter
 
 - Implemented the `clip` command, allowing users to create clips from the Twitch stream when online. The command generates a clip URL and sends it to the chat. Additionally, it creates a stream marker for the clip.
 
