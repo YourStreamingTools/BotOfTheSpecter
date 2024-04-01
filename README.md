@@ -35,18 +35,13 @@ Stay tuned for updates on the release of the Custom Commands feature!
 
 ### Version 3.5 - BotOfTheSpecter
 
-- **Welcome Message Handling**:
-  - Enhanced logic for smoother initialization.
-- **Quote Management Commands**:
-  - Easily add/remove quotes to the database.
-- **Cheerleader Command**:
-  - Shows the top cheerer in the channel.
-- **Twitch API Integration**:
-  - Verify moderator status for enhanced security.
-- **Subscription Event Processing**:
-  - Efficient handling of subscription events.
+- Implemented the `clip` command, allowing users to create clips from the Twitch stream when online. The command generates a clip URL and sends it to the chat. Additionally, it creates a stream marker for the clip.
 
-[View Full Changelog for Version 3.5](/bot/changelog/3.5.md)
+- Introduced the `marker` command, which enables moderators and the broadcaster to create stream markers with custom descriptions. These markers are used to denote important moments during the stream.
+
+- Implemented the `subscription` command, accessible via the aliases `mysub`. This command allows users to check their subscription status to the Twitch channel. It retrieves subscription information using the Twitch API and provides details such as subscription tier and gifter information if applicable.
+
+[View Full Changelog for Version 3.6](/bot/changelog/3.6.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
