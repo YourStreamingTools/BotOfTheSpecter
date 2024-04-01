@@ -53,7 +53,7 @@ Stay tuned for updates on the release of these exciting features!
 We're thrilled that you're interested in contributing to BotOfTheSpecter! Whether you're looking to report a bug, suggest a feature, or contribute code, your help is greatly appreciated. Please follow these guidelines to ensure a smooth contribution process.
 
 ### Reporting Bugs
-If you've found a bug in the BotOfTheSpecter, please check the [Issues](/issues) section first to see if it has already been reported. If not, feel free to open a new issue, providing as much detail as possible, including:
+If you've found a bug in the BotOfTheSpecter, please check the [Issues](https://github.com/YourStreamingTools/BotOfTheSpecter/issues) section first to see if it has already been reported. If not, feel free to open a new issue, providing as much detail as possible, including:
 - A clear and descriptive title
 - Steps to reproduce the bug
 - Expected behavior vs. actual behavior
