@@ -615,7 +615,7 @@ class BotOfTheSpecter(commands.Bot):
 
     # Command to set stream title
     @commands.command(name='settitle')
-    async def set_title(self, ctx, title: str = None) -> None:
+    async def set_title(self, ctx, *, title: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if title is None:
                 await ctx.send(f"Stream titles can not be blank. You must provide a title for the stream.")
