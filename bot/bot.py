@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.6"
+VERSION = "3.6.1"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -615,7 +615,7 @@ class BotOfTheSpecter(commands.Bot):
 
     # Command to set stream title
     @commands.command(name='settitle')
-    async def set_title(self, ctx, *, title: str = None) -> None:
+    async def set_title_command(self, ctx, *, title: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if title is None:
                 await ctx.send(f"Stream titles can not be blank. You must provide a title for the stream.")
@@ -630,26 +630,30 @@ class BotOfTheSpecter(commands.Bot):
 
     # Command to set stream game/category
     @commands.command(name='setgame')
-    async def set_game(self, ctx, game: str = None) -> None:
+    async def set_game_command(self, ctx, *, game: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if game is None:
-                await ctx.send(f"You must provide a game for the stream.")
+                await ctx.send("You must provide a game for the stream.")
                 return
 
             # Get the game ID
-            game_id = await get_game_id(game)
-            if game_id:
+            try:
+                game_id = await get_game_id(game)
                 # Update the stream game/category
                 await trigger_twitch_game_update(game_id)
                 twitch_logger.info(f'Setting stream game to: {game}')
                 await ctx.send(f'Stream game updated to: {game}')
-            else:
-                await ctx.send(f'Failed to update stream game. Game "{game}" not found.')
+            except GameNotFoundException as e:
+                await ctx.send(str(e))
+            except GameUpdateFailedException as e:
+                await ctx.send(str(e))
+            except Exception as e:
+                await ctx.send(f'An error occurred: {str(e)}')
         else:
-            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
-    
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+
     @commands.command(name='song')
-    async def get_current_song(self, ctx):
+    async def get_current_song_command(self, ctx):
         await ctx.send("Please stand by, checking what song is currently playing...")
         try:
             song_info = await get_song_info_command()
@@ -659,7 +663,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send("Sorry, there was an error retrieving the current song.")
 
     @commands.command(name='timer')
-    async def start_timer(self, ctx):
+    async def start_timer_command(self, ctx):
         chat_logger.info(f"Timer command ran.")
         content = ctx.message.content.strip()
         try:
@@ -1727,6 +1731,11 @@ def get_custom_count(command):
         return 0
 
 # Function to trigger updating stream title or game
+class GameNotFoundException(Exception):
+    pass
+class GameUpdateFailedException(Exception):
+    pass
+
 async def trigger_twitch_title_update(new_title):
     # Twitch API
     url = "https://api.twitch.tv/helix/channels"
@@ -1760,6 +1769,7 @@ async def trigger_twitch_game_update(new_game_id):
         twitch_logger.info(f'Stream game updated to: {new_game_id}')
     else:
         twitch_logger.error(f'Failed to update stream game: {response.text}')
+        raise GameUpdateFailedException(f'Failed to update stream game')
 
 async def get_game_id(game_name):
     # Twitch API
@@ -1776,7 +1786,8 @@ async def get_game_id(game_name):
         data = response.json()
         if data and 'data' in data and len(data['data']) > 0:
             return data['data'][0]['id']
-    return None
+    twitch_logger.error(f"Game '{game_name}' not found.")
+    raise GameNotFoundException(f"Game '{game_name}' not found.")
 
 # Function to trigger a twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout):
