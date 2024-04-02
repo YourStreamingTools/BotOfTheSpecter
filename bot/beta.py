@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.6.1"
+VERSION = "3.7"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -542,6 +542,7 @@ class BotOfTheSpecter(commands.Bot):
             # Status disabled for user
             chat_logger.info(f"Message not sent for {user_trigger} as status is disabled.")
 
+    # The command to see all the commands
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
         is_mod = is_mod_or_broadcaster(ctx.author)
@@ -571,15 +572,25 @@ class BotOfTheSpecter(commands.Bot):
         await ctx.send(response_message)
         await ctx.send(custom_response_message)
 
+    # Command to get info about who built this bot
     @commands.command(name='bot')
     async def bot_command(self, ctx):
         chat_logger.info(f"{ctx.author} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
     
+    # Command to get the roadmap link
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+    
+    # Command to get the current changelog
+    @commands.command(name='changelog')
+    async def changelog_command(self, ctx):
+        changelog_url = f"https://github.com/YourStreamingTools/BotOfTheSpecter/tree/main/bot/changelog/{VERSION}.md"
+        await ctx.send(f"You can find the changelog for release {VERSION} [here]({changelog_url}).")
+        chat_logger.info(f"{ctx.author} requested the changelog for release {VERSION}.")
 
+    # Command to get quotes
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         if number is None:  # If no number is provided, get a random quote
@@ -597,12 +608,14 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send(f"No quote found with ID {number}.")
 
+    # Command to add a quote
     @commands.command(name='quoteadd')
     async def quote_add_command(self, ctx, *, quote):
         cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
         conn.commit()
         await ctx.send("Quote added successfully: " + quote)
 
+    # Command to remove a quote
     @commands.command(name='removequote')
     async def quote_remove_command(self, ctx, number: int = None):
         if number is None:
