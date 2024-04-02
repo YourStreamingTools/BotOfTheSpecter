@@ -43,6 +43,10 @@ try {
     $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
     $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
 
+    // Fetch seen users data
+    $getSeenUsersData = $db->query("SELECT username, welcome_message, status FROM seen_users");
+    $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
+
     // Calculate lurk durations for each user
     foreach ($lurkers as $key => $lurker) {
       $startTime = new DateTime($lurker['start_time']);
