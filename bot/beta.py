@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.4"
+VERSION = "3.6.1"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -53,9 +53,9 @@ TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
-mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "checkupdate"}
-builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
+builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
 # Logs
 webroot = "/var/www/"
@@ -236,11 +236,12 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Initialize instances for the translator, shoutout queue and webshockets
+# Initialize instances for the translator, shoutout queue, webshockets and welcome messages
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
+temp_seen_users = set()
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -393,6 +394,9 @@ class BotOfTheSpecter(commands.Bot):
         if message.echo:
             return
 
+        # Log the message content
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+
         # Check for a valid author before proceeding
         if message.author is None:
             bot_logger.warning("Received a message without a valid author.")
@@ -401,20 +405,16 @@ class BotOfTheSpecter(commands.Bot):
         # Handle commands
         await self.handle_commands(message)
 
+        # Additonal welcome message handling logic
+        await self.handle_welcome_message(message)
+        
         # Additional custom message handling logic
         await self.handle_chat(message)
 
-        # Additonal welcome message handling logic
-        await self.welcome_message(message)
-
     # Function to handle chat messages
     async def handle_chat(self, message):
-        # Log the message content
-        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-
-        # Continue only if it's not a built-in command or alias
+        # Get message content to check if the message is a custom command
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
-
         if message_content.startswith('!'):
             command_parts = message_content.split()
             command = command_parts[0][1:]  # Extract the command without '!'
@@ -452,25 +452,48 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
+        else:
+            # Message is not a command at all
+            pass
 
     # Function to handle welcome messages
-    async def welcome_message(self, message):
+    async def handle_welcome_message(self, message):
+        # Setup for welcome messages
+        user_trigger = message.author.name
+        user_trigger_id = message.author.id
+
+        # Check if the user is in the list of already seen users
+        if user_trigger_id in temp_seen_users:
+            # twitch_logger.info(f"{user_trigger} has already had their welcome message.")
+            return
+        
+        # Check if the user is the broadcaster
+        if user_trigger.lower() == CHANNEL_NAME.lower():
+            # twitch_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
+            return
+        
         # Check if the user is a VIP or MOD
-        is_vip = await is_user_vip(message.author.id)
-        is_mod = await is_user_moderator(message.author)
+        is_vip = is_user_vip(user_trigger_id)
+        # twitch_logger.info(f"{user_trigger} - VIP={is_vip}")
+        is_mod = is_user_moderator(user_trigger_id)
+        # twitch_logger.info(f"{user_trigger} - MOD={is_mod}")
 
         # Check if the user is new or returning
-        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (message.author.name,))
+        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (user_trigger,))
         user_data = cursor.fetchone()
 
         if user_data:
             user_status = True
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
+            temp_seen_users.add(user_trigger_id)
+            # twitch_logger.info(f"{user_trigger} has been found in the database.")
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
+            temp_seen_users.add(user_trigger_id)
+            # twitch_logger.info(f"{user_trigger} has not been found in the database.")
 
         if user_status_enabled == 'True':
             if is_vip:
@@ -480,12 +503,12 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {message.author.name}!"
+                    vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {user_trigger}!"
                     await message.channel.send(vip_welcome_message)
                 else:
                     # New user
-                    await user_is_seen(message.author.name)
-                    new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {message.author.name} a warm welcome!"
+                    await user_is_seen(user_trigger)
+                    new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {user_trigger} a warm welcome!"
                     await message.channel.send(new_vip_welcome_message)
             elif is_mod:
                 # Moderator user
@@ -494,12 +517,12 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased!"
+                    mod_welcome_message = f"MOD ON DUTY! Welcome in {user_trigger}. The power of the sword has increased!"
                     await message.channel.send(mod_welcome_message)
                 else:
                     # New user
-                    await user_is_seen(message.author.name)
-                    new_mod_welcome_message = f"MOD ON DUTY! Welcome in {message.author.name}. The power of the sword has increased! Let's give {message.author.name} a warm welcome!"
+                    await user_is_seen(user_trigger)
+                    new_mod_welcome_message = f"MOD ON DUTY! Welcome in {user_trigger}. The power of the sword has increased! Let's give {user_trigger} a warm welcome!"
                     await message.channel.send(new_mod_welcome_message)
             else:
                 # Non-VIP and Non-mod user
@@ -508,16 +531,16 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    welcome_back_message = f"Welcome back {message.author.name}, glad to see you again!"
+                    welcome_back_message = f"Welcome back {user_trigger}, glad to see you again!"
                     await message.channel.send(welcome_back_message)
                 else:
                     # New user
-                    await user_is_seen(message.author.name)
-                    new_user_welcome_message = f"{message.author.name} is new to the community, let's give them a warm welcome!"
+                    await user_is_seen(user_trigger)
+                    new_user_welcome_message = f"{user_trigger} is new to the community, let's give them a warm welcome!"
                     await message.channel.send(new_user_welcome_message)
         else:
             # Status disabled for user
-            chat_logger.info(f"Message not sent for {message.author.name} as status is disabled.")
+            chat_logger.info(f"Message not sent for {user_trigger} as status is disabled.")
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
@@ -592,7 +615,7 @@ class BotOfTheSpecter(commands.Bot):
 
     # Command to set stream title
     @commands.command(name='settitle')
-    async def set_title(self, ctx, title: str = None) -> None:
+    async def set_title_command(self, ctx, *, title: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if title is None:
                 await ctx.send(f"Stream titles can not be blank. You must provide a title for the stream.")
@@ -607,26 +630,30 @@ class BotOfTheSpecter(commands.Bot):
 
     # Command to set stream game/category
     @commands.command(name='setgame')
-    async def set_game(self, ctx, game: str = None) -> None:
+    async def set_game_command(self, ctx, *, game: str = None) -> None:
         if is_mod_or_broadcaster(ctx.author):
             if game is None:
-                await ctx.send(f"You must provide a game for the stream.")
+                await ctx.send("You must provide a game for the stream.")
                 return
 
             # Get the game ID
-            game_id = await get_game_id(game)
-            if game_id:
+            try:
+                game_id = await get_game_id(game)
                 # Update the stream game/category
                 await trigger_twitch_game_update(game_id)
                 twitch_logger.info(f'Setting stream game to: {game}')
                 await ctx.send(f'Stream game updated to: {game}')
-            else:
-                await ctx.send(f'Failed to update stream game. Game "{game}" not found.')
+            except GameNotFoundException as e:
+                await ctx.send(str(e))
+            except GameUpdateFailedException as e:
+                await ctx.send(str(e))
+            except Exception as e:
+                await ctx.send(f'An error occurred: {str(e)}')
         else:
-            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
-    
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+
     @commands.command(name='song')
-    async def get_current_song(self, ctx):
+    async def get_current_song_command(self, ctx):
         await ctx.send("Please stand by, checking what song is currently playing...")
         try:
             song_info = await get_song_info_command()
@@ -636,7 +663,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send("Sorry, there was an error retrieving the current song.")
 
     @commands.command(name='timer')
-    async def start_timer(self, ctx):
+    async def start_timer_command(self, ctx):
         chat_logger.info(f"Timer command ran.")
         content = ctx.message.content.strip()
         try:
@@ -849,11 +876,12 @@ class BotOfTheSpecter(commands.Bot):
 
                 # Calculate the duration
                 days, seconds = divmod(lurk_duration.total_seconds(), 86400)
+                months, days = divmod(days, 30)
                 hours, remainder = divmod(seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
 
                 # Create time string
-                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
                 # Inform the user of their previous lurk time
@@ -914,32 +942,33 @@ class BotOfTheSpecter(commands.Bot):
         try:
             cursor.execute('SELECT user_id, start_time FROM lurk_times')
             lurkers = cursor.fetchall()
-    
+
             longest_lurk = None
             longest_lurk_user_id = None
             now = datetime.now()
-    
+
             for user_id, start_time in lurkers:
                 start_time = datetime.fromisoformat(start_time)
                 lurk_duration = now - start_time
-    
+
                 if longest_lurk is None or lurk_duration > longest_lurk:
                     longest_lurk = lurk_duration
                     longest_lurk_user_id = user_id
-    
+
             if longest_lurk_user_id:
                 display_name = await get_display_name(longest_lurk_user_id)
-    
+
                 if display_name:
                     # Calculate the duration
                     days, seconds = divmod(longest_lurk.total_seconds(), 86400)
+                    months, days = divmod(days, 30)
                     hours, remainder = divmod(seconds, 3600)
                     minutes, seconds = divmod(remainder, 60)
-    
+
                     # Build the time string
-                    periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                    periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                     time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-    
+
                     # Send the message
                     await ctx.send(f"{display_name} is currently lurking the most with {time_string} on the clock.")
                     chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
@@ -970,11 +999,12 @@ class BotOfTheSpecter(commands.Bot):
 
                 # Calculate the duration
                 days, seconds = divmod(elapsed_time.total_seconds(), 86400)
+                months, days = divmod(days, 30)
                 hours, remainder = divmod(seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
 
                 # Build the time string
-                periods = [("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
 
                 # Log the unlurk command execution and send a response
@@ -989,6 +1019,132 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}")
             await ctx.send(f"Oops, something went wrong with the unlurk command.")
+
+    @commands.command(name='clip')
+    async def clip_command(self, ctx):
+        try:
+            if not stream_online:
+                await ctx.send("Sorry, I can only create clips while the stream is online.")
+                return
+
+            # Headers & Params for TwitchAPI
+            headers = {
+                "Client-ID": TWITCH_API_CLIENT_ID,
+                "Authorization": f"Bearer {CHANNEL_AUTH}"
+            }
+            params = {
+                "broadcaster_id": CHANNEL_ID
+            }
+            clip_response = requests.post('https://api.twitch.tv/helix/clips', headers=headers, params=params)
+            if clip_response.status_code == 200:
+                clip_data = clip_response.json()
+                clip_id = clip_data['data'][0]['id']
+                clip_url = f"http://clips.twitch.tv/{clip_id}"
+                await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
+
+                # Create a stream marker
+                marker_description = f"Clip created by {ctx.author.name}"
+                marker_payload = {
+                    "user_id": CHANNEL_ID,
+                    "description": marker_description
+                }
+                marker_headers = {
+                    "Client-ID": TWITCH_API_CLIENT_ID,
+                    "Authorization": f"Bearer {CHANNEL_AUTH}",
+                    "Content-Type": "application/json"
+                }
+                marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
+                if marker_response.status_code == 200:
+                    marker_data = marker_response.json()
+                    marker_created_at = marker_data['data'][0]['created_at']
+                    twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
+
+            else:
+                await ctx.send(f"Failed to create clip.")
+                twitch_logger.error(f"Status code: {clip_response.status_code}")
+        except requests.exceptions.RequestException as e:
+            twitch_logger.error(f"Error making clip: {e}")
+            await ctx.send("An error occurred while making the request. Please try again later.")
+
+    @commands.command(name='marker')
+    async def marker_command(self, ctx, *, description: str):
+        if is_mod_or_broadcaster(ctx.author):
+            if description:
+                marker_description = description
+            else:
+                marker_description = f"Marker made by {ctx.author.name}"
+            try:
+                marker_payload = {
+                    "user_id": CHANNEL_ID,
+                    "description": marker_description
+                }
+                marker_headers = {
+                    "Client-ID": TWITCH_API_CLIENT_ID,
+                    "Authorization": f"Bearer {CHANNEL_AUTH}",
+                    "Content-Type": "application/json"
+                }
+                marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
+                if marker_response.status_code == 200:
+                    marker_data = marker_response.json()
+                    marker_created_at = marker_data['data'][0]['created_at']
+                    await ctx.send(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
+                else:
+                    await ctx.send("Failed to create a stream marker.")
+            except requests.exceptions.RequestException as e:
+                twitch_logger.error(f"Error creating stream marker: {e}")
+                await ctx.send("An error occurred while making the request. Please try again later.")
+        else:
+            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+
+    @commands.command(name='subscription', aliases=['mysub'])
+    async def subscription_command(self, ctx):
+        try:
+            # Headers & Params for Twitch API
+            user_id = ctx.author.id
+            headers = {
+                "Client-ID": TWITCH_API_CLIENT_ID,
+                "Authorization": f"Bearer {CHANNEL_AUTH}"
+            }
+            params = {
+                "broadcaster_id": CHANNEL_ID,
+                "user_id": user_id
+            }
+            tier_mapping = {
+                "1000": "Tier 1",
+                "2000": "Tier 2",
+                "3000": "Tier 3"
+            }
+            subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
+            if subscription_response.status_code == 200:
+                subscription_data = subscription_response.json()
+                subscriptions = subscription_data.get('data', [])
+
+                if subscriptions:
+                    # Iterate over each subscription
+                    for subscription in subscriptions:
+                        user_name = subscription['user_name']
+                        tier = subscription['tier']
+                        is_gift = subscription['is_gift']
+                        gifter_name = subscription['gifter_name'] if is_gift else None
+                        tier_name = tier_mapping.get(tier, tier)
+
+                        # Prepare message based on subscription status
+                        if is_gift:
+                            await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                        else:
+                            await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
+                else:
+                    # If no subscriptions found for the provided user ID
+                    await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
+            else:
+                await ctx.send(f"Failed to retrieve subscription information. Please try again later.")
+                twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status_code}")
+
+        except requests.exceptions.RequestException as e:
+            twitch_logger.error(f"Error retrieving subscription information: {e}")
+            await ctx.send("An error occurred while making the request. Please try again later.")
 
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
@@ -1283,7 +1439,10 @@ class BotOfTheSpecter(commands.Bot):
             remote_version = response.text.strip()
 
             if remote_version != VERSION:
-                message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                if len(remote_version) == len(VERSION) + 1:
+                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                else:
+                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                 bot_logger.info(f"Bot update available. (V{remote_version})")
                 await ctx.send(f"{message}")
             else:
@@ -1291,7 +1450,7 @@ class BotOfTheSpecter(commands.Bot):
                 bot_logger.info(f"{message}")
                 await ctx.send(f"{message}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
+            chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='so', aliases=('shoutout',))
@@ -1390,7 +1549,7 @@ async def is_valid_twitch_user(user_to_shoutout):
     # Twitch API endpoint to check if a user exists
     url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
 
-    # Headers including the Twitch Client ID (replace with your actual client ID)
+    # Headers including the Twitch Client ID
     headers = {
         "Client-ID": TWITCH_API_CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -1454,7 +1613,7 @@ def is_mod_or_broadcaster(user):
         return True
 
     # Check if the user is a moderator
-    elif is_user_moderator(user):
+    elif is_user_mod(user):
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
@@ -1463,7 +1622,7 @@ def is_mod_or_broadcaster(user):
         return False
 
 # Function to check if a user is a MOD of the channel using the Twitch API
-def is_user_moderator(user):
+def is_user_mod(user):
     # Send request to Twitch API to check if user is a moderator
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -1485,7 +1644,7 @@ def is_user_moderator(user):
     return False
 
 # Function to check if a user is a VIP of the channel using the Twitch API
-def is_user_vip(user_id):
+def is_user_vip(user_trigger_id):
     headers = {
         'Client-ID': TWITCH_API_CLIENT_ID,
         'Authorization': f'Bearer {CHANNEL_AUTH}',
@@ -1498,13 +1657,36 @@ def is_user_vip(user_id):
         if response.status_code == 200:
             vips = response.json().get("data", [])
             for vip in vips:
-                if vip["user_id"] == user_id:
-                    user_name = vip.get("user_name", "")
+                if vip["user_id"] == user_trigger_id:
+                    user_name = vip["user_name"]
                     twitch_logger.info(f"User {user_name} is a VIP Member")
                     return True
             return False
     except requests.RequestException as e:
         print(f"Failed to retrieve VIP status: {e}")
+    return False
+
+# Function to check if a user is a MOD of the channel using the Twitch API
+def is_user_moderator(user_trigger_id):
+    # Send request to Twitch API to check if user is a moderator
+    headers = {
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Client-ID": TWITCH_API_CLIENT_ID,
+    }
+    params = {
+        "broadcaster_id": f"{CHANNEL_ID}",
+        "user_id": user_trigger_id
+    }
+
+    response = requests.get("https://api.twitch.tv/helix/moderation/moderators", headers=headers, params=params)
+    if response.status_code == 200:
+        moderators = response.json().get("data", [])
+        for mod in moderators:
+            if mod["user_id"] == user_trigger_id:
+                user_name = mod["user_name"]
+                twitch_logger.info(f"User {user_name} is a Moderator")
+                return True
+            return False
     return False
 
 # Function to add user to the table of known users
@@ -1552,6 +1734,11 @@ def get_custom_count(command):
         return 0
 
 # Function to trigger updating stream title or game
+class GameNotFoundException(Exception):
+    pass
+class GameUpdateFailedException(Exception):
+    pass
+
 async def trigger_twitch_title_update(new_title):
     # Twitch API
     url = "https://api.twitch.tv/helix/channels"
@@ -1585,6 +1772,7 @@ async def trigger_twitch_game_update(new_game_id):
         twitch_logger.info(f'Stream game updated to: {new_game_id}')
     else:
         twitch_logger.error(f'Failed to update stream game: {response.text}')
+        raise GameUpdateFailedException(f'Failed to update stream game')
 
 async def get_game_id(game_name):
     # Twitch API
@@ -1601,7 +1789,8 @@ async def get_game_id(game_name):
         data = response.json()
         if data and 'data' in data and len(data['data']) > 0:
             return data['data'][0]['id']
-    return None
+    twitch_logger.error(f"Game '{game_name}' not found.")
+    raise GameNotFoundException(f"Game '{game_name}' not found.")
 
 # Function to trigger a twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout):
@@ -1710,7 +1899,10 @@ async def check_auto_update():
                     remote_version = await response.text()
                     remote_version = remote_version.strip()
                     if remote_version != VERSION:
-                        message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                        if len(remote_version) == len(VERSION) + 1:
+                            message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                        else:
+                            message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                         bot_logger.info(message)
                         channel = bot.get_channel(CHANNEL_NAME)
                         if channel:
@@ -1719,6 +1911,7 @@ async def check_auto_update():
 
 # Function to check if the stream is online
 async def check_stream_online():
+    global stream_online
     stream_online = False
     stream_state = False
     offline_logged = False
@@ -1736,9 +1929,11 @@ async def check_stream_online():
                 if stream_online != stream_state:
                     if stream_online:
                         bot_logger.info(f"Stream is now online.")
+                        temp_seen_users.clear()
                     else:
                         if not offline_logged:
                             bot_logger.info(f"Stream is now offline.")
+                            temp_seen_users.clear()
                             offline_logged = True
                     stream_state = stream_online
                 elif stream_online:
