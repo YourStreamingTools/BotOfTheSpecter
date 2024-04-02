@@ -1439,7 +1439,10 @@ class BotOfTheSpecter(commands.Bot):
             remote_version = response.text.strip()
 
             if remote_version != VERSION:
-                message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                if len(remote_version) == len(VERSION) + 1:
+                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                else:
+                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                 bot_logger.info(f"Bot update available. (V{remote_version})")
                 await ctx.send(f"{message}")
             else:
@@ -1447,7 +1450,7 @@ class BotOfTheSpecter(commands.Bot):
                 bot_logger.info(f"{message}")
                 await ctx.send(f"{message}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't has they are not a moderator.")
+            chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='so', aliases=('shoutout',))
@@ -1896,7 +1899,10 @@ async def check_auto_update():
                     remote_version = await response.text()
                     remote_version = remote_version.strip()
                     if remote_version != VERSION:
-                        message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                        if len(remote_version) == len(VERSION) + 1:
+                            message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                        else:
+                            message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                         bot_logger.info(message)
                         channel = bot.get_channel(CHANNEL_NAME)
                         if channel:
