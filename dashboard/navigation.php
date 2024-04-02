@@ -17,7 +17,15 @@
         </ul>
       </li>
       <?php if($_SERVER['REQUEST_URI'] == '/logs.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="logs.php">View Logs</a></li>
+      <?php if($_SERVER['REQUEST_URI'] == '/known_users.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="known_users.php">Welcome Messages</a></li>
       <?php if($_SERVER['REQUEST_URI'] == '/counters.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="counters.php">Counters</a></li>
+      <li>
+        <a>Edit Counters</a>
+        <ul class="vertical menu" data-dropdown-menu>
+          <?php if($_SERVER['REQUEST_URI'] == '/edit_typos.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit_typos.php">Edit Typos</a></li>
+          <?php if($_SERVER['REQUEST_URI'] == '/edit_custom_counts.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit_custom_counts.php">Edit Custom Counters</a></li>
+        </ul>
+      </li>
       <li>
         <a>Bot Commnads</a>
         <ul class="vertical menu" data-dropdown-menu>
@@ -28,7 +36,6 @@
           <?php if($_SERVER['REQUEST_URI'] == '/edit-commands.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit-commands.php">Edit Custom Command</a></li>
         </ul>
       </li>
-      <?php if($_SERVER['REQUEST_URI'] == '/edit_typos.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit_typos.php">Edit Typos</a></li>
       <?php if($_SERVER['REQUEST_URI'] == '/app.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="app.php">Download App</a></li>
       <?php if($_SERVER['REQUEST_URI'] == '/profile.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="profile.php">Profile</a></li>
       <?php if($_SERVER['REQUEST_URI'] == '/logout.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="logout.php">Logout</a></li>
