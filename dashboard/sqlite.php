@@ -15,37 +15,6 @@ try {
     $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
     $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
 
-    // Prepare the Twitch API request for user data
-    $userIds = array_column($lurkers, 'user_id');
-    $userIdParams = implode('&id=', $userIds);
-    $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
-    $clientID = ''; // CHANGE TO MAKE THIS WORK
-    $headers = [
-        "Client-ID: $clientID",
-        "Authorization: Bearer $authToken",
-    ];
-
-    // Execute the Twitch API request
-    $ch = curl_init($twitchApiUrl);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $response = curl_exec($ch);
-    curl_close($ch);
-
-    // Decode the JSON response
-    $userData = json_decode($response, true);
-
-    // Check if data exists and is not null
-    if (isset($userData['data']) && is_array($userData['data'])) {
-        // Map user IDs to usernames
-        $usernames = [];
-        foreach ($userData['data'] as $user) {
-            $usernames[$user['id']] = $user['display_name'];
-        }
-    } else {
-        $usernames = [];
-    }
-
     // Fetch total deaths
     $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
     $totalDeaths = $getTotalDeaths->fetch(PDO::FETCH_ASSOC);
@@ -100,5 +69,36 @@ try {
     }
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
+}
+
+// Prepare the Twitch API request for user data
+$userIds = array_column($lurkers, 'user_id');
+$userIdParams = implode('&id=', $userIds);
+$twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
+$clientID = ''; // CHANGE TO MAKE THIS WORK
+$headers = [
+    "Client-ID: $clientID",
+    "Authorization: Bearer $authToken",
+];
+
+// Execute the Twitch API request
+$ch = curl_init($twitchApiUrl);
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+
+// Decode the JSON response
+$userData = json_decode($response, true);
+
+// Check if data exists and is not null
+if (isset($userData['data']) && is_array($userData['data'])) {
+    // Map user IDs to usernames
+    $usernames = [];
+    foreach ($userData['data'] as $user) {
+        $usernames[$user['id']] = $user['display_name'];
+    }
+} else {
+    $usernames = [];
 }
 ?>
