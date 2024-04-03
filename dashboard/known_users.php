@@ -73,7 +73,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<h2>Seen Users</h2>
+<h2>Known Users & Welcome Messages</h2>
+<p style='color: red;'>Soon, you'll be able to edit welcome messages. With a toggle button, you can enable or disable the bot's response to a user's welcome message.</p>
 <table class="bot-table">
   <thead>
     <tr>
