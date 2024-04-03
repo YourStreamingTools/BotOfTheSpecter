@@ -431,3 +431,12 @@ pre {
     border-bottom: 1px solid #444444;
     background-color: #555555;
   }
+
+/* Font Awesome Fixes */
+.fa-solid {
+    background-color: transparent;
+}
+
+.fa-solid {
+    font-size: 24px;
+}
