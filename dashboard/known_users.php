@@ -43,6 +43,19 @@ $statusOutput = 'Bot Status: Unknown';
 $pid = '';
 include 'bot_control.php';
 include 'sqlite.php';
+
+// Check if the update request is sent via POST
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($_POST['status'])) {
+  // Process the update here
+  $dbusername = $_POST['username'];
+  $status = $_POST['status'];
+
+  // Update the status in the database
+  $updateQuery = $db->prepare("UPDATE seen_users SET status = :status WHERE username = :username");
+  $updateQuery->bindParam(':status', $status);
+  $updateQuery->bindParam(':username', $dbusername);
+  $updateQuery->execute();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -82,6 +95,7 @@ include 'sqlite.php';
         </td>
         <td>
           <label class="switch">
+            <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)">
             <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
           </label>
         </td>
@@ -89,9 +103,24 @@ include 'sqlite.php';
     <?php endforeach; ?>
   </tbody>
 </table>
-<?php echo $databaseStatus; ?>
 </div>
 
+<script>
+function toggleStatus(username, isChecked) {
+    var status = isChecked ? 'True' : 'False';
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "", true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            console.log(xhr.responseText);
+            // Reload the page after the AJAX request is completed
+            location.reload();
+        }
+    };
+    xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
+}
+</script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
