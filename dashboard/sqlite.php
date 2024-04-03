@@ -44,7 +44,7 @@ try {
     $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch seen users data
-    $getSeenUsersData = $db->query("SELECT username, welcome_message, status FROM seen_users");
+    $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY status DESC");
     $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
 
     // Calculate lurk durations for each user
