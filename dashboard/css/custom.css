@@ -434,7 +434,7 @@ pre {
 
 /* Font Awesome Fixes */
 .fa-solid {
-    background-color: transparent;
+    background-color: transparent !important;
 }
 
 .fa-solid {
