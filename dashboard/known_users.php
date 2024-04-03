@@ -60,7 +60,36 @@ include 'sqlite.php';
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<h2>PAGE COMING SOON!</h2>
+<h2>Seen Users</h2>
+<table class="bot-table">
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Welcome Message</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <?php foreach ($seenUsersData as $userData): ?>
+      <tr>
+        <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?></td>
+        <td><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></td>
+        <td>
+            <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
+                <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
+            </span>
+        </td>
+        <td>
+          <label class="switch">
+            <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+          </label>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+  </tbody>
+</table>
+<?php echo $databaseStatus; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
