@@ -43,7 +43,6 @@ WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
 VERSION = "3.8"
-DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -1545,8 +1544,9 @@ class BotOfTheSpecter(commands.Bot):
                     return
 
                 chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
-
-                game = await get_latest_stream_game(user_to_shoutout)
+                user_info = await self.fetch_users(names=[user_to_shoutout])
+                mentioned_user_id = user_info[0].id
+                game = await get_latest_stream_game(mentioned_user_id, user_to_shoutout)
 
                 if not game:
                     shoutout_message = (
@@ -1566,7 +1566,7 @@ class BotOfTheSpecter(commands.Bot):
                     await ctx.send(shoutout_message)
 
                 # Trigger the Twitch shoutout
-                await trigger_twitch_shoutout(user_to_shoutout)
+                await trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id)
 
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
@@ -1878,53 +1878,45 @@ async def get_game_id(game_name):
     raise GameNotFoundException(f"Game '{game_name}' not found.")
 
 # Function to trigger a twitch shoutout via Twitch API
-async def trigger_twitch_shoutout(user_to_shoutout):
-    # Fetching the shoutout user ID
-    shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
-
+async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
     # Add the shoutout request to the queue
-    shoutout_queue.put((user_to_shoutout, shoutout_user_id))
+    shoutout_queue.put((user_to_shoutout, mentioned_user_id))
 
     # Check if the queue is empty and no shoutout is currently being processed
     if shoutout_queue.qsize() == 1:
         await process_shoutouts()
 
-async def fetch_twitch_shoutout_user_id(user_to_shoutout):
-    url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
-
+async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
+    headers = {
+        'Client-ID': CLIENT_ID,
+        'Authorization': f'Bearer {CHANNEL_AUTH}'
+    }
+    params = {
+        'broadcaster_id': broadcaster_id
+    }
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get('https://api.twitch.tv/helix/channels', headers=headers, params=params) as response:
             if response.status == 200:
-                shoutout_user_id = await response.text()
-                api_logger.info(f"Response from DecAPI: {shoutout_user_id}")
-                return shoutout_user_id
-            else:
-                api_logger.error(f"Failed to fetch Twitch ID. Status: {response.status}")
-                return None
-
-async def get_latest_stream_game(user_to_shoutout):
-    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                game_name = await response.text()
-                api_logger.info(f"Response from DecAPI: {game_name}")
-
-                if game_name and game_name.lower() != "null":
-                    twitch_logger.info(f"Got {user_to_shoutout} Last Game: {game_name}.")
-                    return game_name
+                data = await response.json()
+                if data.get("data"):
+                    game_name = data["data"][0].get("game_name")
+                    if game_name:
+                        twitch_logger.info(f"Got game for {user_to_shoutout}: {game_name}.")
+                        return game_name
+                    else:
+                        api_logger.error(f"Game name not found in Twitch API response for {user_to_shoutout}.")
+                        return None
                 else:
-                    api_logger.error(f"User {user_to_shoutout} is not currently playing a game.")
+                    api_logger.error(f"Empty response data from Twitch API for {user_to_shoutout}.")
                     return None
             else:
-                api_logger.error(f"Failed to get {user_to_shoutout} Last Game. Status: {response.status}")
+                api_logger.error(f"Failed to get game for {user_to_shoutout}. Status code: {response.status}")
                 return None
 
 async def process_shoutouts():
     while not shoutout_queue.empty():
-        user_to_shoutout, shoutout_user_id = shoutout_queue.get()
-        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={shoutout_user_id}")
+        user_to_shoutout, mentioned_user_id = shoutout_queue.get()
+        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -1932,7 +1924,7 @@ async def process_shoutouts():
         }
         payload = {
             "from_broadcaster_id": CHANNEL_ID,
-            "to_broadcaster_id": shoutout_user_id,
+            "to_broadcaster_id": mentioned_user_id,
             "moderator_id": CHANNEL_ID
         }
 
