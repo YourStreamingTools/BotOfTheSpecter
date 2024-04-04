@@ -8,7 +8,7 @@ import datetime
 from datetime import datetime
 import logging
 import subprocess
-import websockets
+import websockets as websocket
 import json
 import time
 import random
@@ -315,7 +315,7 @@ async def twitch_pubsub():
     ]
 
     # Log what Topics we're asking for.
-    twitch_logger.info(f"PubSub Topics: {topics}")
+    twitch_logger.info(f"Subscribing to PubSub Topics: {topics}")
 
     authentication = {
         "type": "LISTEN",
@@ -327,16 +327,21 @@ async def twitch_pubsub():
 
     while True:
         try:
-            async with websockets.connect(url) as websocket:
+            async with websocket.connect(url) as websocket:
+                twitch_logger.info("Connected to Twitch PubSub server.")
+
+                # Send authentication data
                 await websocket.send(json.dumps(authentication))
+                twitch_logger.info("Authentication data sent.")
 
                 while True:
                     response = await websocket.recv()
                     # Process the received message
                     await process_pubsub_message(response)
 
-        except websockets.ConnectionClosedError:
+        except websocket.ConnectionClosedError:
             # Handle connection closed error
+            twitch_logger.warning("Connection to Twitch PubSub server closed. Reconnecting...")
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
             # Handle other exceptions
@@ -388,6 +393,24 @@ async def process_pubsub_message(message):
             # Add more conditions to process other types of events as needed
             else:
                 twitch_logger.warning(f"Received message with unknown topic: {topic}")
+        
+        # Handle PING message
+        elif message_type == "PING":
+            await websocket.send(json.dumps({"type": "PONG"}))
+        
+        # Handle RECONNECT message
+        elif message_type == "RECONNECT":
+            # Perform the reconnection
+            twitch_logger.info("Received RECONNECT message. Reconnecting...")
+            await websocket.close()
+            await asyncio.sleep(5)
+            await twitch_pubsub()
+        
+        # Handle AUTH_REVOKED message
+        elif message_type == "AUTH_REVOKED":
+            revoked_topics = message_data["data"]["topics"]
+            twitch_logger.warning(f"Authentication revoked for topics: {revoked_topics}")
+            pass
 
     except Exception as e:
         twitch_logger.exception("An error occurred while processing PubSub message:", exc_info=e)
@@ -2301,7 +2324,7 @@ def start_bot():
     asyncio.get_event_loop().create_task(refresh_token_every_day())
     asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(check_stream_online())
-    asyncio.get_event_loop().create_task(twitch_pubsub())
+    asyncio.run(twitch_pubsub())
     # Start the bot
     bot.run()
 
