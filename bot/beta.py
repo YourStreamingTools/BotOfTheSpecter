@@ -8,7 +8,7 @@ import datetime
 from datetime import datetime
 import logging
 import subprocess
-import websockets as websocket
+import websockets
 import json
 import time
 import random
@@ -327,7 +327,8 @@ async def twitch_pubsub():
 
     while True:
         try:
-            async with websocket.connect(url) as websocket:
+            # Connect to Twitch PubSub server
+            async with websockets.connect(url) as websocket:
                 twitch_logger.info("Connected to Twitch PubSub server.")
 
                 # Send authentication data
@@ -339,7 +340,7 @@ async def twitch_pubsub():
                     # Process the received message
                     await process_pubsub_message(response)
 
-        except websocket.ConnectionClosedError:
+        except websockets.ConnectionClosedError:
             # Handle connection closed error
             twitch_logger.warning("Connection to Twitch PubSub server closed. Reconnecting...")
             await asyncio.sleep(10)  # Wait before retrying
@@ -396,13 +397,13 @@ async def process_pubsub_message(message):
         
         # Handle PING message
         elif message_type == "PING":
-            await websocket.send(json.dumps({"type": "PONG"}))
+            await websockets.send(json.dumps({"type": "PONG"}))
         
         # Handle RECONNECT message
         elif message_type == "RECONNECT":
             # Perform the reconnection
             twitch_logger.info("Received RECONNECT message. Reconnecting...")
-            await websocket.close()
+            await websockets.close()
             await asyncio.sleep(5)
             await twitch_pubsub()
         
