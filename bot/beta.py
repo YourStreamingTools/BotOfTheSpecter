@@ -1192,12 +1192,11 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(uptime_url) as response:
-                    api_logger.info(f"{response}")
                     if response.status == 200:
                         uptime_text = await response.text()
-
                         # Check if the API response is that the channel is offline
                         if 'is offline' in uptime_text:
+                            api_logger.info(f"{uptime_text}")
                             await ctx.send(f"{uptime_text}")
                         else:
                             # If the channel is live, send a custom message with the uptime
@@ -2321,12 +2320,11 @@ async def event_command_error(ctx, error):
 
 # Run the bot
 def start_bot():
-    # Schedule bot tasks
-    asyncio.get_event_loop().create_task(refresh_token_every_day())
-    asyncio.get_event_loop().create_task(check_auto_update())
-    asyncio.get_event_loop().create_task(check_stream_online())
-    asyncio.run(twitch_pubsub())
-    # Start the bot
+    loop = asyncio.get_event_loop()
+    loop.create_task(refresh_token_every_day())
+    loop.create_task(check_auto_update())
+    loop.create_task(check_stream_online())
+    loop.create_task(twitch_pubsub())
     bot.run()
 
 if __name__ == '__main__':
