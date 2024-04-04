@@ -75,6 +75,7 @@ if(isset($_GET['logType'])) {
 <h2>Logs:</h2>
 <ul class="tabs" data-tabs id="logTabs">
     <li class="tabs-title <?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
+    <li class="tabs-title <?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="#script">Script Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="#chat">Chat Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="#twitch">Twitch Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="#api">API Logs</a></li>
@@ -84,6 +85,10 @@ if(isset($_GET['logType'])) {
     <div class="tabs-panel <?php echo $logType === 'bot' ? 'is-active' : ''; ?>" id="bot">
         <h3>Bot Logs</h3>
         <pre><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+    </div>
+    <div class="tabs-panel <?php echo $logType === 'script' ? 'is-active' : ''; ?>" id="script">
+        <h3>Script Logs</h3>
+        <pre><?php echo $logType === 'script' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
     <div class="tabs-panel <?php echo $logType === 'chat' ? 'is-active' : ''; ?>" id="chat">
         <h3>Chat Logs</h3>
