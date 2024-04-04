@@ -5,7 +5,7 @@ import asyncio
 import queue
 import argparse
 import datetime
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import subprocess
 import websockets
@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.7"
+VERSION = "3.8"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -1188,26 +1188,35 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
         chat_logger.info("Uptime Command ran.")
-        uptime_url = f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}"
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        params = {
+            'user_login': CHANNEL_NAME,
+            'type': 'live'
+        }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(uptime_url) as response:
+                async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
                     if response.status == 200:
-                        uptime_text = await response.text()
-                        # Check if the API response is that the channel is offline
-                        if 'is offline' in uptime_text:
-                            api_logger.info(f"{uptime_text}")
-                            await ctx.send(f"{uptime_text}")
+                        data = await response.json()
+                        if data['data']:  # If stream is live
+                            started_at = datetime.strptime(data['data'][0]['started_at'], '%Y-%m-%dT%H:%M:%SZ')
+                            uptime = datetime.now(timezone.utc) - started_at
+                            hours, remainder = divmod(uptime.seconds, 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            await ctx.send(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
+                            chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
                         else:
-                            # If the channel is live, send a custom message with the uptime
-                            await ctx.send(f"We've been live for {uptime_text}.")
-                            chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime_text}.")
+                            await ctx.send(f"{CHANNEL_NAME} is currently offline.")
+                            api_logger.info(f"{CHANNEL_NAME} is currently offline.")
                     else:
-                        chat_logger.error(f"Failed to retrieve uptime. Status: {response.status}.")
-                        await ctx.send(f"Sorry, I couldn't retrieve the uptime right now. {response.status}")
+                        await ctx.send(f"Failed to retrieve stream data. Status: {response.status}")
+                        chat_logger.error(f"Failed to retrieve stream data. Status: {response.status}")
         except Exception as e:
-            chat_logger.error(f"Error retrieving uptime: {e}")
-            await ctx.send(f"Oops, something went wrong while trying to check uptime.")
+            chat_logger.error(f"Error retrieving stream data: {e}")
+            await ctx.send("Oops, something went wrong while trying to check uptime.")
     
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
@@ -1448,23 +1457,47 @@ class BotOfTheSpecter(commands.Bot):
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         chat_logger.info("Follow Age Command ran.")
         target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
-        followage_url = f"https://decapi.me/twitch/followage/{CHANNEL_NAME}/{target_user}?token={DECAPI}"
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        if mentioned_username:
+            user_info = await self.fetch_users(names=[target_user])
+            if user_info:
+                mentioned_user_id = user_info[0].id
+                params = {
+                    'user_id': CHANNEL_ID,
+                    'broadcaster_id': mentioned_user_id
+                }
+        else:
+            params = {
+                'user_id': CHANNEL_ID,
+                'broadcaster_id': ctx.author.id
+            }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(followage_url) as response:
-                    api_logger.info(f"{response}")
+                async with session.get('https://api.twitch.tv/helix/channels/followed', headers=headers, params=params) as response:
                     if response.status == 200:
-                        followage_text = await response.text()
-                        api_logger.info(f"{followage_text}")
-                        if f"{target_user} does not follow {CHANNEL_NAME}" in followage_text:
+                        data = await response.json()
+                        followage_text = None
+
+                        # Iterate over followed channels to find the target user
+                        for followed_channel in data['data']:
+                            if followed_channel['broadcaster_login'] == target_user.lower():
+                                followed_at = datetime.strptime(followed_channel['followed_at'], '%Y-%m-%dT%H:%M:%SZ')
+                                followage = datetime.now(timezone.utc) - followed_at
+                                followage_text = str(followage).split('.')[0]  # Convert timedelta to string and remove microseconds
+                                break
+
+                        if followage_text:
+                            await ctx.send(f"{target_user} has been following for: {followage_text}.")
+                            chat_logger.info(f"{target_user} has been following for: {followage_text}.")
+                        else:
                             await ctx.send(f"{target_user} does not follow {CHANNEL_NAME}.")
                             chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
-                        else:
-                            chat_logger.info(f"{target_user} has been following for: {followage_text}.")
-                            await ctx.send(f"{target_user} has been following for: {followage_text}")
                     else:
-                        chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
                         await ctx.send(f"Failed to retrieve followage information for {target_user}.")
+                        chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
         except Exception as e:
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
@@ -1609,17 +1642,31 @@ async def is_valid_twitch_user(user_to_shoutout):
 
 # Function to get the current streaming category for the channel.
 async def get_current_stream_game():
-    url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
-
-    response = await fetch_json(url)
-    api_logger.info(f"Response from DecAPI for current game: {response}")
-
-    if response and isinstance(response, str) and response != "null":
-        twitch_logger.info(f"Current game for {CHANNEL_NAME}: {response}.")
-        return response
-
-    api_logger.error(f"Failed to get current game for {CHANNEL_NAME}.")
-    return None
+    headers = {
+        'Client-ID': CLIENT_ID,
+        'Authorization': f'Bearer {CHANNEL_AUTH}'
+    }
+    params = {
+        'broadcaster_id': CHANNEL_ID
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get('https://api.twitch.tv/helix/channels', headers=headers, params=params) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get("data"):
+                    game_name = data["data"][0].get("game_name")
+                    if game_name:
+                        twitch_logger.info(f"Current game for {CHANNEL_NAME}: {game_name}.")
+                        return game_name
+                    else:
+                        api_logger.error(f"Game name not found in Twitch API response for {CHANNEL_NAME}.")
+                        return None
+                else:
+                    api_logger.error("Empty response data from Twitch API while trying to check what game you're currently playing.")
+                    return None
+            else:
+                api_logger.error(f"Failed to get current game for {CHANNEL_NAME}. Status code: {response.status}")
+                return None
 
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
@@ -1953,12 +2000,22 @@ async def check_stream_online():
     stream_online = False
     stream_state = False
     offline_logged = False
+
     while True:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}") as response:
-                text = await response.text()
+            headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+            }
+            params = {
+                'user_login': CHANNEL_NAME,
+                'type': 'live'
+            }
+            async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
+                data = await response.json()
+
                 # Check if the stream is offline
-                if f"{CHANNEL_NAME} is offline" in text:
+                if not data.get('data'):
                     stream_online = False
                 else:
                     stream_online = True
@@ -1968,6 +2025,9 @@ async def check_stream_online():
                     if stream_online:
                         bot_logger.info(f"Stream is now online.")
                         temp_seen_users.clear()
+                        channel = bot.get_channel(CHANNEL_NAME)
+                        message = "Stream is now online!"
+                        await channel.send(message)
                     else:
                         if not offline_logged:
                             bot_logger.info(f"Stream is now offline.")
@@ -1977,7 +2037,7 @@ async def check_stream_online():
                 elif stream_online:
                     offline_logged = False
 
-        await asyncio.sleep(300)  # Check every 5 minutes
+        await asyncio.sleep(60)  # Check every 1 minute
 
 # Function to get the current playing song
 async def get_song_info_command():
