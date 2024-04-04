@@ -34,15 +34,15 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.6 - BotOfTheSpecter
+### Version 3.7 - BotOfTheSpecter
 
-- Implemented the `clip` command, allowing users to create clips from the Twitch stream when online. The command generates a clip URL and sends it to the chat. Additionally, it creates a stream marker for the clip.
+- Enhanced the Twitch PubSub setup with improved logging and reconnect functionality.
+- Updated event processing logic to accommodate changes in PubSub message structure and handle additional data fields and event contexts.
+- Added support for processing various versions of channel events, including bits, subscriptions, and more.
+- Implemented handling for PING, RECONNECT, and AUTH_REVOKED messages in Twitch PubSub.
+- Adjusted the scheduling of bot tasks for improved efficiency.
 
-- Introduced the `marker` command, which enables moderators and the broadcaster to create stream markers with custom descriptions. These markers are used to denote important moments during the stream.
-
-- Implemented the `subscription` command, accessible via the aliases `mysub`. This command allows users to check their subscription status to the Twitch channel. It retrieves subscription information using the Twitch API and provides details such as subscription tier and gifter information if applicable.
-
-[View Full Changelog for Version 3.6](/bot/changelog/3.6.md)
+[View Full Changelog for Version 3.7](/bot/changelog/3.7.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
