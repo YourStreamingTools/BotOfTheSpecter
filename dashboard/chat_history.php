@@ -60,7 +60,43 @@ include 'sqlite.php';
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<h2>PAGE COMING SOON!</h2>
+<h2>Chat History</h2>
+<ul class="tabs" data-tabs id="chatTabs">
+  <?php
+  // Fetch chat history dates
+  $dateFolder = "/var/www/logs/chat_history/$username/";
+  $dates = scandir($dateFolder);
+
+  // Display chat history dates as tabs
+  foreach ($dates as $date) {
+    if ($date !== '.' && $date !== '..') {
+      $dateWithoutExtension = pathinfo($date, PATHINFO_FILENAME);
+      echo "<li class='tabs-title'><a href='?date=$dateWithoutExtension'>$dateWithoutExtension</a></li>";
+    }
+  }
+  ?>
+</ul>
+<div class="tabs-content" data-tabs-content="chatTabs">
+  <?php
+  // Display chat history content for the selected date
+  if(isset($_GET['date'])) {
+    $selectedDate = $_GET['date'];
+    $filename = "/var/www/logs/chat_history/$username/$selectedDate.txt";
+    if (file_exists($filename)) {
+      $chatHistory = file_get_contents($filename);
+      echo "<div class='tabs-panel is-active' id='$selectedDate'>";
+      echo "<h3>$selectedDate Chat</h3>";
+      echo "<pre>$chatHistory</pre>";
+      echo "</div>";
+    } else {
+      echo "<div class='tabs-panel is-active' id='$selectedDate'>";
+      echo "<h3>$selectedDate Chat</h3>";
+      echo "Chat history not found for the selected date";
+      echo "</div>";
+    }
+  }
+  ?>
+</div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
