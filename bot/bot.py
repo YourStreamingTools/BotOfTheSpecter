@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.6.1"
+VERSION = "3.6.2"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -1036,7 +1036,7 @@ class BotOfTheSpecter(commands.Bot):
                 "broadcaster_id": CHANNEL_ID
             }
             clip_response = requests.post('https://api.twitch.tv/helix/clips', headers=headers, params=params)
-            if clip_response.status_code == 200:
+            if clip_response.status_code == 202:
                 clip_data = clip_response.json()
                 clip_id = clip_data['data'][0]['id']
                 clip_url = f"http://clips.twitch.tv/{clip_id}"
@@ -1059,11 +1059,11 @@ class BotOfTheSpecter(commands.Bot):
                     marker_created_at = marker_data['data'][0]['created_at']
                     twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
                 else:
-                    twitch_logger.info("Failed to create a stream marker.")
+                    twitch_logger.info("Failed to create a stream marker for the clip.")
 
             else:
                 await ctx.send(f"Failed to create clip.")
-                twitch_logger.error(f"Status code: {clip_response.status_code}")
+                twitch_logger.error(f"Clip Error Code: {clip_response.status_code}")
         except requests.exceptions.RequestException as e:
             twitch_logger.error(f"Error making clip: {e}")
             await ctx.send("An error occurred while making the request. Please try again later.")
