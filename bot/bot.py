@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.6.2"
+VERSION = "3.7"
 DECAPI = ""  # CHANGE TO MAKE THIS WORK
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
@@ -350,25 +350,40 @@ async def process_pubsub_message(message):
         # Process based on message type
         if message_type == "MESSAGE":
             topic = message_data["data"]["topic"]
-            event_data = message_data["data"]["message"]
+            event_data = json.loads(message_data["data"]["message"])
             
             # Process bits event
-            if topic.startswith("channel-bits-events-v2"):
-                bits_event_data = event_data
+            if topic.startswith("channel-bits-events-v"):
+                bits_event_data = event_data["data"]
                 user_id = bits_event_data["user_id"]
                 user_name = bits_event_data["user_name"]
                 bits = bits_event_data["bits_used"]
                 await process_bits_event(user_id, user_name, bits)
                 
             # Process subscription event
-            elif topic.startswith("channel-subscribe-events-v1"):
+            elif topic.startswith("channel-subscribe-events-v"):
                 subscription_event_data = event_data
-                # Extract relevant information from the subscription event data
-                user_id = subscription_event_data["user_id"]
-                user_name = subscription_event_data["user_name"]
+                user_id = subscription_event_data.get("user_id")
+                user_name = subscription_event_data.get("user_name")
                 sub_plan = subscription_event_data["sub_plan"]
-                months = subscription_event_data["cumulative_months"]
-                await process_subscription_event(user_id, user_name, sub_plan, months)
+                months = subscription_event_data.get("cumulative_months", 1)
+                context = subscription_event_data.get("context")
+                
+                if context == "subgift":
+                    recipient_user_id = subscription_event_data["recipient_id"]
+                    recipient_user_name = subscription_event_data["recipient_user_name"]
+                    await process_subgift_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name)
+                elif context == "resub":
+                    await process_regular_subscription_event(user_id, user_name, sub_plan, months)
+                elif context == "anonsubgift":
+                    recipient_user_id = subscription_event_data["recipient_id"]
+                    recipient_user_name = subscription_event_data["recipient_user_name"]
+                    await process_anonsubgift_event(sub_plan, months, recipient_user_id, recipient_user_name)
+                elif context == "sub":
+                    recipient_user_id = subscription_event_data["recipient_id"]
+                    recipient_user_name = subscription_event_data["recipient_user_name"]
+                    multi_month_duration = subscription_event_data["multi_month_duration"]
+                    await process_multi_month_sub_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration)
                 
             # Add more conditions to process other types of events as needed
             else:
@@ -2092,8 +2107,8 @@ async def record_stream(outfile):
         api_logger.error(f"An error occurred while recording stream: {e}")
         return False
 
-# Funtion for BITS
-async def process_bits_event(self, user_id, user_name, bits):
+# Function for BITS
+async def process_bits_event(user_id, user_name, bits):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
@@ -2112,7 +2127,7 @@ async def process_bits_event(self, user_id, user_name, bits):
         ''', (total_bits, user_id, user_name))
         
         # Send message to channel with total bits
-        channel = self.get_channel(f"{CHANNEL_NAME}")
+        channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
     else:
         # Insert a new record for the user
@@ -2122,27 +2137,20 @@ async def process_bits_event(self, user_id, user_name, bits):
         ''', (user_id, user_name, bits))
         
         # Send message to channel without total bits
-        channel = self.get_channel(f"{CHANNEL_NAME}")
+        channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(f"Thank you {user_name} for {bits} bits!")
 
     conn.commit()
     conn.close()
 
-# Funtion for SUBSCRIPTIONS
-async def process_subscription_event(subscription_event_data):
+# Function for SUBSCRIPTIONS
+async def process_regular_subscription_event(subscription_event_data):
     # Extract relevant information from the subscription event data
     user_id = subscription_event_data["user_id"]
     user_name = subscription_event_data["user_name"]
     sub_plan = subscription_event_data["sub_plan"]
     months = subscription_event_data["cumulative_months"]
-    is_gift = subscription_event_data.get("is_gift", False)
 
-    if is_gift:
-        await process_gift_subscription_event(user_id, user_name, sub_plan, months)
-    else:
-        await process_regular_subscription_event(user_id, user_name, sub_plan, months)
-
-async def process_regular_subscription_event(self, user_id, user_name, sub_plan, months):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
@@ -2183,55 +2191,77 @@ async def process_regular_subscription_event(self, user_id, user_name, sub_plan,
     message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {months} months!"
     
     # Send the message to the channel
-    channel = self.get_channel(f"{CHANNEL_NAME}")
-    await channel.send(f"{message}")
+    channel = bot.get_channel(CHANNEL_NAME)
+    await channel.send(message)
 
-async def process_gift_subscription_event(self, gifter_id, gifter_name, recipient_id, recipient_name, sub_plan, months):
+async def process_subgift_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
 
-    # Check if the recipient exists in the database
-    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (recipient_id,))
-    existing_subscription = cursor.fetchone()
-
-    if existing_subscription:
-        # Recipient exists in the database
-        existing_sub_plan, existing_months = existing_subscription
-        if existing_sub_plan != sub_plan:
-            # Recipient upgraded their subscription plan
-            cursor.execute('''
-                UPDATE subscription_data
-                SET sub_plan = ?, months = ?
-                WHERE user_id = ?
-            ''', (sub_plan, months, recipient_id))
-        else:
-            # Recipient maintained the same subscription plan, update cumulative months
-            cursor.execute('''
-                UPDATE subscription_data
-                SET months = ?
-                WHERE user_id = ?
-            ''', (months, recipient_id))
-    else:
-        # Recipient does not exist in the database, insert new record
-        cursor.execute('''
-            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (?, ?, ?, ?)
-        ''', (recipient_id, recipient_name, sub_plan, months))
+    # Process the subscription event for subgift
+    cursor.execute('''
+        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+        VALUES (?, ?, ?, ?)
+    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
     # Commit changes to the database
     conn.commit()
     conn.close()
 
-    # Construct the message to be sent to the channel & send the message to the channel
-    message = f"Thank you {gifter_name} for gifting a {sub_plan} subscription to {recipient_name}! They are now a {sub_plan} subscriber for {months} months!"
-    
-    # Send the message to the channel
-    channel = self.get_channel(f"{CHANNEL_NAME}")
-    await channel.send(f"{message}")
+    # Construct the message to be sent to the channel
+    message = f"Thank you {user_name} for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber for {months} months!"
 
-# Funtion for FOLLOWERS
-async def process_followers_event(self, user_id, user_name, followed_at):
+    # Send the message to the channel
+    channel = bot.get_channel(CHANNEL_NAME)
+    await channel.send(message)
+
+async def process_anonsubgift_event(sub_plan, months, recipient_user_id, recipient_user_name):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Process the subscription event for anonsubgift
+    cursor.execute('''
+        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+        VALUES (?, ?, ?, ?)
+    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel
+    message = f"An anonymous user has gifted a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber for {months} months!"
+
+    # Send the message to the channel
+    channel = bot.get_channel(CHANNEL_NAME)
+    await channel.send(message)
+
+async def process_multi_month_sub_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration):
+    # Connect to the database
+    conn = sqlite3.connect(database_file)
+    cursor = conn.cursor()
+
+    # Process the subscription event for multi-month sub
+    cursor.execute('''
+        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+        VALUES (?, ?, ?, ?)
+    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
+
+    # Commit changes to the database
+    conn.commit()
+    conn.close()
+
+    # Construct the message to be sent to the channel
+    message = f"Thank you {user_name} for subscribing for {multi_month_duration} months! You are now a {sub_plan} subscriber for {months} months!"
+
+    # Send the message to the channel
+    channel = bot.get_channel(CHANNEL_NAME)
+    await channel.send(message)
+
+# Function for FOLLOWERS
+async def process_followers_event(user_id, user_name, followed_at):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
@@ -2250,8 +2280,8 @@ async def process_followers_event(self, user_id, user_name, followed_at):
     message = f"Thank you {user_name} for following! Welcome to the channel!"
 
     # Send the message to the channel
-    channel = self.get_channel(f"{CHANNEL_NAME}")
-    await channel.send(f"{message}")
+    channel = bot.get_channel(CHANNEL_NAME)
+    await channel.send(message)
 
 # Here is the BOT
 bot = BotOfTheSpecter(
