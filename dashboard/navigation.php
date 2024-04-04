@@ -10,13 +10,19 @@
       <li>
         <a>Twitch Data</a>
         <ul class="vertical menu" data-dropdown-menu>
-          <?php if($_SERVER['REQUEST_URI'] == '/mods.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="mods.php">View Mods</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/followers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="followers.php">View Followers</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/subscribers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="subscribers.php">View Subscribers</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/vips.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="vips.php">View VIPs</a></li>
+          <?php if($_SERVER['REQUEST_URI'] == '/mods.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="mods.php">Your Mods</a></li>
+          <?php if($_SERVER['REQUEST_URI'] == '/followers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="followers.php">Your Followers</a></li>
+          <?php if($_SERVER['REQUEST_URI'] == '/subscribers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="subscribers.php">Your Subscribers</a></li>
+          <?php if($_SERVER['REQUEST_URI'] == '/vips.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="vips.php">Your VIPs</a></li>
         </ul>
       </li>
-      <?php if($_SERVER['REQUEST_URI'] == '/logs.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="logs.php">View Logs</a></li>
+      <li>
+        <a>Logs</a>
+        <ul class="vertical menu" data-dropdown-menu>
+          <?php if($_SERVER['REQUEST_URI'] == '/logs.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="logs.php">View Logs</a></li>
+          <?php if($_SERVER['REQUEST_URI'] == '/chat_history.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="chat_history.php">Chat History</a></li>
+        </ul>
+      </li>
       <?php if($_SERVER['REQUEST_URI'] == '/known_users.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="known_users.php">Welcome Messages</a></li>
       <?php if($_SERVER['REQUEST_URI'] == '/counters.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="counters.php">Counters</a></li>
       <li>
