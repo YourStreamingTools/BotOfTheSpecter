@@ -41,12 +41,11 @@ include 'sqlite.php';
 // API endpoint to fetch followers
 $allFollowers = [];
 $showDisclaimer = true;
+// API endpoint to fetch followers
+$followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
+$clientID = ''; // CHANGE TO MAKE THIS WORK
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   $showDisclaimer = false;
-  // API endpoint to fetch followers
-  $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
-  $clientID = ''; // CHANGE TO MAKE THIS WORK
-
   $allFollowers = [];
   $liveData = "";
   $cacheExpiration = 3600; // Cache expires after 1 hour
