@@ -428,7 +428,7 @@ class BotOfTheSpecter(commands.Bot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await channel.send(f"/me is connected and ready! Running Beta V{VERSION}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -1458,9 +1458,13 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='game')
     async def game_command(self, ctx):
-        current_game = await get_current_stream_game()
-        chat_logger.info(f"Game Command has been ran. Current game is: {current_game}")
-        await ctx.send(f"The current game we're playing is: {current_game}")
+        global current_game
+        chat_logger.info("Game Command has been ran.")
+
+        if current_game is not None:
+            await ctx.send(f"The current game we're playing is: {current_game}")
+        else:
+            await ctx.send("We're not currently streaming any specific game category.")
 
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
@@ -1999,6 +2003,7 @@ async def check_auto_update():
 # Function to check if the stream is online
 async def check_stream_online():
     global stream_online
+    global current_game
     stream_online = False
     stream_state = False
     offline_logged = False
@@ -2020,6 +2025,8 @@ async def check_stream_online():
                 if not data.get('data'):
                     stream_online = False
                 else:
+                    game = data['game_name']
+                    current_game = game
                     stream_online = True
 
                 # Stream state change
@@ -2028,7 +2035,7 @@ async def check_stream_online():
                         bot_logger.info(f"Stream is now online.")
                         await clear_seen_today()
                         channel = bot.get_channel(CHANNEL_NAME)
-                        message = "Stream is now online!"
+                        message = f"Stream is now online! Streaming {game}"
                         await channel.send(message)
                     else:
                         if not offline_logged:
