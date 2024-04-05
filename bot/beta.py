@@ -5,7 +5,7 @@ import asyncio
 import queue
 import argparse
 import datetime
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 import subprocess
 import websockets
@@ -428,7 +428,7 @@ class BotOfTheSpecter(commands.Bot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
-        await channel.send(f"/me is connected and ready! Running Beta V{VERSION}")
+        await channel.send(f"/me is connected and ready! Running V{VERSION}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -613,7 +613,7 @@ class BotOfTheSpecter(commands.Bot):
     
         # Construct the response messages
         response_message = f"Available commands to you: {commands_list}"
-        custom_response_message = f"Available Custom Commands: {custom_commands_list}"
+        custom_response_message = f"Available Custom Commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
     
         # Sending the response messages to the chat
         await ctx.send(response_message)
@@ -1367,8 +1367,8 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         try:
+            global current_game
             chat_logger.info("Deaths command ran.")
-            current_game = await get_current_stream_game()
 
             # Retrieve the game-specific death count
             cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
@@ -1389,9 +1389,9 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
+            global current_game
             try:
                 chat_logger.info("Death Add Command ran.")
-                current_game = await get_current_stream_game()
 
                 # Ensuring connection and cursor are correctly used 
                 global conn, cursor
@@ -1429,9 +1429,9 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
+            global current_game
             try:
                 chat_logger.info("Death Remove Command Ran")
-                current_game = await get_current_stream_game()
 
                 # Decrement game-specific death count & total death count (ensure it doesn't go below 0)
                 cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = ?', (current_game,))
@@ -1680,34 +1680,6 @@ async def is_valid_twitch_user(user_to_shoutout):
     else:
         # If there's an error with the request or response, return False
         return False
-
-# Function to get the current streaming category for the channel.
-async def get_current_stream_game():
-    headers = {
-        'Client-ID': CLIENT_ID,
-        'Authorization': f'Bearer {CHANNEL_AUTH}'
-    }
-    params = {
-        'broadcaster_id': CHANNEL_ID
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.get('https://api.twitch.tv/helix/channels', headers=headers, params=params) as response:
-            if response.status == 200:
-                data = await response.json()
-                if data.get("data"):
-                    game_name = data["data"][0].get("game_name")
-                    if game_name:
-                        twitch_logger.info(f"Current game for {CHANNEL_NAME}: {game_name}.")
-                        return game_name
-                    else:
-                        api_logger.error(f"Game name not found in Twitch API response for {CHANNEL_NAME}.")
-                        return None
-                else:
-                    api_logger.error("Empty response data from Twitch API while trying to check what game you're currently playing.")
-                    return None
-            else:
-                api_logger.error(f"Failed to get current game for {CHANNEL_NAME}. Status code: {response.status}")
-                return None
 
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
@@ -2034,6 +2006,7 @@ async def check_stream_online():
     stream_online = False
     stream_state = False
     offline_logged = False
+    time_now = time.time()
 
     while True:
         async with aiohttp.ClientSession() as session:
@@ -2052,27 +2025,33 @@ async def check_stream_online():
                 if not data.get('data'):
                     stream_online = False
                     current_game = None
+                    # twitch_logger.info(f"API returned no data.")
                 else:
                     # Stream is online, extract the game name
                     stream_online = True
                     game = data['data'][0].get('game_name', None)
+                    uptime_str = data['data'][0].get('started_at', None)
+                    uptime = datetime.strptime(uptime_str, "%Y-%m-%dT%H:%M:%SZ")
                     current_game = game
+                    # twitch_logger.info(f"API Found Live Data, processing.")
 
                 # Stream state change
                 if stream_online != stream_state:
                     if stream_online:
-                        bot_logger.info(f"Stream is now online.")
                         twitch_logger.info(f"Stream is now online.")
-                        channel = bot.get_channel(CHANNEL_NAME)
-                        if channel is not None:
-                            if current_game:
-                                message = f"Stream is now online! Streaming {current_game}"
+                        streaming_for = time_now - uptime.timestamp()
+                        if current_game:
+                            message = f"Stream is now online! Streaming {current_game}"
+                            if streaming_for < 300: # Only send a message if steram uptime is less than 5 minutes
+                                await send_online_message(message)
                             else:
-                                message = "Stream is now online!"
-                            await channel.send(message)
+                                twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
                         else:
-                            bot_logger.error("Failed to retrieve channel object.")
-                            twitch_logger.error("Failed to retrieve channel object.")
+                            message = "Stream is now online!"
+                            if streaming_for < 300: # Only send a message if steram uptime is less than 5 minutes
+                                await send_online_message(message)
+                            else:
+                                twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
                     else:
                         if not offline_logged:
                             bot_logger.info(f"Stream is now offline.")
@@ -2084,6 +2063,15 @@ async def check_stream_online():
                     offline_logged = False
 
         await asyncio.sleep(60)  # Check every 1 minute
+
+async def send_online_message(message):
+    await asyncio.sleep(3)
+    channel = bot.get_channel(CHANNEL_NAME)
+    if channel:
+        bot_logger.info(f"Attempted to send message: {message}")
+        await channel.send(message)
+    else:
+        bot_logger.error("Failed to send message")
 
 async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
