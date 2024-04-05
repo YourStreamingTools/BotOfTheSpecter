@@ -5,7 +5,7 @@ import asyncio
 import queue
 import argparse
 import datetime
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 import subprocess
 import websockets
@@ -1211,7 +1211,9 @@ class BotOfTheSpecter(commands.Bot):
                     if response.status == 200:
                         data = await response.json()
                         if data['data']:  # If stream is live
-                            started_at = datetime.strptime(data['data'][0]['started_at'], '%Y-%m-%dT%H:%M:%SZ')
+                            started_at_str = data['data'][0]['started_at']
+                            started_at = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
+                            started_at = started_at.replace(tzinfo=timezone.utc)
                             uptime = datetime.now(timezone.utc) - started_at
                             hours, remainder = divmod(uptime.seconds, 3600)
                             minutes, seconds = divmod(remainder, 60)
@@ -1497,9 +1499,34 @@ class BotOfTheSpecter(commands.Bot):
                         # Iterate over followed channels to find the target user
                         for followed_channel in data['data']:
                             if followed_channel['broadcaster_login'] == target_user.lower():
-                                followed_at = datetime.strptime(followed_channel['followed_at'], '%Y-%m-%dT%H:%M:%SZ')
+                                followed_at_str = followed_channel['followed_at']
+                                followed_at = datetime.fromisoformat(followed_at_str.replace('Z', '+00:00'))
+                                followed_at = followed_at.replace(tzinfo=timezone.utc)
                                 followage = datetime.now(timezone.utc) - followed_at
-                                followage_text = str(followage).split('.')[0]  # Convert timedelta to string and remove microseconds
+                                years = followage.days // 365
+                                remaining_days = followage.days % 365
+                                months = remaining_days // 30
+                                remaining_days %= 30
+                                days = remaining_days
+
+                                if years > 0:
+                                    years_text = f"{years} {'year' if years == 1 else 'years'}"
+                                else:
+                                    years_text = ""
+
+                                if months > 0:
+                                    months_text = f"{months} {'month' if months == 1 else 'months'}"
+                                else:
+                                    months_text = ""
+
+                                if days > 0:
+                                    days_text = f"{days} {'day' if days == 1 else 'days'}"
+                                else:
+                                    days_text = ""
+
+                                # Join the non-empty parts with commas
+                                parts = [part for part in [years_text, months_text, days_text] if part]
+                                followage_text = ", ".join(parts)
                                 break
 
                         if followage_text:
@@ -2024,22 +2051,32 @@ async def check_stream_online():
                 # Check if the stream is offline
                 if not data.get('data'):
                     stream_online = False
+                    current_game = None
                 else:
-                    game = data['game_name']
-                    current_game = game
+                    # Stream is online, extract the game name
                     stream_online = True
+                    game = data['data'][0].get('game_name', None)
+                    current_game = game
 
                 # Stream state change
                 if stream_online != stream_state:
                     if stream_online:
                         bot_logger.info(f"Stream is now online.")
-                        await clear_seen_today()
+                        twitch_logger.info(f"Stream is now online.")
                         channel = bot.get_channel(CHANNEL_NAME)
-                        message = f"Stream is now online! Streaming {game}"
-                        await channel.send(message)
+                        if channel is not None:
+                            if current_game:
+                                message = f"Stream is now online! Streaming {current_game}"
+                            else:
+                                message = "Stream is now online!"
+                            await channel.send(message)
+                        else:
+                            bot_logger.error("Failed to retrieve channel object.")
+                            twitch_logger.error("Failed to retrieve channel object.")
                     else:
                         if not offline_logged:
                             bot_logger.info(f"Stream is now offline.")
+                            twitch_logger.info(f"Stream is now offline.")
                             await clear_seen_today()
                             offline_logged = True
                     stream_state = stream_online
