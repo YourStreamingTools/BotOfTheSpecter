@@ -84,7 +84,7 @@ $BotModMessage = "";
 if ($ModStatusOutput) {
   $BotModMessage = "<p style='color: green;'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
 } else {
-  $BotModMessage = "<p style='color: red;'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.<br><br><button class='mod-button' type='button' onclick='modUser()'>MOD SPECTER</button></p>";
+  $BotModMessage = "<p style='color: red;'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p>";
 }
 ?>
 <!DOCTYPE html>
@@ -119,24 +119,5 @@ if ($ModStatusOutput) {
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
-<?php if ($ModStatusOutput) {} else { ?>
-<script>
-  function modUser() {
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "<?php echo $addMod; ?>", true);
-    xhr.setRequestHeader("Client-ID", "<?php echo $clientID; ?>");
-    xhr.setRequestHeader("Authorization", "Bearer <?php echo $authToken; ?>");
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4 && xhr.stauts === 204) {
-        alert("BotOfTheSpecter has been modded successfully!");
-        location.reload();
-      } else if (xhr.readyState === 4 && xhr.status === 400) {
-        alert("Error: Unable to mod BotOfTheSpecter!");
-      }
-    };
-    xhr.send();
-  }
-</script>
-<?php } ?>
 </body>
 </html>
