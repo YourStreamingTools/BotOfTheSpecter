@@ -34,15 +34,17 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.7 - BotOfTheSpecter
+### Version 3.8 - BotOfTheSpecter
 
-- Enhanced the Twitch PubSub setup with improved logging and reconnect functionality.
-- Updated event processing logic to accommodate changes in PubSub message structure and handle additional data fields and event contexts.
-- Added support for processing various versions of channel events, including bits, subscriptions, and more.
-- Implemented handling for PING, RECONNECT, and AUTH_REVOKED messages in Twitch PubSub.
-- Adjusted the scheduling of bot tasks for improved efficiency.
+- Improved data management by using a table called `seen_today` over a temp function.
+- Adjusted the `giftsub` event processing.
+- Updated welcome message to use the `seen_today` table.
+- Updated the functions to use the `Twitch API`.
+- Remove the `DECAPI` from the bot.
+- Added timezone support to the bot.
+- Fixed the processing of `sub` and `gift sub` processes.
 
-[View Full Changelog for Version 3.7](/bot/changelog/3.7.md)
+[View Full Changelog for Version 3.8](/bot/changelog/3.8.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
