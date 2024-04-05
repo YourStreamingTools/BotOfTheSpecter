@@ -1,4 +1,16 @@
 <?php
+$commands = [];
+$typos = [];
+$lurkers = [];
+$totalDeaths = [];
+$gameDeaths = [];
+$totalHugs = [];
+$hugCounts = [];
+$totalKisses = [];
+$kissCounts = [];
+$customCounts = [];
+$seenUsersData = [];
+
 try {
     $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
