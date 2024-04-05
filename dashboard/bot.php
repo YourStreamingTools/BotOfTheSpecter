@@ -42,25 +42,26 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 // Twitch API URL
-$modurl = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
+$checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
+$addMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}&user_id=971436498";
 $clientID = ''; // CHANGE TO MAKE THIS WORK
 
-$ch = curl_init($modurl);
+$checkModConnect = curl_init($checkMod);
 $headers = [
     "Client-ID: {$clientID}",
     "Authorization: Bearer {$authToken}"
 ];
 
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($checkModConnect, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($checkModConnect, CURLOPT_RETURNTRANSFER, true);
 
-$response = curl_exec($ch);
+$response = curl_exec($checkModConnect);
 
 $BotIsMod = false; // Default to false until we know for sure
 
 if ($response === false) {
     // Handle error - you might want to log this or take other action
-    $error = 'Curl error: ' . curl_error($ch);
+    $error = 'Curl error: ' . curl_error($checkModConnect);
 } else {
     // Decode the response
     $responseData = json_decode($response, true);
@@ -77,13 +78,13 @@ if ($response === false) {
         $error = 'Unexpected response format.';
     }
 }
-curl_close($ch);
+curl_close($checkModConnect);
 $ModStatusOutput = $BotIsMod;
 $BotModMessage = "";
 if ($ModStatusOutput) {
   $BotModMessage = "<p style='color: green;'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
 } else {
-  $BotModMessage = "<p style='color: red;'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p>";
+  $BotModMessage = "<p style='color: red;'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.<br><br><button class='mod-button' type='button' onclick='modUser()'>MOD SPECTER</button></p>";
 }
 ?>
 <!DOCTYPE html>
@@ -118,5 +119,22 @@ if ($ModStatusOutput) {
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
+<script>
+  function modUser() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "<?php echo $addMod; ?>", true);
+    xhr.setRequestHeader("Client-ID", "<?php echo $clientID; ?>");
+    xhr.setRequestHeader("Authorization", "Bearer <?php echo $authToken; ?>");
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4 && xhr.stauts === 204) {
+        alert("BotOfTheSpecter has been modded successfully!");
+        location.reload();
+      } else if (xhr.readyState === 4 && xhr.status === 400) {
+        alert("Error: Unable to mod BotOfTheSpecter!");
+      }
+    };
+    xhr.send();
+  }
+</script>
 </body>
 </html>
