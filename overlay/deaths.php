@@ -1,13 +1,5 @@
+<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-// Function to sanitize input
-function sanitize_input($input) {
-    return htmlspecialchars($input);
-}
-
 $status = "";
 
 // Check if auth parameter is provided and not empty
@@ -40,13 +32,10 @@ if (isset($_GET['auth']) && !empty($_GET['auth'])) {
                         break;
                     }
                 }
-                $showName = isset($_GET['name']) && $_GET['name'] === '0' ? false : true;
-                if (!$showName) {
-                    // If 'name' parameter is set to '0', display only the death count
-                    $status = sanitize_input($currentGameDeathCount);
+                if ($currentGameDeathCount > 0) {
+                    $status = "Current Game Death Count for " . htmlspecialchars($currentGame) . ": " . htmlspecialchars($currentGameDeathCount) . "";
                 } else {
-                    // Display game name along with the death count
-                    $status = "Current Game Death Count for " . sanitize_input($currentGame) . ": " . sanitize_input($currentGameDeathCount);
+                    $status = "Current Game: " . htmlspecialchars($currentGame) . " has no recorded deaths.";
                 }
             } else {
                 $status = "I'm sorry, there was a problem accessing your data. Please try again later.";
