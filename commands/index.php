@@ -42,9 +42,9 @@ if (isset($_GET['user'])) {
         // Display commands if found
         if ($result) {
             $buildResults .= "<h2>Commands for $username:</h2>"; 
-            $buildResults .= "<ul>"; 
+            $buildResults .= "<ul style='list-style-type: none;'>"; 
             while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-                $buildResults .= "<li>{$row['command']}</li>"; 
+                $buildResults .= "<li>!{$row['command']}</li>";
             }
             $buildResults .= "</ul>"; 
         } else {
@@ -72,7 +72,7 @@ if (isset($_GET['user'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
-    <link rel="stylesheet" type="text/css" href="style.css">
+    <link rel="stylesheet" type="text/css" href="https://botofthespecter.com/style.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
