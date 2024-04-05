@@ -5,3 +5,4 @@ requests
 Flask
 translate
 websockets
+streamlink
