@@ -233,6 +233,11 @@ cursor.execute('''
         status TEXT DEFAULT 'True'
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS seen_today (
+        user_id TEXT PRIMARY KEY
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and welcome messages
@@ -240,7 +245,6 @@ translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
-temp_seen_users = set()
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -500,16 +504,20 @@ class BotOfTheSpecter(commands.Bot):
         user_trigger = message.author.name
         user_trigger_id = message.author.id
 
+        # Has the user been seen during this stream
+        cursor.execute('SELECT * FROM seen_today WHERE user_id = ?', (user_trigger_id,))
+        temp_seen_users = cursor.fetchone()
+
         # Check if the user is in the list of already seen users
-        if user_trigger_id in temp_seen_users:
+        if temp_seen_users:
             # twitch_logger.info(f"{user_trigger} has already had their welcome message.")
             return
-        
+
         # Check if the user is the broadcaster
         if user_trigger.lower() == CHANNEL_NAME.lower():
             # twitch_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
             return
-        
+
         # Check if the user is a VIP or MOD
         is_vip = is_user_vip(user_trigger_id)
         # twitch_logger.info(f"{user_trigger} - VIP={is_vip}")
@@ -524,13 +532,15 @@ class BotOfTheSpecter(commands.Bot):
             user_status = True
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
-            temp_seen_users.add(user_trigger_id)
+            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (user_trigger_id,))
+            conn.commit()
             # twitch_logger.info(f"{user_trigger} has been found in the database.")
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
-            temp_seen_users.add(user_trigger_id)
+            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (user_trigger_id,))
+            conn.commit()
             # twitch_logger.info(f"{user_trigger} has not been found in the database.")
 
         if user_status_enabled == 'True':
@@ -2016,20 +2026,24 @@ async def check_stream_online():
                 if stream_online != stream_state:
                     if stream_online:
                         bot_logger.info(f"Stream is now online.")
-                        temp_seen_users.clear()
+                        await clear_seen_today()
                         channel = bot.get_channel(CHANNEL_NAME)
                         message = "Stream is now online!"
                         await channel.send(message)
                     else:
                         if not offline_logged:
                             bot_logger.info(f"Stream is now offline.")
-                            temp_seen_users.clear()
+                            await clear_seen_today()
                             offline_logged = True
                     stream_state = stream_online
                 elif stream_online:
                     offline_logged = False
 
         await asyncio.sleep(60)  # Check every 1 minute
+
+async def clear_seen_today():
+    cursor.execute('DELETE FROM seen_today')
+    conn.commit()
 
 # Function to get the current playing song
 async def get_song_info_command():
