@@ -2455,11 +2455,12 @@ async def event_command_error(error):
 
 # Run the bot
 def start_bot():
-    loop = asyncio.get_event_loop()
-    loop.create_task(refresh_token_every_day())
-    loop.create_task(check_auto_update())
-    loop.create_task(check_stream_online())
-    loop.create_task(twitch_pubsub())
+    # Schedule bot tasks
+    asyncio.get_event_loop().create_task(refresh_token_every_day())
+    asyncio.get_event_loop().create_task(check_auto_update())
+    asyncio.get_event_loop().create_task(check_stream_online())
+    asyncio.get_event_loop().create_task(twitch_pubsub())
+    # Start the bot
     bot.run()
 
 if __name__ == '__main__':
