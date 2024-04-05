@@ -84,7 +84,7 @@ try {
       $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
     }
 } catch (PDOException $e) {
-  echo 'Error: ' . $e->getMessage();
+  #echo 'Error: ' . $e->getMessage();
 }
 
 // Prepare the Twitch API request for user data
