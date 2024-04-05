@@ -5,7 +5,7 @@ import asyncio
 import queue
 import argparse
 import datetime
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import subprocess
 import websockets
@@ -42,8 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.7"
-DECAPI = ""  # CHANGE TO MAKE THIS WORK
+VERSION = "3.8"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -234,6 +233,11 @@ cursor.execute('''
         status TEXT DEFAULT 'True'
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS seen_today (
+        user_id TEXT PRIMARY KEY
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and welcome messages
@@ -241,7 +245,6 @@ translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
-temp_seen_users = set()
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -371,14 +374,14 @@ async def process_pubsub_message(message):
                 subscription_event_data = event_data
                 user_id = subscription_event_data.get("user_id")
                 user_name = subscription_event_data.get("user_name")
-                sub_plan = subscription_event_data["sub_plan"]
+                sub_plan = await sub_plan_to_tier_name(subscription_event_data.get["sub_plan"])
                 months = subscription_event_data.get("cumulative_months", 1)
                 context = subscription_event_data.get("context")
                 
                 if context == "subgift":
                     recipient_user_id = subscription_event_data["recipient_id"]
                     recipient_user_name = subscription_event_data["recipient_user_name"]
-                    await process_subgift_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name)
+                    await process_subgift_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name)
                 elif context == "resub":
                     await process_regular_subscription_event(user_id, user_name, sub_plan, months)
                 elif context == "anonsubgift":
@@ -501,16 +504,20 @@ class BotOfTheSpecter(commands.Bot):
         user_trigger = message.author.name
         user_trigger_id = message.author.id
 
+        # Has the user been seen during this stream
+        cursor.execute('SELECT * FROM seen_today WHERE user_id = ?', (user_trigger_id,))
+        temp_seen_users = cursor.fetchone()
+
         # Check if the user is in the list of already seen users
-        if user_trigger_id in temp_seen_users:
+        if temp_seen_users:
             # twitch_logger.info(f"{user_trigger} has already had their welcome message.")
             return
-        
+
         # Check if the user is the broadcaster
         if user_trigger.lower() == CHANNEL_NAME.lower():
             # twitch_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
             return
-        
+
         # Check if the user is a VIP or MOD
         is_vip = is_user_vip(user_trigger_id)
         # twitch_logger.info(f"{user_trigger} - VIP={is_vip}")
@@ -525,13 +532,15 @@ class BotOfTheSpecter(commands.Bot):
             user_status = True
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
-            temp_seen_users.add(user_trigger_id)
+            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (user_trigger_id,))
+            conn.commit()
             # twitch_logger.info(f"{user_trigger} has been found in the database.")
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
-            temp_seen_users.add(user_trigger_id)
+            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (user_trigger_id,))
+            conn.commit()
             # twitch_logger.info(f"{user_trigger} has not been found in the database.")
 
         if user_status_enabled == 'True':
@@ -604,7 +613,7 @@ class BotOfTheSpecter(commands.Bot):
     
         # Construct the response messages
         response_message = f"Available commands to you: {commands_list}"
-        custom_response_message = f"Available Custom Commands: {custom_commands_list}"
+        custom_response_message = f"Available Custom Commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
     
         # Sending the response messages to the chat
         await ctx.send(response_message)
@@ -1188,26 +1197,37 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
         chat_logger.info("Uptime Command ran.")
-        uptime_url = f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}"
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        params = {
+            'user_login': CHANNEL_NAME,
+            'type': 'live'
+        }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(uptime_url) as response:
+                async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
                     if response.status == 200:
-                        uptime_text = await response.text()
-                        # Check if the API response is that the channel is offline
-                        if 'is offline' in uptime_text:
-                            api_logger.info(f"{uptime_text}")
-                            await ctx.send(f"{uptime_text}")
+                        data = await response.json()
+                        if data['data']:  # If stream is live
+                            started_at_str = data['data'][0]['started_at']
+                            started_at = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
+                            started_at = started_at.replace(tzinfo=timezone.utc)
+                            uptime = datetime.now(timezone.utc) - started_at
+                            hours, remainder = divmod(uptime.seconds, 3600)
+                            minutes, seconds = divmod(remainder, 60)
+                            await ctx.send(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
+                            chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
                         else:
-                            # If the channel is live, send a custom message with the uptime
-                            await ctx.send(f"We've been live for {uptime_text}.")
-                            chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime_text}.")
+                            await ctx.send(f"{CHANNEL_NAME} is currently offline.")
+                            api_logger.info(f"{CHANNEL_NAME} is currently offline.")
                     else:
-                        chat_logger.error(f"Failed to retrieve uptime. Status: {response.status}.")
-                        await ctx.send(f"Sorry, I couldn't retrieve the uptime right now. {response.status}")
+                        await ctx.send(f"Failed to retrieve stream data. Status: {response.status}")
+                        chat_logger.error(f"Failed to retrieve stream data. Status: {response.status}")
         except Exception as e:
-            chat_logger.error(f"Error retrieving uptime: {e}")
-            await ctx.send(f"Oops, something went wrong while trying to check uptime.")
+            chat_logger.error(f"Error retrieving stream data: {e}")
+            await ctx.send("Oops, something went wrong while trying to check uptime.")
     
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
@@ -1347,8 +1367,8 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         try:
+            global current_game
             chat_logger.info("Deaths command ran.")
-            current_game = await get_current_stream_game()
 
             # Retrieve the game-specific death count
             cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
@@ -1369,9 +1389,9 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
+            global current_game
             try:
                 chat_logger.info("Death Add Command ran.")
-                current_game = await get_current_stream_game()
 
                 # Ensuring connection and cursor are correctly used 
                 global conn, cursor
@@ -1409,9 +1429,9 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
+            global current_game
             try:
                 chat_logger.info("Death Remove Command Ran")
-                current_game = await get_current_stream_game()
 
                 # Decrement game-specific death count & total death count (ensure it doesn't go below 0)
                 cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = ?', (current_game,))
@@ -1440,31 +1460,84 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='game')
     async def game_command(self, ctx):
-        current_game = await get_current_stream_game()
-        chat_logger.info(f"Game Command has been ran. Current game is: {current_game}")
-        await ctx.send(f"The current game we're playing is: {current_game}")
+        global current_game
+        chat_logger.info("Game Command has been ran.")
+
+        if current_game is not None:
+            await ctx.send(f"The current game we're playing is: {current_game}")
+        else:
+            await ctx.send("We're not currently streaming any specific game category.")
 
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         chat_logger.info("Follow Age Command ran.")
         target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
-        followage_url = f"https://decapi.me/twitch/followage/{CHANNEL_NAME}/{target_user}?token={DECAPI}"
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        if mentioned_username:
+            user_info = await self.fetch_users(names=[target_user])
+            if user_info:
+                mentioned_user_id = user_info[0].id
+                params = {
+                    'user_id': CHANNEL_ID,
+                    'broadcaster_id': mentioned_user_id
+                }
+        else:
+            params = {
+                'user_id': CHANNEL_ID,
+                'broadcaster_id': ctx.author.id
+            }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(followage_url) as response:
-                    api_logger.info(f"{response}")
+                async with session.get('https://api.twitch.tv/helix/channels/followed', headers=headers, params=params) as response:
                     if response.status == 200:
-                        followage_text = await response.text()
-                        api_logger.info(f"{followage_text}")
-                        if f"{target_user} does not follow {CHANNEL_NAME}" in followage_text:
+                        data = await response.json()
+                        followage_text = None
+
+                        # Iterate over followed channels to find the target user
+                        for followed_channel in data['data']:
+                            if followed_channel['broadcaster_login'] == target_user.lower():
+                                followed_at_str = followed_channel['followed_at']
+                                followed_at = datetime.fromisoformat(followed_at_str.replace('Z', '+00:00'))
+                                followed_at = followed_at.replace(tzinfo=timezone.utc)
+                                followage = datetime.now(timezone.utc) - followed_at
+                                years = followage.days // 365
+                                remaining_days = followage.days % 365
+                                months = remaining_days // 30
+                                remaining_days %= 30
+                                days = remaining_days
+
+                                if years > 0:
+                                    years_text = f"{years} {'year' if years == 1 else 'years'}"
+                                else:
+                                    years_text = ""
+
+                                if months > 0:
+                                    months_text = f"{months} {'month' if months == 1 else 'months'}"
+                                else:
+                                    months_text = ""
+
+                                if days > 0:
+                                    days_text = f"{days} {'day' if days == 1 else 'days'}"
+                                else:
+                                    days_text = ""
+
+                                # Join the non-empty parts with commas
+                                parts = [part for part in [years_text, months_text, days_text] if part]
+                                followage_text = ", ".join(parts)
+                                break
+
+                        if followage_text:
+                            await ctx.send(f"{target_user} has been following for: {followage_text}.")
+                            chat_logger.info(f"{target_user} has been following for: {followage_text}.")
+                        else:
                             await ctx.send(f"{target_user} does not follow {CHANNEL_NAME}.")
                             chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
-                        else:
-                            chat_logger.info(f"{target_user} has been following for: {followage_text}.")
-                            await ctx.send(f"{target_user} has been following for: {followage_text}")
                     else:
-                        chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
                         await ctx.send(f"Failed to retrieve followage information for {target_user}.")
+                        chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
         except Exception as e:
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
@@ -1512,8 +1585,9 @@ class BotOfTheSpecter(commands.Bot):
                     return
 
                 chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
-
-                game = await get_latest_stream_game(user_to_shoutout)
+                user_info = await self.fetch_users(names=[user_to_shoutout])
+                mentioned_user_id = user_info[0].id
+                game = await get_latest_stream_game(mentioned_user_id, user_to_shoutout)
 
                 if not game:
                     shoutout_message = (
@@ -1533,7 +1607,7 @@ class BotOfTheSpecter(commands.Bot):
                     await ctx.send(shoutout_message)
 
                 # Trigger the Twitch shoutout
-                await trigger_twitch_shoutout(user_to_shoutout)
+                await trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id)
 
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
@@ -1606,20 +1680,6 @@ async def is_valid_twitch_user(user_to_shoutout):
     else:
         # If there's an error with the request or response, return False
         return False
-
-# Function to get the current streaming category for the channel.
-async def get_current_stream_game():
-    url = f"https://decapi.me/twitch/game/{CHANNEL_NAME}"
-
-    response = await fetch_json(url)
-    api_logger.info(f"Response from DecAPI for current game: {response}")
-
-    if response and isinstance(response, str) and response != "null":
-        twitch_logger.info(f"Current game for {CHANNEL_NAME}: {response}.")
-        return response
-
-    api_logger.error(f"Failed to get current game for {CHANNEL_NAME}.")
-    return None
 
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
@@ -1831,53 +1891,45 @@ async def get_game_id(game_name):
     raise GameNotFoundException(f"Game '{game_name}' not found.")
 
 # Function to trigger a twitch shoutout via Twitch API
-async def trigger_twitch_shoutout(user_to_shoutout):
-    # Fetching the shoutout user ID
-    shoutout_user_id = await fetch_twitch_shoutout_user_id(user_to_shoutout)
-
+async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
     # Add the shoutout request to the queue
-    shoutout_queue.put((user_to_shoutout, shoutout_user_id))
+    shoutout_queue.put((user_to_shoutout, mentioned_user_id))
 
     # Check if the queue is empty and no shoutout is currently being processed
     if shoutout_queue.qsize() == 1:
         await process_shoutouts()
 
-async def fetch_twitch_shoutout_user_id(user_to_shoutout):
-    url = f"https://decapi.me/twitch/id/{user_to_shoutout}"
-
+async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
+    headers = {
+        'Client-ID': CLIENT_ID,
+        'Authorization': f'Bearer {CHANNEL_AUTH}'
+    }
+    params = {
+        'broadcaster_id': broadcaster_id
+    }
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get('https://api.twitch.tv/helix/channels', headers=headers, params=params) as response:
             if response.status == 200:
-                shoutout_user_id = await response.text()
-                api_logger.info(f"Response from DecAPI: {shoutout_user_id}")
-                return shoutout_user_id
-            else:
-                api_logger.error(f"Failed to fetch Twitch ID. Status: {response.status}")
-                return None
-
-async def get_latest_stream_game(user_to_shoutout):
-    url = f"https://decapi.me/twitch/game/{user_to_shoutout}"
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                game_name = await response.text()
-                api_logger.info(f"Response from DecAPI: {game_name}")
-
-                if game_name and game_name.lower() != "null":
-                    twitch_logger.info(f"Got {user_to_shoutout} Last Game: {game_name}.")
-                    return game_name
+                data = await response.json()
+                if data.get("data"):
+                    game_name = data["data"][0].get("game_name")
+                    if game_name:
+                        twitch_logger.info(f"Got game for {user_to_shoutout}: {game_name}.")
+                        return game_name
+                    else:
+                        api_logger.error(f"Game name not found in Twitch API response for {user_to_shoutout}.")
+                        return None
                 else:
-                    api_logger.error(f"User {user_to_shoutout} is not currently playing a game.")
+                    api_logger.error(f"Empty response data from Twitch API for {user_to_shoutout}.")
                     return None
             else:
-                api_logger.error(f"Failed to get {user_to_shoutout} Last Game. Status: {response.status}")
+                api_logger.error(f"Failed to get game for {user_to_shoutout}. Status code: {response.status}")
                 return None
 
 async def process_shoutouts():
     while not shoutout_queue.empty():
-        user_to_shoutout, shoutout_user_id = shoutout_queue.get()
-        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={shoutout_user_id}")
+        user_to_shoutout, mentioned_user_id = shoutout_queue.get()
+        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -1885,7 +1937,7 @@ async def process_shoutouts():
         }
         payload = {
             "from_broadcaster_id": CHANNEL_ID,
-            "to_broadcaster_id": shoutout_user_id,
+            "to_broadcaster_id": mentioned_user_id,
             "moderator_id": CHANNEL_ID
         }
 
@@ -1950,34 +2002,80 @@ async def check_auto_update():
 # Function to check if the stream is online
 async def check_stream_online():
     global stream_online
+    global current_game
     stream_online = False
     stream_state = False
     offline_logged = False
+    time_now = time.time()
+
     while True:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://decapi.me/twitch/uptime/{CHANNEL_NAME}") as response:
-                text = await response.text()
+            headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+            }
+            params = {
+                'user_login': CHANNEL_NAME,
+                'type': 'live'
+            }
+            async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
+                data = await response.json()
+
                 # Check if the stream is offline
-                if f"{CHANNEL_NAME} is offline" in text:
+                if not data.get('data'):
                     stream_online = False
+                    current_game = None
+                    # twitch_logger.info(f"API returned no data.")
                 else:
+                    # Stream is online, extract the game name
                     stream_online = True
+                    game = data['data'][0].get('game_name', None)
+                    uptime_str = data['data'][0].get('started_at', None)
+                    uptime = datetime.strptime(uptime_str, "%Y-%m-%dT%H:%M:%SZ")
+                    current_game = game
+                    # twitch_logger.info(f"API Found Live Data, processing.")
 
                 # Stream state change
                 if stream_online != stream_state:
                     if stream_online:
-                        bot_logger.info(f"Stream is now online.")
-                        temp_seen_users.clear()
+                        twitch_logger.info(f"Stream is now online.")
+                        streaming_for = time_now - uptime.timestamp()
+                        if current_game:
+                            message = f"Stream is now online! Streaming {current_game}"
+                            if streaming_for < 300: # Only send a message if steram uptime is less than 5 minutes
+                                await send_online_message(message)
+                            else:
+                                twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
+                        else:
+                            message = "Stream is now online!"
+                            if streaming_for < 300: # Only send a message if steram uptime is less than 5 minutes
+                                await send_online_message(message)
+                            else:
+                                twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
                     else:
                         if not offline_logged:
                             bot_logger.info(f"Stream is now offline.")
-                            temp_seen_users.clear()
+                            twitch_logger.info(f"Stream is now offline.")
+                            await clear_seen_today()
                             offline_logged = True
                     stream_state = stream_online
                 elif stream_online:
                     offline_logged = False
 
-        await asyncio.sleep(300)  # Check every 5 minutes
+        await asyncio.sleep(60)  # Check every 1 minute
+
+async def send_online_message(message):
+    await asyncio.sleep(3)
+    channel = bot.get_channel(CHANNEL_NAME)
+    if channel:
+        bot_logger.info(f"Attempted to send message: {message}")
+        await channel.send(message)
+    else:
+        bot_logger.error("Failed to send message")
+
+async def clear_seen_today():
+    cursor.execute('DELETE FROM seen_today')
+    conn.commit()
 
 # Function to get the current playing song
 async def get_song_info_command():
@@ -2167,13 +2265,20 @@ async def process_bits_event(user_id, user_name, bits):
     conn.close()
 
 # Function for SUBSCRIPTIONS
-async def process_regular_subscription_event(subscription_event_data):
-    # Extract relevant information from the subscription event data
-    user_id = subscription_event_data["user_id"]
-    user_name = subscription_event_data["user_name"]
-    sub_plan = subscription_event_data["sub_plan"]
-    months = subscription_event_data["cumulative_months"]
+def sub_plan_to_tier_name(sub_plan):
+    sub_plan = str(sub_plan).lower()
+    if sub_plan == "prime":
+        return "Prime"
+    elif sub_plan == "1000":
+        return "Tier 1"
+    elif sub_plan == "2000":
+        return "Tier 2"
+    elif sub_plan == "3000":
+        return "Tier 3"
+    else:
+        raise ValueError("Unknown subscription plan")
 
+async def process_regular_subscription_event(user_id, user_name, sub_plan, event_months):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
@@ -2184,49 +2289,64 @@ async def process_regular_subscription_event(subscription_event_data):
 
     if existing_subscription:
         # User exists in the database
-        existing_sub_plan, existing_months = existing_subscription
+        existing_sub_plan, db_months = existing_subscription
         if existing_sub_plan != sub_plan:
             # User upgraded their subscription plan
             cursor.execute('''
                 UPDATE subscription_data
                 SET sub_plan = ?, months = ?
                 WHERE user_id = ?
-            ''', (sub_plan, months, user_id))
+            ''', (sub_plan, db_months, user_id))
         else:
             # User maintained the same subscription plan, update cumulative months
             cursor.execute('''
                 UPDATE subscription_data
                 SET months = ?
                 WHERE user_id = ?
-            ''', (months, user_id))
+            ''', (db_months, user_id))
     else:
         # User does not exist in the database, insert new record
         cursor.execute('''
             INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
             VALUES (?, ?, ?, ?)
-        ''', (user_id, user_name, sub_plan, months))
+        ''', (user_id, user_name, sub_plan, event_months))
 
     # Commit changes to the database
     conn.commit()
     conn.close()
 
     # Construct the message to be sent to the channel & send the message to the channel
-    message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {months} months!"
+    message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
     
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
 
-async def process_subgift_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name):
+async def process_subgift_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
 
-    # Process the subscription event for subgift
-    cursor.execute('''
-        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-        VALUES (?, ?, ?, ?)
-    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
+    # Check if the recipient user exists in the database
+    cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
+    existing_months = cursor.fetchone()
+
+    if existing_months:
+        # Recipient user exists in the database
+        existing_months = existing_months[0]
+        # Update the existing subscription with the new cumulative months
+        updated_months = existing_months + months
+        cursor.execute('''
+            UPDATE subscription_data
+            SET sub_plan = ?, months = ?
+            WHERE user_id = ?
+        ''', (sub_plan, updated_months, recipient_user_id))
+    else:
+        # Recipient user does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
     # Commit changes to the database
     conn.commit()
@@ -2244,11 +2364,26 @@ async def process_anonsubgift_event(sub_plan, months, recipient_user_id, recipie
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
 
-    # Process the subscription event for anonsubgift
-    cursor.execute('''
-        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-        VALUES (?, ?, ?, ?)
-    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
+    # Check if the recipient user exists in the database
+    cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
+    existing_months = cursor.fetchone()
+
+    if existing_months:
+        # Recipient user exists in the database
+        existing_months = existing_months[0]
+        # Update the existing subscription with the new cumulative months
+        updated_months = existing_months + months
+        cursor.execute('''
+            UPDATE subscription_data
+            SET sub_plan = ?, months = ?
+            WHERE user_id = ?
+        ''', (sub_plan, updated_months, recipient_user_id))
+    else:
+        # Recipient user does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
     # Commit changes to the database
     conn.commit()
@@ -2315,7 +2450,7 @@ bot = BotOfTheSpecter(
 
 # Errors
 @bot.event
-async def event_command_error(ctx, error):
+async def event_command_error(error):
     bot_logger.error(f"Error occurred: {error}")
 
 # Run the bot
