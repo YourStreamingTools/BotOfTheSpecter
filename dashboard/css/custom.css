@@ -371,6 +371,24 @@ pre {
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
 }
 
+.mod-button {
+    background-color: #6441A5;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.3s ease-in-out;
+}
+
+.mod-button:hover {
+    background-color: #8858df;
+    color: #ffffff;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
 /* Dark Mode for Tables */
 .dark-mode-table {
     background-color: #444444;
