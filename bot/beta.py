@@ -370,14 +370,14 @@ async def process_pubsub_message(message):
                 subscription_event_data = event_data
                 user_id = subscription_event_data.get("user_id")
                 user_name = subscription_event_data.get("user_name")
-                sub_plan = subscription_event_data["sub_plan"]
+                sub_plan = await sub_plan_to_tier_name(subscription_event_data.get["sub_plan"])
                 months = subscription_event_data.get("cumulative_months", 1)
                 context = subscription_event_data.get("context")
                 
                 if context == "subgift":
                     recipient_user_id = subscription_event_data["recipient_id"]
                     recipient_user_name = subscription_event_data["recipient_user_name"]
-                    await process_subgift_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name)
+                    await process_subgift_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name)
                 elif context == "resub":
                     await process_regular_subscription_event(user_id, user_name, sub_plan, months)
                 elif context == "anonsubgift":
@@ -2219,13 +2219,20 @@ async def process_bits_event(user_id, user_name, bits):
     conn.close()
 
 # Function for SUBSCRIPTIONS
-async def process_regular_subscription_event(subscription_event_data):
-    # Extract relevant information from the subscription event data
-    user_id = subscription_event_data["user_id"]
-    user_name = subscription_event_data["user_name"]
-    sub_plan = subscription_event_data["sub_plan"]
-    months = subscription_event_data["cumulative_months"]
+def sub_plan_to_tier_name(sub_plan):
+    sub_plan = str(sub_plan).lower()
+    if sub_plan == "prime":
+        return "Prime"
+    elif sub_plan == "1000":
+        return "Tier 1"
+    elif sub_plan == "2000":
+        return "Tier 2"
+    elif sub_plan == "3000":
+        return "Tier 3"
+    else:
+        raise ValueError("Unknown subscription plan")
 
+async def process_regular_subscription_event(user_id, user_name, sub_plan, event_months):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
@@ -2236,49 +2243,64 @@ async def process_regular_subscription_event(subscription_event_data):
 
     if existing_subscription:
         # User exists in the database
-        existing_sub_plan, existing_months = existing_subscription
+        existing_sub_plan, db_months = existing_subscription
         if existing_sub_plan != sub_plan:
             # User upgraded their subscription plan
             cursor.execute('''
                 UPDATE subscription_data
                 SET sub_plan = ?, months = ?
                 WHERE user_id = ?
-            ''', (sub_plan, months, user_id))
+            ''', (sub_plan, db_months, user_id))
         else:
             # User maintained the same subscription plan, update cumulative months
             cursor.execute('''
                 UPDATE subscription_data
                 SET months = ?
                 WHERE user_id = ?
-            ''', (months, user_id))
+            ''', (db_months, user_id))
     else:
         # User does not exist in the database, insert new record
         cursor.execute('''
             INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
             VALUES (?, ?, ?, ?)
-        ''', (user_id, user_name, sub_plan, months))
+        ''', (user_id, user_name, sub_plan, event_months))
 
     # Commit changes to the database
     conn.commit()
     conn.close()
 
     # Construct the message to be sent to the channel & send the message to the channel
-    message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {months} months!"
+    message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
     
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
 
-async def process_subgift_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name):
+async def process_subgift_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name):
     # Connect to the database
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
 
-    # Process the subscription event for subgift
-    cursor.execute('''
-        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-        VALUES (?, ?, ?, ?)
-    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
+    # Check if the recipient user exists in the database
+    cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
+    existing_months = cursor.fetchone()
+
+    if existing_months:
+        # Recipient user exists in the database
+        existing_months = existing_months[0]
+        # Update the existing subscription with the new cumulative months
+        updated_months = existing_months + months
+        cursor.execute('''
+            UPDATE subscription_data
+            SET sub_plan = ?, months = ?
+            WHERE user_id = ?
+        ''', (sub_plan, updated_months, recipient_user_id))
+    else:
+        # Recipient user does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
     # Commit changes to the database
     conn.commit()
@@ -2296,11 +2318,26 @@ async def process_anonsubgift_event(sub_plan, months, recipient_user_id, recipie
     conn = sqlite3.connect(database_file)
     cursor = conn.cursor()
 
-    # Process the subscription event for anonsubgift
-    cursor.execute('''
-        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-        VALUES (?, ?, ?, ?)
-    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
+    # Check if the recipient user exists in the database
+    cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
+    existing_months = cursor.fetchone()
+
+    if existing_months:
+        # Recipient user exists in the database
+        existing_months = existing_months[0]
+        # Update the existing subscription with the new cumulative months
+        updated_months = existing_months + months
+        cursor.execute('''
+            UPDATE subscription_data
+            SET sub_plan = ?, months = ?
+            WHERE user_id = ?
+        ''', (sub_plan, updated_months, recipient_user_id))
+    else:
+        # Recipient user does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
     # Commit changes to the database
     conn.commit()
@@ -2367,7 +2404,7 @@ bot = BotOfTheSpecter(
 
 # Errors
 @bot.event
-async def event_command_error(ctx, error):
+async def event_command_error(error):
     bot_logger.error(f"Error occurred: {error}")
 
 # Run the bot
