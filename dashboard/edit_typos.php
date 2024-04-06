@@ -42,15 +42,6 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 
-// Database connection for bot commands
-try {
-  $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
-  $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-  $status = "Error connecting to the database: " . $e->getMessage();
-  exit();
-}
-
 // Fetch usernames from the user_typos table
 try {
   $stmt = $db->prepare("SELECT username FROM user_typos");
