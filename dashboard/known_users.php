@@ -87,7 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <h2>Known Users & Welcome Messages</h2>
-<p style='color: red;'>Soon, you'll be able to edit welcome messages. With a toggle button, you can enable or disable the bot's response to a user's welcome message.</p>
+<p style='color: red;'>Click the Edit Button within the users table, edit the welcome welcome in the text box, when done, click the edit button agian to save.</p>
 <table class="bot-table">
   <thead>
     <tr>
@@ -145,15 +145,26 @@ function toggleStatus(username, isChecked) {
     };
     xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
 }
-</script>
-<script>
+
 document.querySelectorAll('.edit-btn').forEach(btn => {
   btn.addEventListener('click', function() {
     const userId = this.getAttribute('data-user-id');
     const editBox = document.getElementById('edit-box-' + userId);
-    editBox.style.display = editBox.style.display === 'none' ? 'block' : 'none';
     const welcomeMessage = document.getElementById('welcome-message-' + userId);
-    welcomeMessage.style.display = welcomeMessage.style.display === 'none' ? 'block' : 'none'; // Hide the welcome message when showing the edit box
+    
+    if (editBox.style.display === 'none') {
+      // Show the edit box and hide the welcome message
+      editBox.style.display = 'block';
+      welcomeMessage.style.display = 'none';
+      // Change the color of the edit button
+      this.classList.add('editing');
+    } else {
+      // Save the updated welcome message
+      const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
+      updateWelcomeMessage(userId, newWelcomeMessage);
+      // Remove the editing class from the edit button
+      this.classList.remove('editing');
+    }
   });
 });
 
