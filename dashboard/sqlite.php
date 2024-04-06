@@ -10,6 +10,7 @@ $totalKisses = [];
 $kissCounts = [];
 $customCounts = [];
 $seenUsersData = [];
+$timedMessagesData = [];
 
 try {
     $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
@@ -58,6 +59,10 @@ try {
     // Fetch seen users data
     $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY username DESC");
     $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch timed messages
+    $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC")
+    $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC)
 
     // Calculate lurk durations for each user
     foreach ($lurkers as $key => $lurker) {
