@@ -23,6 +23,9 @@ from googletrans import Translator, LANGUAGES
 import twitchio
 from twitchio.ext import commands, pubsub
 import streamlink
+import pyowm
+import pytz
+from pytz.exceptions import UnknownTimeZoneError
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -51,6 +54,7 @@ CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
+WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
@@ -246,6 +250,13 @@ cursor.execute('''
         message TEXT
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS profile (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timezone TEXT DEFAULT NULL,
+        weather_location TEXT DEFAULT NULL
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and welcome messages
@@ -437,8 +448,6 @@ class BotOfTheSpecter(commands.Bot):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
         await channel.send(f"/me is connected and ready! Running V{VERSION}")
-        while True:
-            await timed_message()
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -500,6 +509,15 @@ class BotOfTheSpecter(commands.Bot):
                             response = response.replace('(count)', str(get_count))
                         except Exception as e:
                             chat_logger.error(f"{e}")
+                    if '(daysuntil.' in response:
+                        # Getting the date from the response = YEAR-MONTH-DAY
+                        get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
+                        if get_date:
+                            date_str = get_date.group(1)
+                            event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                            current_date = datetime.now().date()
+                            days_left = (event_date - current_date).days
+                            response = response.replace(f"(daysuntil.{date_str})", str(days_left))
                     chat_logger.info(f"{command} command ran with response: {response}")
                     await message.channel.send(response)
                 else:
@@ -642,6 +660,46 @@ class BotOfTheSpecter(commands.Bot):
     async def roadmap_command(self, ctx):
         await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
 
+    @commands.command(name='weather')
+    async def weather_command(self, ctx, location: str = None) -> None:
+        if location:
+            if ' ' in location:
+                await ctx.send(f"Please provide the location in the format: City,CountryCode (e.g. Sydney,AU)")
+                return
+            weather_info = get_weather(location)
+        else:
+            location = get_streamer_weather()
+            if location:
+                weather_info = get_weather(location)
+            else:
+                weather_info = "I'm sorry, something went wrong trying to get the current weather."
+        await ctx.send(weather_info)
+
+    @commands.command(name='time')
+    async def time_command(self, ctx, timezone: str = None) -> None:
+        if timezone:
+            tz = pytz.timezone(timezone)
+            chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+            current_time = datetime.now(tz)
+            time_format_date = current_time.strftime("%B %d, %Y")
+            time_format_time = current_time.strftime("%I:%M %p")
+            time_format_week = current_time.strftime("%A")
+            time_format = f"For the timezone {timezone}, it is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+        else:
+            cursor.execute("SELECT timezone FROM profile")
+            timezone = cursor.fetchone()[0]
+            if timezone:
+                tz = pytz.timezone(timezone)
+                chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                current_time = datetime.now(tz)
+                time_format_date = current_time.strftime("%B %d, %Y")
+                time_format_time = current_time.strftime("%I:%M %p")
+                time_format_week = current_time.strftime("%A")
+                time_format = f"It is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+            else:
+                ctx.send(f"Streamer timezone is not set.")
+        await ctx.send(time_format)
+    
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         if number is None:  # If no number is provided, get a random quote
@@ -1891,6 +1949,49 @@ def get_custom_count(command):
     else:
         return 0
 
+# Functions for weather
+def get_streamer_weather():
+    cursor.execute("SELECT weather_location FROM profile")
+    info = cursor.fetchone()
+    location = info[0]
+    chat_logger.info(f"Got {location} weather info.")
+    return location
+
+def getWindDirection(deg):
+    cardinalDirections = {
+        'N': (337.5, 22.5),
+        'NE': (22.5, 67.5),
+        'E': (67.5, 112.5),
+        'SE': (112.5, 157.5),
+        'S': (157.5, 202.5),
+        'SW': (202.5, 247.5),
+        'W': (247.5, 292.5),
+        'NW': (292.5, 337.5)
+    }
+    for direction, (start, end) in cardinalDirections.items():
+        if deg >= start and deg < end:
+            return direction
+    return 'N/A'
+
+def get_weather(location):
+    owm = pyowm.OWM(WEATHER_API)
+    try:
+        observation = owm.weather_manager().weather_at_place(location)
+        weather = observation.weather
+        status = weather.detailed_status
+        temperature = weather.temperature('celsius')['temp']
+        temperature_f = round(temperature * 9 / 5 + 32, 1)
+        wind_speed = round(weather.wind()['speed'])
+        wind_speed_mph = round(wind_speed / 1.6, 2)
+        humidity = weather.humidity
+        wind_direction = getWindDirection(weather.wind()['deg'])
+
+        return f"The weather in {location} is {status} with a temperature of {temperature}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at {wind_speed}kph ({wind_speed_mph}mph) and the humidity is {humidity}%."
+    except pyowm.exceptions.NotFoundError:
+        return f"Location '{location}' not found."
+    except AttributeError:
+        return f"An error occurred while processing the weather data for '{location}'."
+
 # Function to trigger updating stream title or game
 class GameNotFoundException(Exception):
     pass
@@ -2534,6 +2635,7 @@ def start_bot():
     asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(check_stream_online())
     asyncio.get_event_loop().create_task(twitch_pubsub())
+    asyncio.get_event_loop().create_task(timed_message())
     # Start the bot
     bot.run()
 
