@@ -56,6 +56,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
   $updateQuery->bindParam(':username', $dbusername);
   $updateQuery->execute();
 }
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
+  // Process the update here
+  $userId = $_POST['userId'];
+  $newWelcomeMessage = $_POST['newWelcomeMessage'];
+
+  // Update the welcome message in the database
+  $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = :welcome_message WHERE id = :user_id");
+  $messageQuery->bindParam(':welcome_message', $newWelcomeMessage);
+  $messageQuery->bindParam(':user_id', $userId);
+  $messageQuery->execute(); // Correct spelling here
+  echo "<script>window.location.reload();</script>";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -82,23 +95,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
       <th>Welcome Message</th>
       <th>Status</th>
       <th>Action</th>
+      <th>Edit</th>
     </tr>
   </thead>
   <tbody>
     <?php foreach ($seenUsersData as $userData): ?>
       <tr>
         <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?></td>
-        <td><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></td>
         <td>
-            <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
-                <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
-            </span>
+          <div id="welcome-message-<?php echo $userData['id']; ?>">
+            <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
+          </div>
+          <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
+            <textarea class="welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+          </div>
+        </td>
+        <td>
+          <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
+            <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
+          </span>
         </td>
         <td>
           <label class="switch">
             <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)">
             <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
           </label>
+        </td>
+        <td>
+          <button class="edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fa-solid fa-pencil-alt"></i></button>
         </td>
       </tr>
     <?php endforeach; ?>
@@ -120,6 +144,29 @@ function toggleStatus(username, isChecked) {
         }
     };
     xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
+}
+</script>
+<script>
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const userId = this.getAttribute('data-user-id');
+    const editBox = document.getElementById('edit-box-' + userId);
+    editBox.style.display = editBox.style.display === 'none' ? 'block' : 'none';
+    const welcomeMessage = document.getElementById('welcome-message-' + userId);
+    welcomeMessage.style.display = welcomeMessage.style.display === 'none' ? 'block' : 'none'; // Hide the welcome message when showing the edit box
+  });
+});
+
+function updateWelcomeMessage(userId, newWelcomeMessage) {
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "", true);
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      location.reload();
+    }
+  };
+  xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
