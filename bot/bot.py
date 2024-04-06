@@ -5,7 +5,7 @@ import asyncio
 import queue
 import argparse
 import datetime
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 import subprocess
 import websockets
@@ -42,7 +42,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.8"
+VERSION = "3.9"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -239,6 +239,13 @@ cursor.execute('''
         user_id TEXT PRIMARY KEY
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS timed_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        interval INTEGER,
+        message TEXT
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and welcome messages
@@ -430,6 +437,8 @@ class BotOfTheSpecter(commands.Bot):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
         await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        while True:
+            await timed_message()
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -2127,6 +2136,20 @@ async def send_online_message(message):
 async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
     conn.commit()
+
+# Funciont for timmed messages
+async def timed_message():
+    global stream_online
+    time_now = datetime.now()
+    channel = bot.get_channel(CHANNEL_NAME)
+    if stream_online:
+        cursor.execute('SELECT interval, message FROM timed_messages')
+        messages = cursor.fetchall()
+        for message, interval in messages:
+            send_time = time_now + timedelta(minutes=int(interval))
+            wait_time = (send_time - time_now).total_seconds()
+            await asyncio.sleep(wait_time)
+            await channel.send(message)
 
 # Function to get the current playing song
 async def get_song_info_command():
