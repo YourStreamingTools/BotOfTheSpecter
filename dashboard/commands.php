@@ -73,7 +73,7 @@ include 'sqlite.php';
               <tr>
                 <td>!<?php echo $command['command']; ?></td>
                 <td><?php echo $command['response']; ?></td>
-                <td>Enabled</td>
+                <td><?php echo $command['status']; ?></td>
               </tr>
             <?php endforeach; ?>
           </tbody>
