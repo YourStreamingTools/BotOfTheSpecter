@@ -128,6 +128,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
     <?php endforeach; ?>
   </tbody>
 </table>
+<br><br><br><br>
 </div>
 
 <script>
