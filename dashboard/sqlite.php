@@ -61,8 +61,8 @@ try {
     $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch timed messages
-    $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC")
-    $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC)
+    $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
+    $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
 
     // Calculate lurk durations for each user
     foreach ($lurkers as $key => $lurker) {
