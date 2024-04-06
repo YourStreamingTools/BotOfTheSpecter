@@ -52,7 +52,7 @@ TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -139,7 +139,8 @@ cursor = conn.cursor()
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS custom_commands (
         command TEXT PRIMARY KEY,
-        response TEXT
+        response TEXT,
+        status TEXT DEFAULT 'Enabled'
     )
 ''')
 cursor.execute('''
@@ -469,27 +470,31 @@ class BotOfTheSpecter(commands.Bot):
                 return  # It's a built-in command or alias, do nothing more
 
             # Check if the command exists in a hypothetical database and respond
-            cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+            cursor.execute('SELECT response, status FROM custom_commands WHERE command = ?', (command,))
             result = cursor.fetchone()
 
             if result:
-                response = result[0]
-                # Check if the user has a custom API URL
-                if '(customapi.' in response:
-                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                    if url_match:
-                        url = url_match.group(1)
-                        api_response = fetch_api_response(url)
-                        response = response.replace(f"(customapi.{url})", api_response)
-                if '(count)' in response:
-                    try:
-                        update_custom_count(command)
-                        get_count = get_custom_count(command)
-                        response = response.replace('(count)', str(get_count))
-                    except Exception as e:
-                        chat_logger.error(f"{e}")
-                chat_logger.info(f"{command} command ran with response: {response}")
-                await message.channel.send(response)
+                if 'status' == 'Enabled':
+                    response = result[0]
+                    # Check if the user has a custom API URL
+                    if '(customapi.' in response:
+                        url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                        if url_match:
+                            url = url_match.group(1)
+                            api_response = fetch_api_response(url)
+                            response = response.replace(f"(customapi.{url})", api_response)
+                    # Check if the user has a custom count
+                    if '(count)' in response:
+                        try:
+                            update_custom_count(command)
+                            get_count = get_custom_count(command)
+                            response = response.replace('(count)', str(get_count))
+                        except Exception as e:
+                            chat_logger.error(f"{e}")
+                    chat_logger.info(f"{command} command ran with response: {response}")
+                    await message.channel.send(response)
+                else:
+                    chat_logger.info(f"{command} not ran becasue it's disabled.")
             else:
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
@@ -1541,6 +1546,43 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
+
+    @commands.command(name='schedule')
+    async def schedule_command(self, ctx):
+        utc_now = datetime.now(datetime.UTC)
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        params = {
+            'broadcaster_id': CHANNEL_ID,
+            'first': '2'
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get('https://api.twitch.tv/helix/schedule', headers=headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        segments = data['data']['segments']
+
+                        next_stream = None
+                        for segment in segments:
+                            start_time = datetime.fromisoformat(segment['start_time'][:-1])
+                            if start_time > utc_now:
+                                next_stream = segment
+                                break  # Exit the loop after finding the first upcoming stream
+
+                        if next_stream:
+                            start_date = next_stream['start_time'].split('T')[0]  # Extract date from start_time
+                            time_until = start_time - utc_now
+                            await ctx.send(f"The next stream will be on {start_date} which is in {time_until}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                        else:
+                            await ctx.send(f"There are no upcoming streams in the next two days.")
+                    else:
+                        ctx.send(f"Something went wrong while trying to get the schedule from Twitch.")
+        except Exception as e:
+            chat_logger.error(f"Error retrieving schedule: {e}")
+            await ctx.send(f"Oops, something went wrong while trying to check the schedule.")
 
     @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
