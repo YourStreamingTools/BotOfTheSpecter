@@ -459,6 +459,10 @@ pre {
     font-size: 24px;
 }
 
+.edit-btn.editing {
+    color: #ff0000;
+}
+
 .switch {
     position: relative;
     display: inline-block;
