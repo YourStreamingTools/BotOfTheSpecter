@@ -474,7 +474,7 @@ class BotOfTheSpecter(commands.Bot):
             result = cursor.fetchone()
 
             if result:
-                if 'status' == 'Enabled':
+                if result[1] == 'Enabled':
                     response = result[0]
                     # Check if the user has a custom API URL
                     if '(customapi.' in response:
