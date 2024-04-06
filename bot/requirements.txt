@@ -6,3 +6,4 @@ Flask
 translate
 websockets
 streamlink
+pyowm
