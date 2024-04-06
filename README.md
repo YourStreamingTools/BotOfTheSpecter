@@ -34,17 +34,13 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.8 - BotOfTheSpecter
+### Version 3.9 - BotOfTheSpecter
 
-- Improved data management by using a table called `seen_today` over a temp function.
-- Adjusted the `giftsub` event processing.
-- Updated welcome message to use the `seen_today` table.
-- Updated the functions to use the `Twitch API`.
-- Remove the `DECAPI` from the bot.
-- Added timezone support to the bot.
-- Fixed the processing of `sub` and `gift sub` processes.
+- Added `schedule` command.
+- Added the ability to `enable` and `disable` custom comamnds
+- Added `timed messages`.
 
-[View Full Changelog for Version 3.8](/bot/changelog/3.8.md)
+[View Full Changelog for Version 3.9](/bot/changelog/3.9.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
