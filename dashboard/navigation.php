@@ -23,11 +23,17 @@
           <?php if($_SERVER['REQUEST_URI'] == '/chat_history.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="chat_history.php">Chat History</a></li>
         </ul>
       </li>
-      <?php if($_SERVER['REQUEST_URI'] == '/known_users.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="known_users.php">Welcome Messages</a></li>
-      <?php if($_SERVER['REQUEST_URI'] == '/counters.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="counters.php">Counters</a></li>
       <li>
-        <a>Edit Counters</a>
+        <a>Bot Messages</a>
         <ul class="vertical menu" data-dropdown-menu>
+        <?php if($_SERVER['REQUEST_URI'] == '/known_users.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="known_users.php">Welcome Messages</a></li>
+        <?php if($_SERVER['REQUEST_URI'] == '/timed_messages.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="timed_messages.php">Timed Messages</a></li>
+        </ul>
+      </li>
+      <li>
+        <a>Bot Counting</a>
+        <ul class="vertical menu" data-dropdown-menu>
+          <?php if($_SERVER['REQUEST_URI'] == '/counters.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="counters.php">Counters</a></li>
           <?php if($_SERVER['REQUEST_URI'] == '/edit_typos.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit_typos.php">Edit Typos</a></li>
           <?php if($_SERVER['REQUEST_URI'] == '/edit_custom_counts.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit_custom_counts.php">Edit Custom Counters</a></li>
         </ul>
