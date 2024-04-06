@@ -1549,7 +1549,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
-        utc_now = datetime.now(datetime.UTC)
+        utc_now = datetime.now(timezone.utc)
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -1567,7 +1567,7 @@ class BotOfTheSpecter(commands.Bot):
 
                         next_stream = None
                         for segment in segments:
-                            start_time = datetime.fromisoformat(segment['start_time'][:-1])
+                            start_time = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=timezone.utc)
                             if start_time > utc_now:
                                 next_stream = segment
                                 break  # Exit the loop after finding the first upcoming stream
@@ -1575,11 +1575,20 @@ class BotOfTheSpecter(commands.Bot):
                         if next_stream:
                             start_date = next_stream['start_time'].split('T')[0]  # Extract date from start_time
                             time_until = start_time - utc_now
-                            await ctx.send(f"The next stream will be on {start_date} which is in {time_until}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+
+                            # Format time_until
+                            days, seconds = time_until.days, time_until.seconds
+                            hours = seconds // 3600
+                            minutes = (seconds % 3600) // 60
+                            seconds = (seconds % 60)
+
+                            time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
+
+                            await ctx.send(f"The next stream will be on {start_date} which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                         else:
                             await ctx.send(f"There are no upcoming streams in the next two days.")
                     else:
-                        ctx.send(f"Something went wrong while trying to get the schedule from Twitch.")
+                        await ctx.send(f"Something went wrong while trying to get the schedule from Twitch.")
         except Exception as e:
             chat_logger.error(f"Error retrieving schedule: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check the schedule.")
