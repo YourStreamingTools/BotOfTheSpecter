@@ -39,6 +39,8 @@ Stay tuned for updates on the release of these exciting features!
 - Added `schedule` command.
 - Added the ability to `enable` and `disable` custom comamnds
 - Added `timed messages`.
+- Added `weather` command
+- Added `time` command
 
 [View Full Changelog for Version 3.9](/bot/changelog/3.9.md)
 
