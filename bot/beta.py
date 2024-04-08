@@ -32,8 +32,6 @@ parser.add_argument("-channel", dest="target_channel", required=True, help="Targ
 parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch user ID")
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
 parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refresh Token for authentication")
-parser.add_argument("-hookport", dest="webhook_port", required=True, type=int, help="Port for the webhook server")
-parser.add_argument("-socketport", dest="websocket_port", required=True, type=int, help="Port for the websocket server")
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -41,8 +39,6 @@ CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
-WEBHOOK_PORT = args.webhook_port
-WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
 VERSION = "4.0"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
