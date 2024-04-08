@@ -5,7 +5,7 @@ import asyncio
 import queue
 import argparse
 import datetime
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 import subprocess
 import websockets
@@ -23,6 +23,9 @@ from googletrans import Translator, LANGUAGES
 import twitchio
 from twitchio.ext import commands, pubsub
 import streamlink
+import pyowm
+import pytz
+from pytz.exceptions import UnknownTimeZoneError
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -42,7 +45,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.8"
+VERSION = "3.9"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -51,8 +54,9 @@ CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
+WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -139,7 +143,8 @@ cursor = conn.cursor()
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS custom_commands (
         command TEXT PRIMARY KEY,
-        response TEXT
+        response TEXT,
+        status TEXT DEFAULT 'Enabled'
     )
 ''')
 cursor.execute('''
@@ -236,6 +241,20 @@ cursor.execute('''
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS seen_today (
         user_id TEXT PRIMARY KEY
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS timed_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        interval INTEGER,
+        message TEXT
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS profile (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timezone TEXT DEFAULT NULL,
+        weather_location TEXT DEFAULT NULL
     )
 ''')
 conn.commit()
@@ -469,27 +488,40 @@ class BotOfTheSpecter(commands.Bot):
                 return  # It's a built-in command or alias, do nothing more
 
             # Check if the command exists in a hypothetical database and respond
-            cursor.execute('SELECT response FROM custom_commands WHERE command = ?', (command,))
+            cursor.execute('SELECT response, status FROM custom_commands WHERE command = ?', (command,))
             result = cursor.fetchone()
 
             if result:
-                response = result[0]
-                # Check if the user has a custom API URL
-                if '(customapi.' in response:
-                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                    if url_match:
-                        url = url_match.group(1)
-                        api_response = fetch_api_response(url)
-                        response = response.replace(f"(customapi.{url})", api_response)
-                if '(count)' in response:
-                    try:
-                        update_custom_count(command)
-                        get_count = get_custom_count(command)
-                        response = response.replace('(count)', str(get_count))
-                    except Exception as e:
-                        chat_logger.error(f"{e}")
-                chat_logger.info(f"{command} command ran with response: {response}")
-                await message.channel.send(response)
+                if result[1] == 'Enabled':
+                    response = result[0]
+                    # Check if the user has a custom API URL
+                    if '(customapi.' in response:
+                        url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                        if url_match:
+                            url = url_match.group(1)
+                            api_response = fetch_api_response(url)
+                            response = response.replace(f"(customapi.{url})", api_response)
+                    # Check if the user has a custom count
+                    if '(count)' in response:
+                        try:
+                            update_custom_count(command)
+                            get_count = get_custom_count(command)
+                            response = response.replace('(count)', str(get_count))
+                        except Exception as e:
+                            chat_logger.error(f"{e}")
+                    if '(daysuntil.' in response:
+                        # Getting the date from the response = YEAR-MONTH-DAY
+                        get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
+                        if get_date:
+                            date_str = get_date.group(1)
+                            event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                            current_date = datetime.now().date()
+                            days_left = (event_date - current_date).days
+                            response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                    chat_logger.info(f"{command} command ran with response: {response}")
+                    await message.channel.send(response)
+                else:
+                    chat_logger.info(f"{command} not ran becasue it's disabled.")
             else:
                 chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
@@ -628,6 +660,46 @@ class BotOfTheSpecter(commands.Bot):
     async def roadmap_command(self, ctx):
         await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
 
+    @commands.command(name='weather')
+    async def weather_command(self, ctx, location: str = None) -> None:
+        if location:
+            if ' ' in location:
+                await ctx.send(f"Please provide the location in the format: City,CountryCode (e.g. Sydney,AU)")
+                return
+            weather_info = get_weather(location)
+        else:
+            location = get_streamer_weather()
+            if location:
+                weather_info = get_weather(location)
+            else:
+                weather_info = "I'm sorry, something went wrong trying to get the current weather."
+        await ctx.send(weather_info)
+
+    @commands.command(name='time')
+    async def time_command(self, ctx, timezone: str = None) -> None:
+        if timezone:
+            tz = pytz.timezone(timezone)
+            chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+            current_time = datetime.now(tz)
+            time_format_date = current_time.strftime("%B %d, %Y")
+            time_format_time = current_time.strftime("%I:%M %p")
+            time_format_week = current_time.strftime("%A")
+            time_format = f"For the timezone {timezone}, it is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+        else:
+            cursor.execute("SELECT timezone FROM profile")
+            timezone = cursor.fetchone()[0]
+            if timezone:
+                tz = pytz.timezone(timezone)
+                chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                current_time = datetime.now(tz)
+                time_format_date = current_time.strftime("%B %d, %Y")
+                time_format_time = current_time.strftime("%I:%M %p")
+                time_format_week = current_time.strftime("%A")
+                time_format = f"It is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+            else:
+                ctx.send(f"Streamer timezone is not set.")
+        await ctx.send(time_format)
+    
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         if number is None:  # If no number is provided, get a random quote
@@ -1542,6 +1614,52 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
 
+    @commands.command(name='schedule')
+    async def schedule_command(self, ctx):
+        utc_now = datetime.now(timezone.utc)
+        headers = {
+            'Client-ID': CLIENT_ID,
+            'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        params = {
+            'broadcaster_id': CHANNEL_ID,
+            'first': '2'
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get('https://api.twitch.tv/helix/schedule', headers=headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        segments = data['data']['segments']
+
+                        next_stream = None
+                        for segment in segments:
+                            start_time = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=timezone.utc)
+                            if start_time > utc_now:
+                                next_stream = segment
+                                break  # Exit the loop after finding the first upcoming stream
+
+                        if next_stream:
+                            start_date = next_stream['start_time'].split('T')[0]  # Extract date from start_time
+                            time_until = start_time - utc_now
+
+                            # Format time_until
+                            days, seconds = time_until.days, time_until.seconds
+                            hours = seconds // 3600
+                            minutes = (seconds % 3600) // 60
+                            seconds = (seconds % 60)
+
+                            time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
+
+                            await ctx.send(f"The next stream will be on {start_date} which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                        else:
+                            await ctx.send(f"There are no upcoming streams in the next two days.")
+                    else:
+                        await ctx.send(f"Something went wrong while trying to get the schedule from Twitch.")
+        except Exception as e:
+            chat_logger.error(f"Error retrieving schedule: {e}")
+            await ctx.send(f"Oops, something went wrong while trying to check the schedule.")
+
     @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
@@ -1831,6 +1949,49 @@ def get_custom_count(command):
     else:
         return 0
 
+# Functions for weather
+def get_streamer_weather():
+    cursor.execute("SELECT weather_location FROM profile")
+    info = cursor.fetchone()
+    location = info[0]
+    chat_logger.info(f"Got {location} weather info.")
+    return location
+
+def getWindDirection(deg):
+    cardinalDirections = {
+        'N': (337.5, 22.5),
+        'NE': (22.5, 67.5),
+        'E': (67.5, 112.5),
+        'SE': (112.5, 157.5),
+        'S': (157.5, 202.5),
+        'SW': (202.5, 247.5),
+        'W': (247.5, 292.5),
+        'NW': (292.5, 337.5)
+    }
+    for direction, (start, end) in cardinalDirections.items():
+        if deg >= start and deg < end:
+            return direction
+    return 'N/A'
+
+def get_weather(location):
+    owm = pyowm.OWM(WEATHER_API)
+    try:
+        observation = owm.weather_manager().weather_at_place(location)
+        weather = observation.weather
+        status = weather.detailed_status
+        temperature = weather.temperature('celsius')['temp']
+        temperature_f = round(temperature * 9 / 5 + 32, 1)
+        wind_speed = round(weather.wind()['speed'])
+        wind_speed_mph = round(wind_speed / 1.6, 2)
+        humidity = weather.humidity
+        wind_direction = getWindDirection(weather.wind()['deg'])
+
+        return f"The weather in {location} is {status} with a temperature of {temperature}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at {wind_speed}kph ({wind_speed_mph}mph) and the humidity is {humidity}%."
+    except pyowm.exceptions.NotFoundError:
+        return f"Location '{location}' not found."
+    except AttributeError:
+        return f"An error occurred while processing the weather data for '{location}'."
+
 # Function to trigger updating stream title or game
 class GameNotFoundException(Exception):
     pass
@@ -2076,6 +2237,20 @@ async def send_online_message(message):
 async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
     conn.commit()
+
+# Funciont for timmed messages
+async def timed_message():
+    global stream_online
+    time_now = datetime.now()
+    channel = bot.get_channel(CHANNEL_NAME)
+    if stream_online:
+        cursor.execute('SELECT interval, message FROM timed_messages')
+        messages = cursor.fetchall()
+        for message, interval in messages:
+            send_time = time_now + timedelta(minutes=int(interval))
+            wait_time = (send_time - time_now).total_seconds()
+            await asyncio.sleep(wait_time)
+            await channel.send(message)
 
 # Function to get the current playing song
 async def get_song_info_command():
@@ -2460,6 +2635,7 @@ def start_bot():
     asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(check_stream_online())
     asyncio.get_event_loop().create_task(twitch_pubsub())
+    asyncio.get_event_loop().create_task(timed_message())
     # Start the bot
     bot.run()
 
