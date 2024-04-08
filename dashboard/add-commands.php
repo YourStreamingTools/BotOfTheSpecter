@@ -83,7 +83,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
     <div class="small-12 medium-6 column">
         <p style='color: red;'>
-        Custom Varables to use while adding commands:<br>
+        Custom Variables to use while adding commands:<br>
         <strong>(count)</strong>: Using this option allows you to count how many times that command has been used and output that count in the command.<br>
         <strong>(customapi.URL)</strong>: Using this option allows you to get JSON API responses in chat. e.g. (customapi.https://api.botofthespecter.com/joke.php?api=APIKEY)<br>
         <strong>(daysuntil.DATE)</strong>: Using this option allows you to calulate the difference between two dates. e.g. (daysuntil.2024-12-25)
