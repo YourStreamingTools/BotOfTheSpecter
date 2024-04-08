@@ -25,7 +25,6 @@ from twitchio.ext import commands, pubsub
 import streamlink
 import pyowm
 import pytz
-from pytz.exceptions import UnknownTimeZoneError
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -45,7 +44,7 @@ REFRESH_TOKEN = args.refresh_token
 WEBHOOK_PORT = args.webhook_port
 WEBSOCKET_PORT = args.websocket_port
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.9"
+VERSION = "4.0"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -257,13 +256,30 @@ cursor.execute('''
         weather_location TEXT DEFAULT NULL
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS protection (
+        url_blocking TEXT DEFAULT 'False',
+        profanity TEXT DEFAULT 'False'
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS link_whitelight (
+        link TEXT PRIMARY KEY DEFAULT NULL
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS link_blacklisting (
+        link TEXT PRIMARY KEY DEFAULT NULL
+    )
+''')
 conn.commit()
 
-# Initialize instances for the translator, shoutout queue, webshockets and welcome messages
+# Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
+permitted_users = {}
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -523,12 +539,48 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     chat_logger.info(f"{command} not ran becasue it's disabled.")
             else:
-                chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
+                # chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
         else:
-            # Message is not a command at all
-            pass
+            # Check if the user is permitted to post links
+            if message.author.name in permitted_users and time.time() < permitted_users[message.author.name]:
+                # User is permitted, skip URL blocking
+                return
+
+            if is_mod_or_broadcaster(message.author.name):
+                # User is a mod or is the broadcaster, they are by default permitted.
+                return
+
+            # If the message is not a command and does not come from a moderator or broadcaster, check for protection
+            if 'http://' in message.content or 'https://' in message.content:
+                # Fetch url_blocking option from the protection table in the user's database
+                cursor.execute('SELECT url_blocking FROM protection')
+                result = cursor.fetchone()
+                if result:
+                    url_blocking = bool(result[0])
+                else:
+                    # If url_blocking not found in the database, default to False
+                    url_blocking = False
+
+                # Check if url_blocking is enabled
+                if url_blocking:
+                    # Fetch link whitelist from the database
+                    cursor.execute('SELECT link FROM link_whitelist')
+                    whitelisted_links = cursor.fetchall()
+                    whitelisted_links = [link[0] for link in whitelisted_links]
+
+                    # Check if the message content contains any whitelisted link
+                    contains_whitelisted_link = any(link in message.content for link in whitelisted_links)
+
+                    if not contains_whitelisted_link:
+                        # Delete the message if it contains a URL and it's not whitelisted
+                        await message.delete()
+                        chat_logger.info(f"Deleted message from {message.author.name} containing a URL: {message.content}")
+                        # Notify the user not to post links without permission
+                        await message.channel.send(f"{message.author.name}, please do not post links in chat without permission.")
+                else:
+                    chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
 
     # Function to handle welcome messages
     async def handle_welcome_message(self, message):
@@ -732,6 +784,19 @@ class BotOfTheSpecter(commands.Bot):
         cursor.execute("DELETE FROM quotes WHERE ID = ?", (number,))
         conn.commit()
         await ctx.send(f"Quote {number} has been removed.")
+    
+    @commands.command(name='permit')
+    async def permit_command(ctx, permit_user: str = None):
+        if is_mod_or_broadcaster(ctx.author):
+            permit_user = permit_user.lstrip('@')
+            if permit_user:
+                permitted_users[permit_user] = time.time() + 30
+                await ctx.send(f"{permit_user} is now permitted to post links for the next 30 seconds.")
+            else:
+                await ctx.send("Please specify a user to permit.")
+        else:
+            chat_logger.info(f"{ctx.author} tried to use the command, !permit, but couldn't as they are not a moderator.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     # Command to set stream title
     @commands.command(name='settitle')
