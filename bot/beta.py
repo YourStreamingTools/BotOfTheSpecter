@@ -142,7 +142,7 @@ cursor = conn.cursor()
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS everyone (
         username TEXT PRIMARY KEY,
-        group DEFAULT NULL
+        group_name TEXT DEFAULT NULL
     )
 ''')
 cursor.execute('''
@@ -503,7 +503,7 @@ class BotOfTheSpecter(commands.Bot):
         # Process user group
         messageAuthor = message.author.name
         messageAuthorID = message.author.id
-        await self.handle_user_grouping(messageAuthor, messageAuthorID)
+        await handle_user_grouping(messageAuthor, messageAuthorID)
 
     # Function to handle chat messages
     async def handle_chat(self, message):
@@ -560,15 +560,6 @@ class BotOfTheSpecter(commands.Bot):
                 # await message.channel.send(f'No such command found: !{command}')
                 pass
         else:
-            # Check if the user is permitted to post links
-            if message.author.name in permitted_users and time.time() < permitted_users[message.author.name]:
-                # User is permitted, skip URL blocking
-                return
-
-            if is_mod_or_broadcaster(message.author.name):
-                # User is a mod or is the broadcaster, they are by default permitted.
-                return
-
             # If the message is not a command and does not come from a moderator or broadcaster, check for protection
             if 'http://' in message.content or 'https://' in message.content:
                 # Fetch url_blocking option from the protection table in the user's database
@@ -582,6 +573,15 @@ class BotOfTheSpecter(commands.Bot):
 
                 # Check if url_blocking is enabled
                 if url_blocking:
+                    # Check if the user is permitted to post links
+                    if message.author.name in permitted_users and time.time() < permitted_users[message.author.name]:
+                        # User is permitted, skip URL blocking
+                        return
+
+                    if is_mod_or_broadcaster(message.author.name):
+                        # User is a mod or is the broadcaster, they are by default permitted.
+                        return
+                    
                     # Fetch link whitelist from the database
                     cursor.execute('SELECT link FROM link_whitelist')
                     whitelisted_links = cursor.fetchall()
@@ -2752,7 +2752,11 @@ def group_creation():
 # Function to handle user grouping
 async def handle_user_grouping(username, user_id):
     group_names = []
-
+    
+    # Check if the user is the broadcaster
+    if username == CHANNEL_NAME:
+        return
+    
     # Check if the user is a VIP
     if is_user_vip(user_id):
         group_names.append("VIP")
