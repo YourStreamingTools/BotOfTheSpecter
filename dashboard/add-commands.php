@@ -72,12 +72,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <br>
     <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
-    <p style='color: red;'>
-    When adding commands via this site, please note the following:<br>
-    <strong>1. Avoid using the exclamation mark (!) in your command.</strong> This will be automatically added.<br>
-    <strong>2. Alternatively, you or your moderators can add commands during a stream using the command !addcommand.</strong> 
-    <br>Example: !addcommand mycommand This is my command
+    <div class="row">
+    <div class="small-12 medium-6 column">
+        <p style='color: red;'>
+        When adding commands via this site, please note the following:<br>
+        <strong>1. Avoid using the exclamation mark (!) in your command.</strong> This will be automatically added.<br>
+        <strong>2. Alternatively, you or your moderators can add commands during a stream using the command !addcommand.</strong> 
+        <br>Example: !addcommand mycommand This is my command
     </p>
+    </div>
+    <div class="small-12 medium-6 column">
+        <p style='color: red;'>
+        Custom Varables to use while adding commands:<br>
+        <strong>(count)</strong>: To count how many times that command has been used and output that count in the command.<br>
+        <strong>(customapi.URL)</strong>: Using this option allows you to get JSON API responses in chat. e.g. (customapi.https://api.botofthespecter.com/joke.php?api=APIKEY)
+        </p>
+    </div>
     <form method="post" action="">
         <div class="row">
             <div class="small-12 medium-6 column">
