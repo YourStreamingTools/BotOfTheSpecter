@@ -48,12 +48,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       
       // Insert new message into SQLite database
       try {
-          $stmt = $db->prepare("INSERT INTO timed_messages (message, interval) VALUES (?, ?)");
-          $stmt->execute([$message, $interval]);
+          $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
+          $stmt->execute([$interval, $message]);
       } catch (PDOException $e) {
           echo 'Error adding message: ' . $e->getMessage();
       }
   }
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Check if the remove message form is submitted
+    if (isset($_POST['remove_message'])) {
+        $message_id = $_POST['remove_message'];
+        
+        // Remove the selected message from the database
+        try {
+            $stmt = $db->prepare("DELETE FROM timed_messages WHERE id = ?");
+            $stmt->execute([$message_id]);
+            // Optionally, you can check if the deletion was successful and provide feedback to the user
+            $deleted = $stmt->rowCount() > 0; // Check if any rows were affected
+            if ($deleted) {
+                echo "Message removed successfully.";
+            } else {
+                echo "Failed to remove message.";
+            }
+        } catch (PDOException $e) {
+            echo 'Error removing message: ' . $e->getMessage();
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -74,12 +96,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <br>
     <div class="small-12 medium-6 column">
         <p style='color: red;'>
-        <strong>Message</strong>: What is the message that needs to be posted.
-    </p>
+            <strong>Message</strong>: What is the message that needs to be posted.
+        </p>
     </div>
     <div class="small-12 medium-6 column">
         <p style='color: red;'>
-        <strong>Interval</strong>: The time the message needs to wait before posting again, between 5 and 60 minutes.<br>
+            <strong>Interval</strong>: The time the message needs to wait before posting again, between 5 and 60 minutes.<br>
         </p>
     </div>
     <form method="post" action="">
@@ -96,10 +118,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <input type="submit" class="defult-button" value="Add Message">
     </form>
     <br>
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
-        <?php if (isset($_POST['message']) && isset($_POST['interval'])): ?>
-            <p style="color: green;">Timed Message: "<?php echo $_POST['message']; ?>" with the interval: <?php echo $_POST['interval']; ?> has been successfully added to the database.</p>
-        <?php endif; ?>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['message']) && isset($_POST['interval'])): ?>
+        <p style="color: green;">Timed Message: "<?php echo $_POST['message']; ?>" with the interval: <?php echo $_POST['interval']; ?> has been successfully added to the database.</p>
+    <?php endif; ?>
+    <br><br><br>
+    <?php
+    $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
+    $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
+    
+    $items_in_database = !empty($timedMessagesData);
+    if ($items_in_database):
+    ?>
+        <form method="post" action="">
+            <!-- Add form for removing messages -->
+            <div class="row">
+                <div class="small-6">
+                    <label for="remove_message">Select Message to Remove:</label>
+                    <select name="remove_message" id="remove_message">
+                        <?php foreach ($timedMessagesData as $message): ?>
+                            <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <input type="submit" class="defult-button" value="Remove Message">
+        </form>
     <?php endif; ?>
 </div>
 
