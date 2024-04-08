@@ -140,6 +140,18 @@ database_file = os.path.join(database_directory, f"{CHANNEL_NAME}.db")
 conn = sqlite3.connect(database_file)
 cursor = conn.cursor()
 cursor.execute('''
+    CREATE TABLE IF NOT EXISTS everyone (
+        username TEXT PRIMARY KEY,
+        group DEFAULT NULL
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT
+    )
+''')
+cursor.execute('''
     CREATE TABLE IF NOT EXISTS custom_commands (
         command TEXT PRIMARY KEY,
         response TEXT,
@@ -487,6 +499,11 @@ class BotOfTheSpecter(commands.Bot):
         
         # Additional custom message handling logic
         await self.handle_chat(message)
+
+        # Process user group
+        messageAuthor = message.author.name
+        messageAuthorID = message.author.id
+        await self.handle_user_grouping(messageAuthor, messageAuthorID)
 
     # Function to handle chat messages
     async def handle_chat(self, message):
@@ -1903,11 +1920,12 @@ def is_mod_or_broadcaster(user):
 
     # Check if the user is the broadcaster
     elif user.name == CHANNEL_NAME:
-        twitch_logger.info(f"User {user.name} is the Broadcaster")
+        twitch_logger.info(f"User {user.name} is the broadcaster.")
         return True
 
     # Check if the user is a moderator
     elif is_user_mod(user):
+        twitch_logger.info(f"User {user.name} is a moderator.")
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
@@ -1959,6 +1977,33 @@ def is_user_vip(user_trigger_id):
     except requests.RequestException as e:
         print(f"Failed to retrieve VIP status: {e}")
     return False
+
+# Function to check if a user is a subscriber of the channel
+def is_user_subscribed(user_id):
+    headers = {
+        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    params = {
+        "broadcaster_id": CHANNEL_ID,
+        "user_id": user_id
+    }
+    tier_mapping = {
+        "1000": "Tier 1",
+        "2000": "Tier 2",
+        "3000": "Tier 3"
+    }
+    subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
+    if subscription_response.status_code == 200:
+        subscription_data = subscription_response.json()
+        subscriptions = subscription_data.get('data', [])
+        if subscriptions:
+            # Iterate over each subscription
+            for subscription in subscriptions:
+                tier = subscription['tier']
+                tier_name = tier_mapping.get(tier, tier)
+                return tier_name
+    return None
 
 # Function to check if a user is a MOD of the channel using the Twitch API
 def is_user_moderator(user_trigger_id):
@@ -2689,6 +2734,54 @@ async def process_followers_event(user_id, user_name, followed_at):
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
 
+# Function to create a new group if it doesn't exist
+def group_creation():
+    group_names = ["VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
+    for name in group_names:
+        cursor.execute("SELECT * FROM groups WHERE name=?", (name,))
+        if not cursor.fetchone():
+            try:
+                cursor.execute("INSERT INTO groups (name) VALUES (?)", (name,))
+                conn.commit()
+                bot_logger.info(f"Group '{name}' created successfully.")
+            except sqlite3.IntegrityError:
+                bot_logger.error(f"Failed to create group '{name}' due to integrity error.")
+        else:
+            return
+
+# Function to handle user grouping
+async def handle_user_grouping(username, user_id):
+    group_names = []
+
+    # Check if the user is a VIP
+    if is_user_vip(user_id):
+        group_names.append("VIP")
+
+    # Check if the user is a subscriber
+    subscription_tier = is_user_subscribed(user_id)
+    if subscription_tier:
+        # Map subscription tier to group name
+        if subscription_tier == "Tier 1":
+            group_names.append("Subscriber T1")
+        elif subscription_tier == "Tier 2":
+            group_names.append("Subscriber T2")
+        elif subscription_tier == "Tier 3":
+            group_names.append("Subscriber T3")
+
+    # Assign user to groups
+    for name in group_names:
+        cursor.execute("SELECT * FROM groups WHERE name=?", (name,))
+        group = cursor.fetchone()
+        if group:
+            try:
+                cursor.execute("INSERT OR REPLACE INTO everyone (username, group_name) VALUES (?, ?)", (username, name))
+                conn.commit()
+                bot_logger.info(f"User '{username}' assigned to group '{name}' successfully.")
+            except sqlite3.IntegrityError:
+                bot_logger.error(f"Failed to assign user '{username}' to group '{name}'.")
+        else:
+            bot_logger.error(f"Group '{name}' does not exist.")
+
 # Here is the BOT
 bot = BotOfTheSpecter(
     token=OAUTH_TOKEN,
@@ -2709,6 +2802,10 @@ def start_bot():
     asyncio.get_event_loop().create_task(check_stream_online())
     asyncio.get_event_loop().create_task(twitch_pubsub())
     asyncio.get_event_loop().create_task(timed_message())
+    
+    # Create groups if they don't exist
+    group_creation()
+
     # Start the bot
     bot.run()
 
