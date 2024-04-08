@@ -72,6 +72,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <br>
     <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
+    <div class="small-12 medium-6 column">
+        <p style='color: red;'>
+        <strong>Message</strong>: What is the message that needs to be posted.
+    </p>
+    </div>
+    <div class="small-12 medium-6 column">
+        <p style='color: red;'>
+        <strong>Interval</strong>: The time the message needs to wait before posting again, between 5 and 60 minutes.<br>
+        </p>
+    </div>
     <form method="post" action="">
         <div class="row">
             <div class="small-12 medium-6 column">
