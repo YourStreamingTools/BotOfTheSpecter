@@ -581,7 +581,7 @@ class BotOfTheSpecter(commands.Bot):
                     if is_mod_or_broadcaster(message.author.name):
                         # User is a mod or is the broadcaster, they are by default permitted.
                         return
-                    
+
                     # Fetch link whitelist from the database
                     cursor.execute('SELECT link FROM link_whitelist')
                     whitelisted_links = cursor.fetchall()
@@ -595,20 +595,23 @@ class BotOfTheSpecter(commands.Bot):
                     contains_whitelisted_link = any(link in message.content for link in whitelisted_links)
                     contains_blacklisted_link = any(link in message.content for link in blacklisted_links)
 
+                    # Check if the message content contains a Twitch clip link
+                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in message.content
+
                     if contains_blacklisted_link:
                         # Delete the message if it contains a blacklisted URL
                         await message.delete()
                         chat_logger.info(f"Deleted message from {message.author.name} containing a blacklisted URL: {message.content}")
-                        await message.channel.send(f"That URL is not allowed to be posted, please refrain from posting those types of links.")
+                        await message.channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
                         return  # Stop further processing
-                    elif not contains_whitelisted_link:
-                        # Delete the message if it contains a URL and it's not whitelisted
+                    elif not contains_whitelisted_link and not contains_twitch_clip_link:
+                        # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
                         await message.delete()
                         chat_logger.info(f"Deleted message from {message.author.name} containing a URL: {message.content}")
                         # Notify the user not to post links without permission
-                        await message.channel.send(f"{message.author.name}, please do not post links in chat without permission.")
+                        await message.channel.send(f"{message.author.name}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
                     else:
-                        chat_logger.info(f"URL found in message from {message.author.name}, not deleted due to being whitelisted.")
+                        chat_logger.info(f"URL found in message from {message.author.name}, not deleted due to being whitelisted or a Twitch clip link.")
                 else:
                     chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
 
