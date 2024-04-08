@@ -570,15 +570,28 @@ class BotOfTheSpecter(commands.Bot):
                     whitelisted_links = cursor.fetchall()
                     whitelisted_links = [link[0] for link in whitelisted_links]
 
-                    # Check if the message content contains any whitelisted link
-                    contains_whitelisted_link = any(link in message.content for link in whitelisted_links)
+                    cursor.execute('SELECT link FROM link_blacklisting')
+                    blacklisted_links = cursor.fetchall()
+                    blacklisted_links = [link[0] for link in blacklisted_links]
 
-                    if not contains_whitelisted_link:
+                    # Check if the message content contains any whitelisted or blacklisted link
+                    contains_whitelisted_link = any(link in message.content for link in whitelisted_links)
+                    contains_blacklisted_link = any(link in message.content for link in blacklisted_links)
+
+                    if contains_blacklisted_link:
+                        # Delete the message if it contains a blacklisted URL
+                        await message.delete()
+                        chat_logger.info(f"Deleted message from {message.author.name} containing a blacklisted URL: {message.content}")
+                        await message.channel.send(f"That URL is not allowed to be posted, please refrain from posting those types of links.")
+                        return  # Stop further processing
+                    elif not contains_whitelisted_link:
                         # Delete the message if it contains a URL and it's not whitelisted
                         await message.delete()
                         chat_logger.info(f"Deleted message from {message.author.name} containing a URL: {message.content}")
                         # Notify the user not to post links without permission
                         await message.channel.send(f"{message.author.name}, please do not post links in chat without permission.")
+                    else:
+                        chat_logger.info(f"URL found in message from {message.author.name}, not deleted due to being whitelisted.")
                 else:
                     chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
 
@@ -1973,13 +1986,8 @@ def is_user_moderator(user_trigger_id):
 # Function to add user to the table of known users
 async def user_is_seen(username):
     try:
-        database_directory = "/var/www/bot/commands"
-        database_file = os.path.join(database_directory, f"{CHANNEL_NAME}.db")
-        conn = sqlite3.connect(database_file)
-        cursor = conn.cursor()
         cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
         conn.commit()
-        conn.close()
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
 
