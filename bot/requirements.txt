@@ -1,9 +1,21 @@
-twitchio
-twitchAPI
+# Standard library imports
+asyncio
+argparse
+datetime
+logging
+subprocess
+json
+time
+
+# Third-party imports
 aiohttp
 requests
-Flask
+sqlite3
 translate
-websockets
+googletrans
+twitchio
 streamlink
 pyowm
+pytz
+websockets
+profanity-check
