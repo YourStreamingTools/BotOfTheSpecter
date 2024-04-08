@@ -1,21 +1,10 @@
-# Standard library imports
-asyncio
-argparse
-datetime
-logging
-subprocess
-json
-time
-
-# Third-party imports
+twitchio
+twitchAPI
 aiohttp
 requests
-sqlite3
+Flask
 translate
-googletrans
-twitchio
+websockets
 streamlink
 pyowm
-pytz
-websockets
 profanity-check
