@@ -708,7 +708,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
-        is_mod = is_mod_or_broadcaster(ctx.author)
+        is_mod = is_mod_or_broadcaster(ctx.author.name)
         
         # Fetch custom commands from the database
         cursor.execute('SELECT command FROM custom_commands')
@@ -737,7 +737,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='bot')
     async def bot_command(self, ctx):
-        chat_logger.info(f"{ctx.author} ran the Bot Command.")
+        chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
     
     @commands.command(name='roadmap')
@@ -819,7 +819,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             permit_user = permit_user.lstrip('@')
             if permit_user:
                 permitted_users[permit_user] = time.time() + 30
@@ -827,13 +827,13 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send("Please specify a user to permit.")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, !permit, but couldn't as they are not a moderator.")
+            chat_logger.info(f"{ctx.author.name} tried to use the command, !permit, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     # Command to set stream title
     @commands.command(name='settitle')
     async def set_title_command(self, ctx, *, title: str = None) -> None:
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             if title is None:
                 await ctx.send(f"Stream titles can not be blank. You must provide a title for the stream.")
                 return
@@ -848,7 +848,7 @@ class BotOfTheSpecter(commands.Bot):
     # Command to set stream game/category
     @commands.command(name='setgame')
     async def set_game_command(self, ctx, *, game: str = None) -> None:
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             if game is None:
                 await ctx.send("You must provide a game for the stream.")
                 return
@@ -935,10 +935,10 @@ class BotOfTheSpecter(commands.Bot):
             hug_count = cursor.fetchone()[0]
 
             # Send the message
-            chat_logger.info(f"{target_user} has been hugged by {ctx.author}. They have been hugged: {hug_count}")
+            chat_logger.info(f"{target_user} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
             await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
         else:
-            chat_logger.info(f"{ctx.author} tried to run the command without user mentioned.")
+            chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
             await ctx.send("Usage: !hug @username")
 
     @commands.command(name='kiss')
@@ -955,10 +955,10 @@ class BotOfTheSpecter(commands.Bot):
             kiss_count = cursor.fetchone()[0]
 
             # Send the message
-            chat_logger.info(f"{target_user} has been kissed by {ctx.author}. They have been kissed: {kiss_count}")
+            chat_logger.info(f"{target_user} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
             await ctx.send(f"@{target_user} has been kissed by @{ctx.author.name}, they have been kissed {kiss_count} times.")
         else:
-            chat_logger.info(f"{ctx.author} tried to run the command without user mentioned.")
+            chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
             await ctx.send("Usage: !kiss @username")
 
     @commands.command(name='ping')
@@ -1287,7 +1287,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             if description:
                 marker_description = description
             else:
@@ -1444,7 +1444,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             chat_logger.info("Edit Typos Command ran.")
             try:
                 # Determine the target user: mentioned user or the command caller
@@ -1497,7 +1497,7 @@ class BotOfTheSpecter(commands.Bot):
     async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         chat_logger.info("Remove Typos Command ran.")
         try:
-            if is_mod_or_broadcaster(ctx.author):
+            if is_mod_or_broadcaster(ctx.author.name):
                 # Ensure a username is mentioned
                 if not mentioned_username is None:
                     chat_logger.error("Command missing username parameter.")
@@ -1549,7 +1549,7 @@ class BotOfTheSpecter(commands.Bot):
             total_death_count_result = cursor.fetchone()
             total_death_count = total_death_count_result[0] if total_death_count_result else 0
 
-            chat_logger.info(f"{ctx.author} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
+            chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
             await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
         except Exception as e:
             await ctx.send(f"An error occurred while executing the command. {e}")
@@ -1557,7 +1557,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             global current_game
             try:
                 chat_logger.info("Death Add Command ran.")
@@ -1592,12 +1592,12 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"An error occurred while executing the command. {e}")
                 chat_logger.error(f"Error in deathadd_command: {e}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, death add, but couldn't has they are not a moderator.")
+            chat_logger.info(f"{ctx.author.name} tried to use the command, death add, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             global current_game
             try:
                 chat_logger.info("Death Remove Command Ran")
@@ -1624,7 +1624,7 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"An error occurred while executing the command. {e}")
                 chat_logger.error(f"Error in deaths_command: {e}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, death remove, but couldn't has they are not a moderator.")
+            chat_logger.info(f"{ctx.author.name} tried to use the command, death remove, but couldn't has they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='game')
@@ -1759,7 +1759,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
             response = requests.get(REMOTE_VERSION_URL)
             remote_version = response.text.strip()
@@ -1776,14 +1776,14 @@ class BotOfTheSpecter(commands.Bot):
                 bot_logger.info(f"{message}")
                 await ctx.send(f"{message}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
+            chat_logger.info(f"{ctx.author.name} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
     @commands.command(name='so', aliases=('shoutout',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         chat_logger.info(f"Shoutout command attempting to run.")
-        if is_mod_or_broadcaster(ctx.author):
-            chat_logger.info(f"Shoutout command running from {ctx.author}")
+        if is_mod_or_broadcaster(ctx.author.name):
+            chat_logger.info(f"Shoutout command running from {ctx.author.name}")
             if user_to_shoutout is None:
                 chat_logger.error(f"Shoutout command missing username parameter.")
                 await ctx.send(f"Usage: !so @username")
@@ -1827,14 +1827,14 @@ class BotOfTheSpecter(commands.Bot):
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
         else:
-            chat_logger.info(f"{ctx.author} tried to use the command, !shoutout, but couldn't as they are not a moderator.")
+            chat_logger.info(f"{ctx.author.name} tried to use the command, !shoutout, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='addcommand')
     async def add_command_command(self, ctx):
         chat_logger.info("Add Command ran.")
         # Check if the user is a moderator or the broadcaster
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             # Parse the command and response from the message
             try:
                 command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
@@ -1845,7 +1845,7 @@ class BotOfTheSpecter(commands.Bot):
             # Insert the command and response into the database
             cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
             conn.commit()
-            chat_logger.info(f"{ctx.author} has added the command !{command} with the response: {response}")
+            chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
             await ctx.send(f'Custom command added: !{command}')
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
@@ -1854,7 +1854,7 @@ class BotOfTheSpecter(commands.Bot):
     async def remove_command_command(self, ctx):
         chat_logger.info("Remove Command ran.")
         # Check if the user is a moderator or the broadcaster
-        if is_mod_or_broadcaster(ctx.author):
+        if is_mod_or_broadcaster(ctx.author.name):
             try:
                 command = ctx.message.content.strip().split(' ')[1]
             except IndexError:
@@ -1864,7 +1864,7 @@ class BotOfTheSpecter(commands.Bot):
             # Delete the command from the database
             cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
             conn.commit()
-            chat_logger.info(f"{ctx.author} has removed {command}")
+            chat_logger.info(f"{ctx.author.name} has removed {command}")
             await ctx.send(f'Custom command removed: !{command}')
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
