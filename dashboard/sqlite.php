@@ -67,7 +67,7 @@ try {
 
     // Fetch profile
     $getProfileSettings = $db->query("SELECT * FROM profile");
-    $profileSettingsData = $getProfileSettings->fetchAll(PDO::FETCH_ASSOC);
+    $profileData = $getProfileSettings->fetchAll(PDO::FETCH_ASSOC);
 
     // Calculate lurk durations for each user
     foreach ($lurkers as $key => $lurker) {
