@@ -26,7 +26,6 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 
 ## Coming Soon!
 
-- **Schedule Command**: Get ready to streamline your Twitch schedule management with the upcoming `!schedule` command, allowing you to effortlessly share your streaming schedule directly in chat.
 - **Enhanced Chat Protection**: Elevate your chat experience with Specter's Dashboard. Soon, you'll have the power to activate advanced protection measures such as URL Blocking, ensuring unwanted links stay out. With the `!permit` command, grant temporary exemptions for approved links. Additionally, Caps Lock Usage Protection will maintain a calm chat environment by preventing excessive capitalization, while still allowing designated members to bypass this restriction.
 - **User Groups**: Introducing a convenient feature to organize and manage your Twitch community effortlessly. Create user groups and assign Twitch usernames, facilitating swift access management.
 
