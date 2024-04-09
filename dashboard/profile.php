@@ -37,7 +37,11 @@ $websocketPort = $user['websocket_port'];
 $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
-date_default_timezone_set($profileSettingsData['timezone']);
+foreach ($profileData as $profile) {
+  $timezone = $profile['timezone'];
+  $weather = $profile['weather_location'];
+}
+date_default_timezone_set($timezone);
 
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
 date_default_timezone_set('Australia/Sydney');
@@ -79,6 +83,10 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
   <tr>
     <td><strong>Time Zone:</strong></td>
     <td><?php echo $timezone; ?></td>
+  </tr>
+  <tr>
+    <td><strong>Weather Location:</strong></td>
+    <td><?php echo $weather; ?></td>
   </tr>
 </table>
 <p><strong>Your API Key:</strong> <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
