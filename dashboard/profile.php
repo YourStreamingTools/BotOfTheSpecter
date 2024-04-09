@@ -34,11 +34,10 @@ $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
 $webhookPort = $user['webhook_port'];
 $websocketPort = $user['websocket_port'];
-$timezone = 'Australia/Sydney';
-date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
+date_default_timezone_set($profileSettingsData['timezone']);
 
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
 date_default_timezone_set('Australia/Sydney');
@@ -88,7 +87,6 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 <br><br>
 <button type="button" class="defult-button" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
 <br><br>
-<a href="logout.php" type="button" class="logout-button">Logout</a>
 </div>
 <!-- Include the JavaScript files -->
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
@@ -112,7 +110,7 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
       timeZoneName: 'short'
     };
     const utcDate = new Date(utcDateStr + ' UTC');
-    const localDate = new Date(utcDate.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const localDate = new Date(utcDate.toLocaleString('en-US', { timeZone: '<?php echo $timezone; ?>' }));
     const dateTimeFormatter = new Intl.DateTimeFormat('en-US', options);
     return dateTimeFormatter.format(localDate);
   }
