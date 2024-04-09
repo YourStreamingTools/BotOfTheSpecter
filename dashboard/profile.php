@@ -11,7 +11,7 @@ if (!isset($_SESSION['access_token'])) {
 
 // Page Title
 $title = "Profile";
-
+$status = "";
 // Connect to database
 require_once "db_connect.php";
 
@@ -45,6 +45,21 @@ foreach ($profileData as $profile) {
 date_default_timezone_set($timezone);
 $signup_date_utc = date_create_from_format('Y-m-d H:i:s', $signup_date)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A');
 $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A');
+
+// Check if form is submitted
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+  // Check if timezone and weather_location are set
+  if (isset($_POST["timezone"]) && isset($_POST["weather_location"])) {
+      // Update the database with the new values
+      $timezone = $_POST["timezone"];
+      $weather_location = $_POST["weather_location"];
+      $updateQuery = $db->prepare("UPDATE profile SET timezone = ?, weather_location = ?");
+      $updateQuery->execute([$timezone, $weather_location]);
+      $status = "Profile updated successfully!";
+  } else {
+    $status = "Error: Please provide both timezone and weather location.";
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -90,9 +105,19 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 <p><strong>Your API Key:</strong> <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
 <button type="button" class="defult-button" id="show-api-key">Show API Key</button>
 <button type="button" class="defult-button" id="hide-api-key" style="display:none;">Hide API Key</button>
-<br><br>
+<br>
 <button type="button" class="defult-button" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
-<br><br>
+<br><br><br>
+<h2>Update Profile</h2>
+<form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
+  <div class="small-3">
+    <div class="column"><label for="timezone">Timezone:</label><input type="text" id="timezone" name="timezone" value="<?php echo $timezone; ?>"></div>
+    <div class="column"><label for="weather_location">Weather Location:</label><input type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>"></div>
+    <div class="column"><input type="submit" value="Submit"></div>
+  </div>
+</form>
+<br>
+<?php echo $status; ?>
 </div>
 <!-- Include the JavaScript files -->
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
