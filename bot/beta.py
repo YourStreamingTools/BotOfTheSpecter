@@ -2,6 +2,8 @@
 import os
 import re
 import asyncio
+from asyncio import Task, create_task, sleep
+from typing import List
 import queue
 import argparse
 import datetime
@@ -288,6 +290,7 @@ shoutout_queue = queue.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
 permitted_users = {}
+scheduled_tasks: List[Task] = []
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -2356,18 +2359,35 @@ async def clear_seen_today():
     conn.commit()
 
 # Funciont for timmed messages
+async def send_timed_message(message, interval):
+    try:
+        await sleep(interval)
+        if stream_online:
+            channel = bot.get_channel(CHANNEL_NAME)
+            await channel.send(message)
+    except asyncio.CancelledError:
+        pass
+    await sleep(interval)
+
 async def timed_message():
     global stream_online
-    time_now = datetime.now()
-    channel = bot.get_channel(CHANNEL_NAME)
-    if stream_online:
-        cursor.execute('SELECT interval, message FROM timed_messages')
-        messages = cursor.fetchall()
-        for message, interval in messages:
-            send_time = time_now + timedelta(minutes=int(interval))
-            wait_time = (send_time - time_now).total_seconds()
-            await asyncio.sleep(wait_time)
-            await channel.send(message)
+    while True:
+        if stream_online:
+            cursor.execute('SELECT interval, message FROM timed_messages')
+            messages = cursor.fetchall()
+            for message, interval in messages:
+                time_now = datetime.now()
+                send_time = time_now + timedelta(minutes=int(interval))
+                wait_time = (send_time - time_now).total_seconds()
+                task = create_task(send_timed_message(message, wait_time))
+                scheduled_tasks.append(task)  # Keep track of the task
+        else:
+            # Cancel all scheduled tasks if the stream goes offline
+            for task in scheduled_tasks:
+                task.cancel()
+            scheduled_tasks.clear()  # Clear the list of tasks
+
+        await sleep(300)
 
 # Function to get the current playing song
 async def get_song_info_command():
