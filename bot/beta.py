@@ -2358,15 +2358,19 @@ async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
     conn.commit()
 
-# Funciont for timmed messages
+# Function for timed messages
 async def send_timed_message(message, interval):
     try:
         await sleep(interval)
+        bot_logger.info("Waiting for interval: %f seconds", interval)
         if stream_online:
             channel = bot.get_channel(CHANNEL_NAME)
+            bot_logger.info("Sending message: '%s' to channel: %s", message, CHANNEL_NAME)
             await channel.send(message)
+        else:
+            bot_logger.info("Stream is offline. Message not sent.")
     except asyncio.CancelledError:
-        pass
+        bot_logger.info("Task cancelled.")
     await sleep(interval)
 
 async def timed_message():
@@ -2379,10 +2383,12 @@ async def timed_message():
                 time_now = datetime.now()
                 send_time = time_now + timedelta(minutes=int(interval))
                 wait_time = (send_time - time_now).total_seconds()
+                bot_logger.info("Scheduling message: '%s' to be sent in %f seconds", message, wait_time)
                 task = create_task(send_timed_message(message, wait_time))
                 scheduled_tasks.append(task)  # Keep track of the task
         else:
             # Cancel all scheduled tasks if the stream goes offline
+            bot_logger.info("Stream is offline. Cancelling all scheduled tasks.")
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()  # Clear the list of tasks
