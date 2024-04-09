@@ -26,7 +26,7 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 
 ## Coming Soon!
 
-- **Enhanced Chat Protection**: Elevate your chat experience with Specter's Dashboard. Soon, you'll have the power to activate advanced protection measures such as URL Blocking, ensuring unwanted links stay out. With the `!permit` command, grant temporary exemptions for approved links. Additionally, Caps Lock Usage Protection will maintain a calm chat environment by preventing excessive capitalization, while still allowing designated members to bypass this restriction.
+- **Enhanced Chat Protection**: Elevate your chat experience with Specter's Dashboard. Soon, you'll have the power to activate advanced protection measures such as ``URL Blocking``, ensuring unwanted links stay out. With the `!permit` command, grant temporary exemptions for approved links. Additionally, ``Caps Lock Usage`` Protection will maintain a calm chat environment by preventing excessive capitalization, while still allowing designated members to bypass this restriction and finally a ``Profanity Filter`` keep those unwanted bad words out of chat, Specter will delete the message and provide back a clean message to read for the user.
 - **User Groups**: Introducing a convenient feature to organize and manage your Twitch community effortlessly. Create user groups and assign Twitch usernames, facilitating swift access management.
 
 Stay tuned for updates on the release of these exciting features!
