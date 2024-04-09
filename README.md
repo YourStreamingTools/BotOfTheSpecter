@@ -34,15 +34,13 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.9 - BotOfTheSpecter
+### Version 3.10 - BotOfTheSpecter
 
-- Added `schedule` command.
-- Added the ability to `enable` and `disable` custom comamnds
-- Added `timed messages`.
-- Added `weather` command
-- Added `time` command
+- Rolled out a fix for the timed messages not being scheduled and posted to chat during the stream.
+- Removed webhook port as it's no longer needed moving forward.
+- Removed websocket port as it's no longer needed forward.
 
-[View Full Changelog for Version 3.9](/bot/changelog/3.9.md)
+[View Full Changelog for Version 3.10](/bot/changelog/3.10.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
