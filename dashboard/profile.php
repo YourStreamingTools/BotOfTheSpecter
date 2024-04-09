@@ -41,10 +41,8 @@ foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
   $weather = $profile['weather_location'];
 }
-date_default_timezone_set($timezone);
-
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
-date_default_timezone_set('Australia/Sydney');
+date_default_timezone_set($timezone);
 $signup_date_utc = date_create_from_format('Y-m-d H:i:s', $signup_date)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A');
 $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A');
 ?>
