@@ -11,6 +11,7 @@ $kissCounts = [];
 $customCounts = [];
 $seenUsersData = [];
 $timedMessagesData = [];
+$profileSettingsData = [];
 
 try {
     $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
