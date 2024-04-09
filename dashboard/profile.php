@@ -105,7 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <p><strong>Your API Key:</strong> <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
 <button type="button" class="defult-button" id="show-api-key">Show API Key</button>
 <button type="button" class="defult-button" id="hide-api-key" style="display:none;">Hide API Key</button>
-<br>
+<br><br>
 <button type="button" class="defult-button" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
 <br><br><br>
 <h2>Update Profile</h2>
