@@ -2371,6 +2371,7 @@ async def send_timed_message(message, interval):
             bot_logger.info("Stream is offline. Message not sent.")
     except asyncio.CancelledError:
         bot_logger.info("Task cancelled.")
+        pass
     await sleep(interval)
 
 async def timed_message():
