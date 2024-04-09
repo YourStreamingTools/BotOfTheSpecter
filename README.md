@@ -37,6 +37,9 @@ Stay tuned for updates on the release of these exciting features!
 ### Version 3.10 - BotOfTheSpecter
 
 - Rolled out a fix for the timed messages not being scheduled and posted to chat during the stream.
+- Added two new imports to fix the timed messages
+- Added the function for the scheduled tasks for the timed messages.
+- Changed the entire ``timed_messages`` function
 - Removed webhook port as it's no longer needed moving forward.
 - Removed websocket port as it's no longer needed forward.
 
