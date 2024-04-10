@@ -91,7 +91,7 @@ if (isset($_GET['user'])) {
         <div class="medium-12 columns">
             <?php if (isset($_GET['user'])): ?>
                 <?php echo $buildResults; ?>
-                <?php if (!empty($builtCommands) || !empty($commands)): ?>
+                <?php if (!empty($commands)): ?>
                     <table class="bot-table">
                         <thead>
                             <tr>
