@@ -43,7 +43,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.10.1"
+VERSION = "3.10.2"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -623,7 +623,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
-        is_mod = is_mod_or_broadcaster(ctx.author.name)
+        is_mod = is_mod_or_broadcaster(ctx.author)
         
         # Fetch custom commands from the database
         cursor.execute('SELECT command FROM custom_commands')
@@ -735,7 +735,7 @@ class BotOfTheSpecter(commands.Bot):
     # Command to set stream title
     @commands.command(name='settitle')
     async def set_title_command(self, ctx, *, title: str = None) -> None:
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             if title is None:
                 await ctx.send(f"Stream titles can not be blank. You must provide a title for the stream.")
                 return
@@ -750,7 +750,7 @@ class BotOfTheSpecter(commands.Bot):
     # Command to set stream game/category
     @commands.command(name='setgame')
     async def set_game_command(self, ctx, *, game: str = None) -> None:
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             if game is None:
                 await ctx.send("You must provide a game for the stream.")
                 return
@@ -1189,7 +1189,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             if description:
                 marker_description = description
             else:
@@ -1346,7 +1346,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             chat_logger.info("Edit Typos Command ran.")
             try:
                 # Determine the target user: mentioned user or the command caller
@@ -1399,7 +1399,7 @@ class BotOfTheSpecter(commands.Bot):
     async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         chat_logger.info("Remove Typos Command ran.")
         try:
-            if is_mod_or_broadcaster(ctx.author.name):
+            if is_mod_or_broadcaster(ctx.author):
                 # Ensure a username is mentioned
                 if not mentioned_username is None:
                     chat_logger.error("Command missing username parameter.")
@@ -1459,7 +1459,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             global current_game
             try:
                 chat_logger.info("Death Add Command ran.")
@@ -1499,7 +1499,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             global current_game
             try:
                 chat_logger.info("Death Remove Command Ran")
@@ -1661,22 +1661,31 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
-            response = requests.get(REMOTE_VERSION_URL)
-            remote_version = response.text.strip()
-
-            if remote_version != VERSION:
-                if len(remote_version) == len(VERSION) + 1:
-                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
-                else:
-                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
-                bot_logger.info(f"Bot update available. (V{remote_version})")
-                await ctx.send(f"{message}")
-            else:
-                message = f"There is no update pending. You are currently running V{VERSION}."
-                bot_logger.info(f"{message}")
-                await ctx.send(f"{message}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(REMOTE_VERSION_URL) as response:
+                    if response.status == 200:
+                        remote_version = await response.text()
+                        remote_version = remote_version.strip()
+                        if remote_version != VERSION:
+                            remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
+                            local_major, local_minor, local_patch = map(int, VERSION.split('.'))
+                            if remote_major > local_major or \
+                                    (remote_major == local_major and remote_minor > local_minor) or \
+                                    (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
+                                message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                            elif remote_patch > local_patch:
+                                message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                            else:
+                                # If versions are equal or local version is ahead
+                                message = f"There is no update pending. You are currently running V{VERSION}."
+                            bot_logger.info(f"Bot update available. (V{remote_version})")
+                            await ctx.send(message)
+                        else:
+                            message = f"There is no update pending. You are currently running V{VERSION}."
+                            bot_logger.info(f"{message}")
+                            await ctx.send(message)
         else:
             chat_logger.info(f"{ctx.author.name} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
@@ -1684,7 +1693,7 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='so', aliases=('shoutout',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         chat_logger.info(f"Shoutout command attempting to run.")
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             chat_logger.info(f"Shoutout command running from {ctx.author.name}")
             if user_to_shoutout is None:
                 chat_logger.error(f"Shoutout command missing username parameter.")
@@ -1736,7 +1745,7 @@ class BotOfTheSpecter(commands.Bot):
     async def add_command_command(self, ctx):
         chat_logger.info("Add Command ran.")
         # Check if the user is a moderator or the broadcaster
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             # Parse the command and response from the message
             try:
                 command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
@@ -1756,7 +1765,7 @@ class BotOfTheSpecter(commands.Bot):
     async def remove_command_command(self, ctx):
         chat_logger.info("Remove Command ran.")
         # Check if the user is a moderator or the broadcaster
-        if is_mod_or_broadcaster(ctx.author.name):
+        if is_mod_or_broadcaster(ctx.author):
             try:
                 command = ctx.message.content.strip().split(' ')[1]
             except IndexError:
