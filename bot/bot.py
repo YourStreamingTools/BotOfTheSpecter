@@ -43,7 +43,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.10"
+VERSION = "3.10.1"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -2149,10 +2149,17 @@ async def check_auto_update():
                     remote_version = await response.text()
                     remote_version = remote_version.strip()
                     if remote_version != VERSION:
-                        if len(remote_version) == len(VERSION) + 1:
+                        remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
+                        local_major, local_minor, local_patch = map(int, VERSION.split('.'))
+                        if remote_major > local_major or \
+                                (remote_major == local_major and remote_minor > local_minor) or \
+                                (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
+                            message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                        elif remote_patch > local_patch:
                             message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                         else:
-                            message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                            # If versions are equal or local version is ahead
+                            return
                         bot_logger.info(message)
                         channel = bot.get_channel(CHANNEL_NAME)
                         if channel:
@@ -2237,14 +2244,19 @@ async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
     conn.commit()
 
-# Funciont for timmed messages
+# Function for timed messages
 async def send_timed_message(message, interval):
     try:
         await sleep(interval)
+        bot_logger.info("Waiting for interval: %f seconds", interval)
         if stream_online:
             channel = bot.get_channel(CHANNEL_NAME)
+            bot_logger.info("Sending message: '%s' to channel: %s", message, CHANNEL_NAME)
             await channel.send(message)
+        else:
+            bot_logger.info("Stream is offline. Message not sent.")
     except asyncio.CancelledError:
+        bot_logger.info("Task cancelled.")
         pass
     await sleep(interval)
 
@@ -2258,10 +2270,12 @@ async def timed_message():
                 time_now = datetime.now()
                 send_time = time_now + timedelta(minutes=int(interval))
                 wait_time = (send_time - time_now).total_seconds()
+                bot_logger.info("Scheduling message: '%s' to be sent in %f seconds", message, wait_time)
                 task = create_task(send_timed_message(message, wait_time))
                 scheduled_tasks.append(task)  # Keep track of the task
         else:
             # Cancel all scheduled tasks if the stream goes offline
+            bot_logger.info("Stream is offline. Cancelling all scheduled tasks.")
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()  # Clear the list of tasks
