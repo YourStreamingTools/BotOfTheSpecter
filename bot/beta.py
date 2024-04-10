@@ -1071,7 +1071,7 @@ class BotOfTheSpecter(commands.Bot):
         else:
             await ctx.send("Sorry, I couldn't fetch your bits information.")
 
-    @commands.command(name='lurk')
+    @commands.command(name='lurk', aliases=('brb',))
     async def lurk_command(self, ctx):
         try:
             user_id = str(ctx.author.id)
