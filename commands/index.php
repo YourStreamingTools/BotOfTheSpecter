@@ -97,6 +97,7 @@ if (isset($_GET['user'])) {
 <body>
     <header>
         <h1>BotOfTheSpecter</h1>
+        <p>&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.</p>
     </header>
     <div class="container">
         <div class="medium-6 column">
@@ -119,8 +120,5 @@ if (isset($_GET['user'])) {
             <?php endif; ?>
         </div>
     </div>
-    <footer>
-        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
-    </footer>
 </body>
 </html>
