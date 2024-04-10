@@ -114,7 +114,7 @@ if (isset($_GET['user'])) {
                     <?php endif; ?>
                 <?php else: ?>
                     <h2>Search for User Commands:</h2>
-                    <div class="medium-6 columns">
+                    <div class="small-4">
                         <form method='get' action='<?php echo $_SERVER['PHP_SELF']; ?>' class='search-form'>
                             <label for='user_search' class='search-label'>Enter username:</label>
                             <input type='text' id='user_search' name='user' class='search-input'>
