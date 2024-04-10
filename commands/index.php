@@ -7,6 +7,20 @@ function sanitize_input($input) {
 // PAGE TITLE
 $title = "User Commands";
 $commands = [];
+$builtCommands = [];
+
+// Connect to database
+require_once "db_connect.php";
+
+// Query to fetch commands from the database
+$fetchCommandsSql = "SELECT * FROM commands";
+$result = $conn->query($fetchCommandsSql);
+$builtCommands = array();
+if ($result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        $builtCommands[] = $row;
+    }
+}
 
 // Check if a user is specified in the URL parameter
 if (isset($_GET['user'])) {
@@ -52,11 +66,11 @@ if (isset($_GET['user'])) {
 } else {
     // If user is not specified in URL, provide a search form
     $buildResults = "<h2>Search for User Commands:</h2>"; 
-    $buildResults .= "<form method='get' action='{$_SERVER['PHP_SELF']}'>"; 
-    $buildResults .= "<label for='user_search'>Enter username:</label>"; 
-    $buildResults .= "<input type='text' id='user_search' name='user'>"; 
-    $buildResults .= "<input type='submit' value='Search'>"; 
-    $buildResults .= "</form>"; 
+    $buildResults .= "<form method='get' action='{$_SERVER['PHP_SELF']}' class='search-form'>"; 
+    $buildResults .= "<label for='user_search' class='search-label'>Enter username:</label>"; 
+    $buildResults .= "<input type='text' id='user_search' name='user' class='search-input'>"; 
+    $buildResults .= "<input type='submit' value='Search' class='default-button'>"; 
+    $buildResults .= "</form>";
 }
 ?>
 <!DOCTYPE html>
@@ -67,6 +81,7 @@ if (isset($_GET['user'])) {
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
     <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
     <link rel="stylesheet" type="text/css" href="https://botofthespecter.com/style.css">
+    <link rel="stylesheet" href="custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
@@ -74,51 +89,50 @@ if (isset($_GET['user'])) {
     <meta name="twitter:title" content="BotOfTheSpecter" />
     <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
-    <style>
-        .bot-table {
-            border-style: solid;
-            border-color: #ffffff;
-            background-color: #111111;
-            border-width: 1px;
-            width: 100%;
-        }
-
-        .bot-table td, 
-        .bot-table tr,
-        .bot-table th {
-            color: #ffffff;
-            border-style: solid;
-            border-color: #ffffff;
-            background-color: #111111;
-            border-width: 1px;
-        }
-    </style>
 </head>
 <body>
     <header>
         <h1>BotOfTheSpecter</h1>
-        <p>&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.</p>
     </header>
     <div class="container">
-        <div class="medium-12 column">
-            <?php echo $buildResults; ?>
-            <?php if (!empty($commands)): ?>
-                <table class="bot-table">
-                    <thead>
-                        <tr>
-                            <th>Command</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($commands as $command): ?>
-                            <tr>
-                                <td>!<?php echo $command['command']; ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
+        <div class="row">
+            <div class="medium-12 columns">
+                <?php if (isset($_GET['user'])): ?>
+                    <?php echo $buildResults; ?>
+                    <?php if (!empty($builtCommands) || !empty($commands)): ?>
+                        <table class="bot-table">
+                            <thead>
+                                <tr>
+                                    <th>Built-in Commands</th>
+                                    <th>Custom Commands</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php $maxRows = max(count($builtCommands), count($commands)); ?>
+                                <?php for ($i = 0; $i < $maxRows; $i++): ?>
+                                    <tr>
+                                        <td><?php echo isset($builtCommands[$i]) ? '!' . htmlspecialchars($builtCommands[$i]['command_name']) : ''; ?></td>
+                                        <td><?php echo isset($commands[$i]) ? '!' . htmlspecialchars($commands[$i]['command']) : ''; ?></td>
+                                    </tr>
+                                <?php endfor; ?>
+                            </tbody>
+                        </table>
+                    <?php else: ?>
+                        <p>No commands found.</p>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <h2>Search for User Commands:</h2>
+                    <form method='get' action='<?php echo $_SERVER['PHP_SELF']; ?>'>
+                        <label for='user_search'>Enter username:</label>
+                        <input type='text' id='user_search' name='user'>
+                        <input type='submit' value='Search'>
+                    </form>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
+    <footer>
+        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
+    </footer>
 </body>
 </html>
