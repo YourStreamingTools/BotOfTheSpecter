@@ -87,43 +87,43 @@ if (isset($_GET['user'])) {
         <h1>BotOfTheSpecter</h1>
     </header>
     <div class="container">
-        <div class="row">
-            <div class="medium-12 columns">
-                <?php if (isset($_GET['user'])): ?>
-                    <?php echo $buildResults; ?>
-                    <?php if (!empty($builtCommands) || !empty($commands)): ?>
-                        <table class="bot-table">
-                            <thead>
+    <div class="row">
+        <div class="medium-12 columns">
+            <?php if (isset($_GET['user'])): ?>
+                <?php echo $buildResults; ?>
+                <?php if (!empty($builtCommands) || !empty($commands)): ?>
+                    <table class="bot-table">
+                        <thead>
+                            <tr>
+                                <th>Built-in Commands</th>
+                                <th>Custom Commands</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $maxRows = max(count($builtCommands), count($commands)); ?>
+                            <?php for ($i = 0; $i < $maxRows; $i++): ?>
                                 <tr>
-                                    <th>Built-in Commands</th>
-                                    <th>Custom Commands</th>
+                                    <td><?php echo isset($builtCommands[$i]) ? '!' . htmlspecialchars($builtCommands[$i]['command_name']) : ''; ?></td>
+                                    <td><?php echo isset($commands[$i]) ? '!' . htmlspecialchars($commands[$i]['command']) : ''; ?></td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php $maxRows = max(count($builtCommands), count($commands)); ?>
-                                <?php for ($i = 0; $i < $maxRows; $i++): ?>
-                                    <tr>
-                                        <td><?php echo isset($builtCommands[$i]) ? '!' . htmlspecialchars($builtCommands[$i]['command_name']) : ''; ?></td>
-                                        <td><?php echo isset($commands[$i]) ? '!' . htmlspecialchars($commands[$i]['command']) : ''; ?></td>
-                                    </tr>
-                                <?php endfor; ?>
-                            </tbody>
-                        </table>
-                    <?php else: ?>
-                        <p>No commands found.</p>
-                    <?php endif; ?>
+                            <?php endfor; ?>
+                        </tbody>
+                    </table>
                 <?php else: ?>
-                    <h2>Search for User Commands:</h2>
-                    <div class="small-4">
-                        <form method='get' action='<?php echo $_SERVER['PHP_SELF']; ?>' class='search-form'>
-                            <label for='user_search' class='search-label'>Enter username:</label>
-                            <input type='text' id='user_search' name='user' class='search-input'>
-                            <input type='submit' value='Search' class='default-button'>
-                        </form>
-                    </div>
+                    <p>No commands found.</p>
                 <?php endif; ?>
-            </div>
+            <?php else: ?>
+                <h2>Search for User Commands:</h2>
+                <div class="medium-4">
+                    <form method='get' action='<?php echo $_SERVER['PHP_SELF']; ?>' class='search-form'>
+                        <label for='user_search' class='search-label'>Enter username:</label>
+                        <input type='text' id='user_search' name='user' class='search-input'>
+                        <input type='submit' value='Search' class='default-button'>
+                    </form>
+                </div>
+            <?php endif; ?>
         </div>
+    </div>
     </div>
     <footer>
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
