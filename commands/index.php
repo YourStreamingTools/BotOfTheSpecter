@@ -99,23 +99,25 @@ if (isset($_GET['user'])) {
         <h1>BotOfTheSpecter</h1>
     </header>
     <div class="container">
-        <?php echo $buildResults; ?>
-        <?php if (!empty($commands)): ?>
-            <table class="bot-table">
-                <thead>
-                    <tr>
-                        <th>Command</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($commands as $command): ?>
+        <div class="small-12 medium-6 column">
+            <?php echo $buildResults; ?>
+            <?php if (!empty($commands)): ?>
+                <table class="bot-table">
+                    <thead>
                         <tr>
-                            <td>!<?php echo $command['command']; ?></td>
+                            <th>Command</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($commands as $command): ?>
+                            <tr>
+                                <td>!<?php echo $command['command']; ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
     </div>
     <footer>
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
