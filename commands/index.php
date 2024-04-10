@@ -66,6 +66,7 @@ if (isset($_GET['user'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
     <link rel="stylesheet" type="text/css" href="https://botofthespecter.com/style.css">
+    <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
@@ -100,7 +101,7 @@ if (isset($_GET['user'])) {
     <div class="container">
         <?php echo $buildResults; ?>
         <?php if (!empty($commands)): ?>
-            <table class="bot-table" id="commandsTable">
+            <table class="bot-table">
                 <thead>
                     <tr>
                         <th>Command</th>
