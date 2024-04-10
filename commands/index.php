@@ -6,7 +6,7 @@ function sanitize_input($input) {
 
 // PAGE TITLE
 $title = "User Commands";
-$buildResults = "";
+$commands = [];
 
 // Check if a user is specified in the URL parameter
 if (isset($_GET['user'])) {
@@ -39,16 +39,9 @@ if (isset($_GET['user'])) {
         $query = "SELECT command FROM custom_commands";
         $result = $db->query($query);
 
-        // Display commands if found
-        if ($result) {
-            $buildResults .= "<h2>Commands for $username:</h2>"; 
-            $buildResults .= "<ul style='list-style-type: none;'>"; 
-            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-                $buildResults .= "<li>!{$row['command']}</li>";
-            }
-            $buildResults .= "</ul>"; 
-        } else {
-            $buildResults = "<p>No custom commands found for user '$username'.</p>";
+        // Fetch commands into an array
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $commands[] = $row;
         }
 
         // Close database connection
@@ -58,7 +51,7 @@ if (isset($_GET['user'])) {
     }
 } else {
     // If user is not specified in URL, provide a search form
-    $buildResults .= "<h2>Search for User Commands:</h2>"; 
+    $buildResults = "<h2>Search for User Commands:</h2>"; 
     $buildResults .= "<form method='get' action='{$_SERVER['PHP_SELF']}'>"; 
     $buildResults .= "<label for='user_search'>Enter username:</label>"; 
     $buildResults .= "<input type='text' id='user_search' name='user'>"; 
@@ -87,9 +80,28 @@ if (isset($_GET['user'])) {
     </header>
     <div class="container">
         <?php echo $buildResults; ?>
+        <?php if (!empty($commands)): ?>
+            <input type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+            <table class="bot-table" id="commandsTable">
+                <thead>
+                    <tr>
+                        <th>Command</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($commands as $command): ?>
+                        <tr>
+                            <td>!<?php echo $command['command']; ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
     </div>
     <footer>
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </footer>
+
+    <script src="https://dashboard.botofthespecter.com/js/search.js"></script>
 </body>
 </html>
