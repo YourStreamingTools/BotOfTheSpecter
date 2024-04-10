@@ -66,7 +66,6 @@ if (isset($_GET['user'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
     <link rel="stylesheet" type="text/css" href="https://botofthespecter.com/style.css">
-    <link rel="stylesheet" type="text/css" href="https://dashboard.botofthespecter.com/css/custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
@@ -74,6 +73,25 @@ if (isset($_GET['user'])) {
     <meta name="twitter:title" content="BotOfTheSpecter" />
     <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+    <style>
+        .bot-table {
+            border-style: solid;
+            border-color: #ffffff;
+            background-color: #111111;
+            border-width: 1px;
+            width: 100%;
+        }
+
+        .bot-table td, 
+        .bot-table tr,
+        .bot-table th {
+            color: #ffffff;
+            border-style: solid;
+            border-color: #ffffff;
+            background-color: #111111;
+            border-width: 1px;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -82,7 +100,6 @@ if (isset($_GET['user'])) {
     <div class="container">
         <?php echo $buildResults; ?>
         <?php if (!empty($commands)): ?>
-            <input type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
             <table class="bot-table" id="commandsTable">
                 <thead>
                     <tr>
@@ -102,7 +119,5 @@ if (isset($_GET['user'])) {
     <footer>
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </footer>
-
-    <script src="https://dashboard.botofthespecter.com/js/search.js"></script>
 </body>
 </html>
