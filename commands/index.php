@@ -100,7 +100,7 @@ if (isset($_GET['user'])) {
         <p>&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.</p>
     </header>
     <div class="container">
-        <div class="medium-6 column">
+        <div class="medium-12 column">
             <?php echo $buildResults; ?>
             <?php if (!empty($commands)): ?>
                 <table class="bot-table">
