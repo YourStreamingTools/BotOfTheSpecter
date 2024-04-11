@@ -137,12 +137,9 @@ function killBot($pid) {
     return true;
 }
 
-// Display running version if bot is running
-if (strpos($statusOutput, 'Bot Running') !== false && file_exists($versionFilePath)) {
+// Display running version if bot is running or if bot was started or restarted
+if ((strpos($statusOutput, 'Bot Running') !== false || strpos($statusOutput, 'Bot started') !== false || strpos($statusOutput, 'Bot restarted') !== false) && file_exists($versionFilePath)) {
     $versionContent = file_get_contents($versionFilePath);
-    if (strpos($statusOutput, 'Bot Running') !== false) {
-        // Bot is running, append version information to status output
-        $statusOutput .= "<h4>Running Version: $versionContent</h4>";
-    }
+    $statusOutput .= "<h4>Running Version: $versionContent</h4>";
 }
 ?>
