@@ -108,6 +108,12 @@ $versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt'
 <br>
 <?php echo $BotModMessage; ?>
 <?php echo $statusOutput; ?>
+<?php
+if (file_exists($versionFilePath)) {
+    $versionContent = file_get_contents($versionFilePath);
+    echo "<br><h3>Running Version: $versionContent</h3>";
+}
+?>
 <br>
 <table class="bot-actions">
   <tr>
@@ -117,12 +123,6 @@ $versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt'
     <td><form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form></td>
   </tr>
 </table>
-<?php
-if (file_exists($versionFilePath)) {
-    $versionContent = file_get_contents($versionFilePath);
-    echo "<br><p>Version: $versionContent</p>";
-}
-?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
