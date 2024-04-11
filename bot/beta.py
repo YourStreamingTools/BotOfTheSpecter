@@ -282,6 +282,14 @@ cursor.execute('''
         link TEXT PRIMARY KEY DEFAULT NULL
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS stream_credits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        event TEXT,
+        data INTEGER
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
@@ -438,7 +446,7 @@ async def process_pubsub_message(message):
                     recipient_user_id = subscription_event_data["recipient_id"]
                     recipient_user_name = subscription_event_data["recipient_user_name"]
                     multi_month_duration = subscription_event_data["multi_month_duration"]
-                    await process_multi_month_sub_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration)
+                    await process_multi_month_sub_event(user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration)
                 
             # Add more conditions to process other types of events as needed
             else:
@@ -2345,6 +2353,7 @@ async def check_stream_online():
                             bot_logger.info(f"Stream is now offline.")
                             twitch_logger.info(f"Stream is now offline.")
                             await clear_seen_today()
+                            await clear_credits_data()
                             offline_logged = True
                     stream_state = stream_online
                 elif stream_online:
@@ -2352,6 +2361,7 @@ async def check_stream_online():
 
         await asyncio.sleep(60)  # Check every 1 minute
 
+# Function to send the online message to channel
 async def send_online_message(message):
     await asyncio.sleep(3)
     channel = bot.get_channel(CHANNEL_NAME)
@@ -2361,26 +2371,17 @@ async def send_online_message(message):
     else:
         bot_logger.error("Failed to send message")
 
+# Function to clear the seen users table at the end of stream
 async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
     conn.commit()
 
-# Function for timed messages
-async def send_timed_message(message, interval):
-    try:
-        await sleep(interval)
-        bot_logger.info("Waiting for interval: %f seconds", interval)
-        if stream_online:
-            channel = bot.get_channel(CHANNEL_NAME)
-            bot_logger.info("Sending message: '%s' to channel: %s", message, CHANNEL_NAME)
-            await channel.send(message)
-        else:
-            bot_logger.info("Stream is offline. Message not sent.")
-    except asyncio.CancelledError:
-        bot_logger.info("Task cancelled.")
-        pass
-    await sleep(interval)
+# Function to clear the ending credits table at the end of stream
+async def clear_credits_data():
+    cursor.execute('DELETE FROM stream_credits')
+    conn.commit()
 
+# Function for timed messages
 async def timed_message():
     global stream_online
     while True:
@@ -2400,8 +2401,23 @@ async def timed_message():
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()  # Clear the list of tasks
-
         await sleep(300)
+
+# Function to send timed messages
+async def send_timed_message(message, interval):
+    try:
+        await sleep(interval)
+        bot_logger.info("Waiting for interval: %f seconds", interval)
+        if stream_online:
+            channel = bot.get_channel(CHANNEL_NAME)
+            bot_logger.info("Sending message: '%s' to channel: %s", message, CHANNEL_NAME)
+            await channel.send(message)
+        else:
+            bot_logger.info("Stream is offline. Message not sent.")
+    except asyncio.CancelledError:
+        bot_logger.info("Task cancelled.")
+        pass
+    await sleep(interval)
 
 # Function to get the current playing song
 async def get_song_info_command():
@@ -2587,8 +2603,12 @@ async def process_bits_event(user_id, user_name, bits):
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(f"Thank you {user_name} for {bits} bits!")
 
+    # Insert data into stream_credits table
+    cursor.execute('''
+    INSERT INTO stream_credits (username, event, data)
+    VALUES (?, ?, ?)
+    ''', (user_name, "bits", bits))
     conn.commit()
-    conn.close()
 
 # Function for SUBSCRIPTIONS
 def sub_plan_to_tier_name(sub_plan):
@@ -2605,10 +2625,6 @@ def sub_plan_to_tier_name(sub_plan):
         raise ValueError("Unknown subscription plan")
 
 async def process_regular_subscription_event(user_id, user_name, sub_plan, event_months):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
     # Check if the user exists in the database
     cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
     existing_subscription = cursor.fetchone()
@@ -2637,9 +2653,14 @@ async def process_regular_subscription_event(user_id, user_name, sub_plan, event
             VALUES (?, ?, ?, ?)
         ''', (user_id, user_name, sub_plan, event_months))
 
+    # Insert data into stream_credits table
+    cursor.execute('''
+        INSERT INTO stream_credits (username, event, data)
+        VALUES (?, ?, ?)
+    ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
+
     # Commit changes to the database
     conn.commit()
-    conn.close()
 
     # Construct the message to be sent to the channel & send the message to the channel
     message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
@@ -2649,10 +2670,6 @@ async def process_regular_subscription_event(user_id, user_name, sub_plan, event
     await channel.send(message)
 
 async def process_subgift_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
     # Check if the recipient user exists in the database
     cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
     existing_months = cursor.fetchone()
@@ -2674,9 +2691,14 @@ async def process_subgift_event(recipient_user_id, recipient_user_name, sub_plan
             VALUES (?, ?, ?, ?)
         ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
+    # Insert subscription data into stream_credits table
+    cursor.execute('''
+        INSERT INTO stream_credits (username, event, data)
+        VALUES (?, ?, ?)
+    ''', (recipient_user_name, "subscriptions", f"{sub_plan} - {months} months"))
+
     # Commit changes to the database
     conn.commit()
-    conn.close()
 
     # Construct the message to be sent to the channel
     message = f"Thank you {user_name} for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber for {months} months!"
@@ -2686,10 +2708,6 @@ async def process_subgift_event(recipient_user_id, recipient_user_name, sub_plan
     await channel.send(message)
 
 async def process_anonsubgift_event(sub_plan, months, recipient_user_id, recipient_user_name):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
     # Check if the recipient user exists in the database
     cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
     existing_months = cursor.fetchone()
@@ -2711,9 +2729,14 @@ async def process_anonsubgift_event(sub_plan, months, recipient_user_id, recipie
             VALUES (?, ?, ?, ?)
         ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
+    # Insert subscription data into stream_credits table
+    cursor.execute('''
+        INSERT INTO stream_credits (username, event, data)
+        VALUES (?, ?, ?)
+    ''', (recipient_user_name, "subscriptions", f"{sub_plan} - {months} months"))
+
     # Commit changes to the database
     conn.commit()
-    conn.close()
 
     # Construct the message to be sent to the channel
     message = f"An anonymous user has gifted a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber for {months} months!"
@@ -2722,20 +2745,21 @@ async def process_anonsubgift_event(sub_plan, months, recipient_user_id, recipie
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
 
-async def process_multi_month_sub_event(user_id, user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
+async def process_multi_month_sub_event(user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration):
     # Process the subscription event for multi-month sub
     cursor.execute('''
         INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
         VALUES (?, ?, ?, ?)
     ''', (recipient_user_id, recipient_user_name, sub_plan, months))
 
+    # Insert data into stream_credits table
+    cursor.execute('''
+        INSERT INTO stream_credits (username, event, data)
+        VALUES (?, ?, ?)
+    ''', (user_name, "subscriptions", f"{sub_plan} - {months} months"))
+
     # Commit changes to the database
     conn.commit()
-    conn.close()
 
     # Construct the message to be sent to the channel
     message = f"Thank you {user_name} for subscribing for {multi_month_duration} months! You are now a {sub_plan} subscriber for {months} months!"
@@ -2746,19 +2770,20 @@ async def process_multi_month_sub_event(user_id, user_name, sub_plan, months, re
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
     # Insert a new record for the follower
     cursor.execute('''
         INSERT INTO followers_data (user_id, user_name, followed_at)
         VALUES (?, ?, ?)
     ''', (user_id, user_name, followed_at))
 
+    # Insert data into stream_credits table
+    cursor.execute('''
+        INSERT INTO stream_credits (username, event, data)
+        VALUES (?, ?, ?)
+    ''', (user_name, "follow", ""))
+
     # Commit changes to the database
     conn.commit()
-    conn.close()
 
     # Construct the message to be sent to the channel
     message = f"Thank you {user_name} for following! Welcome to the channel!"
