@@ -1,5 +1,10 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// Define variables
+$versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt';
 $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
 $logPath = "/var/www/logs/script/$username.txt";
@@ -26,7 +31,6 @@ if ($file === false) {
 
 // Close the file handle
 fclose($file);
-
 
 if (isset($_POST['runBot'])) {
     if (isBotRunning($statusScriptPath, $username, $logPath)) {
@@ -131,5 +135,14 @@ function killBot($pid) {
         return false;
     }    
     return true;
+}
+
+// Display running version if version control file exists
+if (file_exists($versionFilePath)) {
+    $versionContent = file_get_contents($versionFilePath);
+    if (strpos($statusOutput, 'Bot Running') !== false) {
+        // Bot is running, append version information to status output
+        $statusOutput .= "<h4>Running Version: $versionContent</h4>";
+    }
 }
 ?>
