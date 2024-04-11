@@ -153,20 +153,20 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
     <?php endif; ?>
     <div class="medium-6 columns">
         <div class="row">
-        <div class="small-12 medium-12 column">
-            <h4>Add a timed message:</h4>
-        <form method="post" action="">
-            <label for="message">Message:</label>
-            <input type="text" name="message" id="message" required>
-        </div>
-        <div class="small-12 medium-12 column">
-            <label for="interval">Interval:</label>
-            <input type="number" name="interval" id="interval" min="5" max="60" required data-invalid-tooltip="Please pick a time between 5 and 60 minutes">
-            <span class="form-error">Please pick a time between 5 and 60 minutes</span>
-        </div>
+            <div class="small-12 medium-12 column">
+                <h4>Add a timed message:</h4>
+                <form id="addMessageForm" method="post" action="">
+                    <label for="message">Message:</label>
+                    <input type="text" name="message" id="message" required>
+            </div>
+            <div class="small-12 medium-12 column">
+                    <label for="interval">Interval:</label>
+                    <input type="number" name="interval" id="interval" min="5" max="60" required data-invalid-tooltip="Please pick a time between 5 and 60 minutes">
+            </div>
         </div>
         <input type="submit" class="defult-button" value="Add Message">
         </form>
+        <span class="form-error">Please pick a time between 5 and 60 minutes</span>
     </div>
     <?php
     $items_in_database = !empty($timedMessagesData);
