@@ -238,45 +238,6 @@ function showResponse() {
 
 // Call the function initially to pre-fill the fields if a default message is selected
 window.onload = showResponse;
-
-// Function to validate message input
-function validateMessage() {
-    var messageInput = document.getElementById('message');
-    var messageError = document.getElementById('messageError');
-
-    if (messageInput.value.trim() === '') {
-        messageInput.classList.add('is-invalid-input');
-        messageError.style.display = 'block';
-        return false;
-    } else {
-        messageInput.classList.remove('is-invalid-input');
-        messageError.style.display = 'none';
-        return true;
-    }
-}
-
-// Function to validate interval input
-function validateInterval() {
-    var intervalInput = document.getElementById('interval');
-    var intervalError = document.getElementById('intervalError');
-
-    if (intervalInput.value < 5 || intervalInput.value > 60) {
-        intervalInput.classList.add('is-invalid-input');
-        intervalError.style.display = 'block';
-        return false;
-    } else {
-        intervalInput.classList.remove('is-invalid-input');
-        intervalError.style.display = 'none';
-        return true;
-    }
-}
-
-// Add event listener for form submission
-document.getElementById('addMessageForm').addEventListener('submit', function(event) {
-    if (!validateMessage() || !validateInterval()) {
-        event.preventDefault();
-    }
-});
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
