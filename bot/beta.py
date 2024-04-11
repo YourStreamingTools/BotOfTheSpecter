@@ -2845,7 +2845,7 @@ async def handle_user_grouping(username, user_id):
             bot_logger.error(f"Group '{name}' does not exist.")
 
 # Function to tell the website what version of the bot is currently running
-async def update_version_control():
+def update_version_control():
     # Define the directory path
     directory = "/var/www/logs/version/"
     
