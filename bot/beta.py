@@ -2844,6 +2844,26 @@ async def handle_user_grouping(username, user_id):
         else:
             bot_logger.error(f"Group '{name}' does not exist.")
 
+# Function to tell the website what version of the bot is currently running
+async def update_version_control():
+    # Define the directory path
+    directory = "/var/www/logs/version/"
+    
+    # Ensure the directory exists, create it if it doesn't
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    
+    # Define the file path with the channel name
+    file_path = os.path.join(directory, f"{CHANNEL_NAME}_version_control.txt")
+    
+    # Delete the file if it exists
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    # Write the new version to the file
+    with open(file_path, "w") as file:
+        file.write(VERSION)
+
 # Here is the BOT
 bot = BotOfTheSpecter(
     token=OAUTH_TOKEN,
@@ -2868,6 +2888,9 @@ def start_bot():
     # Create groups if they don't exist
     group_creation()
 
+    # Create Version Control for the website
+    update_version_control()
+    
     # Start the bot
     bot.run()
 
