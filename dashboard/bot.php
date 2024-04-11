@@ -86,6 +86,9 @@ if ($ModStatusOutput) {
 } else {
   $BotModMessage = "<p style='color: red;'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p>";
 }
+
+// Version Control TXT file to show the user what version of the bot they're running
+$versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -114,6 +117,12 @@ if ($ModStatusOutput) {
     <td><form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form></td>
   </tr>
 </table>
+<?php
+if (file_exists($versionFilePath)) {
+    $versionContent = file_get_contents($versionFilePath);
+    echo "<br><p>Version: $versionContent</p>";
+}
+?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
