@@ -41,31 +41,35 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 
+// Initialize variables for messages or errors
+$successMessage = "";
+$errorMessage = "";
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Check if the form was submitted for adding a new message
     if (isset($_POST['message']) && isset($_POST['interval'])) {
         $message = $_POST['message'];
         $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
-    
+
         // Validate input data
         if ($interval === false) {
-            echo "Interval must be a valid integer between 5 and 60.";
-            exit;
-        }
-        
-        // Insert new message into SQLite database
-        try {
-            $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
-            $stmt->execute([$interval, $message]);
-        } catch (PDOException $e) {
-            echo 'Error adding message: ' . $e->getMessage();
+            $errorMessage = "Interval must be a valid integer between 5 and 60.";
+        } else {
+            // Insert new message into SQLite database
+            try {
+                $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
+                $stmt->execute([$interval, $message]);
+                $successMessage = "Message added successfully.";
+            } catch (PDOException $e) {
+                $errorMessage = "Error adding message: " . $e->getMessage();
+            }
         }
     }    
 
     // Check if the form was submitted for removing a message
     elseif (isset($_POST['remove_message'])) {
         $message_id = $_POST['remove_message'];
-        
+
         // Remove the selected message from the database
         try {
             $stmt = $db->prepare("DELETE FROM timed_messages WHERE id = ?");
@@ -73,12 +77,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Optionally, you can check if the deletion was successful and provide feedback to the user
             $deleted = $stmt->rowCount() > 0; // Check if any rows were affected
             if ($deleted) {
-                echo "Message removed successfully.";
+                $successMessage = "Message removed successfully.";
             } else {
-                echo "Failed to remove message.";
+                $errorMessage = "Failed to remove message.";
             }
         } catch (PDOException $e) {
-            echo 'Error removing message: ' . $e->getMessage();
+            $errorMessage = "Error removing message: " . $e->getMessage();
         }
     }
 
@@ -101,19 +105,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 // Optionally, you can check if the update was successful and provide feedback to the user
                 $updated = $stmt->rowCount() > 0; // Check if any rows were affected
                 if ($updated) {
-                    echo "Message updated successfully.";
+                    $successMessage = "Message updated successfully.";
                 } else {
-                    echo "Failed to update message.";
+                    $errorMessage = "Failed to update message.";
                 }
             } catch (PDOException $e) {
-                error_log('Error updating message: ' . $e->getMessage());
-                echo 'An error occurred. Please try again later.';
+                $errorMessage = "Error updating message: " . $e->getMessage();
             }
         } else {
-            echo "Invalid input data.";
+            $errorMessage = "Invalid input data.";
         }
     }
 }
+$displayMessages = !empty($successMessage) || !empty($errorMessage);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -131,6 +135,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <br>
     <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
+    <?php if ($displayMessages): ?>
+    <div class="messages">
+        <?php
+        // Display success message
+        if (!empty($successMessage)) {
+            echo "<p style='color: green;'>$successMessage</p>";
+        }
+
+        // Display error message
+        if (!empty($errorMessage)) {
+            echo "<p style='color: red;'>$errorMessage</p>";
+        }
+        ?>
+    </div>
+    <br>
+    <?php endif; ?>
     <div class="small-12 medium-6 column">
         <p style='color: red;'>
             <strong>Message</strong>: What is the message that needs to be posted.
@@ -162,7 +182,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $items_in_database = !empty($timedMessagesData);
     if ($items_in_database): ?>
     <div class="row">
-    <div class="small-12 medium-6 column">
+        <div class="small-12 medium-6 column">
             <h4>Edit a timed message:</h4>
         <form method="post" action="">
         <div class="row">
@@ -177,11 +197,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
             <div class="small-12 medium-6 column">
                 <label for="edit_interval">New Interval:</label>
-                <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo isset($_POST['edit_interval']) ? $_POST['edit_interval'] : ''; ?>">
+                <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval']; ?>">
             </div>
             <div class="small-12 medium-12 column">
                 <label for="edit_message_content">New Message:</label>
-                <input type="text" name="edit_message_content" id="edit_message_content" required value="<?php echo isset($_POST['edit_message_content']) ? $_POST['edit_message_content'] : ''; ?>">
+                <input type="text" name="edit_message_content" id="edit_message_content" required value="<?php echo $message['message']; ?>">
             </div>
         </div>
         <input type="submit" class="defult-button" value="Edit Message">
