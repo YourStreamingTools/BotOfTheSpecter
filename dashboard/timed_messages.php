@@ -59,7 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             try {
                 $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
                 $stmt->execute([$interval, $message]);
-                $successMessage = "Message added successfully.";
+                $successMessage = '<p style="color: green;">Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.</p>';
             } catch (PDOException $e) {
                 $errorMessage = "Error adding message: " . $e->getMessage();
             }
@@ -105,7 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 // Optionally, you can check if the update was successful and provide feedback to the user
                 $updated = $stmt->rowCount() > 0; // Check if any rows were affected
                 if ($updated) {
-                    $successMessage = "Message updated successfully.";
+                    $successMessage = '<p style="color: green;">Message with ID ' . $edit_message_id . ' updated successfully.</p>';
                 } else {
                     $errorMessage = "Failed to update message.";
                 }
@@ -175,9 +175,6 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
         <input type="submit" class="defult-button" value="Add Message">
     </form>
     <br>
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['message']) && isset($_POST['interval'])): ?>
-        <p style="color: green;">Timed Message: "<?php echo $_POST['message']; ?>" with the interval: <?php echo $_POST['interval']; ?> has been successfully added to the database.</p>
-    <?php endif; ?>
     <br><?php
     $items_in_database = !empty($timedMessagesData);
     if ($items_in_database): ?>
@@ -185,26 +182,28 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
         <div class="small-12 medium-6 column">
             <h4>Edit a timed message:</h4>
         <form method="post" action="">
-        <div class="row">
-            <div class="small-12 medium-6 column">
-                <label for="edit_message">Select Message to Edit:</label>
-                <select name="edit_message" id="edit_message">
-                    <option value="">PICK A MESSAGE TO EDIT</option>
-                    <?php foreach ($timedMessagesData as $message): ?>
-                        <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="row">
+                <div class="small-12 medium-6 column">
+                    <label for="edit_message">Select Message to Edit:</label>
+                    <select name="edit_message" id="edit_message" onchange="showResponse()">
+                        <option value="">PICK A MESSAGE TO EDIT</option>
+                        <?php usort($timedMessagesData, function($a, $b) { return $a['id'] - $b['id']; }); foreach ($timedMessagesData as $message): ?>
+                            <option value="<?php echo $message['id']; ?>">
+                                (<?php echo $message['id']; ?>) <?php echo $message['message']; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="small-12 medium-6 column">
+                    <label for="edit_interval">New Interval:</label>
+                    <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval']; ?>">
+                </div>
+                <div class="small-12 medium-12 column">
+                    <label for="edit_message_content">New Message:</label>
+                    <input type="text" name="edit_message_content" id="edit_message_content" required value="<?php echo $message['message']; ?>">
+                </div>
             </div>
-            <div class="small-12 medium-6 column">
-                <label for="edit_interval">New Interval:</label>
-                <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval']; ?>">
-            </div>
-            <div class="small-12 medium-12 column">
-                <label for="edit_message_content">New Message:</label>
-                <input type="text" name="edit_message_content" id="edit_message_content" required value="<?php echo $message['message']; ?>">
-            </div>
-        </div>
-        <input type="submit" class="defult-button" value="Edit Message">
+            <input type="submit" class="defult-button" value="Edit Message">
         </form>
         </div>
         <div class="small-12 medium-6 column">
@@ -223,6 +222,28 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
 <?php endif; ?>
 </div>
 
+<script>
+    // Define the function to show response
+    function showResponse() {
+        var editMessage = document.getElementById('edit_message').value;
+        var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+        var editMessageContent = document.getElementById('edit_message_content');
+        var editIntervalInput = document.getElementById('edit_interval');
+
+        // Find the message content and interval for the selected message and update the corresponding input fields
+        var messageData = timedMessagesData.find(m => m.id == editMessage);
+        if (messageData) {
+            editMessageContent.value = messageData.message;
+            editIntervalInput.value = messageData.interval;
+        } else {
+            editMessageContent.value = '';
+            editIntervalInput.value = '';
+        }
+    }
+
+    // Call the function initially to pre-fill the fields if a default message is selected
+    window.onload = showResponse;
+</script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
