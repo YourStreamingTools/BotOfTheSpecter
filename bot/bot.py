@@ -2656,7 +2656,7 @@ async def process_followers_event(user_id, user_name, followed_at):
     await channel.send(message)
 
 # Function to tell the website what version of the bot is currently running
-async def update_version_control():
+def update_version_control():
     # Define the directory path
     directory = "/var/www/logs/version/"
     
