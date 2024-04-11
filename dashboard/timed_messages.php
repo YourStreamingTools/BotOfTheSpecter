@@ -42,23 +42,28 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-  if (isset($_POST['message']) && isset($_POST['interval'])) {
-      $message = $_POST['message'];
-      $interval = $_POST['interval'];
-      
-      // Insert new message into SQLite database
-      try {
-          $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
-          $stmt->execute([$interval, $message]);
-      } catch (PDOException $e) {
-          echo 'Error adding message: ' . $e->getMessage();
-      }
-  }
-}
+    // Check if the form was submitted for adding a new message
+    if (isset($_POST['message']) && isset($_POST['interval'])) {
+        $message = $_POST['message'];
+        $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
+    
+        // Validate input data
+        if ($interval === false) {
+            echo "Interval must be a valid integer between 5 and 60.";
+            exit;
+        }
+        
+        // Insert new message into SQLite database
+        try {
+            $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
+            $stmt->execute([$interval, $message]);
+        } catch (PDOException $e) {
+            echo 'Error adding message: ' . $e->getMessage();
+        }
+    }    
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Check if the remove message form is submitted
-    if (isset($_POST['remove_message'])) {
+    // Check if the form was submitted for removing a message
+    elseif (isset($_POST['remove_message'])) {
         $message_id = $_POST['remove_message'];
         
         // Remove the selected message from the database
@@ -74,6 +79,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         } catch (PDOException $e) {
             echo 'Error removing message: ' . $e->getMessage();
+        }
+    }
+
+    // Check if the form was submitted for editing the message or the interval of a message
+    elseif (isset($_POST['edit_message']) && isset($_POST['edit_interval'])) {
+        $edit_message_id = $_POST['edit_message'];
+        $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
+        $edit_message_content = $_POST['edit_message_content'];
+
+        // Check if the edit_message_id exists in the timed_messages table
+        $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
+        $stmt->execute([$edit_message_id]);
+        $message_exists = $stmt->fetchColumn();
+
+        if ($message_exists && $edit_interval !== false) {
+            // Update the message and/or interval for the selected message in the database
+            try {
+                $stmt = $db->prepare("UPDATE timed_messages SET interval = ?, message = ? WHERE id = ?");
+                $stmt->execute([$edit_interval, $edit_message_content, $edit_message_id]);
+                // Optionally, you can check if the update was successful and provide feedback to the user
+                $updated = $stmt->rowCount() > 0; // Check if any rows were affected
+                if ($updated) {
+                    echo "Message updated successfully.";
+                } else {
+                    echo "Failed to update message.";
+                }
+            } catch (PDOException $e) {
+                error_log('Error updating message: ' . $e->getMessage());
+                echo 'An error occurred. Please try again later.';
+            }
+        } else {
+            echo "Invalid input data.";
         }
     }
 }
@@ -121,29 +158,49 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['message']) && isset($_POST['interval'])): ?>
         <p style="color: green;">Timed Message: "<?php echo $_POST['message']; ?>" with the interval: <?php echo $_POST['interval']; ?> has been successfully added to the database.</p>
     <?php endif; ?>
-    <br><br><br>
-    <?php
-    $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
-    $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
-    
+    <br><?php
     $items_in_database = !empty($timedMessagesData);
-    if ($items_in_database):
-    ?>
+    if ($items_in_database): ?>
+    <div class="row">
+    <div class="small-12 medium-6 column">
+            <h4>Edit a timed message:</h4>
         <form method="post" action="">
-            <!-- Add form for removing messages -->
-            <div class="row">
-                <div class="small-6">
-                    <label for="remove_message">Select Message to Remove:</label>
-                    <select name="remove_message" id="remove_message">
-                        <?php foreach ($timedMessagesData as $message): ?>
-                            <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
+        <div class="row">
+            <div class="small-12 medium-6 column">
+                <label for="edit_message">Select Message to Edit:</label>
+                <select name="edit_message" id="edit_message">
+                    <option value="">PICK A MESSAGE TO EDIT</option>
+                    <?php foreach ($timedMessagesData as $message): ?>
+                        <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
-            <input type="submit" class="defult-button" value="Remove Message">
+            <div class="small-12 medium-6 column">
+                <label for="edit_interval">New Interval:</label>
+                <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo isset($_POST['edit_interval']) ? $_POST['edit_interval'] : ''; ?>">
+            </div>
+            <div class="small-12 medium-12 column">
+                <label for="edit_message_content">New Message:</label>
+                <input type="text" name="edit_message_content" id="edit_message_content" required value="<?php echo isset($_POST['edit_message_content']) ? $_POST['edit_message_content'] : ''; ?>">
+            </div>
+        </div>
+        <input type="submit" class="defult-button" value="Edit Message">
         </form>
-    <?php endif; ?>
+        </div>
+        <div class="small-12 medium-6 column">
+                <h4>Remove a timed message:</h4>
+            <form method="post" action="">
+                <label for="remove_message">Select Message to Remove:</label>
+                <select name="remove_message" id="remove_message">
+                    <?php foreach ($timedMessagesData as $message): ?>
+                        <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="submit" class="defult-button" value="Remove Message">
+            </form>
+        </div>
+    </div>
+<?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
