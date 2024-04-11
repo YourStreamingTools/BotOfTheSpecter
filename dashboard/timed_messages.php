@@ -13,7 +13,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Create Timed Messages";
+$title = "Timed Messages";
 
 // Connect to database
 require_once "db_connect.php";
