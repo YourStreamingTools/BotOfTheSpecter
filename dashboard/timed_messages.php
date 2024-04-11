@@ -151,31 +151,24 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
     </div>
     <br>
     <?php endif; ?>
-    <div class="small-12 medium-6 column">
-        <p style='color: red;'>
-            <strong>Message</strong>: What is the message that needs to be posted.
-        </p>
-    </div>
-    <div class="small-12 medium-6 column">
-        <p style='color: red;'>
-            <strong>Interval</strong>: The time the message needs to wait before posting again, between 5 and 60 minutes.<br>
-        </p>
-    </div>
-    <form method="post" action="">
+    <div class="medium-6 columns">
         <div class="row">
-            <div class="small-12 medium-6 column">
-                <label for="message">Message:</label>
-                <input type="text" name="message" id="message" required>
-            </div>
-            <div class="small-12 medium-6 column">
-                <label for="interval">Interval:</label>
-                <input type="number" name="interval" id="interval" min="5" max="60" required>
-            </div>
+        <div class="small-12 medium-12 column">
+            <h4>Add a timed message:</h4>
+        <form method="post" action="">
+            <label for="message">Message:</label>
+            <input type="text" name="message" id="message" required>
+        </div>
+        <div class="small-12 medium-12 column">
+            <label for="interval">Interval:</label>
+            <input type="number" name="interval" id="interval" min="5" max="60" required data-invalid-tooltip="Please pick a time between 5 and 60 minutes">
+            <span class="form-error">Please pick a time between 5 and 60 minutes</span>
+        </div>
         </div>
         <input type="submit" class="defult-button" value="Add Message">
-    </form>
-    <br>
-    <br><?php
+        </form>
+    </div>
+    <?php
     $items_in_database = !empty($timedMessagesData);
     if ($items_in_database): ?>
     <div class="row">
@@ -194,7 +187,7 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="small-12 medium-6 column">
+                <div class="small-12 medium-3 column">
                     <label for="edit_interval">New Interval:</label>
                     <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval']; ?>">
                 </div>
@@ -207,6 +200,7 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
         </form>
         </div>
         <div class="small-12 medium-6 column">
+            <br><br>
                 <h4>Remove a timed message:</h4>
             <form method="post" action="">
                 <label for="remove_message">Select Message to Remove:</label>
