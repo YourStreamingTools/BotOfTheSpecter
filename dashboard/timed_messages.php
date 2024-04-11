@@ -134,6 +134,7 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
 <div class="row column">
     <br>
     <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <p style='color: red;'>Please be advised that this function is currently undergoing heavy development and testing, and may not function properly at this time.</p>
     <br>
     <?php if ($displayMessages): ?>
     <div class="messages">
