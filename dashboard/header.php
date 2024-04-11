@@ -11,4 +11,4 @@
     <link rel="stylesheet" href="css/custom.css">
     <script src="/js/about.js"></script>
     <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
-    <!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -hookport $webhookPort -socketport $websocketPort >> $logPath"; ?> -->
+    <!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $logPath"; ?> -->
