@@ -158,15 +158,16 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
                 <form id="addMessageForm" method="post" action="">
                     <label for="message">Message:</label>
                     <input type="text" name="message" id="message" required>
+                    <span id="messageError" class="form-error" style="display: none;">Message is required</span>
             </div>
             <div class="small-12 medium-12 column">
                     <label for="interval">Interval:</label>
-                    <input type="number" name="interval" id="interval" min="5" max="60" required data-invalid-tooltip="Please pick a time between 5 and 60 minutes">
+                    <input type="number" name="interval" id="interval" min="5" max="60" required>
+                    <span id="intervalError" class="form-error" style="display: none;">Please pick a time between 5 and 60 minutes</span>
             </div>
         </div>
         <input type="submit" class="defult-button" value="Add Message">
         </form>
-        <span class="form-error">Please pick a time between 5 and 60 minutes</span>
     </div>
     <?php
     $items_in_database = !empty($timedMessagesData);
@@ -217,26 +218,65 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
 </div>
 
 <script>
-    // Define the function to show response
-    function showResponse() {
-        var editMessage = document.getElementById('edit_message').value;
-        var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
-        var editMessageContent = document.getElementById('edit_message_content');
-        var editIntervalInput = document.getElementById('edit_interval');
-
-        // Find the message content and interval for the selected message and update the corresponding input fields
-        var messageData = timedMessagesData.find(m => m.id == editMessage);
-        if (messageData) {
-            editMessageContent.value = messageData.message;
-            editIntervalInput.value = messageData.interval;
-        } else {
-            editMessageContent.value = '';
-            editIntervalInput.value = '';
-        }
+// Define the function to show response
+function showResponse() {
+    var editMessage = document.getElementById('edit_message').value;
+    var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+    var editMessageContent = document.getElementById('edit_message_content');
+    var editIntervalInput = document.getElementById('edit_interval');
+    
+    // Find the message content and interval for the selected message and update the corresponding input fields
+    var messageData = timedMessagesData.find(m => m.id == editMessage);
+    if (messageData) {
+        editMessageContent.value = messageData.message;
+        editIntervalInput.value = messageData.interval;
+    } else {
+        editMessageContent.value = '';
+        editIntervalInput.value = '';
     }
+}
 
-    // Call the function initially to pre-fill the fields if a default message is selected
-    window.onload = showResponse;
+// Call the function initially to pre-fill the fields if a default message is selected
+window.onload = showResponse;
+
+// Function to validate message input
+function validateMessage() {
+    var messageInput = document.getElementById('message');
+    var messageError = document.getElementById('messageError');
+
+    if (messageInput.value.trim() === '') {
+        messageInput.classList.add('is-invalid-input');
+        messageError.style.display = 'block';
+        return false;
+    } else {
+        messageInput.classList.remove('is-invalid-input');
+        messageError.style.display = 'none';
+        return true;
+    }
+}
+
+// Function to validate interval input
+function validateInterval() {
+    var intervalInput = document.getElementById('interval');
+    var intervalError = document.getElementById('intervalError');
+
+    if (intervalInput.value < 5 || intervalInput.value > 60) {
+        intervalInput.classList.add('is-invalid-input');
+        intervalError.style.display = 'block';
+        return false;
+    } else {
+        intervalInput.classList.remove('is-invalid-input');
+        intervalError.style.display = 'none';
+        return true;
+    }
+}
+
+// Add event listener for form submission
+document.getElementById('addMessageForm').addEventListener('submit', function(event) {
+    if (!validateMessage() || !validateInterval()) {
+        event.preventDefault();
+    }
+});
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
