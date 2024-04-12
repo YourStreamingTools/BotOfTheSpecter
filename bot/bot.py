@@ -43,7 +43,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.11"
+VERSION = "3.12"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -1434,6 +1434,28 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
+    
+    @commands.command(name='steam')
+    async def steam_command(self, ctx):
+        global current_game
+
+        async with aiohttp.ClientSession() as session:
+            response = await session.get("http://api.steampowered.com/ISteamApps/GetAppList/v2")
+            if response.status == 200:
+                data = await response.json()
+                steam_app_list = {app['name'].lower(): app['appid'] for app in data['applist']['apps']}
+            else:
+                await ctx.send("Failed to fetch Steam games list.")
+                return
+
+        # Normalize the game name to lowercase to improve matching chances
+        game_name_lower = current_game.lower()
+        if game_name_lower in steam_app_list:
+            game_id = steam_app_list[game_name_lower]
+            store_url = f"https://store.steampowered.com/app/{game_id}"
+            await ctx.send(f"{current_game} is over on steam, you can get it here: {store_url}")
+        else:
+            await ctx.send("This game is not available on Steam.")  
 
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
