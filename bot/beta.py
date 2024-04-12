@@ -621,6 +621,27 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"URL found in message from {message.author.name}, not deleted due to being whitelisted or a Twitch clip link.")
                 else:
                     chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
+        
+        # Function for translating chat messages.
+        detected_lang = translator.detect(message.content)
+        source_lang = detected_lang.lang if detected_lang else None
+        if source_lang != 'en':
+            try:
+                # Translate the message to English
+                translated_message = translator.translate(message.content, dest='en').text
+
+                # Replace the original message content with the translated message
+                message.content = translated_message
+
+                # Log the translation
+                chat_logger.info(f'Translated message from {message.author.name}: "{message.content}" to: "{translated_message}"')
+
+                # Send the translated message to the chat channel
+                send_message = f'Translated message from {message.author.name}: "{message.content}"'
+                await message.channel.send(send_message)
+            except Exception as e:
+                chat_logger.error(f"Error translating message from {message.author.name}: {e}")
+                # await message.channel.send("An error occurred while translating the message.")
 
     # Function to handle welcome messages
     async def handle_welcome_message(self, message):
@@ -1540,6 +1561,28 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
+
+    @commands.command(name='steam')
+    async def steam_command(self, ctx):
+        global current_game
+
+        async with aiohttp.ClientSession() as session:
+            response = await session.get("http://api.steampowered.com/ISteamApps/GetAppList/v2")
+            if response.status == 200:
+                data = await response.json()
+                steam_app_list = {app['name'].lower(): app['appid'] for app in data['applist']['apps']}
+            else:
+                await ctx.send("Failed to fetch Steam games list.")
+                return
+
+        # Normalize the game name to lowercase to improve matching chances
+        game_name_lower = current_game.lower()
+        if game_name_lower in steam_app_list:
+            game_id = steam_app_list[game_name_lower]
+            store_url = f"https://store.steampowered.com/app/{game_id}"
+            await ctx.send(f"{current_game} is over on steam, you can get it here: {store_url}")
+        else:
+            await ctx.send("This game is not available on Steam.")
 
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
