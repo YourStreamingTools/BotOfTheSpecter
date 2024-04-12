@@ -904,6 +904,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             song_info = await get_song_info_command()
             await ctx.send(song_info)
+            await delete_recorded_files()
         except Exception as e:
             chat_logger.error(f"An error occurred while getting current song: {e}")
             await ctx.send("Sorry, there was an error retrieving the current song.")
@@ -2481,6 +2482,7 @@ async def get_song_info_command():
         return "Error: Failed to get song information."
 
 async def get_song_info():
+    global stream_recording_file_global, raw_recording_file_global
     try:
         # Test validity of GQL OAuth token
         if not await twitch_gql_token_valid():
@@ -2492,6 +2494,11 @@ async def get_song_info():
         stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
         raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
         outfile = os.path.join(working_dir, f"{random_file_name}.acc")
+        
+        # Assign filenames to global variables
+        stream_recording_file_global = stream_recording_file
+        raw_recording_file_global = raw_recording_file
+        
         if not await record_stream(outfile):
             return {"error": "Stream is not available"}
 
@@ -2612,6 +2619,18 @@ async def record_stream(outfile):
     except Exception as e:
         api_logger.error(f"An error occurred while recording stream: {e}")
         return False
+
+async def delete_recorded_files():
+    global stream_recording_file_global, raw_recording_file_global
+    try:
+        if stream_recording_file_global:
+            os.remove(stream_recording_file_global)
+        if raw_recording_file_global:
+            os.remove(raw_recording_file_global)
+        stream_recording_file_global = None
+        raw_recording_file_global = None
+    except Exception as e:
+        api_logger.error(f"An error occurred while deleting recorded files: {e}")
 
 # Function for BITS
 async def process_bits_event(user_id, user_name, bits):
