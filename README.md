@@ -33,16 +33,11 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.10 - BotOfTheSpecter
+### Version 3.12 - BotOfTheSpecter
 
-- Rolled out a fix for the timed messages not being scheduled and posted to chat during the stream.
-- Added two new imports to fix the timed messages
-- Added the function for the scheduled tasks for the timed messages.
-- Changed the entire ``timed_messages`` function
-- Removed webhook port as it's no longer needed moving forward.
-- Removed websocket port as it's no longer needed forward.
+- Introduced a new feature: the `!steam` command. This command enables users to verify if the currently played game is available on the Steam store. If the game is listed, a direct link to its Steam page is provided in the chat.
 
-[View Full Changelog for Version 3.10](/bot/changelog/3.10.md)
+[View Full Changelog for Version 3.12](/bot/changelog/3.12.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
