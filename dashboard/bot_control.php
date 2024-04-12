@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 // Define variables
 $versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt';
+$newVersion = file_get_contents("/var/www/api/bot_version_control.txt");
 $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
 $logPath = "/var/www/logs/script/$username.txt";
@@ -141,5 +142,11 @@ function killBot($pid) {
 if ((strpos($statusOutput, 'Bot Running') !== false || strpos($statusOutput, 'Bot started') !== false || strpos($statusOutput, 'Bot restarted') !== false) && file_exists($versionFilePath)) {
     $versionContent = file_get_contents($versionFilePath);
     $statusOutput .= "<h4>Running Version: $versionContent</h4>";
+
+    // Compare the running version with the new version
+    if ($versionContent !== $newVersion) {
+        // Display message for update if versions are different
+        $statusOutput .= "<h4>Update (V$newVersion) is available.</h4>";
+    }
 }
 ?>
