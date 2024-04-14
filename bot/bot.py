@@ -392,7 +392,7 @@ async def process_pubsub_message(message):
                 subscription_event_data = event_data
                 user_id = subscription_event_data.get("user_id")
                 user_name = subscription_event_data.get("user_name")
-                sub_plan = await sub_plan_to_tier_name(subscription_event_data.get["sub_plan"])
+                sub_plan = await sub_plan_to_tier_name(subscription_event_data.get("sub_plan"))
                 months = subscription_event_data.get("cumulative_months", 1)
                 context = subscription_event_data.get("context")
                 
