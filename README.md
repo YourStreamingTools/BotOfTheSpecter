@@ -33,11 +33,14 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.12 - BotOfTheSpecter
+### Version 3.13 - BotOfTheSpecter
 
-- Introduced a new feature: the `!steam` command. This command enables users to verify if the currently played game is available on the Steam store. If the game is listed, a direct link to its Steam page is provided in the chat.
+- Implemented defaulting to UTC timezone if user's timezone is not specified in the database.
+- Added vacation catch in the `schedule_command` to inform users about ongoing vacations and the next scheduled stream after the vacation ends.
+- Added an online catch in the `get_current_song_command` to notify users when the stream is offline.
+- Fixed the option in the `clip_command` where the command didn't recognize the global `stream_online` function.
 
-[View Full Changelog for Version 3.12](/bot/changelog/3.12.md)
+[View Full Changelog for Version 3.13](/bot/changelog/3.13.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
