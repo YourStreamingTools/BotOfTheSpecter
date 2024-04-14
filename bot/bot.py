@@ -363,7 +363,7 @@ async def twitch_pubsub():
 
         except websockets.ConnectionClosedError:
             # Handle connection closed error
-            twitch_logger.warning("Connection to Twitch PubSub server closed. Reconnecting...")
+            # twitch_logger.warning("Connection to Twitch PubSub server closed. Reconnecting...")
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
             # Handle other exceptions
