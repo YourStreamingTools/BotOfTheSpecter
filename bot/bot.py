@@ -43,7 +43,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.12"
+VERSION = "3.13"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -773,6 +773,11 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
+        global stream_online
+        if not stream_online:
+            await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
+            return
+        
         await ctx.send("Please stand by, checking what song is currently playing...")
         try:
             song_info = await get_song_info_command()
@@ -1141,6 +1146,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='clip')
     async def clip_command(self, ctx):
+        global stream_online
         try:
             if not stream_online:
                 await ctx.send("Sorry, I can only create clips while the stream is online.")
@@ -1455,7 +1461,7 @@ class BotOfTheSpecter(commands.Bot):
             store_url = f"https://store.steampowered.com/app/{game_id}"
             await ctx.send(f"{current_game} is over on steam, you can get it here: {store_url}")
         else:
-            await ctx.send("This game is not available on Steam.")  
+            await ctx.send("This game is not available on Steam.")
 
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
@@ -1637,7 +1643,14 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
-        utc_now = datetime.now(timezone.utc)
+        cursor.execute("SELECT timezone FROM profile")
+        timezone_row = cursor.fetchone()
+        if timezone_row:
+            timezone = timezone_row[0]
+        else:
+            timezone = 'UTC'
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -1652,17 +1665,36 @@ class BotOfTheSpecter(commands.Bot):
                     if response.status == 200:
                         data = await response.json()
                         segments = data['data']['segments']
+                        vacation = data['data'].get('vacation')
+
+                        # Check if vacation is ongoing
+                        if vacation and 'start_time' in vacation and 'end_time' in vacation:
+                            vacation_start = datetime.fromisoformat(vacation['start_time'][:-1]).replace(tzinfo=pytz.utc).astimezone(tz)
+                            vacation_end = datetime.fromisoformat(vacation['end_time'][:-1]).replace(tzinfo=pytz.utc).astimezone(tz)
+                            if vacation_start <= current_time <= vacation_end:
+                                # Check if there is a stream within 2 days after the vacation ends
+                                for segment in segments:
+                                    start_time_utc = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                                    start_time = start_time_utc.astimezone(tz)
+                                    if start_time >= vacation_end and (start_time - current_time).days <= 2:
+                                        await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')}. My next stream is on {start_time.strftime('%A, %d %B %Y')} at {start_time.strftime('%H:%M %Z')} (UTC: {start_time_utc.strftime('%H:%M')} UTC).")
+                                        return
+                                await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')}. No streams during this time!")
+                                return
 
                         next_stream = None
                         for segment in segments:
-                            start_time = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=timezone.utc)
-                            if start_time > utc_now:
+                            start_time_utc = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                            start_time = start_time_utc.astimezone(tz)
+                            if start_time > current_time:
                                 next_stream = segment
                                 break  # Exit the loop after finding the first upcoming stream
 
                         if next_stream:
-                            start_date = next_stream['start_time'].split('T')[0]  # Extract date from start_time
-                            time_until = start_time - utc_now
+                            start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
+                            start_time_utc = datetime.fromisoformat(next_stream['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                            start_time = start_time_utc.astimezone(tz)
+                            time_until = start_time - current_time
 
                             # Format time_until
                             days, seconds = time_until.days, time_until.seconds
@@ -1672,7 +1704,7 @@ class BotOfTheSpecter(commands.Bot):
 
                             time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
 
-                            await ctx.send(f"The next stream will be on {start_date} which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                            await ctx.send(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} (UTC: {start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                         else:
                             await ctx.send(f"There are no upcoming streams in the next two days.")
                     else:
