@@ -10,8 +10,8 @@ $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
 $logPath = "/var/www/logs/script/$username.txt";
 $statusOutput = getBotStatus($statusScriptPath, $username, $logPath);
+$botSystemStatus = getBotStatus($statusScriptPath, $username, $logPath);
 $directory = dirname($logPath);
-$botSystemStatus = '';
 
 // Check if the directory exists, if not, create it
 if (!file_exists($directory)) {
@@ -38,7 +38,7 @@ if (isset($_POST['runBot'])) {
     if (isBotRunning($statusScriptPath, $username, $logPath)) {
         $statusOutput = shell_exec("python $statusScriptPath -channel $username");
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
-        $botSystemStatus = true;
+        $botSystemStatus = true; // Set to true if bot is running
         $statusOutput = "<div class='status-message'>Bot is already running. PID $pid.</div>";
     } else {
         startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
@@ -46,10 +46,10 @@ if (isset($_POST['runBot'])) {
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
 
         if ($pid > 0) {
-            $botSystemStatus = true;
+            $botSystemStatus = true; // Set to true if bot started successfully
             $statusOutput = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
         } else {
-            $botSystemStatus = false;
+            $botSystemStatus = false; // Set to false if failed to start the bot
             $statusOutput = "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>";
         }
     }
@@ -59,10 +59,10 @@ if (isset($_POST['killBot'])) {
     $pid = getBotPID($statusScriptPath, $username, $logPath);
     if ($pid > 0) {
         killBot($pid);
-        $botSystemStatus = false;
+        $botSystemStatus = false; // Set to false when bot is stopped
         $statusOutput = "<div class='status-message'>Bot stopped successfully.</div>";
     } else {
-        $botSystemStatus = false;
+        $botSystemStatus = false; // Set to false if bot is not running
         $statusOutput = "<div class='status-message error'>Bot is not running.</div>";
     }
 }
@@ -76,14 +76,14 @@ if (isset($_POST['restartBot'])) {
         $pid = intval(preg_replace('/\D/', '', $statusOutput));
 
         if ($pid > 0) {
-            $botSystemStatus = true;
+            $botSystemStatus = true; // Set to true if bot restarted successfully
             $statusOutput = "<div class='status-message'>Bot restarted. PID $pid.</h5>";
         } else {
-            $botSystemStatus = false;
+            $botSystemStatus = false; // Set to false if failed to restart the bot
             $statusOutput = "<div class='status-message error'>Failed to restart the bot.</div>";
         }
     } else {
-        $botSystemStatus = false;
+        $botSystemStatus = false; // Set to false if bot is not running
         $statusOutput = "<div class='status-message error'>Bot is not running.</div>";
     }
 }
@@ -107,14 +107,11 @@ function getBotStatus($statusScriptPath, $username, $logPath) {
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     if ($statusOutput !== null) {
         if ($pid > 0) {
-            $botSystemStatus = true;
             return "<div class='status-message'>Status: PID $pid.</div>";
         } else {
-            $botSystemStatus = false;
             return "<div class='status-message error'>Status: NOT RUNNING</div>";
         }
     } else {
-        $botSystemStatus = false;
         return "<div class='status-message error'>Unable to determine bot status.</div>";
     }
 }
@@ -148,7 +145,7 @@ function killBot($pid) {
 }
 
 // Display running version if bot is running or if bot was started or restarted
-if ($botSystemStatus === true) {
+if ($botSystemStatus == true) {
     $versionContent = file_get_contents($versionFilePath);
     $versionRunning = "<div class='status-message'>Running Version: $versionContent</div>";
 
@@ -158,5 +155,4 @@ if ($botSystemStatus === true) {
         $versionRunning = "<div class='status-message'>Update (V$newVersion) is available.</div>";
     }
 }
-echo "Bot system status: " . ($botSystemStatus ? 'true' : 'false') . "<br>";
 ?>
