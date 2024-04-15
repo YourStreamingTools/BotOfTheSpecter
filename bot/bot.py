@@ -2497,10 +2497,6 @@ async def record_stream(outfile):
 
 # Function for BITS
 async def process_bits_event(user_id, user_name, bits):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
     # Check if the user exists in the database
     cursor.execute('SELECT bits FROM bits_data WHERE user_id = ? OR user_name = ?', (user_id, user_name))
     existing_bits = cursor.fetchone()
