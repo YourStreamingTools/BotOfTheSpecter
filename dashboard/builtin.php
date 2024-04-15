@@ -78,6 +78,7 @@ if ($result->num_rows > 0) {
   <div class="row">
     <div class="columns">
       <h4>Bot Commands</h4>
+      <p style='color: red;'>Soon you'll be able to enable and disable the built in commands. If there's a command you don't use you can disable it from working.</p>
         <input type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
         <table class="bot-table" id="commandsTable">
           <thead>
@@ -86,6 +87,8 @@ if ($result->num_rows > 0) {
               <th>Functionality</th>
               <th>Example Response</th>
               <th>Usage Level</th>
+              <th>Status</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -95,6 +98,8 @@ if ($result->num_rows > 0) {
               <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
               <td><?php echo htmlspecialchars($command['response']);?></td>
               <td><?php echo htmlspecialchars($command['level']); ?></td>
+              <td>Enabled</td>
+              <td></td>
             </tr>
             <?php endforeach; ?>
           </tbody>
