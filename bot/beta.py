@@ -291,6 +291,13 @@ cursor.execute('''
         data INTEGER
     )
 ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS message_counts (
+        username TEXT PRIMARY KEY,
+        message_count INTEGER NOT NULL,
+        user_level TEXT NOT NULL
+    )
+''')
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
@@ -512,6 +519,9 @@ class BotOfTheSpecter(commands.Bot):
         messageAuthor = message.author.name
         messageAuthorID = message.author.id
         await handle_user_grouping(messageAuthor, messageAuthorID)
+
+        # Message Count from user
+        await update_user_message_count(message)
 
     # Function to handle chat messages
     async def handle_chat(self, message):
@@ -2468,7 +2478,6 @@ async def timed_message():
                 scheduled_tasks.append(task)  # Keep track of the task
         else:
             # Cancel all scheduled tasks if the stream goes offline
-            bot_logger.info("Stream is offline. Cancelling all scheduled tasks.")
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()  # Clear the list of tasks
@@ -2661,10 +2670,6 @@ async def delete_recorded_files():
 
 # Function for BITS
 async def process_bits_event(user_id, user_name, bits):
-    # Connect to the database
-    conn = sqlite3.connect(database_file)
-    cursor = conn.cursor()
-
     # Check if the user exists in the database
     cursor.execute('SELECT bits FROM bits_data WHERE user_id = ? OR user_name = ?', (user_id, user_name))
     existing_bits = cursor.fetchone()
@@ -2880,6 +2885,23 @@ async def process_followers_event(user_id, user_name, followed_at):
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
+
+# Function to update the number of messages a user has sent within the stream
+async def update_user_message_count(self, message):
+    # Get user info from the message
+    user = message.author.name
+    user_id = message.author.id
+    # Check user level
+    is_vip = await self.is_user_vip(user_id)
+    is_mod = await self.is_user_moderator(user_id)
+    user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
+    # Insert into the database the number of chats during the stream
+    cursor.execute('''
+            INSERT INTO message_counts (username, message_count, user_level)
+            VALUES (?, 1, ?)
+            ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
+        ''', (user, user_level))
+    cursor.commit()
 
 # Function to create a new group if it doesn't exist
 def group_creation():
