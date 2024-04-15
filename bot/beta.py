@@ -52,6 +52,7 @@ TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
+STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
@@ -428,7 +429,7 @@ async def process_pubsub_message(message):
                 subscription_event_data = event_data
                 user_id = subscription_event_data.get("user_id")
                 user_name = subscription_event_data.get("user_name")
-                sub_plan = await sub_plan_to_tier_name(subscription_event_data.get["sub_plan"])
+                sub_plan = await sub_plan_to_tier_name(subscription_event_data.get("sub_plan"))
                 months = subscription_event_data.get("cumulative_months", 1)
                 context = subscription_event_data.get("context")
                 
@@ -1765,7 +1766,14 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
-        utc_now = datetime.now(timezone.utc)
+        cursor.execute("SELECT timezone FROM profile")
+        timezone_row = cursor.fetchone()
+        if timezone_row:
+            timezone = timezone_row[0]
+        else:
+            timezone = 'UTC'
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -1780,17 +1788,36 @@ class BotOfTheSpecter(commands.Bot):
                     if response.status == 200:
                         data = await response.json()
                         segments = data['data']['segments']
+                        vacation = data['data'].get('vacation')
+
+                        # Check if vacation is ongoing
+                        if vacation and 'start_time' in vacation and 'end_time' in vacation:
+                            vacation_start = datetime.fromisoformat(vacation['start_time'][:-1]).replace(tzinfo=pytz.utc).astimezone(tz)
+                            vacation_end = datetime.fromisoformat(vacation['end_time'][:-1]).replace(tzinfo=pytz.utc).astimezone(tz)
+                            if vacation_start <= current_time <= vacation_end:
+                                # Check if there is a stream within 2 days after the vacation ends
+                                for segment in segments:
+                                    start_time_utc = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                                    start_time = start_time_utc.astimezone(tz)
+                                    if start_time >= vacation_end and (start_time - current_time).days <= 2:
+                                        await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')}. My next stream is on {start_time.strftime('%A, %d %B %Y')} at {start_time.strftime('%H:%M %Z')} (UTC: {start_time_utc.strftime('%H:%M')} UTC).")
+                                        return
+                                await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')}. No streams during this time!")
+                                return
 
                         next_stream = None
                         for segment in segments:
-                            start_time = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=timezone.utc)
-                            if start_time > utc_now:
+                            start_time_utc = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                            start_time = start_time_utc.astimezone(tz)
+                            if start_time > current_time:
                                 next_stream = segment
                                 break  # Exit the loop after finding the first upcoming stream
 
                         if next_stream:
-                            start_date = next_stream['start_time'].split('T')[0]  # Extract date from start_time
-                            time_until = start_time - utc_now
+                            start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
+                            start_time_utc = datetime.fromisoformat(next_stream['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                            start_time = start_time_utc.astimezone(tz)
+                            time_until = start_time - current_time
 
                             # Format time_until
                             days, seconds = time_until.days, time_until.seconds
@@ -1800,7 +1827,7 @@ class BotOfTheSpecter(commands.Bot):
 
                             time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
 
-                            await ctx.send(f"The next stream will be on {start_date} which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                            await ctx.send(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} (UTC: {start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                         else:
                             await ctx.send(f"There are no upcoming streams in the next two days.")
                     else:
