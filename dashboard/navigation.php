@@ -39,7 +39,7 @@
         </ul>
       </li>
       <li>
-        <a>Bot Commnads</a>
+        <a>Bot Commands</a>
         <ul class="vertical menu" data-dropdown-menu>
           <?php if($_SERVER['REQUEST_URI'] == '/builtin.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="builtin.php">View Built-in Commands</a></li>
           <?php if($_SERVER['REQUEST_URI'] == '/commands.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="commands.php">View Custom Commands</a></li>
