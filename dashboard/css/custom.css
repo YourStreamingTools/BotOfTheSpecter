@@ -97,17 +97,28 @@ a {
     color: #000000;
 }
 
-/* New Buttons */
+/* Bot Buttons */
+.bot-actions {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-top: 10px;
+}
+
 .bot-button {
     background-color: #4CAF50;
     color: #FFFFFF;
     padding: 10px 20px;
     border: none;
     border-radius: 5px;
-    font-size: 18px;
+    font-size: 14px;
     cursor: pointer;
+    white-space: nowrap;
+    flex: 1;
+    margin: 0 5px;
+    text-align: center;
 }
-  
+
 .bot-button:hover {
     background-color: #3E8E41;
 }
@@ -133,22 +144,22 @@ a {
 
 /* Table for Bot Actions */
 .bot-actions {
-    border-color: #111111;
-    background-color: #111111;
+    border-color: #333333;
+    background-color: #333333;
 }
 
 .bot-actions td, 
 .bot-actions tr,
 .bot-actions th {
-    color: #111111;
+    color: #333333;
     border-style: solid;
-    border-color: #111111;
-    background-color: #111111;
+    border-color: #333333;
+    background-color: #333333;
 }
 
 .counter-table {
     border-color: #ffffff;
-    background-color: #111111;
+    background-color: #555555;
 }
 
 .counter-table td, 
@@ -484,13 +495,52 @@ pre {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
-    background-color: #555555;
+    background-color: #333333;
     color: #dddddd;
     font-family: Arial, sans-serif;
 }
 
 .dashboard-section {
-    background-color: #555555;
-    padding: 20px;
+    background-color: #333333;
+    color: #FFFFFF;
     border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+/* Style for status messages */
+.dashboard-section h5, .dashboard-section h3 {
+    font-size: 14px;
+    margin: 10px 0;
+    color: #FFFFFF;
+}
+
+/* Specific class for the update message */
+.update-message {
+    font-style: italic;
+    color: #4CAF50;
+}
+
+/* Style for error messages */
+.error-message {
+    color: red;
+}
+
+/* Additional styles for icons */
+.icon-check {
+    color: #4CAF50;
+}
+
+.icon-error {
+    color: red;
+}
+
+.status-message {
+    color: #FFFFFF;
+    background: #333333;
+    border-radius: 4px;
+}
+
+.status-message.error {
+    color: red;
 }
