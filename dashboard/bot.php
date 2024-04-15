@@ -38,13 +38,14 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 $statusOutput = 'Bot Status: Unknown';
 $pid = '';
+$versionRunning = '';
 include 'bot_control.php';
 include 'sqlite.php';
 
 // Twitch API URL
 $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
 $addMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}&user_id=971436498";
-$clientID = ''; // CHANGE TO MAKE THIS WORK
+$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
 $checkModConnect = curl_init($checkMod);
 $headers = [
@@ -104,16 +105,20 @@ if ($ModStatusOutput) {
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <?php echo $BotModMessage; ?>
-<?php echo $statusOutput; ?>
-<br>
-<table class="bot-actions">
-  <tr>
-    <td><form action="" method="post"><button class="bot-button" type="submit" name="runBot">Run Bot</button></form></td>
-    <td><form action="" method="post"><button class="bot-button" type="submit" name="botStatus">Check Bot Status</button></form></td>
-    <td><form action="" method="post"><button class="bot-button" type="submit" name="killBot">Stop Bot</button></form></td>
-    <td><form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form></td>
-  </tr>
-</table>
+<div class="dashboard-container">
+  <!-- Bot Status -->
+  <div class="dashboard-section" id="bot-status">
+    <?php echo $statusOutput; ?>
+
+    <?php echo $versionRunning; ?>
+
+    <div class="bot-actions">
+      <form action="" method="post"><button class="bot-button" type="submit" name="killBot">Stop Bot</button></form>
+      <form action="" method="post"><button class="bot-button" type="submit" name="runBot">Run Bot</button></form>
+      <form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form>
+    </div>
+  </div>
+</div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
