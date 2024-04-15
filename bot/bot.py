@@ -2338,7 +2338,6 @@ async def timed_message():
                 scheduled_tasks.append(task)  # Keep track of the task
         else:
             # Cancel all scheduled tasks if the stream goes offline
-            bot_logger.info("Stream is offline. Cancelling all scheduled tasks.")
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()  # Clear the list of tasks
