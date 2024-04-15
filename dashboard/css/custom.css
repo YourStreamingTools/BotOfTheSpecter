@@ -479,3 +479,18 @@ pre {
     left: 0;
     cursor: pointer;
 }
+
+.dashboard-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    background-color: #555555;
+    color: #dddddd;
+    font-family: Arial, sans-serif;
+}
+
+.dashboard-section {
+    background-color: #555555;
+    padding: 20px;
+    border-radius: 4px;
+}
