@@ -33,14 +33,15 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.13 - BotOfTheSpecter
+### Version 3.14 - BotOfTheSpecter
 
-- Implemented defaulting to UTC timezone if user's timezone is not specified in the database.
-- Added vacation catch in the `schedule_command` to inform users about ongoing vacations and the next scheduled stream after the vacation ends.
-- Added an online catch in the `get_current_song_command` to notify users when the stream is offline.
-- Fixed the option in the `clip_command` where the command didn't recognize the global `stream_online` function.
+- Added a new function `timed_message_loop` to handle scheduling of timed messages with a sleep interval of 150 seconds.
+- Updated some error handling and logging in the Twitch Shoutout Function
+- Changed the timed message queueing system from `queue` to `asyncio queue` for the scheduling of messages.
+- Updated the `timed_message()` function to check if a message is already scheduled before queuing it for sending.
+- Removed the interval parameter from the `send_timed_message()` function as it's no longer needed.
 
-[View Full Changelog for Version 3.13](/bot/changelog/3.13.md)
+[View Full Changelog for Version 3.14](/bot/changelog/3.14.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
