@@ -4,7 +4,6 @@ import re
 import asyncio
 from asyncio import Task, create_task, sleep
 from typing import List
-import queue
 import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
@@ -54,7 +53,7 @@ SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -302,7 +301,7 @@ conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
 translator = Translator(service_urls=['translate.google.com'])
-shoutout_queue = queue.Queue()
+shoutout_queue = asyncio.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
 permitted_users = {}
@@ -1589,10 +1588,21 @@ class BotOfTheSpecter(commands.Bot):
 
         # Normalize the game name to lowercase to improve matching chances
         game_name_lower = current_game.lower()
+
+        # First try with "The" at the beginning
+        if game_name_lower.startswith('The '):
+            game_name_without_the = game_name_lower[4:]
+            if game_name_without_the in steam_app_list:
+                game_id = steam_app_list[game_name_without_the]
+                store_url = f"https://store.steampowered.com/app/{game_id}"
+                await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
+                return
+
+        # If the game with "The" at the beginning is not found, try without it
         if game_name_lower in steam_app_list:
             game_id = steam_app_list[game_name_lower]
             store_url = f"https://store.steampowered.com/app/{game_id}"
-            await ctx.send(f"{current_game} is over on steam, you can get it here: {store_url}")
+            await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
         else:
             await ctx.send("This game is not available on Steam.")
 
@@ -2262,12 +2272,15 @@ async def get_game_id(game_name):
 
 # Function to trigger a twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
-    # Add the shoutout request to the queue
-    shoutout_queue.put((user_to_shoutout, mentioned_user_id))
+    try:
+        # Add the shoutout request to the queue
+        shoutout_queue.put((user_to_shoutout, mentioned_user_id))
 
-    # Check if the queue is empty and no shoutout is currently being processed
-    if shoutout_queue.qsize() == 1:
-        await process_shoutouts()
+        # Check if the queue is empty and no shoutout is currently being processed
+        if shoutout_queue.qsize() == 1:
+            await process_shoutouts()
+    except Exception as e:
+        twitch_logger.error(f"Error while adding a shoutout to the queue: {e}")
 
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     headers = {
@@ -2331,9 +2344,6 @@ async def process_shoutouts():
                     shoutout_queue.task_done()
         except aiohttp.ClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
-            # Retry the request (exponential backoff can be implemented here)
-            await asyncio.sleep(5)  # Wait for 5 seconds before retrying
-            continue
 
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
@@ -2474,7 +2484,7 @@ async def timed_message():
                 send_time = time_now + timedelta(minutes=int(interval))
                 wait_time = (send_time - time_now).total_seconds()
                 bot_logger.info("Scheduling message: '%s' to be sent in %f seconds", message, wait_time)
-                task = create_task(send_timed_message(message, wait_time))
+                task = asyncio.create_task(send_timed_message(message, wait_time))
                 scheduled_tasks.append(task)  # Keep track of the task
         else:
             # Cancel all scheduled tasks if the stream goes offline
