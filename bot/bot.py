@@ -769,7 +769,6 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
-        global stream_online
         if not stream_online:
             await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
             return
@@ -1142,7 +1141,6 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='clip')
     async def clip_command(self, ctx):
-        global stream_online
         try:
             if not stream_online:
                 await ctx.send("Sorry, I can only create clips while the stream is online.")
@@ -2285,7 +2283,6 @@ async def check_stream_online():
                                 twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
                     else:
                         if not offline_logged:
-                            bot_logger.info(f"Stream is now offline.")
                             twitch_logger.info(f"Stream is now offline.")
                             await clear_seen_today()
                             offline_logged = True
@@ -2308,42 +2305,47 @@ async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
     conn.commit()
 
+# Function to loop timed messages
+async def timed_message_loop():
+    bot_logger.info(f"Started timed messages loop")
+    while True:
+        await asyncio.sleep(150)
+        await timed_message()
+
 # Function for timed messages
 async def timed_message():
-    global stream_online
-    while True:
-        if stream_online:
-            cursor.execute('SELECT interval, message FROM timed_messages')
-            messages = cursor.fetchall()
-            for message, interval in messages:
-                time_now = datetime.now()
-                send_time = time_now + timedelta(minutes=int(interval))
-                wait_time = (send_time - time_now).total_seconds()
-                bot_logger.info("Scheduling message: '%s' to be sent in %f seconds", message, wait_time)
-                task = asyncio.create_task(send_timed_message(message, wait_time))
-                scheduled_tasks.append(task)  # Keep track of the task
-        else:
-            # Cancel all scheduled tasks if the stream goes offline
-            for task in scheduled_tasks:
-                task.cancel()
-            scheduled_tasks.clear()  # Clear the list of tasks
-        await sleep(300)
+    if stream_online:
+        cursor.execute('SELECT interval, message FROM timed_messages')
+        messages = cursor.fetchall()
+        bot_logger.info(f"Timed Messages: {messages}")
+        for interval, message in messages:
+            if message in scheduled_tasks:
+                return
+            bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
+            time_now = datetime.now()
+            send_time = time_now + timedelta(minutes=int(interval))
+            wait_time = (send_time - time_now).total_seconds()
+            bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
+            task = asyncio.create_task(send_timed_message(message, wait_time))
+            scheduled_tasks.append(task)  # Keep track of the task
+    else:
+        # Cancel all scheduled tasks if the stream goes offline
+        for task in scheduled_tasks:
+            task.cancel()
+        scheduled_tasks.clear()  # Clear the list of tasks
 
 # Function to send timed messages
-async def send_timed_message(message, interval):
+async def send_timed_message(message):
     try:
-        await sleep(interval)
-        bot_logger.info("Waiting for interval: %f seconds", interval)
         if stream_online:
             channel = bot.get_channel(CHANNEL_NAME)
-            bot_logger.info("Sending message: '%s' to channel: %s", message, CHANNEL_NAME)
+            bot_logger.info(f"Sending Timed Message: {message}")
             await channel.send(message)
         else:
             bot_logger.info("Stream is offline. Message not sent.")
     except asyncio.CancelledError:
-        bot_logger.info("Task cancelled.")
+        bot_logger.info(f"Task cancelled for {message}")
         pass
-    await sleep(interval)
 
 # Function to get the current playing song
 async def get_song_info_command():
@@ -2744,7 +2746,7 @@ def start_bot():
     asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(check_stream_online())
     asyncio.get_event_loop().create_task(twitch_pubsub())
-    asyncio.get_event_loop().create_task(timed_message())
+    asyncio.get_event_loop().create_task(timed_message_loop())
 
     # Create Version Control for the website
     update_version_control()
