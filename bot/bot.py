@@ -4,7 +4,6 @@ import re
 import asyncio
 from asyncio import Task, create_task, sleep
 from typing import List
-import queue
 import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
@@ -54,7 +53,7 @@ TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -259,7 +258,7 @@ conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and welcome messages
 translator = Translator(service_urls=['translate.google.com'])
-shoutout_queue = queue.Queue()
+shoutout_queue = asyncio.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
 scheduled_tasks: List[Task] = []
@@ -2189,9 +2188,6 @@ async def process_shoutouts():
                     shoutout_queue.task_done()
         except aiohttp.ClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
-            # Retry the request (exponential backoff can be implemented here)
-            await asyncio.sleep(5)  # Wait for 5 seconds before retrying
-            continue
 
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
@@ -2313,6 +2309,27 @@ async def clear_seen_today():
     conn.commit()
 
 # Function for timed messages
+async def timed_message():
+    global stream_online
+    while True:
+        if stream_online:
+            cursor.execute('SELECT interval, message FROM timed_messages')
+            messages = cursor.fetchall()
+            for message, interval in messages:
+                time_now = datetime.now()
+                send_time = time_now + timedelta(minutes=int(interval))
+                wait_time = (send_time - time_now).total_seconds()
+                bot_logger.info("Scheduling message: '%s' to be sent in %f seconds", message, wait_time)
+                task = asyncio.create_task(send_timed_message(message, wait_time))
+                scheduled_tasks.append(task)  # Keep track of the task
+        else:
+            # Cancel all scheduled tasks if the stream goes offline
+            for task in scheduled_tasks:
+                task.cancel()
+            scheduled_tasks.clear()  # Clear the list of tasks
+        await sleep(300)
+
+# Function to send timed messages
 async def send_timed_message(message, interval):
     try:
         await sleep(interval)
@@ -2327,27 +2344,6 @@ async def send_timed_message(message, interval):
         bot_logger.info("Task cancelled.")
         pass
     await sleep(interval)
-
-async def timed_message():
-    global stream_online
-    while True:
-        if stream_online:
-            cursor.execute('SELECT interval, message FROM timed_messages')
-            messages = cursor.fetchall()
-            for message, interval in messages:
-                time_now = datetime.now()
-                send_time = time_now + timedelta(minutes=int(interval))
-                wait_time = (send_time - time_now).total_seconds()
-                bot_logger.info("Scheduling message: '%s' to be sent in %f seconds", message, wait_time)
-                task = create_task(send_timed_message(message, wait_time))
-                scheduled_tasks.append(task)  # Keep track of the task
-        else:
-            # Cancel all scheduled tasks if the stream goes offline
-            for task in scheduled_tasks:
-                task.cancel()
-            scheduled_tasks.clear()  # Clear the list of tasks
-
-        await sleep(300)
 
 # Function to get the current playing song
 async def get_song_info_command():
