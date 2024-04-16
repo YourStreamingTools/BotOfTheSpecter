@@ -335,9 +335,7 @@ async def twitch_pubsub():
         f"channel-subscribe-events-v1.{CHANNEL_ID}",  # Subscriptions
     ]
 
-    # Log what Topics we're asking for.
-    twitch_logger.info(f"Subscribing to PubSub Topics: {topics}")
-
+    # Twitch PubSub authentication
     authentication = {
         "type": "LISTEN",
         "data": {
@@ -346,15 +344,15 @@ async def twitch_pubsub():
         }
     }
 
+    # Log what Topics we're asking for.
+    twitch_logger.info(f"Subscribing to PubSub Topics: {topics}")
+
     while True:
         try:
             # Connect to Twitch PubSub server
             async with websockets.connect(url) as websocket:
-                twitch_logger.info("Connected to Twitch PubSub server.")
-
                 # Send authentication data
                 await websocket.send(json.dumps(authentication))
-                twitch_logger.info("Authentication data sent.")
 
                 while True:
                     response = await websocket.recv()
@@ -363,7 +361,6 @@ async def twitch_pubsub():
 
         except websockets.ConnectionClosedError:
             # Handle connection closed error
-            # twitch_logger.warning("Connection to Twitch PubSub server closed. Reconnecting...")
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
             # Handle other exceptions
@@ -1456,10 +1453,21 @@ class BotOfTheSpecter(commands.Bot):
 
         # Normalize the game name to lowercase to improve matching chances
         game_name_lower = current_game.lower()
+
+        # First try with "The" at the beginning
+        if game_name_lower.startswith('The '):
+            game_name_without_the = game_name_lower[4:]
+            if game_name_without_the in steam_app_list:
+                game_id = steam_app_list[game_name_without_the]
+                store_url = f"https://store.steampowered.com/app/{game_id}"
+                await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
+                return
+
+        # If the game with "The" at the beginning is not found, try without it
         if game_name_lower in steam_app_list:
             game_id = steam_app_list[game_name_lower]
             store_url = f"https://store.steampowered.com/app/{game_id}"
-            await ctx.send(f"{current_game} is over on steam, you can get it here: {store_url}")
+            await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
         else:
             await ctx.send("This game is not available on Steam.")
 
@@ -1491,9 +1499,6 @@ class BotOfTheSpecter(commands.Bot):
             global current_game
             try:
                 chat_logger.info("Death Add Command ran.")
-
-                # Ensuring connection and cursor are correctly used 
-                global conn, cursor
 
                 # Ensure there is exactly one row in total_deaths
                 cursor.execute("SELECT COUNT(*) FROM total_deaths")
@@ -2295,7 +2300,7 @@ async def check_stream_online():
         await asyncio.sleep(60)  # Check every 1 minute
 
 async def send_online_message(message):
-    await asyncio.sleep(3)
+    await asyncio.sleep(5)
     channel = bot.get_channel(CHANNEL_NAME)
     if channel:
         bot_logger.info(f"Attempted to send message: {message}")
