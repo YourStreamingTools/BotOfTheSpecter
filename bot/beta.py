@@ -1634,10 +1634,7 @@ class BotOfTheSpecter(commands.Bot):
             global current_game
             try:
                 chat_logger.info("Death Add Command ran.")
-
-                # Ensuring connection and cursor are correctly used 
-                global conn, cursor
-
+                
                 # Ensure there is exactly one row in total_deaths
                 cursor.execute("SELECT COUNT(*) FROM total_deaths")
                 if cursor.fetchone()[0] == 0:
