@@ -44,6 +44,7 @@ include 'sqlite.php';
 // Initialize variables for messages or errors
 $successMessage = "";
 $errorMessage = "";
+$displayMessages = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Check if the form was submitted for adding a new message
@@ -59,7 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             try {
                 $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
                 $stmt->execute([$interval, $message]);
-                $successMessage = '<p style="color: green;">Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.</p>';
+                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.';
             } catch (PDOException $e) {
                 $errorMessage = "Error adding message: " . $e->getMessage();
             }
@@ -105,7 +106,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 // Optionally, you can check if the update was successful and provide feedback to the user
                 $updated = $stmt->rowCount() > 0; // Check if any rows were affected
                 if ($updated) {
-                    $successMessage = '<p style="color: green;">Message with ID ' . $edit_message_id . ' updated successfully.</p>';
+                    $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
                 } else {
                     $errorMessage = "Failed to update message.";
                 }
@@ -116,8 +117,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Invalid input data.";
         }
     }
+    
+    // Redirect with message
+    if (!empty($successMessage)) {
+        header("Location: {$_SERVER['PHP_SELF']}?successMessage=" . urlencode($successMessage));
+        exit();
+    } elseif (!empty($errorMessage)) {
+        header("Location: {$_SERVER['PHP_SELF']}?errorMessage=" . urlencode($errorMessage));
+        exit();
+    }
 }
-$displayMessages = !empty($successMessage) || !empty($errorMessage);
+$displayMessageData = !empty($_GET['successMessage']) || !empty($_GET['errorMessage']);
+
+if ($displayMessageData) {
+    if (!empty($_GET['successMessage'])) {
+        $displayMessages = "<p style='color: green;'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
+    } elseif (!empty($_GET['errorMessage'])) {
+        $displayMessages = "<p style='color: red;'>". htmlspecialchars($_GET['erorrMessage']) . "</p>";
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -138,17 +156,7 @@ $displayMessages = !empty($successMessage) || !empty($errorMessage);
     <br>
     <?php if ($displayMessages): ?>
     <div class="messages">
-        <?php
-        // Display success message
-        if (!empty($successMessage)) {
-            echo "<p style='color: green;'>$successMessage</p>";
-        }
-
-        // Display error message
-        if (!empty($errorMessage)) {
-            echo "<p style='color: red;'>$errorMessage</p>";
-        }
-        ?>
+        <?php echo $displayMessages; ?>
     </div>
     <br>
     <?php endif; ?>
