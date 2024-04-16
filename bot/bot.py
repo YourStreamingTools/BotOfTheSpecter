@@ -259,9 +259,9 @@ conn.commit()
 # Initialize instances for the translator, shoutout queue, webshockets and welcome messages
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = asyncio.Queue()
+scheduled_tasks = asyncio.Queue()
 bot_logger.info("Bot script started.")
 connected = set()
-scheduled_tasks: List[Task] = []
 
 # Setup Token Refresh
 async def refresh_token_every_day():
