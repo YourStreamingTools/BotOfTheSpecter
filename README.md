@@ -33,15 +33,15 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.14 - BotOfTheSpecter
+### Version 3.14.1 - BotOfTheSpecter
 
-- Added a new function `timed_message_loop` to handle scheduling of timed messages with a sleep interval of 150 seconds.
-- Updated some error handling and logging in the Twitch Shoutout Function
-- Changed the timed message queueing system from `queue` to `asyncio queue` for the scheduling of messages.
-- Updated the `timed_message()` function to check if a message is already scheduled before queuing it for sending.
-- Removed the interval parameter from the `send_timed_message()` function as it's no longer needed.
+- Addressed an issue where shoutouts were not being processed correctly.
+  - Modified the `trigger_twitch_shoutout` function to accept `shoutout_queue` as an argument.
+  - Modified the `process_shoutouts` function to accept `shoutout_queue` as an argument.
+  - Ensured proper handling of the `shoutout_queue` within the shoutout processing functions.
 
-[View Full Changelog for Version 3.14](/bot/changelog/3.14.md)
+
+[View Full Changelog for Version 3.14.1](/bot/changelog/3.14.1.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
