@@ -302,10 +302,10 @@ conn.commit()
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = asyncio.Queue()
+scheduled_tasks = asyncio.Queue()
+permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
-permitted_users = {}
-scheduled_tasks: List[Task] = []
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -378,9 +378,7 @@ async def twitch_pubsub():
         f"channel-subscribe-events-v1.{CHANNEL_ID}",  # Subscriptions
     ]
 
-    # Log what Topics we're asking for.
-    twitch_logger.info(f"Subscribing to PubSub Topics: {topics}")
-
+    # Twitch PubSub authentication
     authentication = {
         "type": "LISTEN",
         "data": {
@@ -389,15 +387,15 @@ async def twitch_pubsub():
         }
     }
 
+    # Log what Topics we're asking for.
+    twitch_logger.info(f"Subscribing to PubSub Topics: {topics}")
+
     while True:
         try:
             # Connect to Twitch PubSub server
             async with websockets.connect(url) as websocket:
-                twitch_logger.info("Connected to Twitch PubSub server.")
-
                 # Send authentication data
                 await websocket.send(json.dumps(authentication))
-                twitch_logger.info("Authentication data sent.")
 
                 while True:
                     response = await websocket.recv()
@@ -406,7 +404,6 @@ async def twitch_pubsub():
 
         except websockets.ConnectionClosedError:
             # Handle connection closed error
-            twitch_logger.warning("Connection to Twitch PubSub server closed. Reconnecting...")
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
             # Handle other exceptions
@@ -910,6 +907,10 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
+        if not stream_online:
+            await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
+            return
+        
         await ctx.send("Please stand by, checking what song is currently playing...")
         try:
             song_info = await get_song_info_command()
@@ -1857,20 +1858,29 @@ class BotOfTheSpecter(commands.Bot):
     async def check_update_command(self, ctx):
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
-            response = requests.get(REMOTE_VERSION_URL)
-            remote_version = response.text.strip()
-
-            if remote_version != VERSION:
-                if len(remote_version) == len(VERSION) + 1:
-                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
-                else:
-                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
-                bot_logger.info(f"Bot update available. (V{remote_version})")
-                await ctx.send(f"{message}")
-            else:
-                message = f"There is no update pending. You are currently running V{VERSION}."
-                bot_logger.info(f"{message}")
-                await ctx.send(f"{message}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(REMOTE_VERSION_URL) as response:
+                    if response.status == 200:
+                        remote_version = await response.text()
+                        remote_version = remote_version.strip()
+                        if remote_version != VERSION:
+                            remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
+                            local_major, local_minor, local_patch = map(int, VERSION.split('.'))
+                            if remote_major > local_major or \
+                                    (remote_major == local_major and remote_minor > local_minor) or \
+                                    (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
+                                message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                            elif remote_patch > local_patch:
+                                message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                            else:
+                                # If versions are equal or local version is ahead
+                                message = f"There is no update pending. You are currently running V{VERSION}."
+                            bot_logger.info(f"Bot update available. (V{remote_version})")
+                            await ctx.send(message)
+                        else:
+                            message = f"There is no update pending. You are currently running V{VERSION}."
+                            bot_logger.info(f"{message}")
+                            await ctx.send(message)
         else:
             chat_logger.info(f"{ctx.author.name} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
@@ -1918,7 +1928,7 @@ class BotOfTheSpecter(commands.Bot):
                     await ctx.send(shoutout_message)
 
                 # Trigger the Twitch shoutout
-                await trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id)
+                await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id)
 
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
@@ -2018,12 +2028,11 @@ def is_mod_or_broadcaster(user):
 
     # Check if the user is the broadcaster
     elif user.name == CHANNEL_NAME:
-        twitch_logger.info(f"User {user.name} is the broadcaster.")
+        twitch_logger.info(f"User {user.name} is the Broadcaster")
         return True
 
     # Check if the user is a moderator
     elif is_user_mod(user):
-        twitch_logger.info(f"User {user.name} is a moderator.")
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
@@ -2268,16 +2277,13 @@ async def get_game_id(game_name):
     raise GameNotFoundException(f"Game '{game_name}' not found.")
 
 # Function to trigger a twitch shoutout via Twitch API
-async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
-    try:
-        # Add the shoutout request to the queue
-        shoutout_queue.put((user_to_shoutout, mentioned_user_id))
+async def trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
+    # Add the shoutout request to the queue
+    await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
 
-        # Check if the queue is empty and no shoutout is currently being processed
-        if shoutout_queue.qsize() == 1:
-            await process_shoutouts()
-    except Exception as e:
-        twitch_logger.error(f"Error while adding a shoutout to the queue: {e}")
+    # Check if the queue is empty and no shoutout is currently being processed
+    if shoutout_queue.qsize() == 1:
+        await process_shoutouts(shoutout_queue)
 
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     headers = {
@@ -2306,9 +2312,9 @@ async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
                 api_logger.error(f"Failed to get game for {user_to_shoutout}. Status code: {response.status}")
                 return None
 
-async def process_shoutouts():
+async def process_shoutouts(shoutout_queue):
     while not shoutout_queue.empty():
-        user_to_shoutout, mentioned_user_id = shoutout_queue.get()
+        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
         twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
@@ -2338,7 +2344,7 @@ async def process_shoutouts():
                         # Retry the request (exponential backoff can be implemented here)
                         await asyncio.sleep(5)  # Wait for 5 seconds before retrying
                         continue
-                    shoutout_queue.task_done()
+                    await shoutout_queue.task_done()
         except aiohttp.ClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
 
@@ -2359,7 +2365,7 @@ async def fetch_json(url, headers=None):
 # Function for checking updates
 async def check_auto_update():
     while True:
-        REMOTE_VERSION_URL = "https://api.botofthespecter.com/bot_version_control.txt"
+        REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
         async with aiohttp.ClientSession() as session:
             async with session.get(REMOTE_VERSION_URL) as response:
                 if response.status == 200:
@@ -2438,7 +2444,6 @@ async def check_stream_online():
                                 twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
                     else:
                         if not offline_logged:
-                            bot_logger.info(f"Stream is now offline.")
                             twitch_logger.info(f"Stream is now offline.")
                             await clear_seen_today()
                             await clear_credits_data()
@@ -2451,7 +2456,7 @@ async def check_stream_online():
 
 # Function to send the online message to channel
 async def send_online_message(message):
-    await asyncio.sleep(3)
+    await asyncio.sleep(5)
     channel = bot.get_channel(CHANNEL_NAME)
     if channel:
         bot_logger.info(f"Attempted to send message: {message}")
@@ -2471,40 +2476,38 @@ async def clear_credits_data():
 
 # Function for timed messages
 async def timed_message():
-    global stream_online
-    while True:
-        if stream_online:
-            cursor.execute('SELECT interval, message FROM timed_messages')
-            messages = cursor.fetchall()
-            for message, interval in messages:
-                time_now = datetime.now()
-                send_time = time_now + timedelta(minutes=int(interval))
-                wait_time = (send_time - time_now).total_seconds()
-                bot_logger.info("Scheduling message: '%s' to be sent in %f seconds", message, wait_time)
-                task = asyncio.create_task(send_timed_message(message, wait_time))
-                scheduled_tasks.append(task)  # Keep track of the task
-        else:
-            # Cancel all scheduled tasks if the stream goes offline
-            for task in scheduled_tasks:
-                task.cancel()
-            scheduled_tasks.clear()  # Clear the list of tasks
-        await sleep(300)
+    if stream_online:
+        cursor.execute('SELECT interval, message FROM timed_messages')
+        messages = cursor.fetchall()
+        bot_logger.info(f"Timed Messages: {messages}")
+        for interval, message in messages:
+            if message in scheduled_tasks:
+                return
+            bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
+            time_now = datetime.now()
+            send_time = time_now + timedelta(minutes=int(interval))
+            wait_time = (send_time - time_now).total_seconds()
+            bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
+            task = asyncio.create_task(send_timed_message(message, wait_time))
+            scheduled_tasks.append(task)  # Keep track of the task
+    else:
+        # Cancel all scheduled tasks if the stream goes offline
+        for task in scheduled_tasks:
+            task.cancel()
+        scheduled_tasks.clear()  # Clear the list of tasks
 
 # Function to send timed messages
-async def send_timed_message(message, interval):
+async def send_timed_message(message):
     try:
-        await sleep(interval)
-        bot_logger.info("Waiting for interval: %f seconds", interval)
         if stream_online:
             channel = bot.get_channel(CHANNEL_NAME)
-            bot_logger.info("Sending message: '%s' to channel: %s", message, CHANNEL_NAME)
+            bot_logger.info(f"Sending Timed Message: {message}")
             await channel.send(message)
         else:
             bot_logger.info("Stream is offline. Message not sent.")
     except asyncio.CancelledError:
-        bot_logger.info("Task cancelled.")
+        bot_logger.info(f"Task cancelled for {message}")
         pass
-    await sleep(interval)
 
 # Function to get the current playing song
 async def get_song_info_command():
