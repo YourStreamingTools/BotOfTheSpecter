@@ -42,7 +42,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.14"
+VERSION = "3.14.1"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -1789,7 +1789,7 @@ class BotOfTheSpecter(commands.Bot):
                     await ctx.send(shoutout_message)
 
                 # Trigger the Twitch shoutout
-                await trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id)
+                await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id)
 
             except Exception as e:
                 chat_logger.error(f"Error in shoutout_command: {e}")
@@ -2116,13 +2116,13 @@ async def get_game_id(game_name):
     raise GameNotFoundException(f"Game '{game_name}' not found.")
 
 # Function to trigger a twitch shoutout via Twitch API
-async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
+async def trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
     # Add the shoutout request to the queue
-    shoutout_queue.put((user_to_shoutout, mentioned_user_id))
+    await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
 
     # Check if the queue is empty and no shoutout is currently being processed
     if shoutout_queue.qsize() == 1:
-        await process_shoutouts()
+        await process_shoutouts(shoutout_queue)
 
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     headers = {
@@ -2151,9 +2151,9 @@ async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
                 api_logger.error(f"Failed to get game for {user_to_shoutout}. Status code: {response.status}")
                 return None
 
-async def process_shoutouts():
+async def process_shoutouts(shoutout_queue):
     while not shoutout_queue.empty():
-        user_to_shoutout, mentioned_user_id = shoutout_queue.get()
+        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
         twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
@@ -2183,7 +2183,7 @@ async def process_shoutouts():
                         # Retry the request (exponential backoff can be implemented here)
                         await asyncio.sleep(5)  # Wait for 5 seconds before retrying
                         continue
-                    shoutout_queue.task_done()
+                    await shoutout_queue.task_done()
         except aiohttp.ClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
 
