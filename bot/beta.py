@@ -392,34 +392,6 @@ async def send_keepalive_messages(websocket, keepalive_timeout):
         await websocket.send(keepalive_message)
         bot_logger.info("Keepalive PING sent")
 
-async def receive_messages(websocket):
-    last_message_time = asyncio.get_event_loop().time()
-    keepalive_timeout = float('inf')  # This should be updated from session data
-
-    while True:
-        try:
-            message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
-            message_data = json.loads(message)
-            message_type = message_data.get('metadata', {}).get('message_type')
-
-            if message_type == 'session_keepalive':
-                bot_logger.info("Received keepalive message")
-            else:
-                await process_eventsub_message(message_data)
-
-            # Reset the timer on any message receipt
-            last_message_time = asyncio.get_event_loop().time()
-
-        except asyncio.TimeoutError:
-            current_time = asyncio.get_event_loop().time()
-            if current_time - last_message_time > keepalive_timeout:
-                bot_logger.warning("Keepalive timeout exceeded, reconnecting...")
-                break  # This will cause the outer loop to reconnect and should be managed to prevent looping issues
-
-        except Exception as e:
-            bot_logger.error(f"Error receiving message: {e}")
-            break  # Critical errors cause a reconnection
-
 async def subscribe_to_events(websocket, session_id):
     topics = [
         "channel.follow",
@@ -458,6 +430,38 @@ async def subscribe_to_events(websocket, session_id):
             bot_logger.error(f"Subscription failed with response: {confirmation_data}")
     except Exception as e:
         bot_logger.error(f"Failed to subscribe to events: {e}")
+
+async def receive_messages(websocket):
+    last_message_time = asyncio.get_event_loop().time()
+    keepalive_timeout = float('inf')  # This should be updated from session data
+
+    while True:
+        try:
+            message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
+            message_data = json.loads(message)
+            message_type = message_data.get('metadata', {}).get('message_type')
+
+            if message_type == 'session_keepalive':
+                # Received a keepalive message, reset the timer
+                last_message_time = asyncio.get_event_loop().time()
+                bot_logger.info("Received keepalive message")
+            else:
+                await process_eventsub_message(message_data)
+
+        except asyncio.TimeoutError:
+            # Check if we exceeded the keepalive timeout
+            current_time = asyncio.get_event_loop().time()
+            if current_time - last_message_time > keepalive_timeout:
+                bot_logger.warning("Keepalive timeout exceeded, reconnecting...")
+                break  # This will cause the outer loop to reconnect and should be managed to prevent looping issues
+
+        except websockets.ConnectionClosedError as e:
+            bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
+            await asyncio.sleep(10)  # Wait before retrying
+
+        except Exception as e:
+            bot_logger.error(f"Error receiving message: {e}")
+            break  # Critical errors cause a reconnection
 
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
