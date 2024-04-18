@@ -22,7 +22,7 @@ import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
 import twitchio
-from twitchio.ext import commands, pubsub
+from twitchio.ext import commands
 import streamlink
 import pyowm
 import pytz
@@ -110,25 +110,6 @@ if not os.path.exists(chat_history_folder):
     os.makedirs(chat_history_folder)
 chat_history_log_file = os.path.join(chat_history_folder, f"{get_today_date()}.txt")
 chat_history_logger = setup_logger('chat_history', chat_history_log_file)
-
-# Initialize your client with the CHANNEL_AUTH token:
-client = twitchio.Client(token=CHANNEL_AUTH)
-pubsub_pool = pubsub.PubSubPool(client)
-
-async def main():
-    channel_id_int = int(CHANNEL_ID)
-    pubsub_pool = pubsub.PubSubPool(client)
-    await pubsub_pool.subscribe_to_channel(CHANNEL_AUTH, channel_id_int, [pubsub.PubSubBits, pubsub.PubSubSubscriptions, pubsub.PubSubChannelPoints])
-    pubsub_pool.on_message(event_handler)
-    await pubsub_pool.listen()
-
-async def event_handler(message):
-    if message.type == pubsub.PubSubBits:
-        bot_logger.info(f"Bits: {message.data}")
-    elif message.type == pubsub.PubSubSubscriptions:
-        bot_logger.info(f"Subscription: {message.data}")
-    elif message.type == pubsub.PubSubChannelPoints:
-        bot_logger.info(f"Channel Points: {message.data}")
 
 # Create the database and table if it doesn't exist
 database_directory = "/var/www/bot/commands"
