@@ -42,8 +42,6 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
 VERSION = "4.0"
-WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
-CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
@@ -281,12 +279,16 @@ cursor.execute('''
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
+global stream_online
+global current_game
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
+stream_online = False
+current_game = None
 
 # Setup Token Refresh
 async def refresh_token_every_day():
@@ -356,13 +358,13 @@ async def twitch_eventsub():
         try:
             async with websockets.connect(twitch_websocket_uri) as websocket:
                 # Receive and parse the welcome message
-                welcome_message = await websocket.recv()
-                welcome_data = json.loads(welcome_message)
+                eventsub_welcome_message = await websocket.recv()
+                eventsub_welcome_data = json.loads(eventsub_welcome_message)
                 
                 # Validate the message type
-                if welcome_data.get('metadata', {}).get('message_type') == 'session_welcome':
-                    session_id = welcome_data['payload']['session']['id']
-                    keepalive_timeout = welcome_data['payload']['session']['keepalive_timeout_seconds']
+                if eventsub_welcome_data.get('metadata', {}).get('message_type') == 'session_welcome':
+                    session_id = eventsub_welcome_data['payload']['session']['id']
+                    keepalive_timeout = eventsub_welcome_data['payload']['session']['keepalive_timeout_seconds']
 
                     bot_logger.info(f"Connected with session ID: {session_id}")
                     bot_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
@@ -2929,13 +2931,13 @@ async def process_followers_event(user_id, user_name, followed_at):
     await channel.send(message)
 
 # Function to update the number of messages a user has sent within the stream
-async def update_user_message_count(self, message):
+async def update_user_message_count(message):
     # Get user info from the message
     user = message.author.name
     user_id = message.author.id
     # Check user level
-    is_vip = await self.is_user_vip(user_id)
-    is_mod = await self.is_user_moderator(user_id)
+    is_vip = await is_user_vip(user_id)
+    is_mod = await is_user_moderator(user_id)
     user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
     # Insert into the database the number of chats during the stream
     cursor.execute('''
