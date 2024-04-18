@@ -348,115 +348,190 @@ async def refresh_token(current_refresh_token):
         # Log the error if token refresh fails
         twitch_logger.error(f"Token refresh failed: {e}")
 
-# Setup Twitch PubSub
-async def twitch_pubsub():
-    # Twitch PubSub URL
-    url = "wss://pubsub-edge.twitch.tv"
+# Setup Twitch EventSub
+async def twitch_eventsub():
+    twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws"
+    
+    while True:
+        try:
+            async with websockets.connect(twitch_websocket_uri) as websocket:
+                # Receive and parse the welcome message
+                welcome_message = await websocket.recv()
+                welcome_data = json.loads(welcome_message)
+                
+                # Validate the message type
+                if welcome_data.get('metadata', {}).get('message_type') == 'session_welcome':
+                    session_id = welcome_data['payload']['session']['id']
+                    keepalive_timeout = welcome_data['payload']['session']['keepalive_timeout_seconds']
 
-    # Twitch PubSub topics to subscribe to
-    topics = [
-        f"channel-bits-events-v2.{CHANNEL_ID}",  # Bits
-        f"channel-subscribe-events-v1.{CHANNEL_ID}",  # Subscriptions
-    ]
+                    bot_logger.info(f"Connected with session ID: {session_id}")
+                    bot_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
 
-    # Twitch PubSub authentication
-    authentication = {
-        "type": "LISTEN",
-        "data": {
-            "topics": topics,
-            "auth_token": f"{CHANNEL_AUTH}"
-        }
-    }
+                    # Subscribe to the events using the session ID and auth token
+                    await subscribe_to_events(websocket, session_id)
 
-    # Log what Topics we're asking for.
-    twitch_logger.info(f"Subscribing to PubSub Topics: {topics}")
+                    # Manage keepalive and listen for messages concurrently
+                    await asyncio.gather(
+                        send_keepalive_messages(websocket, keepalive_timeout),
+                        receive_messages(websocket)
+                    )
+                    
+        except websockets.ConnectionClosedError as e:
+            bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
+            await asyncio.sleep(10)  # Wait before retrying
+        except Exception as e:
+            bot_logger.error(f"An unexpected error occurred: {e}")
+            await asyncio.sleep(10)  # Wait before reconnecting
+
+async def send_keepalive_messages(websocket, keepalive_timeout):
+    keepalive_message = json.dumps({"type": "PING"})
+    while True:
+        await asyncio.sleep(keepalive_timeout // 2)  # More frequent to ensure connection is maintained
+        await websocket.send(keepalive_message)
+        bot_logger.info("Keepalive PING sent")
+
+async def receive_messages(websocket):
+    last_message_time = asyncio.get_event_loop().time()
+    keepalive_timeout = float('inf')  # This should be updated from session data
 
     while True:
         try:
-            # Connect to Twitch PubSub server
-            async with websockets.connect(url) as websocket:
-                # Send authentication data
-                await websocket.send(json.dumps(authentication))
+            message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
+            message_data = json.loads(message)
+            message_type = message_data.get('metadata', {}).get('message_type')
 
-                while True:
-                    response = await websocket.recv()
-                    # Process the received message
-                    await process_pubsub_message(response)
+            if message_type == 'session_keepalive':
+                bot_logger.info("Received keepalive message")
+            else:
+                await process_eventsub_message(message_data)
 
-        except websockets.ConnectionClosedError:
-            # Handle connection closed error
-            await asyncio.sleep(10)  # Wait before retrying
+            # Reset the timer on any message receipt
+            last_message_time = asyncio.get_event_loop().time()
+
+        except asyncio.TimeoutError:
+            current_time = asyncio.get_event_loop().time()
+            if current_time - last_message_time > keepalive_timeout:
+                bot_logger.warning("Keepalive timeout exceeded, reconnecting...")
+                break  # This will cause the outer loop to reconnect and should be managed to prevent looping issues
+
         except Exception as e:
-            # Handle other exceptions
-            twitch_logger.exception("An error occurred in Twitch PubSub connection:", exc_info=e)
+            bot_logger.error(f"Error receiving message: {e}")
+            break  # Critical errors cause a reconnection
 
-async def process_pubsub_message(message):
+async def subscribe_to_events(websocket, session_id):
+    topics = [
+        "channel.follow",
+        "channel.subscribe",
+        "channel.subscription.gift",
+        "channel.subscription.message",
+        "channel.cheer",
+        "channel.raid",
+        "channel.hype_train.begin",
+        "channel.hype_train.end",
+        "channel.update",
+        "stream.online",
+        "stream.offline"
+    ]
+    
+    subscription_message = {
+        "type": "subscribe",
+        "session_id": session_id,
+        "data": {
+            "topics": topics,
+            "auth_token": CHANNEL_AUTH
+        }
+    }
+
+    try:
+        # Send the subscription message
+        await websocket.send(json.dumps(subscription_message))
+        bot_logger.info(f"Subscription message sent for topics: {topics}")
+
+        confirmation_response = await websocket.recv()
+        confirmation_data = json.loads(confirmation_response)
+        
+        if confirmation_data.get('type') == 'subscription_confirmed':
+            bot_logger.info("Subscription confirmed for all topics.")
+        else:
+            bot_logger.error(f"Subscription failed with response: {confirmation_data}")
+    except Exception as e:
+        bot_logger.error(f"Failed to subscribe to events: {e}")
+
+async def process_eventsub_message(message):
+    channel = bot.get_channel(CHANNEL_NAME)
     try:
         message_data = json.loads(message)
-        message_type = message_data["type"]
+        event_type = message_data.get("subscription", {}).get("type")
+        event_data = message_data.get("event")
 
-        # Process based on message type
-        if message_type == "MESSAGE":
-            topic = message_data["data"]["topic"]
-            event_data = json.loads(message_data["data"]["message"])
-            
-            # Process bits event
-            if topic.startswith("channel-bits-events-v"):
-                bits_event_data = event_data["data"]
-                user_id = bits_event_data["user_id"]
-                user_name = bits_event_data["user_name"]
-                bits = bits_event_data["bits_used"]
-                await process_bits_event(user_id, user_name, bits)
-                
-            # Process subscription event
-            elif topic.startswith("channel-subscribe-events-v"):
-                subscription_event_data = event_data
-                user_id = subscription_event_data.get("user_id")
-                user_name = subscription_event_data.get("user_name")
-                sub_plan = await sub_plan_to_tier_name(subscription_event_data.get("sub_plan"))
-                months = subscription_event_data.get("cumulative_months", 1)
-                context = subscription_event_data.get("context")
-                
-                if context == "subgift":
-                    recipient_user_id = subscription_event_data["recipient_id"]
-                    recipient_user_name = subscription_event_data["recipient_user_name"]
-                    await process_subgift_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name)
-                elif context == "resub":
-                    await process_regular_subscription_event(user_id, user_name, sub_plan, months)
-                elif context == "anonsubgift":
-                    recipient_user_id = subscription_event_data["recipient_id"]
-                    recipient_user_name = subscription_event_data["recipient_user_name"]
-                    await process_anonsubgift_event(sub_plan, months, recipient_user_id, recipient_user_name)
-                elif context == "sub":
-                    recipient_user_id = subscription_event_data["recipient_id"]
-                    recipient_user_name = subscription_event_data["recipient_user_name"]
-                    multi_month_duration = subscription_event_data["multi_month_duration"]
-                    await process_multi_month_sub_event(user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration)
-                
-            # Add more conditions to process other types of events as needed
+        # Process based on event type directly (no need to decode further)
+        if event_type:
+            if event_type == "channel.follow":
+                user_id = event_data["user_id"]
+                user_name = event_data["user_name"]
+                followed_at = event_data["followed_at"]
+                await process_followers_event(user_id, user_name, followed_at)
+            elif event_type == "channel.subscribe":
+                await process_subscription_event(
+                    event_data["user_id"], event_data["user_name"],
+                    event_data["tier"], event_data.get("cumulative_months", 1)
+                )
+            elif event_type == "channel.subscription.message":
+                await process_subscription_message_event(
+                    event_data["user_id"], event_data["user_name"],
+                    event_data["tier"], event_data.get("message", {}).get("text", ""),
+                    event_data.get("cumulative_months", 1)
+                )
+            elif event_type == "channel.subscription.gift":
+                await process_giftsub_event(
+                    event_data["user_id"], event_data["user_name"], event_data["tier"],
+                    event_data.get("cumulative_total", 1), event_data["total"],
+                    event_data.get("is_anonymous", False)
+                )
+            elif event_type == "channel.cheer":
+                user_id = event_data["user_id"]
+                user_name = event_data["user_name"]
+                bits_used = event_data["bits"]
+                await process_cheer_event(user_id, user_name, bits_used)
+            elif event_type == "channel.raid":
+                from_broadcaster_id = event_data["from_broadcaster_user_id"]
+                from_broadcaster_name = event_data["from_broadcaster_user_name"]
+                viewer_count = event_data["viewers"]
+                await process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count)
+            elif event_type == "channel.hype_train.begin":
+                level = event_data["level"]
+                await channel.send(f"The Hype Train has started! Starting at level: {level}")
+            elif event_type == "channel.hype_train.end":
+                level = event_data["level"]
+                top_contributions = event_data.get("top_contributions", [])
+                # Craft a message about the end of the Hype Train
+                message = f"The Hype Train has ended at level {level}! Top contributions:"
+                for contribution in top_contributions:
+                    user_name = contribution["user_name"]
+                    contribution_type = contribution["type"]
+                    total = contribution["total"]
+                    message += f"\n{user_name} contributed {total} {contribution_type}."
+                # Send the message to the chat
+                await channel.send(message)
+            elif event_type == 'channel.update':
+                global current_game
+                global stream_title
+                title = event_data["title"]
+                category_name = event_data["category_name"]
+                stream_title = title
+                current_game = category_name
+            elif event_type in ["stream.online", "stream.offline"]:
+                if event_type == "stream.online":
+                    await process_stream_online()
+                else:
+                    await process_stream_offline()
+
+            # Logging for unknown event types
             else:
-                twitch_logger.warning(f"Received message with unknown topic: {topic}")
-        
-        # Handle PING message
-        elif message_type == "PING":
-            await websockets.send(json.dumps({"type": "PONG"}))
-        
-        # Handle RECONNECT message
-        elif message_type == "RECONNECT":
-            # Perform the reconnection
-            twitch_logger.info("Received RECONNECT message. Reconnecting...")
-            await websockets.close()
-            await asyncio.sleep(5)
-            await twitch_pubsub()
-        
-        # Handle AUTH_REVOKED message
-        elif message_type == "AUTH_REVOKED":
-            revoked_topics = message_data["data"]["topics"]
-            twitch_logger.warning(f"Authentication revoked for topics: {revoked_topics}")
-            pass
+                twitch_logger.warning(f"Received message with unknown event type: {event_type}")
 
     except Exception as e:
-        twitch_logger.exception("An error occurred while processing PubSub message:", exc_info=e)
+        twitch_logger.exception("An error occurred while processing EventSub message:", exc_info=e)
 
 class BotOfTheSpecter(commands.Bot):
     # Event Message to get the bot ready
@@ -2370,70 +2445,41 @@ async def check_auto_update():
                             await channel.send(message)
         await asyncio.sleep(1800)
 
-# Function to check if the stream is online
-async def check_stream_online():
+# Function to process the stream being online
+async def process_stream_online():
     global stream_online
     global current_game
-    stream_online = False
-    stream_state = False
-    offline_logged = False
-    time_now = time.time()
+    stream_online = True
 
-    while True:
-        async with aiohttp.ClientSession() as session:
-            headers = {
+    # Reach out to the Twitch API to get stream data
+    async with aiohttp.ClientSession() as session:
+        headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
-            }
-            params = {
-                'user_login': CHANNEL_NAME,
-                'type': 'live'
-            }
-            async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
-                data = await response.json()
+        }
+        params = {
+            'user_login': CHANNEL_NAME,
+            'type': 'live'
+        }
+        async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
+            data = await response.json()
 
-                # Check if the stream is offline
-                if not data.get('data'):
-                    stream_online = False
-                    current_game = None
-                    # twitch_logger.info(f"API returned no data.")
-                else:
-                    # Stream is online, extract the game name
-                    stream_online = True
-                    game = data['data'][0].get('game_name', None)
-                    uptime_str = data['data'][0].get('started_at', None)
-                    uptime = datetime.strptime(uptime_str, "%Y-%m-%dT%H:%M:%SZ")
-                    current_game = game
-                    # twitch_logger.info(f"API Found Live Data, processing.")
+    # Extract necessary data from the API response
+    if data.get('data'):
+        current_game = data['data'][0].get('game_name', None)
+    else:
+        current_game = None
 
-                # Stream state change
-                if stream_online != stream_state:
-                    if stream_online:
-                        twitch_logger.info(f"Stream is now online.")
-                        streaming_for = time_now - uptime.timestamp()
-                        if current_game:
-                            message = f"Stream is now online! Streaming {current_game}"
-                            if streaming_for < 300: # Only send a message if steram uptime is less than 5 minutes
-                                await send_online_message(message)
-                            else:
-                                twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
-                        else:
-                            message = "Stream is now online!"
-                            if streaming_for < 300: # Only send a message if steram uptime is less than 5 minutes
-                                await send_online_message(message)
-                            else:
-                                twitch_logger.info(f"Online message not sent to chat as the uptime is more than 5 mintues.")
-                    else:
-                        if not offline_logged:
-                            twitch_logger.info(f"Stream is now offline.")
-                            await clear_seen_today()
-                            await clear_credits_data()
-                            offline_logged = True
-                    stream_state = stream_online
-                elif stream_online:
-                    offline_logged = False
+    # Send a message to the chat announcing the stream is online
+    message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
+    await send_online_message(message)
 
-        await asyncio.sleep(60)  # Check every 1 minute
+async def process_stream_offline():
+    global stream_online
+    stream_online = False  # Update the stream status
+    await clear_seen_today()
+    await clear_credits_data()
+    twitch_logger.info("Stream is now offline.")
 
 # Function to send the online message to channel
 async def send_online_message(message):
@@ -2659,8 +2705,43 @@ async def delete_recorded_files():
     except Exception as e:
         api_logger.error(f"An error occurred while deleting recorded files: {e}")
 
+## Functions for the EventSub
+# Function for RAIDS
+async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
+    # Check if the raiding broadcaster exists in the database
+    cursor.execute('SELECT raid_count FROM raid_data WHERE broadcaster_user_id = ?', (from_broadcaster_id,))
+    existing_raid_count = cursor.fetchone()
+
+    if existing_raid_count:
+        # Update the raid count for the raiding broadcaster
+        raid_count = existing_raid_count[0] + 1
+        cursor.execute('''
+            UPDATE raid_data
+            SET raid_count = ?
+            WHERE broadcaster_user_id = ?
+        ''', (raid_count, from_broadcaster_id))
+    else:
+        # Insert a new record for the raiding broadcaster
+        cursor.execute('''
+            INSERT INTO raid_data (broadcaster_user_id, broadcaster_user_name, raid_count)
+            VALUES (?, ?, ?)
+        ''', (from_broadcaster_id, from_broadcaster_name, 1))
+
+    # Insert data into stream_credits table
+    cursor.execute('''
+        INSERT INTO stream_credits (username, event, data)
+        VALUES (?, ?, ?)
+    ''', (from_broadcaster_name, "raid", viewer_count))
+
+    # Commit changes to the database
+    conn.commit()
+
+    # Send a message to the channel about the raid
+    channel = bot.get_channel(CHANNEL_NAME)
+    await channel.send(f"Wow! {from_broadcaster_name} is raiding with {viewer_count} viewers!")
+
 # Function for BITS
-async def process_bits_event(user_id, user_name, bits):
+async def process_cheer_event(user_id, user_name, bits):
     # Check if the user exists in the database
     cursor.execute('SELECT bits FROM bits_data WHERE user_id = ? OR user_name = ?', (user_id, user_name))
     existing_bits = cursor.fetchone()
@@ -2695,21 +2776,7 @@ async def process_bits_event(user_id, user_name, bits):
     ''', (user_name, "bits", bits))
     conn.commit()
 
-# Function for SUBSCRIPTIONS
-def sub_plan_to_tier_name(sub_plan):
-    sub_plan = str(sub_plan).lower()
-    if sub_plan == "prime":
-        return "Prime"
-    elif sub_plan == "1000":
-        return "Tier 1"
-    elif sub_plan == "2000":
-        return "Tier 2"
-    elif sub_plan == "3000":
-        return "Tier 3"
-    else:
-        raise ValueError("Unknown subscription plan")
-
-async def process_regular_subscription_event(user_id, user_name, sub_plan, event_months):
+async def process_subscription_event(user_id, user_name, sub_plan, event_months):
     # Check if the user exists in the database
     cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
     existing_subscription = cursor.fetchone()
@@ -2754,7 +2821,52 @@ async def process_regular_subscription_event(user_id, user_name, sub_plan, event
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
 
-async def process_subgift_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name):
+async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
+    # Check if the user exists in the database
+    cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
+    existing_subscription = cursor.fetchone()
+
+    if existing_subscription:
+        # User exists in the database
+        existing_sub_plan, db_months = existing_subscription
+        if existing_sub_plan != sub_plan:
+            # User upgraded their subscription plan
+            cursor.execute('''
+                UPDATE subscription_data
+                SET sub_plan = ?, months = ?
+                WHERE user_id = ?
+            ''', (sub_plan, db_months, user_id))
+        else:
+            # User maintained the same subscription plan, update cumulative months
+            cursor.execute('''
+                UPDATE subscription_data
+                SET months = ?
+                WHERE user_id = ?
+            ''', (db_months, user_id))
+    else:
+        # User does not exist in the database, insert new record
+        cursor.execute('''
+            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, user_name, sub_plan, event_months))
+
+    # Insert data into stream_credits table with the subscriber's message
+    cursor.execute('''
+        INSERT INTO stream_credits (username, event, data)
+        VALUES (?, ?, ?)
+    ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months. Message: {subscriber_message}"))
+
+    # Commit changes to the database
+    conn.commit()
+
+    # Construct the message to be sent to the channel, including the subscriber's message
+    message = f"Thank you {user_name} for subscribing at Tier {int(sub_plan)/1000}! Your message: '{subscriber_message}'"
+
+    # Send the message to the channel
+    channel = bot.get_channel(CHANNEL_NAME)
+    await channel.send(message)
+
+async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name):
     # Check if the recipient user exists in the database
     cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
     existing_months = cursor.fetchone()
@@ -2787,67 +2899,6 @@ async def process_subgift_event(recipient_user_id, recipient_user_name, sub_plan
 
     # Construct the message to be sent to the channel
     message = f"Thank you {user_name} for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber for {months} months!"
-
-    # Send the message to the channel
-    channel = bot.get_channel(CHANNEL_NAME)
-    await channel.send(message)
-
-async def process_anonsubgift_event(sub_plan, months, recipient_user_id, recipient_user_name):
-    # Check if the recipient user exists in the database
-    cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
-    existing_months = cursor.fetchone()
-
-    if existing_months:
-        # Recipient user exists in the database
-        existing_months = existing_months[0]
-        # Update the existing subscription with the new cumulative months
-        updated_months = existing_months + months
-        cursor.execute('''
-            UPDATE subscription_data
-            SET sub_plan = ?, months = ?
-            WHERE user_id = ?
-        ''', (sub_plan, updated_months, recipient_user_id))
-    else:
-        # Recipient user does not exist in the database, insert new record
-        cursor.execute('''
-            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (?, ?, ?, ?)
-        ''', (recipient_user_id, recipient_user_name, sub_plan, months))
-
-    # Insert subscription data into stream_credits table
-    cursor.execute('''
-        INSERT INTO stream_credits (username, event, data)
-        VALUES (?, ?, ?)
-    ''', (recipient_user_name, "subscriptions", f"{sub_plan} - {months} months"))
-
-    # Commit changes to the database
-    conn.commit()
-
-    # Construct the message to be sent to the channel
-    message = f"An anonymous user has gifted a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber for {months} months!"
-
-    # Send the message to the channel
-    channel = bot.get_channel(CHANNEL_NAME)
-    await channel.send(message)
-
-async def process_multi_month_sub_event(user_name, sub_plan, months, recipient_user_id, recipient_user_name, multi_month_duration):
-    # Process the subscription event for multi-month sub
-    cursor.execute('''
-        INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-        VALUES (?, ?, ?, ?)
-    ''', (recipient_user_id, recipient_user_name, sub_plan, months))
-
-    # Insert data into stream_credits table
-    cursor.execute('''
-        INSERT INTO stream_credits (username, event, data)
-        VALUES (?, ?, ?)
-    ''', (user_name, "subscriptions", f"{sub_plan} - {months} months"))
-
-    # Commit changes to the database
-    conn.commit()
-
-    # Construct the message to be sent to the channel
-    message = f"Thank you {user_name} for subscribing for {multi_month_duration} months! You are now a {sub_plan} subscriber for {months} months!"
 
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
@@ -2983,8 +3034,7 @@ def start_bot():
     # Schedule bot tasks
     asyncio.get_event_loop().create_task(refresh_token_every_day())
     asyncio.get_event_loop().create_task(check_auto_update())
-    asyncio.get_event_loop().create_task(check_stream_online())
-    asyncio.get_event_loop().create_task(twitch_pubsub())
+    asyncio.get_event_loop().create_task(twitch_eventsub())
     asyncio.get_event_loop().create_task(timed_message())
     
     # Create groups if they don't exist
