@@ -352,7 +352,7 @@ async def refresh_token(current_refresh_token):
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
-    twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
+    twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
 
     while True:
         try:
@@ -373,10 +373,7 @@ async def twitch_eventsub():
                     await subscribe_to_events(session_id)
 
                     # Manage keepalive and listen for messages concurrently
-                    await asyncio.gather(
-                        send_keepalive_messages(websocket, keepalive_timeout),
-                        receive_messages(websocket)
-                    )
+                    await asyncio.gather(receive_messages(websocket, keepalive_timeout))
 
         except websockets.ConnectionClosedError as e:
             bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
@@ -384,13 +381,6 @@ async def twitch_eventsub():
         except Exception as e:
             bot_logger.error(f"An unexpected error occurred: {e}")
             await asyncio.sleep(10)  # Wait before reconnecting
-
-async def send_keepalive_messages(websocket, keepalive_timeout):
-    keepalive_message = json.dumps({"type": "PING"})
-    while True:
-        await asyncio.sleep(keepalive_timeout // 2)
-        await websocket.send(keepalive_message)
-        bot_logger.info("Keepalive PING sent")
 
 async def subscribe_to_events(session_id):
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
@@ -415,40 +405,36 @@ async def subscribe_to_events(session_id):
     ]
 
     responses = []
-    for topic in topics:
-        payload = {
-            "type": topic,
-            "version": "1",
-            "condition": {
-                "broadcaster_user_id": CHANNEL_ID
-            },
-            "transport": {
-                "method": "websocket",
-                "session_id": session_id
+    async with aiohttp.ClientSession() as session:
+        for topic in topics:
+            payload = {
+                "type": topic,
+                "version": "1",
+                "condition": {
+                    "broadcaster_user_id": CHANNEL_ID
+                },
+                "transport": {
+                    "method": "websocket",
+                    "session_id": session_id
+                }
             }
-        }
+            # asynchronous POST request
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status in (200, 202):
+                    bot_logger.info(f"WebSocket subscription successful for {topic}")
+                    responses.append(await response.json())
 
-        async with aiohttp.ClientSession() as session:
-            for topic in topics:
-                # asynchronous POST request
-                async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status in (200, 202):
-                        print(f"WebSocket subscription successful for {topic}")
-                        responses.append(await response.json())
-
-async def receive_messages(websocket):
+async def receive_messages(websocket, keepalive_timeout):
     while True:
         try:
-            # Wait for a message with the timeout set to keepalive_timeout
-            message = await asyncio.wait_for(websocket.recv(), timeout=10)
-            bot_logger.debug(f"Received message: {message}")
+            message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
+            bot_logger.debug(f"Received message: {message}")
 
-            # Handle different types of messages
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
-                    bot_logger.info("Received keepalive message")
+                    bot_logger.info("Received session keepalive message")
                 else:
                     bot_logger.info(f"Received message type: {message_type}")
                     await process_eventsub_message(message_data)
@@ -457,18 +443,16 @@ async def receive_messages(websocket):
 
         except asyncio.TimeoutError:
             bot_logger.warning("Keepalive timeout exceeded, reconnecting...")
-            break  # This will cause the outer loop to reconnect and should be managed to prevent looping issues
+            await websocket.close()
+            break  # Exit the loop to allow reconnection logic
 
         except websockets.ConnectionClosedError as e:
             bot_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
-            if e.code == 4001:
-                bot_logger.error("Received 4001 error, checking token validity and data format...")
-            await asyncio.sleep(10)  # Wait before reconnecting to handle rate limits or temporary issues
-            continue  # Attempt to reconnect
+            break  # Exit the loop for reconnection
 
         except Exception as e:
             bot_logger.error(f"Error receiving message: {e}")
-            break  # Critical errors cause a reconnection
+            break  # Exit the loop on critical error
 
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
