@@ -287,6 +287,7 @@ scheduled_tasks = asyncio.Queue()
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
+scheduled_tasks = []
 stream_online = False
 current_game = None
 
@@ -690,14 +691,11 @@ class BotOfTheSpecter(commands.Bot):
                 # Translate the message to English
                 translated_message = translator.translate(message.content, dest='en').text
 
-                # Replace the original message content with the translated message
-                message.content = translated_message
-
                 # Log the translation
-                chat_logger.info(f'Translated message from {message.author.name}: "{message.content}" to: "{translated_message}"')
+                chat_logger.info(f'Translated message from {message.author.name}: {source_lang} - "{message.content}" to: "{translated_message}"')
 
                 # Send the translated message to the chat channel
-                send_message = f'Translated message from {message.author.name}: "{message.content}"'
+                send_message = f'Translated message from {message.author.name}: "{translated_message}"'
                 await message.channel.send(send_message)
             except Exception as e:
                 chat_logger.error(f"Error translating message from {message.author.name}: {e}")
@@ -2931,8 +2929,8 @@ async def update_user_message_count(message):
     user = message.author.name
     user_id = message.author.id
     # Check user level
-    is_vip = await is_user_vip(user_id)
-    is_mod = await is_user_moderator(user_id)
+    is_vip = is_user_vip(user_id)
+    is_mod = is_user_moderator(user_id)
     user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
     # Insert into the database the number of chats during the stream
     cursor.execute('''
@@ -2940,7 +2938,7 @@ async def update_user_message_count(message):
             VALUES (?, 1, ?)
             ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
         ''', (user, user_level))
-    cursor.commit()
+    conn.commit()
 
 # Function to create a new group if it doesn't exist
 def group_creation():
