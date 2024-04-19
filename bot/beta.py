@@ -353,14 +353,14 @@ async def refresh_token(current_refresh_token):
 # Setup Twitch EventSub
 async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
-    
+
     while True:
         try:
             async with websockets.connect(twitch_websocket_uri) as websocket:
                 # Receive and parse the welcome message
                 eventsub_welcome_message = await websocket.recv()
                 eventsub_welcome_data = json.loads(eventsub_welcome_message)
-                
+
                 # Validate the message type
                 if eventsub_welcome_data.get('metadata', {}).get('message_type') == 'session_welcome':
                     session_id = eventsub_welcome_data['payload']['session']['id']
@@ -370,14 +370,14 @@ async def twitch_eventsub():
                     bot_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
 
                     # Subscribe to the events using the session ID and auth token
-                    await subscribe_to_events(websocket, session_id)
+                    await subscribe_to_events(session_id)
 
                     # Manage keepalive and listen for messages concurrently
                     await asyncio.gather(
                         send_keepalive_messages(websocket, keepalive_timeout),
-                        receive_messages(websocket, keepalive_timeout)
+                        receive_messages(websocket)
                     )
-                    
+
         except websockets.ConnectionClosedError as e:
             bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
             await asyncio.sleep(10)  # Wait before retrying
@@ -392,7 +392,14 @@ async def send_keepalive_messages(websocket, keepalive_timeout):
         await websocket.send(keepalive_message)
         bot_logger.info("Keepalive PING sent")
 
-async def subscribe_to_events(websocket, session_id):
+async def subscribe_to_events(session_id):
+    url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+    headers = {
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Client-Id": TWITCH_API_CLIENT_ID,
+        "Content-Type": "application/json"
+    }
+
     topics = [
         "channel.follow",
         "channel.subscribe",
@@ -406,52 +413,58 @@ async def subscribe_to_events(websocket, session_id):
         "stream.online",
         "stream.offline"
     ]
-    
-    subscription_message = {
-        "type": "subscribe",
-        "session_id": session_id,
-        "data": {
-            "topics": topics,
-            "auth_token": CHANNEL_AUTH
+
+    responses = []
+    for topic in topics:
+        payload = {
+            "type": topic,
+            "version": "1",
+            "condition": {
+                "broadcaster_user_id": CHANNEL_ID
+            },
+            "transport": {
+                "method": "websocket",
+                "session_id": session_id
+            }
         }
-    }
 
-    try:
-        # Send the subscription message
-        await websocket.send(json.dumps(subscription_message))
-        bot_logger.info(f"Subscription message sent for topics: {topics}")
+        async with aiohttp.ClientSession() as session:
+            for topic in topics:
+                # asynchronous POST request
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status in (200, 202):
+                        print(f"WebSocket subscription successful for {topic}")
+                        responses.append(await response.json())
 
-        confirmation_response = await websocket.recv()
-        confirmation_data = json.loads(confirmation_response)
-        
-        if confirmation_data.get('type') == 'subscription_confirmed':
-            bot_logger.info("Subscription confirmed for all topics.")
-        else:
-            bot_logger.error(f"Subscription failed with response: {confirmation_data}")
-    except Exception as e:
-        bot_logger.error(f"Failed to subscribe to events: {e}")
-
-async def receive_messages(websocket, keepalive_timeout):
+async def receive_messages(websocket):
     while True:
         try:
-            message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
+            # Wait for a message with the timeout set to keepalive_timeout
+            message = await asyncio.wait_for(websocket.recv(), timeout=10)
             bot_logger.debug(f"Received message: {message}")
             message_data = json.loads(message)
-            message_type = message_data.get('metadata', {}).get('message_type')
 
-            if message_type == 'session_keepalive':
-                bot_logger.info("Received keepalive message")
+            # Handle different types of messages
+            if 'metadata' in message_data:
+                message_type = message_data['metadata'].get('message_type')
+                if message_type == 'session_keepalive':
+                    bot_logger.info("Received keepalive message")
+                else:
+                    bot_logger.info(f"Received message type: {message_type}")
+                    await process_eventsub_message(message_data)
             else:
-                bot_logger.info(f"Received message type: {message_type}")
-                await process_eventsub_message(message_data)
+                bot_logger.error("Received unrecognized message format")
 
         except asyncio.TimeoutError:
             bot_logger.warning("Keepalive timeout exceeded, reconnecting...")
             break  # This will cause the outer loop to reconnect and should be managed to prevent looping issues
 
         except websockets.ConnectionClosedError as e:
-            bot_logger.error(f"receive_messages - WebSocket connection closed unexpectedly: {e}")
-            break  # This will cause the outer loop to reconnect and should be managed to prevent looping issues
+            bot_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
+            if e.code == 4001:
+                bot_logger.error("Received 4001 error, checking token validity and data format...")
+            await asyncio.sleep(10)  # Wait before reconnecting to handle rate limits or temporary issues
+            continue  # Attempt to reconnect
 
         except Exception as e:
             bot_logger.error(f"Error receiving message: {e}")
