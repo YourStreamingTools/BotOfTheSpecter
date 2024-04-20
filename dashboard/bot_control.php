@@ -146,13 +146,20 @@ function killBot($pid) {
 
 // Display running version if bot is running or if bot was started or restarted
 if ($botSystemStatus == true) {
-    $versionContent = file_get_contents($versionFilePath);
-    $versionRunning = "<div class='status-message'>Running Version: $versionContent</div>";
+    // Check if the version control file exists
+    if (file_exists($versionFilePath)) {
+        // If the file exists, read its contents
+        $versionContent = file_get_contents($versionFilePath); 
+        $versionRunning = "<div class='status-message'>Running Version: $versionContent</div>";
 
-    // Compare the running version with the new version
-    if ($versionContent !== $newVersion) {
-        // Display message for update if versions are different
-        $versionRunning = "<div class='status-message'>Update (V$newVersion) is available.</div>";
+        // Compare the running version with the new version
+        if ($versionContent !== $newVersion) {
+            // Display message for update if versions are different
+            $versionRunning .= "<div class='status-message'>Update (V$newVersion) is available.</div>";
+        }
+    } else {
+        // If the file doesn't exist, display a message indicating that the version is not available
+        $versionRunning = "<div class='status-message'>Version information not available.</div>";
     }
 }
 ?>
