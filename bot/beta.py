@@ -466,37 +466,47 @@ async def process_eventsub_message(message):
         # Process based on event type directly (no need to decode further)
         if event_type:
             if event_type == "channel.follow":
-                user_id = event_data["user_id"]
-                user_name = event_data["user_name"]
-                followed_at = event_data["followed_at"]
-                await process_followers_event(user_id, user_name, followed_at)
+                await process_followers_event(
+                    event_data["user_id"],
+                    event_data["user_name"],
+                    event_data["followed_at"]
+                )
             elif event_type == "channel.subscribe":
                 await process_subscription_event(
-                    event_data["user_id"], event_data["user_name"],
-                    event_data["tier"], event_data.get("cumulative_months", 1)
+                    event_data["user_id"],
+                    event_data["user_name"],
+                    event_data["tier"],
+                    event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.message":
                 await process_subscription_message_event(
-                    event_data["user_id"], event_data["user_name"],
-                    event_data["tier"], event_data.get("message", {}).get("text", ""),
+                    event_data["user_id"],
+                    event_data["user_name"],
+                    event_data["tier"],
+                    event_data.get("message", {}).get("text", ""),
                     event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.gift":
                 await process_giftsub_event(
-                    event_data["user_id"], event_data["user_name"], event_data["tier"],
-                    event_data.get("cumulative_total", 1), event_data["total"],
+                    event_data["user_id"],
+                    event_data["user_name"],
+                    event_data["tier"],
+                    event_data.get("cumulative_total", 1),
+                    event_data["total"],
                     event_data.get("is_anonymous", False)
                 )
             elif event_type == "channel.cheer":
-                user_id = event_data["user_id"]
-                user_name = event_data["user_name"]
-                bits_used = event_data["bits"]
-                await process_cheer_event(user_id, user_name, bits_used)
+                await process_cheer_event(
+                    event_data["user_id"],
+                    event_data["user_name"],
+                    event_data["bits"]
+                )
             elif event_type == "channel.raid":
-                from_broadcaster_id = event_data["from_broadcaster_user_id"]
-                from_broadcaster_name = event_data["from_broadcaster_user_name"]
-                viewer_count = event_data["viewers"]
-                await process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count)
+                await process_raid_event(
+                    event_data["from_broadcaster_user_id"],
+                    event_data["from_broadcaster_user_name"],
+                    event_data["viewers"]
+                )
             elif event_type == "channel.hype_train.begin":
                 level = event_data["level"]
                 await channel.send(f"The Hype Train has started! Starting at level: {level}")
