@@ -21,6 +21,7 @@ import requests
 import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
+from profanity_check import predict_prob
 import twitchio
 from twitchio.ext import commands
 import streamlink
@@ -682,27 +683,38 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"URL found in message from {message.author.name}, not deleted due to being whitelisted or a Twitch clip link.")
                 else:
                     chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
-        
-        # Function for translating chat messages.
-        detected_lang = translator.detect(message.content)
-        source_lang = detected_lang.lang if detected_lang else None
-        if source_lang != 'en':
-            try:
-                # Translate the message to English
-                translated_message = translator.translate(message.content, dest='en').text
 
-                # Log the translation
-                chat_logger.info(f'Translated message from {message.author.name}: {source_lang} - "{message.content}" to: "{translated_message}"')
+            profanity_probability = predict_prob([message.content])[0]
+            profanity_threshold = 0.5
+            if profanity_probability > profanity_threshold:
+                # Profanity detected, delete original message and notify user
+                await message.delete()
+                await message.channel.send(f"{message.author.name}'s message contained profanity. Please refrain from using profane language.")
+                return  # Stop further processing
 
-                # Send the translated message to the chat channel
-                send_message = f'Translated message from {message.author.name}: "{translated_message}"'
-                await message.channel.send(send_message)
-            except Exception as e:
-                chat_logger.error(f"Error translating message from {message.author.name}: {e}")
-                # await message.channel.send("An error occurred while translating the message.")
+            # Function for translating chat messages.
+            detected_lang = translator.detect(message.content)
+            source_lang = detected_lang.lang if detected_lang else None
+            if source_lang != 'en':
+                try:
+                    # Translate the message to English
+                    translated_message = translator.translate(message.content, dest='en').text
+
+                    # Log the translation
+                    chat_logger.info(f'Translated message from {message.author.name}: {source_lang} - "{message.content}" to: "{translated_message}"')
+
+                    # Send the translated message to the chat channel
+                    send_message = f'Translated message from {message.author.name}: "{translated_message}"'
+                    await message.channel.send(send_message)
+                except Exception as e:
+                    chat_logger.error(f"Error translating message from {message.author.name}: {e}")
+                    # await message.channel.send("An error occurred while translating the message.")
 
     # Function to handle welcome messages
     async def handle_welcome_message(self, message):
+        if not stream_online:
+                return
+
         # Setup for welcome messages
         user_trigger = message.author.name
         user_trigger_id = message.author.id
