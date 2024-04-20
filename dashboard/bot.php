@@ -40,6 +40,7 @@ $statusOutput = 'Bot Status: Unknown';
 $pid = '';
 $versionRunning = '';
 include 'bot_control.php';
+include 'beta_bot_control.php';
 include 'sqlite.php';
 
 // Twitch API URL
@@ -116,6 +117,20 @@ if ($ModStatusOutput) {
       <form action="" method="post"><button class="bot-button" type="submit" name="killBot">Stop Bot</button></form>
       <form action="" method="post"><button class="bot-button" type="submit" name="runBot">Run Bot</button></form>
       <form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form>
+    </div>
+  </div>
+</div>
+<div class="dashboard-container">
+  <!-- Beta Bot Status -->
+  <div class="dashboard-section" id="beta-bot-status">
+    <?php echo $betaStatusOutput; ?>
+
+    <?php echo $betaVersionRunning; ?>
+
+    <div class="bot-actions">
+      <form action="" method="post"><button class="bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button></form>
+      <form action="" method="post"><button class="bot-button" type="submit" name="runBetaBot">Run Beta Bot</button></form>
+      <form action="" method="post"><button class="bot-button" type="submit" name="restartBetaBot">Restart Beta Bot</button></form>
     </div>
   </div>
 </div>
