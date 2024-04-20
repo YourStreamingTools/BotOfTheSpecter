@@ -27,6 +27,7 @@ $username = $user['username'];
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
+$betaAccess = ($user['beta_access'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
@@ -108,9 +109,11 @@ if ($ModStatusOutput) {
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <?php echo $BotModMessage; ?>
+<?php if ($betaAccess) { echo "<p style='color: red;'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p>"; } ?>
 <div class="dashboard-container">
   <!-- Bot Status -->
   <div class="dashboard-section" id="bot-status">
+    <h4>Stable Bot:</h4>
     <?php echo $statusOutput; ?>
 
     <?php echo $versionRunning; ?>
@@ -122,9 +125,11 @@ if ($ModStatusOutput) {
     </div>
   </div>
 </div>
+<?php if ($betaAccess) { ?>
 <div class="dashboard-container">
   <!-- Beta Bot Status -->
   <div class="dashboard-section" id="beta-bot-status">
+    <h4>Beta Bot:</h4>
     <?php echo $betaStatusOutput; ?>
 
     <?php echo $betaVersionRunning; ?>
@@ -136,6 +141,7 @@ if ($ModStatusOutput) {
     </div>
   </div>
 </div>
+<?php } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
