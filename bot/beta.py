@@ -606,37 +606,34 @@ class BotOfTheSpecter(commands.Bot):
             if result:
                 if result[1] == 'Enabled':
                     response = result[0]
-                    # Check if the user has a custom API URL
-                    if '(customapi.' in response:
-                        url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                        if url_match:
-                            url = url_match.group(1)
-                            api_response = fetch_api_response(url)
-                            response = response.replace(f"(customapi.{url})", api_response)
-                    # Check if the user has a custom count
-                    if '(count)' in response:
-                        try:
-                            update_custom_count(command)
-                            get_count = get_custom_count(command)
-                            response = response.replace('(count)', str(get_count))
-                        except Exception as e:
-                            chat_logger.error(f"{e}")
-                    if '(daysuntil.' in response:
-                        # Getting the date from the response = YEAR-MONTH-DAY
-                        get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
-                        if get_date:
-                            date_str = get_date.group(1)
-                            event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                            current_date = datetime.now().date()
-                            days_left = (event_date - current_date).days
-                            response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                    switches = ['(customapi.', '(count)', '(daysuntil.']
+                    while any(switch in response for switch in switches):
+                        if '(customapi.' in response:
+                            url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                            if url_match:
+                                url = url_match.group(1)
+                                api_response = fetch_api_response(url)
+                                response = response.replace(f"(customapi.{url})", api_response)
+                        if '(count)' in response:
+                            try:
+                                update_custom_count(command)
+                                get_count = get_custom_count(command)
+                                response = response.replace('(count)', str(get_count))
+                            except Exception as e:
+                                chat_logger.error(f"{e}")
+                        if '(daysuntil.' in response:
+                            get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
+                            if get_date:
+                                date_str = get_date.group(1)
+                                event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                                current_date = datetime.now().date()
+                                days_left = (event_date - current_date).days
+                                response = response.replace(f"(daysuntil.{date_str})", str(days_left))
                     chat_logger.info(f"{command} command ran with response: {response}")
                     await message.channel.send(response)
                 else:
-                    chat_logger.info(f"{command} not ran becasue it's disabled.")
+                    chat_logger.info(f"{command} not ran because it's disabled.")
             else:
-                # chat_logger.info(f"{message.author.name} tried to run a command called: {command}, but it's not a command.")
-                # await message.channel.send(f'No such command found: !{command}')
                 pass
         else:
             # If the message is not a command and does not come from a moderator or broadcaster, check for protection
