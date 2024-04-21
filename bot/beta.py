@@ -2522,14 +2522,15 @@ async def timed_message():
         messages = cursor.fetchall()
         bot_logger.info(f"Timed Messages: {messages}")
         for interval, message in messages:
-            if message in scheduled_tasks:
-                return
+            if any(task.get_name() == message for task in scheduled_tasks):
+                continue
             bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
             time_now = datetime.now()
             send_time = time_now + timedelta(minutes=int(interval))
             wait_time = (send_time - time_now).total_seconds()
             bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
             task = asyncio.create_task(send_timed_message(message, wait_time))
+            task.set_name(message)  # Set a name for the task
             scheduled_tasks.append(task)  # Keep track of the task
     else:
         # Cancel all scheduled tasks if the stream goes offline
@@ -2537,8 +2538,8 @@ async def timed_message():
             task.cancel()
         scheduled_tasks.clear()  # Clear the list of tasks
 
-# Function to send timed messages
-async def send_timed_message(message):
+async def send_timed_message(message, delay):
+    await asyncio.sleep(delay)
     try:
         if stream_online:
             channel = bot.get_channel(CHANNEL_NAME)
@@ -2548,7 +2549,6 @@ async def send_timed_message(message):
             bot_logger.info("Stream is offline. Message not sent.")
     except asyncio.CancelledError:
         bot_logger.info(f"Task cancelled for {message}")
-        pass
 
 # Function to get the current playing song
 async def get_song_info_command():
