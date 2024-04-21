@@ -129,7 +129,7 @@ if ($ModStatusOutput) {
 <div class="dashboard-container">
   <!-- Beta Bot Status -->
   <div class="dashboard-section" id="beta-bot-status">
-    <h4>Beta Bot: (<?php echo "V" . $BetaNewVersion; ?>)</h4>
+    <h4>Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
     <?php echo $betaStatusOutput; ?>
 
     <?php echo $betaVersionRunning; ?>
