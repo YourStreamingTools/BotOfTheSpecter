@@ -42,7 +42,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.14.1"
+VERSION = "3.14.2"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -2305,38 +2305,31 @@ async def clear_seen_today():
     cursor.execute('DELETE FROM seen_today')
     conn.commit()
 
-# Function to loop timed messages
-async def timed_message_loop():
-    bot_logger.info(f"Started timed messages loop")
-    while True:
-        await asyncio.sleep(150)
-        await timed_message()
-
 # Function for timed messages
 async def timed_message():
-    global scheduled_tasks
     if stream_online:
         cursor.execute('SELECT interval, message FROM timed_messages')
         messages = cursor.fetchall()
         bot_logger.info(f"Timed Messages: {messages}")
         for interval, message in messages:
-            if message in [task.get_name() for task in scheduled_tasks]:
+            if any(task.get_name() == message for task in scheduled_tasks):
                 continue
+            bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
             time_now = datetime.now()
             send_time = time_now + timedelta(minutes=int(interval))
             wait_time = (send_time - time_now).total_seconds()
+            bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
             task = asyncio.create_task(send_timed_message(message, wait_time))
-            task.set_name(message)
-            scheduled_tasks.append(task)
+            task.set_name(message)  # Set a name for the task
+            scheduled_tasks.append(task)  # Keep track of the task
     else:
         # Cancel all scheduled tasks if the stream goes offline
         for task in scheduled_tasks:
             task.cancel()
         scheduled_tasks.clear()  # Clear the list of tasks
 
-# Function to send timed messages
-async def send_timed_message(message, wait_time):
-    await asyncio.sleep(wait_time)
+async def send_timed_message(message, delay):
+    await asyncio.sleep(delay)
     try:
         if stream_online:
             channel = bot.get_channel(CHANNEL_NAME)
@@ -2746,7 +2739,7 @@ def start_bot():
     asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(check_stream_online())
     asyncio.get_event_loop().create_task(twitch_pubsub())
-    asyncio.get_event_loop().create_task(timed_message_loop())
+    asyncio.get_event_loop().create_task(timed_message())
 
     # Create Version Control for the website
     update_version_control()
