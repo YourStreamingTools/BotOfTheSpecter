@@ -2312,9 +2312,16 @@ async def timed_message():
         cursor.execute('SELECT interval, message FROM timed_messages')
         messages = cursor.fetchall()
         bot_logger.info(f"Timed Messages: {messages}")
+        
+        # Store the messages currently scheduled
+        current_messages = [task.get_name() for task in scheduled_tasks]
+
+        # Check for messages to add or remove
         for interval, message in messages:
-            if any(task.get_name() == message for task in scheduled_tasks):
+            if message in current_messages:
+                # Message already scheduled, continue to next message
                 continue
+            
             bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
             time_now = datetime.now()
             send_time = time_now + timedelta(minutes=int(interval))
@@ -2323,6 +2330,13 @@ async def timed_message():
             task = asyncio.create_task(send_timed_message(message, wait_time))
             task.set_name(message)  # Set a name for the task
             scheduled_tasks.append(task)  # Keep track of the task
+        
+        # Check for messages to remove
+        for task in scheduled_tasks:
+            if task.get_name() not in [message for _, message in messages]:
+                # Message no longer in database, cancel the task
+                task.cancel()
+                scheduled_tasks.remove(task)
     else:
         # Cancel all scheduled tasks if the stream goes offline
         for task in scheduled_tasks:
