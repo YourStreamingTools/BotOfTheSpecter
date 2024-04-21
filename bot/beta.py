@@ -2517,6 +2517,7 @@ async def clear_credits_data():
 
 # Function for timed messages
 async def timed_message():
+    global scheduled_tasks
     if stream_online:
         cursor.execute('SELECT interval, message FROM timed_messages')
         messages = cursor.fetchall()
