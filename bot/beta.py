@@ -22,6 +22,7 @@ import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
 from profanity_check import predict_prob
+from sklearn.externals import joblib
 import twitchio
 from twitchio.ext import commands
 import streamlink
