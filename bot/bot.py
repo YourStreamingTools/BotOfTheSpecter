@@ -1451,16 +1451,11 @@ class BotOfTheSpecter(commands.Bot):
         # Normalize the game name to lowercase to improve matching chances
         game_name_lower = current_game.lower()
 
-        # First try with "The" at the beginning
-        if game_name_lower.startswith('The '):
-            game_name_without_the = game_name_lower[4:]
-            if game_name_without_the in steam_app_list:
-                game_id = steam_app_list[game_name_without_the]
-                store_url = f"https://store.steampowered.com/app/{game_id}"
-                await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
-                return
+        # Remove "The " from the beginning of the game name if it exists
+        if game_name_lower.startswith('the '):
+            game_name_lower = game_name_lower[4:]
 
-        # If the game with "The" at the beginning is not found, try without it
+        # Check if the normalized game name is in the steam_app_list
         if game_name_lower in steam_app_list:
             game_id = steam_app_list[game_name_lower]
             store_url = f"https://store.steampowered.com/app/{game_id}"
