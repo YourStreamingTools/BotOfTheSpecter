@@ -33,15 +33,13 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 3.14.1 - BotOfTheSpecter
+### Version 3.14.2 - BotOfTheSpecter
 
-- Addressed an issue where shoutouts were not being processed correctly.
-  - Modified the `trigger_twitch_shoutout` function to accept `shoutout_queue` as an argument.
-  - Modified the `process_shoutouts` function to accept `shoutout_queue` as an argument.
-  - Ensured proper handling of the `shoutout_queue` within the shoutout processing functions.
+- Improved message scheduling by comparing content instead of tasks directly.
+- Implemented task naming for easier identification.
+- Enhanced clarity and simplification of task monitoring.
 
-
-[View Full Changelog for Version 3.14.1](/bot/changelog/3.14.1.md)
+[View Full Changelog for Version 3.14.2](/bot/changelog/3.14.2.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
