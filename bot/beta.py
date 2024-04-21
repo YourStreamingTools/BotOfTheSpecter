@@ -459,9 +459,8 @@ async def receive_messages(websocket, keepalive_timeout):
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
     try:
-        message_data = json.loads(message)
-        event_type = message_data.get("subscription", {}).get("type")
-        event_data = message_data.get("event")
+        event_type = message.get("subscription", {}).get("type")
+        event_data = message.get("event")
 
         # Process based on event type directly (no need to decode further)
         if event_type:
