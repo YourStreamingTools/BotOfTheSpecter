@@ -5,7 +5,7 @@ error_reporting(E_ALL);
 
 // Define variables
 $betaVersionFilePath = '/var/www/logs/version/' . $username . '_beta_version_control.txt';
-$BetaNewVersion = file_get_contents("/var/www/api/beta_version_control.txt");
+$betaNewVersion = file_get_contents("/var/www/api/beta_version_control.txt");
 $BetaBotScriptPath = "/var/www/bot/beta.py";
 $BetaStatusScriptPath = "/var/www/bot/beta_status.py";
 $BetaLogPath = "/var/www/logs/script/$username.txt";
