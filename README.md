@@ -38,6 +38,7 @@ Stay tuned for updates on the release of these exciting features!
 - Improved message scheduling by comparing content instead of tasks directly.
 - Implemented task naming for easier identification.
 - Enhanced clarity and simplification of task monitoring.
+- Modified to cancel sending of messages that are removed from the database to maintain synchronization with the database.
 
 [View Full Changelog for Version 3.14.2](/bot/changelog/3.14.2.md)
 
