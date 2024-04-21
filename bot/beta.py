@@ -21,9 +21,7 @@ import requests
 import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
-from profanity_check import predict_prob
-from sklearn.externals import joblib
-import twitchio
+from profanityfilter import ProfanityFilter
 from twitchio.ext import commands
 import streamlink
 import pyowm
@@ -286,6 +284,7 @@ global current_game
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
+pf = ProfanityFilter()
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
@@ -692,13 +691,12 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
 
-            profanity_probability = predict_prob([message.content])[0]
-            profanity_threshold = 0.5
-            if profanity_probability > profanity_threshold:
+            profanity_probability = pf.calculate_probability(message.content)
+            if profanity_probability > 0.5:
                 # Profanity detected, delete original message and notify user
                 await message.delete()
                 await message.channel.send(f"{message.author.name}'s message contained profanity. Please refrain from using profane language.")
-                return  # Stop further processing
+                return
 
             # Function for translating chat messages.
             detected_lang = translator.detect(message.content)
@@ -2532,7 +2530,7 @@ async def timed_message():
             if message in current_messages:
                 # Message already scheduled, continue to next message
                 continue
-            
+
             bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
             time_now = datetime.now()
             send_time = time_now + timedelta(minutes=int(interval))
