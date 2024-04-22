@@ -431,7 +431,7 @@ async def receive_messages(websocket, keepalive_timeout):
         try:
             message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
-            bot_logger.debug(f"Received message: {message}")
+            bot_logger.info(f"Received message: {message}")
 
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
@@ -459,8 +459,8 @@ async def receive_messages(websocket, keepalive_timeout):
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
     try:
-        event_type = message.get("subscription", {}).get("type")
-        event_data = message.get("event")
+        event_type = message.get("payload", {}).get("subscription", {}).get("type")
+        event_data = message.get("payload", {}).get("event")
 
         # Process based on event type directly (no need to decode further)
         if event_type:
