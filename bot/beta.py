@@ -2,8 +2,6 @@
 import os
 import re
 import asyncio
-from asyncio import Task, create_task, sleep
-from typing import List
 import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
@@ -51,9 +49,9 @@ SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "ping", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
-mod_commands = {"addcommand", "removecommand", "removetypos", "quoteadd", "edittypos", "deathadd", "deathremove", "so", "marker", "checkupdate"}
-builtin_aliases = {"cmds", "back", "shoutout", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "game", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
+builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
 # Logs
 webroot = "/var/www/"
@@ -819,12 +817,24 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("commands",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
+            
         is_mod = is_mod_or_broadcaster(ctx.author)
-        
+
         # Fetch custom commands from the database
         cursor.execute('SELECT command FROM custom_commands')
         custom_commands = [row[0] for row in cursor.fetchall()]
         
+        
+        # Construct the list of custom commands
+        custom_commands_list = ", ".join(sorted(f"!{command}" for command in custom_commands))
+    
+
         # Construct the list of custom commands
         custom_commands_list = ", ".join(sorted(f"!{command}" for command in custom_commands))
     
@@ -834,29 +844,47 @@ class BotOfTheSpecter(commands.Bot):
         else:
             # If the user is not a mod, only include builtin_commands
             all_commands = list(builtin_commands)
-        
+
         # Construct the list of available commands to the user
         commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
-    
+
         # Construct the response messages
         response_message = f"Available commands to you: {commands_list}"
         custom_response_message = f"Available Custom Commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
-    
+
         # Sending the response messages to the chat
         await ctx.send(response_message)
         await ctx.send(custom_response_message)
 
     @commands.command(name='bot')
     async def bot_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("bot",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
     
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("roadmap",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
 
     @commands.command(name='weather')
     async def weather_command(self, ctx, location: str = None) -> None:
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("weather",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if location:
             if ' ' in location:
                 await ctx.send(f"Please provide the location in the format: City,CountryCode (e.g. Sydney,AU)")
@@ -872,6 +900,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='time')
     async def time_command(self, ctx, timezone: str = None) -> None:
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("time",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if timezone:
             tz = pytz.timezone(timezone)
             chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
@@ -897,6 +931,12 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("quote",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if number is None:  # If no number is provided, get a random quote
             cursor.execute("SELECT quote FROM quotes ORDER BY RANDOM() LIMIT 1")
             quote = cursor.fetchone()
@@ -914,12 +954,24 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='quoteadd')
     async def quote_add_command(self, ctx, *, quote):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("quoteadd",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
         conn.commit()
         await ctx.send("Quote added successfully: " + quote)
 
     @commands.command(name='removequote')
     async def quote_remove_command(self, ctx, number: int = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("removequote",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if number is None:
             ctx.send("Please specify the ID to remove.")
             return
@@ -930,6 +982,12 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("permit",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             permit_user = permit_user.lstrip('@')
             if permit_user:
@@ -944,6 +1002,12 @@ class BotOfTheSpecter(commands.Bot):
     # Command to set stream title
     @commands.command(name='settitle')
     async def set_title_command(self, ctx, *, title: str = None) -> None:
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("settitle",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             if title is None:
                 await ctx.send(f"Stream titles can not be blank. You must provide a title for the stream.")
@@ -959,6 +1023,12 @@ class BotOfTheSpecter(commands.Bot):
     # Command to set stream game/category
     @commands.command(name='setgame')
     async def set_game_command(self, ctx, *, game: str = None) -> None:
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("setgame",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             if game is None:
                 await ctx.send("You must provide a game for the stream.")
@@ -982,6 +1052,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("song",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         global stream_online
         if not stream_online:
             await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
@@ -998,7 +1074,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='timer')
     async def start_timer_command(self, ctx):
-        chat_logger.info(f"Timer command ran.")
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("timer",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         content = ctx.message.content.strip()
         try:
             _, minutes = content.split(' ')
@@ -1040,6 +1121,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("hug",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if mentioned_username:
             target_user = mentioned_username.lstrip('@')
 
@@ -1060,6 +1147,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("kiss",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if mentioned_username:
             target_user = mentioned_username.lstrip('@')
 
@@ -1080,7 +1173,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='ping')
     async def ping_command(self, ctx):
-        chat_logger.info(f"Ping command ran.")
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("ping",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         # Using subprocess to run the ping command
         result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
     
@@ -1098,6 +1196,12 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='translate')
     async def translate_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("translate",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         # Get the message content after the command
         message = ctx.message.content[len("!translate "):]
 
@@ -1143,6 +1247,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='cheerleader')
     async def cheerleader_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("cheerleader",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -1166,6 +1276,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='mybits')
     async def mybits_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("mybits",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         user_id = str(ctx.author.id)
         headers = {
             'Client-ID': CLIENT_ID,
@@ -1190,6 +1306,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='lurk', aliases=('brb',))
     async def lurk_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("lurk",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         try:
             user_id = str(ctx.author.id)
             now = datetime.now()
@@ -1235,6 +1357,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='lurking')
     async def lurking_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("lurking",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         try:
             user_id = str(ctx.author.id)
     
@@ -1273,6 +1401,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("lurklead",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         try:
             cursor.execute('SELECT user_id, start_time FROM lurk_times')
             lurkers = cursor.fetchall()
@@ -1317,6 +1451,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("unlurk",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         try:
             user_id = str(ctx.author.id)
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -1356,6 +1496,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='clip')
     async def clip_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("clip",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         global stream_online
         try:
             if not stream_online:
@@ -1405,6 +1551,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("marker",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             if description:
                 marker_description = description
@@ -1422,19 +1574,22 @@ class BotOfTheSpecter(commands.Bot):
                 }
                 marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
                 if marker_response.status_code == 200:
-                    marker_data = marker_response.json()
-                    marker_created_at = marker_data['data'][0]['created_at']
-                    await ctx.send(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
+                    await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
                 else:
                     await ctx.send("Failed to create a stream marker.")
             except requests.exceptions.RequestException as e:
                 twitch_logger.error(f"Error creating stream marker: {e}")
-                await ctx.send("An error occurred while making the request. Please try again later.")
         else:
             await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("subscription",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         try:
             # Headers & Params for Twitch API
             user_id = ctx.author.id
@@ -1483,6 +1638,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("uptime",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         chat_logger.info("Uptime Command ran.")
         headers = {
             'Client-ID': CLIENT_ID,
@@ -1518,6 +1679,12 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("typo",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         chat_logger.info("Typo Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower() or (mentioned_username and mentioned_username.lower() == CHANNEL_NAME.lower()):
@@ -1541,6 +1708,12 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("typos",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         chat_logger.info("Typos Command ran.")
         # Check if the broadcaster is running the command
         if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -1562,6 +1735,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("edittypos",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info("Edit Typos Command ran.")
             try:
@@ -1613,7 +1792,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
-        chat_logger.info("Remove Typos Command ran.")
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("removetypos",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         try:
             if is_mod_or_broadcaster(ctx.author):
                 # Ensure a username is mentioned
@@ -1653,6 +1837,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='steam')
     async def steam_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("steam",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         global current_game
 
         async with aiohttp.ClientSession() as session:
@@ -1686,6 +1876,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("deaths",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         try:
             global current_game
             chat_logger.info("Deaths command ran.")
@@ -1708,6 +1904,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("deathadd",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             global current_game
             try:
@@ -1745,6 +1947,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("deathremove",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             global current_game
             try:
@@ -1777,9 +1985,13 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='game')
     async def game_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("game",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         global current_game
-        chat_logger.info("Game Command has been ran.")
-
         if current_game is not None:
             await ctx.send(f"The current game we're playing is: {current_game}")
         else:
@@ -1787,7 +1999,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
-        chat_logger.info("Follow Age Command ran.")
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("followage",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
         headers = {
             'Client-ID': CLIENT_ID,
@@ -1861,6 +2078,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("schedule",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         cursor.execute("SELECT timezone FROM profile")
         timezone_row = cursor.fetchone()
         if timezone_row:
@@ -1933,6 +2156,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("checkupdate",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
             async with aiohttp.ClientSession() as session:
@@ -1962,9 +2191,14 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.info(f"{ctx.author.name} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
     
-    @commands.command(name='so', aliases=('shoutout',))
+    @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
-        chat_logger.info(f"Shoutout command attempting to run.")
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("shoutout",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         if is_mod_or_broadcaster(ctx.author):
             chat_logger.info(f"Shoutout command running from {ctx.author.name}")
             if user_to_shoutout is None:
@@ -2015,7 +2249,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='addcommand')
     async def add_command_command(self, ctx):
-        chat_logger.info("Add Command ran.")
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("addcommand",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
             # Parse the command and response from the message
@@ -2035,7 +2274,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='removecommand')
     async def remove_command_command(self, ctx):
-        chat_logger.info("Remove Command ran.")
+        cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("removecommand",))
+        result = cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         # Check if the user is a moderator or the broadcaster
         if is_mod_or_broadcaster(ctx.author):
             try:
