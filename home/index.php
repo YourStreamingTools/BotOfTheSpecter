@@ -21,34 +21,34 @@
     <div class="container">
         <div class="bio">
             <section>
-                <h2>Enhance Your Twitch Experience</h2>
+                <h2>Enhance Your Twitch and Discord Experience</h2>
                 <ul>
-                    <li><strong>Interact with Your Community</strong>: Engage your viewers with custom chat commands.</li>
-                    <li><strong>Stay Informed</strong>: Keep track of your followers, subscribers, and VIPs with ease.</li>
-                    <li><strong>Moderate with Ease</strong>: Maintain a healthy and enjoyable chat environment for everyone.</li>
+                    <li><strong>Interact with Your Community</strong>: Engage your viewers with custom chat commands on Twitch, and empower your members with interactive features on Discord.</li>
+                    <li><strong>Stay Informed</strong>: Keep track of your Twitch followers, subscribers, and VIPs with ease, while also monitoring server activity and member engagement on Discord.</li>
+                    <li><strong>Moderate with Ease</strong>: Maintain a healthy and enjoyable chat environment for everyone on Twitch, and ensure a safe and welcoming atmosphere on Discord with efficient moderation tools.</li>
                 </ul>
             </section>
             <section>
-                <h2>Tailored for Streamers and Viewers</h2>
-                <p><strong>For Streamers</strong>: Manage your Twitch channel effortlessly with our intuitive dashboard.</p>
-                <p><strong>For Viewers</strong>: Enjoy a more interactive and engaging streaming experience.</p>
+                <h2>Tailored for Streamers and Server Owners</h2>
+                <p><strong>For Twitch Streamers</strong>: Manage your Twitch channel effortlessly with our intuitive dashboard and chat bot.</p>
+                <p><strong>For Discord Server Owners</strong>: Elevate your Discord server with our accompanying bot, offering streamlined moderation and engaging community features.</p>
             </section>
             <section>
                 <h2>Easy to Use</h2>
-                <p><strong>User-Friendly Dashboard</strong>: Everything you need is just a few clicks away.</p>
-                <p><strong>Real-time Insights</strong>: Stay up-to-date with real-time data about your stream, chat engagement, and audience growth.</p>
+                <p><strong>User-Friendly Dashboard</strong>: Everything you need to manage your Twitch channel and Discord server is just a few clicks away.</p>
+                <p><strong>Real-time Insights</strong>: Stay up-to-date with real-time data about your Twitch stream, chat engagement, Discord server activity, and member interactions.</p>
             </section>
             <section>
                 <h2>Join Our Community</h2>
-                <p>Become a part of the BotOfTheSpecter family and take your Twitch channel to new heights. Whether you're a broadcaster or viewer, our bot is here to enhance your Twitch experience.</p>
-                <p>Connect with fellow streamers and viewers on our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank">Discord server</a>. Share tips, get support, and be part of the conversation.</p>
+                <p>Become a part of the BotOfTheSpecter family and take your Twitch channel and Discord server to new heights. Whether you're a broadcaster or server owner, our bots are here to enhance your streaming and community experiences.</p>
+                <p>Connect with fellow streamers and server owners on our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank">Discord server</a>. Share tips, get support, and be part of the conversation.</p>
                 <p>Interested in learning more or getting involved? Check out our features, or if you're a developer, dive into the technical details on our <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank">GitHub page</a>.</p>
-                <p><strong>Happy Streaming!</strong></p>
+                <p><strong>Happy Streaming and Discord-ing!</strong></p>
             </section>
         </div>
     </div>
     <footer>
-        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved. | Server 2
+        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved. | Server 1
     </footer>
 </body>
 </html>
