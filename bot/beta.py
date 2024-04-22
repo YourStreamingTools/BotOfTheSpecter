@@ -717,6 +717,7 @@ class BotOfTheSpecter(commands.Bot):
 
     # Function to handle welcome messages
     async def handle_welcome_message(self, message):
+        global stream_online
         if not stream_online:
                 return
 
@@ -975,6 +976,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
+        global stream_online
         if not stream_online:
             await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
             return
@@ -1348,6 +1350,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='clip')
     async def clip_command(self, ctx):
+        global stream_online
         try:
             if not stream_online:
                 await ctx.send("Sorry, I can only create clips while the stream is online.")
@@ -2516,6 +2519,7 @@ async def clear_credits_data():
 # Function for timed messages
 async def timed_message():
     global scheduled_tasks
+    global stream_online
     if stream_online:
         cursor.execute('SELECT interval, message FROM timed_messages')
         messages = cursor.fetchall()
@@ -2552,6 +2556,7 @@ async def timed_message():
         scheduled_tasks.clear()  # Clear the list of tasks
 
 async def send_timed_message(message, delay):
+    global stream_online
     await asyncio.sleep(delay)
     try:
         if stream_online:
