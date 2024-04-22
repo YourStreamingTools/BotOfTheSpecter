@@ -283,8 +283,6 @@ cursor.execute('''
 conn.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
-global stream_online
-global current_game
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
@@ -293,6 +291,9 @@ permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
 scheduled_tasks = []
+global stream_online
+global current_game
+global stream_title
 stream_online = False
 current_game = None
 
@@ -3211,7 +3212,8 @@ def builtin_commands_creation():
             cursor.execute("SELECT * FROM builtin_commands WHERE command=?", (command,))
             if not cursor.fetchone():
                 cursor.execute("INSERT INTO builtin_commands (command) VALUES (?)", (command,))
-                print(f"Command '{command}' added to database successfully.")
+                conn.commit()
+                bot_logger.info(f"Command '{command}' added to database successfully.")
     except sqlite3.Error as e:
         bot_logger.error(f"Error:", e)
 
@@ -3275,7 +3277,7 @@ def update_version_control():
 async def check_stream_online():
     global stream_online
     global current_game
-    
+
     async with aiohttp.ClientSession() as session:
         headers = {
         'Client-ID': CLIENT_ID,
@@ -3287,16 +3289,18 @@ async def check_stream_online():
         }
         async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
             data = await response.json()
-
             # Check if the stream is offline
             if not data.get('data'):
                 stream_online = False
                 current_game = None
+                bot_logger.info(f"Bot Restarted, Stream is offline.")
             else:
                 # Stream is online, extract the game name
                 stream_online = True
                 game = data['data'][0].get('game_name', None)
                 current_game = game
+                bot_logger.info(f"Bot Restarted, Stream is online.")
+    return
 
 # Here is the BOT
 bot = BotOfTheSpecter(
