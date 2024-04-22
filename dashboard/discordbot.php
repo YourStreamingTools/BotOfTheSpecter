@@ -1,5 +1,8 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
-<?php
+<?php 
+ini_set('display_errors', 1); 
+ini_set('display_startup_errors', 1); 
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
@@ -38,13 +41,20 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'sqlite.php';
+
+// Check if the user is already linked with Discord
+$discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
+$discord_userSTMT->bind_param("i", $user_id);
+$discord_userSTMT->execute();
+$discord_userResult = $discord_userSTMT->get_result();
+$is_linked = ($discord_userResult->num_rows > 0);
 ?>
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
@@ -55,11 +65,13 @@ include 'sqlite.php';
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<h3>This page is coming soon!</h3>
+<?php if (!$is_linked) { echo '<button onclick="linkDiscord()">Link Discord</button>'; } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
+<?php if (!$is_linked) {echo '<script>function linkDiscord() { window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscord_auth.php&scope=identify+openid+guilds"; } </script>'; } ?>
+
 </body>
 </html>
