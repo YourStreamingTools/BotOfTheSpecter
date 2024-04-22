@@ -33,7 +33,7 @@
                 <li><strong>Limitation of Liability</strong>: We shall not be liable for any damages arising from the use of our services.</li>
                 <li><strong>Indemnity</strong>: You agree to indemnify and hold us harmless from any claims arising from your use of our services.</li>
                 <li><strong>Changes to Terms of Service</strong>: We reserve the right to update or modify these Terms of Service at any time.</li>
-                <li><strong>Contact Information</strong>: If you have any questions, please contact us at [contact@email.com].</li>
+                <li><strong>Contact Information</strong>: If you have any questions, please contact us at [questions@botofthespecter.com].</li>
             </ol>
         </div>
     </div>
