@@ -42,7 +42,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "3.14.2"
+VERSION = "3.14.3"
 WEBHOOK_SECRET = ""  # CHANGE TO MAKE THIS WORK
 CALLBACK_URL = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
@@ -769,6 +769,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
+        global stream_online
         if not stream_online:
             await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
             return
@@ -1141,6 +1142,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='clip')
     async def clip_command(self, ctx):
+        global stream_online
         try:
             if not stream_online:
                 await ctx.send("Sorry, I can only create clips while the stream is online.")
@@ -2303,6 +2305,7 @@ async def clear_seen_today():
 # Function for timed messages
 async def timed_message():
     global scheduled_tasks
+    global stream_online
     if stream_online:
         cursor.execute('SELECT interval, message FROM timed_messages')
         messages = cursor.fetchall()
@@ -2339,6 +2342,7 @@ async def timed_message():
         scheduled_tasks.clear()  # Clear the list of tasks
 
 async def send_timed_message(message, delay):
+    global stream_online
     await asyncio.sleep(delay)
     try:
         if stream_online:
