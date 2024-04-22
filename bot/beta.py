@@ -2982,7 +2982,7 @@ def builtin_commands_creation():
                 cursor.execute("INSERT INTO builtin_commands (command) VALUES (?)", (command,))
                 print(f"Command '{command}' added to database successfully.")
     except sqlite3.Error as e:
-        print("Error:", e)
+        bot_logger.error(f"Error:", e)
 
 # Function to handle user grouping
 async def handle_user_grouping(username, user_id):
@@ -3062,6 +3062,9 @@ def start_bot():
     
     # Create groups if they don't exist
     group_creation()
+
+    # Create built-in commands in the database
+    builtin_commands_creation()
 
     # Create Version Control for the website
     update_version_control()
