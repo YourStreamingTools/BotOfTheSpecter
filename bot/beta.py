@@ -136,6 +136,12 @@ cursor.execute('''
     )
 ''')
 cursor.execute('''
+    CREATE TABLE IF NOT EXISTS builtin_commands (
+        command TEXT PRIMARY KEY,
+        status TEXT DEFAULT 'Enabled'
+    )
+''')
+cursor.execute('''
     CREATE TABLE IF NOT EXISTS user_typos (
         username TEXT PRIMARY KEY,
         typo_count INTEGER DEFAULT 0
@@ -2965,6 +2971,18 @@ def group_creation():
                 bot_logger.error(f"Failed to create group '{name}' due to integrity error.")
         else:
             return
+
+# Function to create the command in the database if it doesn't exist
+def builtin_commands_creation():
+    all_commands = list(mod_commands) + list(builtin_commands)
+    try:
+        for command in all_commands:
+            cursor.execute("SELECT * FROM builtin_commands WHERE command=?", (command,))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO builtin_commands (command) VALUES (?)", (command,))
+                print(f"Command '{command}' added to database successfully.")
+    except sqlite3.Error as e:
+        print("Error:", e)
 
 # Function to handle user grouping
 async def handle_user_grouping(username, user_id):
