@@ -449,7 +449,7 @@ async def receive_messages(websocket, keepalive_timeout):
                 bot_logger.error("Received unrecognized message format")
 
         except asyncio.TimeoutError:
-            bot_logger.warning("Keepalive timeout exceeded, reconnecting...")
+            bot_logger.error("Keepalive timeout exceeded, reconnecting...")
             await websocket.close()
             break  # Exit the loop to allow reconnection logic
 
@@ -541,7 +541,7 @@ async def process_eventsub_message(message):
 
             # Logging for unknown event types
             else:
-                twitch_logger.warning(f"Received message with unknown event type: {event_type}")
+                twitch_logger.error(f"Received message with unknown event type: {event_type}")
 
     except Exception as e:
         twitch_logger.exception("An error occurred while processing EventSub message:", exc_info=e)
@@ -556,6 +556,9 @@ class BotOfTheSpecter(commands.Bot):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
         await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await check_stream_online()
+        asyncio.get_event_loop().create_task(twitch_eventsub())
+        asyncio.get_event_loop().create_task(timed_message())
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -568,7 +571,7 @@ class BotOfTheSpecter(commands.Bot):
 
         # Check for a valid author before proceeding
         if message.author is None:
-            bot_logger.warning("Received a message without a valid author.")
+            bot_logger.error("Received a message without a valid author.")
             return
         
         # Handle commands
@@ -2642,7 +2645,7 @@ async def process_shoutouts(shoutout_queue):
                     if response.status == 429:
                         # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
                         retry_after = 180  # 3 minutes in seconds
-                        twitch_logger.warning(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
+                        twitch_logger.error(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
                         await asyncio.sleep(retry_after)
                         continue  # Retry the request
                     elif response.status in (200, 204):
@@ -3318,8 +3321,6 @@ async def event_command_error(error):
 def start_bot():
     # Schedule bot tasks
     asyncio.get_event_loop().create_task(refresh_token_every_day())
-    asyncio.get_event_loop().create_task(twitch_eventsub())
-    asyncio.get_event_loop().create_task(timed_message())
     
     # Create groups if they don't exist
     group_creation()
@@ -3329,9 +3330,6 @@ def start_bot():
 
     # Create Version Control for the website
     update_version_control()
-
-    # If the bot is rebooted during a stream check stream online
-    check_stream_online()
 
     # Start the bot
     bot.run()
