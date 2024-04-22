@@ -28,7 +28,7 @@
                 <li><strong>Data Retention</strong>: We retain your personal information for as long as necessary.</li>
                 <li><strong>Your Rights</strong>: You have the right to access, correct, or delete your personal information.</li>
                 <li><strong>Changes to Our Privacy Policy</strong>: We reserve the right to update or modify this Privacy Policy at any time.</li>
-                <li><strong>Contact Us</strong>: If you have any questions, please contact us at [contact@email.com].</li>
+                <li><strong>Contact Us</strong>: If you have any questions, please contact us at [questions@botofthespecter.com].</li>
             </ol>
         </div>
     </div>
