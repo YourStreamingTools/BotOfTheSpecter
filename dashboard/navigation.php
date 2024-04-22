@@ -49,6 +49,7 @@
         </ul>
       </li>
       <?php if($_SERVER['REQUEST_URI'] == '/app.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="app.php">Download App</a></li>
+      <?php if($_SERVER['REQUEST_URI'] == '/discordbot.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="discordbot.php">Discord Bot</a></li>
       <?php if($_SERVER['REQUEST_URI'] == '/profile.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="profile.php">Profile</a></li>
       <?php if($_SERVER['REQUEST_URI'] == '/logout.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="logout.php">Logout</a></li>
     </ul>
