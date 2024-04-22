@@ -825,19 +825,6 @@ class BotOfTheSpecter(commands.Bot):
                 return
             
         is_mod = is_mod_or_broadcaster(ctx.author)
-
-        # Fetch custom commands from the database
-        cursor.execute('SELECT command FROM custom_commands')
-        custom_commands = [row[0] for row in cursor.fetchall()]
-        
-        
-        # Construct the list of custom commands
-        custom_commands_list = ", ".join(sorted(f"!{command}" for command in custom_commands))
-    
-
-        # Construct the list of custom commands
-        custom_commands_list = ", ".join(sorted(f"!{command}" for command in custom_commands))
-    
         if is_mod:
             # If the user is a mod, include both custom_commands and builtin_commands
             all_commands = list(mod_commands) + list(builtin_commands)
@@ -3285,6 +3272,32 @@ def update_version_control():
     with open(file_path, "w") as file:
         file.write(VERSION)
 
+async def check_stream_online():
+    global stream_online
+    global current_game
+    
+    async with aiohttp.ClientSession() as session:
+        headers = {
+        'Client-ID': CLIENT_ID,
+        'Authorization': f'Bearer {CHANNEL_AUTH}'
+        }
+        params = {
+            'user_login': CHANNEL_NAME,
+            'type': 'live'
+        }
+        async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
+            data = await response.json()
+
+            # Check if the stream is offline
+            if not data.get('data'):
+                stream_online = False
+                current_game = None
+            else:
+                # Stream is online, extract the game name
+                stream_online = True
+                game = data['data'][0].get('game_name', None)
+                current_game = game
+
 # Here is the BOT
 bot = BotOfTheSpecter(
     token=OAUTH_TOKEN,
@@ -3312,7 +3325,10 @@ def start_bot():
 
     # Create Version Control for the website
     update_version_control()
-    
+
+    # If the bot is rebooted during a stream check stream online
+    check_stream_online()
+
     # Start the bot
     bot.run()
 
