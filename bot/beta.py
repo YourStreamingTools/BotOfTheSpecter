@@ -2465,6 +2465,7 @@ async def process_stream_online():
     global stream_online
     global current_game
     stream_online = True
+    bot_logger.info(f"Stream is now online!")
 
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
@@ -2494,7 +2495,7 @@ async def process_stream_offline():
     stream_online = False  # Update the stream status
     await clear_seen_today()
     await clear_credits_data()
-    twitch_logger.info("Stream is now offline.")
+    bot_logger.info(f"Stream is now offline.")
 
 # Function to send the online message to channel
 async def send_online_message(message):
