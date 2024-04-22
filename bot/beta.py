@@ -2433,33 +2433,6 @@ async def fetch_json(url, headers=None):
         api_logger.error(f"Error fetching data: {e}")
     return None
 
-# Function for checking updates
-async def check_auto_update():
-    while True:
-        REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(REMOTE_VERSION_URL) as response:
-                if response.status == 200:
-                    remote_version = await response.text()
-                    remote_version = remote_version.strip()
-                    if remote_version != VERSION:
-                        remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
-                        local_major, local_minor, local_patch = map(int, VERSION.split('.'))
-                        if remote_major > local_major or \
-                                (remote_major == local_major and remote_minor > local_minor) or \
-                                (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                            message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
-                        elif remote_patch > local_patch:
-                            message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
-                        else:
-                            # If versions are equal or local version is ahead
-                            return
-                        bot_logger.info(message)
-                        channel = bot.get_channel(CHANNEL_NAME)
-                        if channel:
-                            await channel.send(message)
-        await asyncio.sleep(1800)
-
 # Function to process the stream being online
 async def process_stream_online():
     global stream_online
@@ -3066,7 +3039,6 @@ async def event_command_error(error):
 def start_bot():
     # Schedule bot tasks
     asyncio.get_event_loop().create_task(refresh_token_every_day())
-    asyncio.get_event_loop().create_task(check_auto_update())
     asyncio.get_event_loop().create_task(twitch_eventsub())
     asyncio.get_event_loop().create_task(timed_message())
     
