@@ -3235,10 +3235,6 @@ async def handle_user_grouping(username, user_id):
     # Check if the user is the broadcaster
     if username == CHANNEL_NAME:
         return
-    
-    # Check if the user is a VIP
-    if is_user_vip(user_id):
-        group_names.append("VIP")
 
     # Check if the user is a subscriber
     subscription_tier = is_user_subscribed(user_id)
@@ -3250,6 +3246,10 @@ async def handle_user_grouping(username, user_id):
             group_names.append("Subscriber T2")
         elif subscription_tier == "Tier 3":
             group_names.append("Subscriber T3")
+
+    # Check if the user is a VIP
+    if is_user_vip(user_id):
+        group_names.append("VIP")
 
     # Assign user to groups
     for name in group_names:
