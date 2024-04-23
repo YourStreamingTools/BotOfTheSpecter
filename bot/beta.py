@@ -577,19 +577,8 @@ class BotOfTheSpecter(commands.Bot):
         # Handle commands
         await self.handle_commands(message)
 
-        # Additonal welcome message handling logic
-        await self.handle_welcome_message(message)
-        
         # Additional custom message handling logic
         await self.handle_chat(message)
-
-        # Process user group
-        messageAuthor = message.author.name
-        messageAuthorID = message.author.id
-        await handle_user_grouping(messageAuthor, messageAuthorID)
-
-        # Message Count from user
-        await update_user_message_count(message)
 
     # Function to handle chat messages
     async def handle_chat(self, message):
@@ -643,7 +632,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 pass
         else:
-            # If the message is not a command and does not come from a moderator or broadcaster, check for protection
             if 'http://' in message.content or 'https://' in message.content:
                 # Fetch url_blocking option from the protection table in the user's database
                 cursor.execute('SELECT url_blocking FROM protection')
@@ -697,7 +685,6 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"URL found in message from {message.author.name}, not deleted due to being whitelisted or a Twitch clip link.")
                 else:
                     chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
-
             profanity_probability = pf.calculate_probability(message.content)
             if profanity_probability > 0.5:
                 # Profanity detected, delete original message and notify user
@@ -722,55 +709,70 @@ class BotOfTheSpecter(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"Error translating message from {message.author.name}: {e}")
                     # await message.channel.send("An error occurred while translating the message.")
+            
+            # Get user info from the message
+            messageAuthor = message.author.name
+            messageAuthorID = message.author.id
+            # Check user level
+            is_vip = is_user_vip(messageAuthorID)
+            is_mod = is_user_moderator(messageAuthorID)
+            user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
+            # Insert into the database the number of chats during the stream
+            cursor.execute('''
+                    INSERT INTO message_counts (username, message_count, user_level)
+                    VALUES (?, 1, ?)
+                    ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
+                ''', (messageAuthor, user_level))
+            conn.commit()
+            # Process user group
+            await self.handle_user_grouping(messageAuthor, messageAuthorID)
+            # Welcome message handling logic
+            await self.handle_welcome_message(message, messageAuthor, messageAuthorID)
 
     # Function to handle welcome messages
-    async def handle_welcome_message(self, message):
+    async def handle_welcome_message(self, message, messageAuthor, messageAuthorID):
         global stream_online
         if not stream_online:
                 return
 
-        # Setup for welcome messages
-        user_trigger = message.author.name
-        user_trigger_id = message.author.id
-
         # Has the user been seen during this stream
-        cursor.execute('SELECT * FROM seen_today WHERE user_id = ?', (user_trigger_id,))
+        cursor.execute('SELECT * FROM seen_today WHERE user_id = ?', (messageAuthorID,))
         temp_seen_users = cursor.fetchone()
 
         # Check if the user is in the list of already seen users
         if temp_seen_users:
-            # twitch_logger.info(f"{user_trigger} has already had their welcome message.")
+            # twitch_logger.info(f"{messageAuthor} has already had their welcome message.")
             return
 
         # Check if the user is the broadcaster
-        if user_trigger.lower() == CHANNEL_NAME.lower():
+        if messageAuthor.lower() == CHANNEL_NAME.lower():
             # twitch_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
             return
 
         # Check if the user is a VIP or MOD
-        is_vip = is_user_vip(user_trigger_id)
-        # twitch_logger.info(f"{user_trigger} - VIP={is_vip}")
-        is_mod = is_user_moderator(user_trigger_id)
-        # twitch_logger.info(f"{user_trigger} - MOD={is_mod}")
+        is_vip = is_user_vip(messageAuthorID)
+        # twitch_logger.info(f"{messageAuthor} - VIP={is_vip}")
+        is_mod = is_user_moderator(messageAuthorID)
+        # twitch_logger.info(f"{messageAuthor} - MOD={is_mod}")
 
         # Check if the user is new or returning
-        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (user_trigger,))
+        cursor.execute('SELECT * FROM seen_users WHERE username = ?', (messageAuthor,))
         user_data = cursor.fetchone()
 
         if user_data:
             user_status = True
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
-            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (user_trigger_id,))
+            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (messageAuthorID,))
             conn.commit()
-            # twitch_logger.info(f"{user_trigger} has been found in the database.")
+            # twitch_logger.info(f"{messageAuthor} has been found in the database.")
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
-            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (user_trigger_id,))
+            cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (messageAuthorID,))
             conn.commit()
-            # twitch_logger.info(f"{user_trigger} has not been found in the database.")
+            # twitch_logger.info(f"{messageAuthor} has not been found in the database.")
 
         if user_status_enabled == 'True':
             if is_vip:
@@ -780,12 +782,12 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {user_trigger}!"
+                    vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {messageAuthor}!"
                     await message.channel.send(vip_welcome_message)
                 else:
                     # New user
-                    await user_is_seen(user_trigger)
-                    new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {user_trigger} a warm welcome!"
+                    await user_is_seen(messageAuthor)
+                    new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {messageAuthor} a warm welcome!"
                     await message.channel.send(new_vip_welcome_message)
             elif is_mod:
                 # Moderator user
@@ -794,12 +796,12 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    mod_welcome_message = f"MOD ON DUTY! Welcome in {user_trigger}. The power of the sword has increased!"
+                    mod_welcome_message = f"MOD ON DUTY! Welcome in {messageAuthor}. The power of the sword has increased!"
                     await message.channel.send(mod_welcome_message)
                 else:
                     # New user
-                    await user_is_seen(user_trigger)
-                    new_mod_welcome_message = f"MOD ON DUTY! Welcome in {user_trigger}. The power of the sword has increased! Let's give {user_trigger} a warm welcome!"
+                    await user_is_seen(messageAuthor)
+                    new_mod_welcome_message = f"MOD ON DUTY! Welcome in {messageAuthor}. The power of the sword has increased! Let's give {messageAuthor} a warm welcome!"
                     await message.channel.send(new_mod_welcome_message)
             else:
                 # Non-VIP and Non-mod user
@@ -808,16 +810,53 @@ class BotOfTheSpecter(commands.Bot):
                     await message.channel.send(welcome_message)
                 elif user_status:
                     # Returning user
-                    welcome_back_message = f"Welcome back {user_trigger}, glad to see you again!"
+                    welcome_back_message = f"Welcome back {messageAuthor}, glad to see you again!"
                     await message.channel.send(welcome_back_message)
                 else:
                     # New user
-                    await user_is_seen(user_trigger)
-                    new_user_welcome_message = f"{user_trigger} is new to the community, let's give them a warm welcome!"
+                    await user_is_seen(messageAuthor)
+                    new_user_welcome_message = f"{messageAuthor} is new to the community, let's give them a warm welcome!"
                     await message.channel.send(new_user_welcome_message)
         else:
             # Status disabled for user
-            chat_logger.info(f"Message not sent for {user_trigger} as status is disabled.")
+            chat_logger.info(f"Message not sent for {messageAuthor} as status is disabled.")
+    
+    # Function to handle user grouping
+    async def handle_user_grouping(self, username, user_id):
+        group_names = []
+
+        # Check if the user is the broadcaster
+        if username == CHANNEL_NAME:
+            return
+
+        # Check if the user is a subscriber
+        subscription_tier = is_user_subscribed(user_id)
+        if subscription_tier:
+            # Map subscription tier to group name
+            if subscription_tier == "Tier 1":
+                group_names.append("Subscriber T1")
+            elif subscription_tier == "Tier 2":
+                group_names.append("Subscriber T2")
+            elif subscription_tier == "Tier 3":
+                group_names.append("Subscriber T3")
+
+        # Check if the user is a VIP
+        if is_user_vip(user_id):
+            group_names.append("VIP")
+
+        # Assign user to groups
+        for name in group_names:
+            cursor.execute("SELECT * FROM groups WHERE name=?", (name,))
+            group = cursor.fetchone()
+            if group:
+                try:
+                    cursor.execute("INSERT OR REPLACE INTO everyone (username, group_name) VALUES (?, ?)", (username, name))
+                    conn.commit()
+                    bot_logger.info(f"User '{username}' assigned to group '{name}' successfully.")
+                except sqlite3.IntegrityError:
+                    bot_logger.error(f"Failed to assign user '{username}' to group '{name}'.")
+            else:
+                bot_logger.error(f"Group '{name}' does not exist.")
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
@@ -3175,23 +3214,6 @@ async def process_followers_event(user_id, user_name, followed_at):
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
 
-# Function to update the number of messages a user has sent within the stream
-async def update_user_message_count(message):
-    # Get user info from the message
-    user = message.author.name
-    user_id = message.author.id
-    # Check user level
-    is_vip = is_user_vip(user_id)
-    is_mod = is_user_moderator(user_id)
-    user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
-    # Insert into the database the number of chats during the stream
-    cursor.execute('''
-            INSERT INTO message_counts (username, message_count, user_level)
-            VALUES (?, 1, ?)
-            ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
-        ''', (user, user_level))
-    conn.commit()
-
 # Function to create a new group if it doesn't exist
 def group_creation():
     group_names = ["VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
@@ -3219,43 +3241,6 @@ def builtin_commands_creation():
                 bot_logger.info(f"Command '{command}' added to database successfully.")
     except sqlite3.Error as e:
         bot_logger.error(f"Error:", e)
-
-# Function to handle user grouping
-async def handle_user_grouping(username, user_id):
-    group_names = []
-    
-    # Check if the user is the broadcaster
-    if username == CHANNEL_NAME:
-        return
-
-    # Check if the user is a subscriber
-    subscription_tier = is_user_subscribed(user_id)
-    if subscription_tier:
-        # Map subscription tier to group name
-        if subscription_tier == "Tier 1":
-            group_names.append("Subscriber T1")
-        elif subscription_tier == "Tier 2":
-            group_names.append("Subscriber T2")
-        elif subscription_tier == "Tier 3":
-            group_names.append("Subscriber T3")
-
-    # Check if the user is a VIP
-    if is_user_vip(user_id):
-        group_names.append("VIP")
-
-    # Assign user to groups
-    for name in group_names:
-        cursor.execute("SELECT * FROM groups WHERE name=?", (name,))
-        group = cursor.fetchone()
-        if group:
-            try:
-                cursor.execute("INSERT OR REPLACE INTO everyone (username, group_name) VALUES (?, ?)", (username, name))
-                conn.commit()
-                bot_logger.info(f"User '{username}' assigned to group '{name}' successfully.")
-            except sqlite3.IntegrityError:
-                bot_logger.error(f"Failed to assign user '{username}' to group '{name}'.")
-        else:
-            bot_logger.error(f"Group '{name}' does not exist.")
 
 # Function to tell the website what version of the bot is currently running
 def update_version_control():
