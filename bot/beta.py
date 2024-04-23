@@ -436,14 +436,14 @@ async def receive_messages(websocket, keepalive_timeout):
         try:
             message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
-            bot_logger.info(f"Received message: {message}")
+            # bot_logger.info(f"Received message: {message}")
 
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
                     bot_logger.info("Received session keepalive message")
                 else:
-                    bot_logger.info(f"Received message type: {message_type}")
+                    # bot_logger.info(f"Received message type: {message_type}")
                     await process_eventsub_message(message_data)
             else:
                 bot_logger.error("Received unrecognized message format")
@@ -584,15 +584,19 @@ class BotOfTheSpecter(commands.Bot):
     async def handle_chat(self, message):
         # Get message content to check if the message is a custom command
         message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
+        messageAuthor = message.author.name
+        messageAuthorID = message.author.id
+        AuthorMessage = message.content
+
         if message_content.startswith('!'):
             command_parts = message_content.split()
             command = command_parts[0][1:]  # Extract the command without '!'
 
             # Log all command usage
-            chat_logger.info(f"{message.author.name} used the command: {command}")
+            chat_logger.info(f"{messageAuthor} used the command: {command}")
 
             if command in builtin_commands or command in builtin_aliases:
-                chat_logger.info(f"{message.author.name} used a built-in command called: {command}")
+                chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                 return  # It's a built-in command or alias, do nothing more
 
             # Check if the command exists in a hypothetical database and respond
@@ -632,7 +636,7 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 pass
         else:
-            if 'http://' in message.content or 'https://' in message.content:
+            if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                 # Fetch url_blocking option from the protection table in the user's database
                 cursor.execute('SELECT url_blocking FROM protection')
                 result = cursor.fetchone()
@@ -645,11 +649,11 @@ class BotOfTheSpecter(commands.Bot):
                 # Check if url_blocking is enabled
                 if url_blocking:
                     # Check if the user is permitted to post links
-                    if message.author.name in permitted_users and time.time() < permitted_users[message.author.name]:
+                    if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
                         # User is permitted, skip URL blocking
                         return
 
-                    if is_mod_or_broadcaster(message.author.name):
+                    if is_mod_or_broadcaster(messageAuthor):
                         # User is a mod or is the broadcaster, they are by default permitted.
                         return
 
@@ -663,59 +667,77 @@ class BotOfTheSpecter(commands.Bot):
                     blacklisted_links = [link[0] for link in blacklisted_links]
 
                     # Check if the message content contains any whitelisted or blacklisted link
-                    contains_whitelisted_link = any(link in message.content for link in whitelisted_links)
-                    contains_blacklisted_link = any(link in message.content for link in blacklisted_links)
+                    contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
+                    contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
 
                     # Check if the message content contains a Twitch clip link
-                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in message.content
+                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
 
                     if contains_blacklisted_link:
                         # Delete the message if it contains a blacklisted URL
                         await message.delete()
-                        chat_logger.info(f"Deleted message from {message.author.name} containing a blacklisted URL: {message.content}")
+                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
                         await message.channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
                         return  # Stop further processing
                     elif not contains_whitelisted_link and not contains_twitch_clip_link:
                         # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
                         await message.delete()
-                        chat_logger.info(f"Deleted message from {message.author.name} containing a URL: {message.content}")
+                        chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
                         # Notify the user not to post links without permission
-                        await message.channel.send(f"{message.author.name}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
+                        await message.channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
                     else:
-                        chat_logger.info(f"URL found in message from {message.author.name}, not deleted due to being whitelisted or a Twitch clip link.")
+                        chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
                 else:
-                    chat_logger.info(f"URL found in message from {message.author.name}, but URL blocking is disabled.")
-            profanity_probability = pf.calculate_probability(message.content)
+                    chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
+
+            profanity_probability = pf.calculate_probability(AuthorMessage)
             if profanity_probability > 0.5:
-                # Profanity detected, delete original message and notify user
-                await message.delete()
-                await message.channel.send(f"{message.author.name}'s message contained profanity. Please refrain from using profane language.")
-                return
+                cursor.execute('SELECT profanity FROM protection')
+                result = cursor.fetchone()
+                if result:
+                    profanityfilter = bool(result[0])
+                else:
+                    # If url_blocking not found in the database, default to False
+                    profanityfilter = False
+                
+                if profanityfilter:
+                    bot_logger.info(f"Profantiy found in message from {messageAuthor} - Probability: {profanity_probability}")
+                    # Profanity detected, delete original message and notify user
+                    await message.delete()
+                    await message.channel.send(f"{messageAuthor}'s message contained profanity. Please refrain from using profane language.")
+                    return
+                else:
+                    chat_logger.info(f"Profanity found in message from {messageAuthor}, but the filter is disabled.")
 
             # Function for translating chat messages.
-            detected_lang = translator.detect(message.content)
+            detected_lang = translator.detect(AuthorMessage)
             source_lang = detected_lang.lang if detected_lang else None
             if source_lang != 'en':
                 try:
                     # Translate the message to English
-                    translated_message = translator.translate(message.content, dest='en').text
+                    translated_message = translator.translate(AuthorMessage, dest='en').text
 
                     # Log the translation
-                    chat_logger.info(f'Translated message from {message.author.name}: {source_lang} - "{message.content}" to: "{translated_message}"')
+                    chat_logger.info(f'Translated message from {messageAuthor}: {source_lang} - "{AuthorMessage}" to: "{translated_message}"')
 
                     # Send the translated message to the chat channel
-                    send_message = f'Translated message from {message.author.name}: "{translated_message}"'
+                    send_message = f'Translated message from {messageAuthor}: "{translated_message}"'
                     await message.channel.send(send_message)
                 except Exception as e:
-                    chat_logger.error(f"Error translating message from {message.author.name}: {e}")
+                    chat_logger.error(f"Error translating message from {messageAuthor}: {e}")
                     # await message.channel.send("An error occurred while translating the message.")
+            
             
             # Get user info from the message
             messageAuthor = message.author.name
             messageAuthorID = message.author.id
+
+            # Get user info from the message
+            messageAuthor = message.author.name
+            messageAuthorID = message.author.id
             # Check user level
-            is_vip = is_user_vip(messageAuthorID)
-            is_mod = is_user_moderator(messageAuthorID)
+            is_vip = await is_user_vip(messageAuthorID)
+            is_mod = await is_user_moderator(messageAuthorID)
             user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
             # Insert into the database the number of chats during the stream
             cursor.execute('''
