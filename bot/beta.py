@@ -726,15 +726,7 @@ class BotOfTheSpecter(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"Error translating message from {messageAuthor}: {e}")
                     # await message.channel.send("An error occurred while translating the message.")
-            
-            
-            # Get user info from the message
-            messageAuthor = message.author.name
-            messageAuthorID = message.author.id
 
-            # Get user info from the message
-            messageAuthor = message.author.name
-            messageAuthorID = message.author.id
             # Check user level
             is_vip = await is_user_vip(messageAuthorID)
             is_mod = await is_user_moderator(messageAuthorID)
