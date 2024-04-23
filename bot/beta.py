@@ -286,7 +286,6 @@ conn.commit()
 translator = Translator(service_urls=['translate.google.com'])
 shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
-pf = ProfanityFilter()
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
@@ -583,13 +582,14 @@ class BotOfTheSpecter(commands.Bot):
     # Function to handle chat messages
     async def handle_chat(self, message):
         # Get message content to check if the message is a custom command
-        message_content = message.content.strip().lower()  # Lowercase for case-insensitive match
+        messageContent = message.content.strip().lower()
         messageAuthor = message.author.name
         messageAuthorID = message.author.id
         AuthorMessage = message.content
+        profanity_probability = ProfanityFilter.calculate_probability(messageContent)
 
-        if message_content.startswith('!'):
-            command_parts = message_content.split()
+        if messageContent.startswith('!'):
+            command_parts = messageContent.split()
             command = command_parts[0][1:]  # Extract the command without '!'
 
             # Log all command usage
@@ -685,29 +685,30 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
                         # Notify the user not to post links without permission
                         await message.channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
+                        return  # Stop further processing
                     else:
                         chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
                 else:
                     chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
-
-            profanity_probability = pf.calculate_probability(AuthorMessage)
             if profanity_probability > 0.5:
                 cursor.execute('SELECT profanity FROM protection')
                 result = cursor.fetchone()
                 if result:
                     profanityfilter = bool(result[0])
                 else:
-                    # If url_blocking not found in the database, default to False
+                    # If profanity not found in the database, default to False
                     profanityfilter = False
-                
+
                 if profanityfilter:
-                    bot_logger.info(f"Profantiy found in message from {messageAuthor} - Probability: {profanity_probability}")
+                    bot_logger.info(f"Profanity found in message from {messageAuthor} - Probability: {profanity_probability}")
                     # Profanity detected, delete original message and notify user
                     await message.delete()
                     await message.channel.send(f"{messageAuthor}'s message contained profanity. Please refrain from using profane language.")
                     return
                 else:
                     chat_logger.info(f"Profanity found in message from {messageAuthor}, but the filter is disabled.")
+            else:
+                bot_logger.info(f"No profanity detected in message from {messageAuthor} - Probability: {profanity_probability}")
 
             # Function for translating chat messages.
             detected_lang = translator.detect(AuthorMessage)
@@ -755,19 +756,19 @@ class BotOfTheSpecter(commands.Bot):
 
         # Check if the user is in the list of already seen users
         if temp_seen_users:
-            # twitch_logger.info(f"{messageAuthor} has already had their welcome message.")
+            bot_logger.info(f"{messageAuthor} has already had their welcome message.")
             return
 
         # Check if the user is the broadcaster
         if messageAuthor.lower() == CHANNEL_NAME.lower():
-            # twitch_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
+            bot_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
             return
 
         # Check if the user is a VIP or MOD
         is_vip = is_user_vip(messageAuthorID)
-        # twitch_logger.info(f"{messageAuthor} - VIP={is_vip}")
+        bot_logger.info(f"{messageAuthor} - VIP={is_vip}")
         is_mod = is_user_moderator(messageAuthorID)
-        # twitch_logger.info(f"{messageAuthor} - MOD={is_mod}")
+        bot_logger.info(f"{messageAuthor} - MOD={is_mod}")
 
         # Check if the user is new or returning
         cursor.execute('SELECT * FROM seen_users WHERE username = ?', (messageAuthor,))
