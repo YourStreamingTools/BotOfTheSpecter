@@ -213,6 +213,7 @@ cursor.execute('''
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         raider_name TEXT,
         viewers INTEGER,
+        raid_count INTEGER,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 ''')
@@ -396,8 +397,7 @@ async def subscribe_to_events(session_id):
         "Content-Type": "application/json"
     }
 
-    topics = [
-        "channel.follow",
+    v1topics = [
         "channel.subscribe",
         "channel.subscription.gift",
         "channel.subscription.message",
@@ -405,29 +405,79 @@ async def subscribe_to_events(session_id):
         "channel.raid",
         "channel.hype_train.begin",
         "channel.hype_train.end",
-        "channel.update",
         "stream.online",
         "stream.offline"
     ]
 
+    v2topics = [
+        "channel.follow",
+        "channel.update",
+    ]
+
     responses = []
     async with aiohttp.ClientSession() as session:
-        for topic in topics:
-            payload = {
-                "type": topic,
-                "version": "1",
-                "condition": {
-                    "broadcaster_user_id": CHANNEL_ID
-                },
-                "transport": {
-                    "method": "websocket",
-                    "session_id": session_id
+        for v1topic in v1topics:
+            if v1topic == "channel.raid":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "to_broadcaster_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
                 }
-            }
+            else:
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    bot_logger.info(f"WebSocket subscription successful for {topic}")
+                    bot_logger.info(f"WebSocket subscription successful for {v1topic}")
+                    responses.append(await response.json())
+
+    async with aiohttp.ClientSession() as session:
+        for v2topic in v2topics:
+            if v2topic == "channel.follow":
+                payload = {
+                    "type": v2topic,
+                    "version": "2",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            else:
+                payload = {
+                    "type": v2topic,
+                    "version": "2",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            # asynchronous POST request
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status in (200, 202):
+                    bot_logger.info(f"WebSocket subscription successful for {v2topic}")
                     responses.append(await response.json())
 
 async def receive_messages(websocket, keepalive_timeout):
@@ -470,7 +520,6 @@ async def process_eventsub_message(message):
         # Process based on event type directly (no need to decode further)
         if event_type:
             if event_type == "channel.follow":
-                bot_logger.info(f"Follower Event Data: {event_data}")
                 await process_followers_event(
                     event_data["user_id"],
                     event_data["user_name"],
@@ -478,27 +527,48 @@ async def process_eventsub_message(message):
                 )
             elif event_type == "channel.subscribe":
                 bot_logger.info(f"Subsctiption Event Data: {event_data}")
+                tier_mapping = {
+                    "1000": "Tier 1",
+                    "2000": "Tier 2",
+                    "3000": "Tier 3"
+                }
+                tier = event_data["tier"]
+                tier_name = tier_mapping.get(tier, tier)
                 await process_subscription_event(
                     event_data["user_id"],
                     event_data["user_name"],
-                    event_data["tier"],
+                    tier_name,
                     event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.message":
                 bot_logger.info(f"Subsctiption (Message) Event Data: {event_data}")
+                tier_mapping = {
+                    "1000": "Tier 1",
+                    "2000": "Tier 2",
+                    "3000": "Tier 3"
+                }
+                tier = event_data["tier"]
+                tier_name = tier_mapping.get(tier, tier)
                 await process_subscription_message_event(
                     event_data["user_id"],
                     event_data["user_name"],
-                    event_data["tier"],
-                    event_data.get("message", {}).get("text", ""),
+                    tier_name,
+                    event_data("message"),
                     event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.gift":
                 bot_logger.info(f"Gift Subsctiption Event Data: {event_data}")
+                tier_mapping = {
+                    "1000": "Tier 1",
+                    "2000": "Tier 2",
+                    "3000": "Tier 3"
+                }
+                tier = event_data["tier"]
+                tier_name = tier_mapping.get(tier, tier)
                 await process_giftsub_event(
                     event_data["user_id"],
                     event_data["user_name"],
-                    event_data["tier"],
+                    tier_name,
                     event_data.get("cumulative_total", 1),
                     event_data["total"],
                     event_data.get("is_anonymous", False)
@@ -541,6 +611,7 @@ async def process_eventsub_message(message):
                 category_name = event_data["category_name"]
                 stream_title = title
                 current_game = category_name
+                bot_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
@@ -3021,21 +3092,25 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
     # Check if the raiding broadcaster exists in the database
     cursor.execute('SELECT raid_count FROM raid_data WHERE broadcaster_user_id = ?', (from_broadcaster_id,))
     existing_raid_count = cursor.fetchone()
+    cursor.execute('SELECT viewers FROM raid_data WHERE broadcaster_user_id = ?', (from_broadcaster_id,))
+    existing_viewer_count = cursor.fetchone()
 
     if existing_raid_count:
         # Update the raid count for the raiding broadcaster
         raid_count = existing_raid_count[0] + 1
+        viewers = existing_viewer_count[0] + viewer_count
         cursor.execute('''
-            UPDATE raid_data
-            SET raid_count = ?
-            WHERE broadcaster_user_id = ?
+            UPDATE raid_data SET raid_count = ? WHERE broadcaster_user_id = ?
         ''', (raid_count, from_broadcaster_id))
+        cursor.execute('''
+            UPDATE raid_data SET viewers = ? WHERE broadcaster_user_id = ?
+        ''', (viewers, from_broadcaster_id))
     else:
         # Insert a new record for the raiding broadcaster
         cursor.execute('''
-            INSERT INTO raid_data (broadcaster_user_id, broadcaster_user_name, raid_count)
+            INSERT INTO raid_data (broadcaster_user_id, broadcaster_user_name, raid_count, viewers)
             VALUES (?, ?, ?)
-        ''', (from_broadcaster_id, from_broadcaster_name, 1))
+        ''', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
 
     # Insert data into stream_credits table
     cursor.execute('''
@@ -3164,13 +3239,17 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
     cursor.execute('''
         INSERT INTO stream_credits (username, event, data)
         VALUES (?, ?, ?)
-    ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months. Message: {subscriber_message}"))
+    ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months."))
 
     # Commit changes to the database
     conn.commit()
 
-    # Construct the message to be sent to the channel, including the subscriber's message
-    message = f"Thank you {user_name} for subscribing at Tier {int(sub_plan)/1000}! Your message: '{subscriber_message}'"
+    if subscriber_message.strip():
+        # Construct the message to be sent to the channel, including the subscriber's message
+        message = f"Thank you {user_name} for subscribing at {sub_plan}! Your message: '{subscriber_message}'"
+    else:
+        # Construct the message to be sent to the channel, including the subscriber's message
+        message = f"Thank you {user_name} for subscribing at {sub_plan}!"
 
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
