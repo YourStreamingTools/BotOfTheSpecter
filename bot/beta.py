@@ -248,7 +248,7 @@ cursor.execute('''
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timezone TEXT DEFAULT NULL,
         weather_location TEXT DEFAULT NULL,
-        discord_alret TEXT DEFAULT NULL,
+        discord_alert TEXT DEFAULT NULL,
         discord_mod TEXT DEFAULT NULL
     )
 ''')
@@ -3343,7 +3343,7 @@ async def process_followers_event(user_id, user_name, followed_at):
 
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
-    cursor.execute("SELECT discord_alret FROM profile")
+    cursor.execute("SELECT discord_alert FROM profile")
     discord_url = cursor.fetchone()
 
     cursor.execute("SELECT timezone FROM profile")
