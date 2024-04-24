@@ -19,7 +19,6 @@ import requests
 import sqlite3
 from translate import Translator
 from googletrans import Translator, LANGUAGES
-from profanityfilter import ProfanityFilter
 from twitchio.ext import commands
 import streamlink
 import pyowm
@@ -646,6 +645,11 @@ class BotOfTheSpecter(commands.Bot):
         if message.echo:
             return
 
+
+        # Log the message content
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+
+        
         # Log the message content
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
 
@@ -653,26 +657,19 @@ class BotOfTheSpecter(commands.Bot):
         if message.author is None:
             bot_logger.error("Received a message without a valid author.")
             return
-        
-        # Handle commands
-        await self.handle_commands(message)
 
-        # Additional custom message handling logic
-        await self.handle_chat(message)
+        # Log the message content
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
 
-    # Function to handle chat messages
-    async def handle_chat(self, message):
         # Get message content to check if the message is a custom command
         messageContent = message.content.strip().lower()
         messageAuthor = message.author.name
         messageAuthorID = message.author.id
         AuthorMessage = message.content
-        profanity_probability = ProfanityFilter.calculate_probability(messageContent)
+        group_names = []
 
-        # Process user group
-        await self.handle_user_grouping(messageAuthor, messageAuthorID)
-        # Welcome message handling logic
-        await self.handle_welcome_message(message, messageAuthor, messageAuthorID)
+        # Handle commands
+        await self.handle_commands(message)
 
         if messageContent.startswith('!'):
             command_parts = messageContent.split()
@@ -722,116 +719,99 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 pass
         else:
-            if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
-                # Fetch url_blocking option from the protection table in the user's database
-                cursor.execute('SELECT url_blocking FROM protection')
-                result = cursor.fetchone()
-                if result:
-                    url_blocking = bool(result[0])
-                else:
-                    # If url_blocking not found in the database, default to False
-                    url_blocking = False
-
-                # Check if url_blocking is enabled
-                if url_blocking:
-                    # Check if the user is permitted to post links
-                    if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
-                        # User is permitted, skip URL blocking
-                        return
-
-                    if is_mod_or_broadcaster(messageAuthor):
-                        # User is a mod or is the broadcaster, they are by default permitted.
-                        return
-
-                    # Fetch link whitelist from the database
-                    cursor.execute('SELECT link FROM link_whitelist')
-                    whitelisted_links = cursor.fetchall()
-                    whitelisted_links = [link[0] for link in whitelisted_links]
-
-                    cursor.execute('SELECT link FROM link_blacklisting')
-                    blacklisted_links = cursor.fetchall()
-                    blacklisted_links = [link[0] for link in blacklisted_links]
-
-                    # Check if the message content contains any whitelisted or blacklisted link
-                    contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
-                    contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
-
-                    # Check if the message content contains a Twitch clip link
-                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
-
-                    if contains_blacklisted_link:
-                        # Delete the message if it contains a blacklisted URL
-                        await message.delete()
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                        await message.channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
-                        return  # Stop further processing
-                    elif not contains_whitelisted_link and not contains_twitch_clip_link:
-                        # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
-                        await message.delete()
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                        # Notify the user not to post links without permission
-                        await message.channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
-                        return  # Stop further processing
-                    else:
-                        chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
-                else:
-                    chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
-            if profanity_probability > 0.5:
-                cursor.execute('SELECT profanity FROM protection')
-                result = cursor.fetchone()
-                if result:
-                    profanityfilter = bool(result[0])
-                else:
-                    # If profanity not found in the database, default to False
-                    profanityfilter = False
-
-                if profanityfilter:
-                    bot_logger.info(f"Profanity found in message from {messageAuthor} - Probability: {profanity_probability}")
-                    # Profanity detected, delete original message and notify user
-                    await message.delete()
-                    await message.channel.send(f"{messageAuthor}'s message contained profanity. Please refrain from using profane language.")
-                    return
-                else:
-                    chat_logger.info(f"Profanity found in message from {messageAuthor}, but the filter is disabled.")
+            pass
+        
+        bot_logger.info(f"Before URL")
+        if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
+            # Fetch url_blocking option from the protection table in the user's database
+            cursor.execute('SELECT url_blocking FROM protection')
+            result = cursor.fetchone()
+            if result:
+                url_blocking = bool(result[0])
             else:
-                bot_logger.info(f"No profanity detected in message from {messageAuthor} - Probability: {profanity_probability}")
+                # If url_blocking not found in the database, default to False
+                url_blocking = False
 
-            # Function for translating chat messages.
-            detected_lang = translator.detect(AuthorMessage)
-            source_lang = detected_lang.lang if detected_lang else None
-            if source_lang != 'en':
-                try:
-                    # Translate the message to English
-                    translated_message = translator.translate(AuthorMessage, dest='en').text
+            # Check if url_blocking is enabled
+            if url_blocking:
+                # Check if the user is permitted to post links
+                if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
+                    # User is permitted, skip URL blocking
+                    return
 
-                    # Log the translation
-                    chat_logger.info(f'Translated message from {messageAuthor}: {source_lang} - "{AuthorMessage}" to: "{translated_message}"')
+                if is_mod_or_broadcaster(messageAuthor):
+                    # User is a mod or is the broadcaster, they are by default permitted.
+                    return
 
-                    # Send the translated message to the chat channel
-                    send_message = f'Translated message from {messageAuthor}: "{translated_message}"'
-                    await message.channel.send(send_message)
-                except Exception as e:
-                    chat_logger.error(f"Error translating message from {messageAuthor}: {e}")
-                    # await message.channel.send("An error occurred while translating the message.")
+                # Fetch link whitelist from the database
+                cursor.execute('SELECT link FROM link_whitelist')
+                whitelisted_links = cursor.fetchall()
+                whitelisted_links = [link[0] for link in whitelisted_links]
 
-            # Check user level
-            is_vip = is_user_vip(messageAuthorID)
-            is_mod = is_user_moderator(messageAuthorID)
-            user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
-            # Insert into the database the number of chats during the stream
-            cursor.execute('''
-                    INSERT INTO message_counts (username, message_count, user_level)
-                    VALUES (?, 1, ?)
-                    ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
-                ''', (messageAuthor, user_level))
-            conn.commit()
+                cursor.execute('SELECT link FROM link_blacklisting')
+                blacklisted_links = cursor.fetchall()
+                blacklisted_links = [link[0] for link in blacklisted_links]
 
-    # Function to handle welcome messages
-    async def handle_welcome_message(self, message, messageAuthor, messageAuthorID):
-        global stream_online
-        if not stream_online:
-                return
+                # Check if the message content contains any whitelisted or blacklisted link
+                contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
+                contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
 
+                # Check if the message content contains a Twitch clip link
+                contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+
+                if contains_blacklisted_link:
+                    # Delete the message if it contains a blacklisted URL
+                    await message.delete()
+                    chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                    await message.channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
+                    return  # Stop further processing
+                elif not contains_whitelisted_link and not contains_twitch_clip_link:
+                    # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
+                    await message.delete()
+                    chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
+                    # Notify the user not to post links without permission
+                    await message.channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
+                    return  # Stop further processing
+                else:
+                    chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
+            else:
+                chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
+        else:
+            pass
+        bot_logger.info(f"After URL, Before Translate")
+        # Function for translating chat messages.
+        detected_lang = translator.detect(AuthorMessage)
+        source_lang = detected_lang.lang if detected_lang else None
+        if source_lang != 'en':
+            try:
+                # Translate the message to English
+                translated_message = translator.translate(AuthorMessage, dest='en').text
+
+                # Log the translation
+                chat_logger.info(f'Translated message from {messageAuthor}: {source_lang} - "{AuthorMessage}" to: "{translated_message}"')
+
+                # Send the translated message to the chat channel
+                send_message = f'Translated message from {messageAuthor}: "{translated_message}"'
+                await message.channel.send(send_message)
+            except Exception as e:
+                chat_logger.error(f"Error translating message from {messageAuthor}: {e}")
+                # await message.channel.send("An error occurred while translating the message.")
+        bot_logger.info(f"After Translate, before User Level")
+        # Check user level
+        is_vip = is_user_vip(messageAuthorID)
+        bot_logger.info(f"User VIP? {is_vip}")
+        is_mod = is_user_moderator(messageAuthorID)
+        bot_logger.info(f"User Mod? {is_mod}")
+        user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
+        bot_logger.info(f"User Level: {user_level}")
+        # Insert into the database the number of chats during the stream
+        cursor.execute('''
+                INSERT INTO message_counts (username, message_count, user_level)
+                VALUES (?, 1, ?)
+                ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
+            ''', (messageAuthor, user_level))
+        conn.commit()
+        bot_logger.info(f"After User Level, before Seen today")
         # Has the user been seen during this stream
         cursor.execute('SELECT * FROM seen_today WHERE user_id = ?', (messageAuthorID,))
         temp_seen_users = cursor.fetchone()
@@ -917,17 +897,13 @@ class BotOfTheSpecter(commands.Bot):
         else:
             # Status disabled for user
             chat_logger.info(f"Message not sent for {messageAuthor} as status is disabled.")
-    
-    # Function to handle user grouping
-    async def handle_user_grouping(self, username, user_id):
-        group_names = []
 
         # Check if the user is the broadcaster
-        if username == CHANNEL_NAME:
+        if messageAuthor == CHANNEL_NAME:
             return
 
         # Check if the user is a subscriber
-        subscription_tier = is_user_subscribed(user_id)
+        subscription_tier = is_user_subscribed(messageAuthorID)
         if subscription_tier:
             # Map subscription tier to group name
             if subscription_tier == "Tier 1":
@@ -938,7 +914,7 @@ class BotOfTheSpecter(commands.Bot):
                 group_names.append("Subscriber T3")
 
         # Check if the user is a VIP
-        if is_user_vip(user_id):
+        if is_user_vip(messageAuthorID):
             group_names.append("VIP")
 
         # Assign user to groups
@@ -947,11 +923,11 @@ class BotOfTheSpecter(commands.Bot):
             group = cursor.fetchone()
             if group:
                 try:
-                    cursor.execute("INSERT OR REPLACE INTO everyone (username, group_name) VALUES (?, ?)", (username, name))
+                    cursor.execute("INSERT OR REPLACE INTO everyone (username, group_name) VALUES (?, ?)", (messageAuthor, name))
                     conn.commit()
-                    bot_logger.info(f"User '{username}' assigned to group '{name}' successfully.")
+                    bot_logger.info(f"User '{messageAuthor}' assigned to group '{name}' successfully.")
                 except sqlite3.IntegrityError:
-                    bot_logger.error(f"Failed to assign user '{username}' to group '{name}'.")
+                    bot_logger.error(f"Failed to assign user '{messageAuthor}' to group '{name}'.")
             else:
                 bot_logger.error(f"Group '{name}' does not exist.")
 
