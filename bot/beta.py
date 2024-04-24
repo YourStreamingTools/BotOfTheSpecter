@@ -247,7 +247,9 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS profile (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timezone TEXT DEFAULT NULL,
-        weather_location TEXT DEFAULT NULL
+        weather_location TEXT DEFAULT NULL,
+        discord_alret TEXT DEFAULT NULL,
+        discord_mod TEXT DEFAULT NULL
     )
 ''')
 cursor.execute('''
@@ -526,7 +528,6 @@ async def process_eventsub_message(message):
                     event_data["followed_at"]
                 )
             elif event_type == "channel.subscribe":
-                bot_logger.info(f"Subsctiption Event Data: {event_data}")
                 tier_mapping = {
                     "1000": "Tier 1",
                     "2000": "Tier 2",
@@ -569,12 +570,10 @@ async def process_eventsub_message(message):
                     event_data["user_id"],
                     event_data["user_name"],
                     tier_name,
-                    event_data.get("cumulative_total", 1),
                     event_data["total"],
                     event_data.get("is_anonymous", False)
                 )
             elif event_type == "channel.cheer":
-                bot_logger.info(f"Bits Event Data: {event_data}")
                 await process_cheer_event(
                     event_data["user_id"],
                     event_data["user_name"],
@@ -600,7 +599,8 @@ async def process_eventsub_message(message):
                 for contribution in top_contributions:
                     user_name = contribution["user_name"]
                     contribution_type = contribution["type"]
-                    total = contribution["total"]
+                    total_formatted = "{:,}".format(contribution["total"])
+                    total = total_formatted
                     message += f"\n{user_name} contributed {total} {contribution_type}."
                 # Send the message to the chat
                 await channel.send(message)
@@ -667,6 +667,11 @@ class BotOfTheSpecter(commands.Bot):
         messageAuthorID = message.author.id
         AuthorMessage = message.content
         profanity_probability = ProfanityFilter.calculate_probability(messageContent)
+
+        # Process user group
+        await self.handle_user_grouping(messageAuthor, messageAuthorID)
+        # Welcome message handling logic
+        await self.handle_welcome_message(message, messageAuthor, messageAuthorID)
 
         if messageContent.startswith('!'):
             command_parts = messageContent.split()
@@ -819,10 +824,6 @@ class BotOfTheSpecter(commands.Bot):
                     ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
                 ''', (messageAuthor, user_level))
             conn.commit()
-            # Process user group
-            await self.handle_user_grouping(messageAuthor, messageAuthorID)
-            # Welcome message handling logic
-            await self.handle_welcome_message(message, messageAuthor, messageAuthorID)
 
     # Function to handle welcome messages
     async def handle_welcome_message(self, message, messageAuthor, messageAuthorID):
@@ -3121,6 +3122,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
     # Commit changes to the database
     conn.commit()
 
+    discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
+    await send_to_discord(discord_message, "New Raid!", "raid.png")
     # Send a message to the channel about the raid
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(f"Wow! {from_broadcaster_name} is raiding with {viewer_count} viewers!")
@@ -3150,6 +3153,15 @@ async def process_cheer_event(user_id, user_name, bits):
             VALUES (?, ?, ?)
         ''', (user_id, user_name, bits))
         
+        discord_message = f"{user_name} just cheered {bits} bits!"
+        if bits < 100:
+            image = "cheer.png"
+        elif 100 <= bits < 1000:
+            image = "cheer100.png"
+        else:
+            image = "cheer1000.png"
+
+        await send_to_discord(discord_message, "New Cheer!", image)
         # Send message to channel without total bits
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(f"Thank you {user_name} for {bits} bits!")
@@ -3201,7 +3213,8 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
 
     # Construct the message to be sent to the channel & send the message to the channel
     message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
-    
+    discord_message = f"{user_name} just subscribed at {sub_plan}!"
+    await send_to_discord(discord_message, "New Subscriber!", "sub.png")
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
@@ -3251,11 +3264,14 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
         # Construct the message to be sent to the channel, including the subscriber's message
         message = f"Thank you {user_name} for subscribing at {sub_plan}!"
 
+    discord_message = f"{user_name} just subscribed at {sub_plan}!"
+    await send_to_discord(discord_message, "New Subscriber!", "sub.png")
+
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
 
-async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan, months, user_name):
+async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan, user_name, anonymous):
     # Check if the recipient user exists in the database
     cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
     existing_months = cursor.fetchone()
@@ -3264,7 +3280,7 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
         # Recipient user exists in the database
         existing_months = existing_months[0]
         # Update the existing subscription with the new cumulative months
-        updated_months = existing_months + months
+        updated_months = existing_months + 1
         cursor.execute('''
             UPDATE subscription_data
             SET sub_plan = ?, months = ?
@@ -3275,19 +3291,25 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
         cursor.execute('''
             INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
             VALUES (?, ?, ?, ?)
-        ''', (recipient_user_id, recipient_user_name, sub_plan, months))
+        ''', (recipient_user_id, recipient_user_name, sub_plan, 1))
 
     # Insert subscription data into stream_credits table
     cursor.execute('''
         INSERT INTO stream_credits (username, event, data)
         VALUES (?, ?, ?)
-    ''', (recipient_user_name, "subscriptions", f"{sub_plan} - {months} months"))
+    ''', (recipient_user_name, "subscriptions", f"{sub_plan} - GIFT SUBSCRIPTION"))
 
     # Commit changes to the database
     conn.commit()
 
-    # Construct the message to be sent to the channel
-    message = f"Thank you {user_name} for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber for {months} months!"
+    if anonymous == True:
+        message = f"Thank you for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber!"
+        discord_message = f"An Anonymous Gifter just gifted {recipient_user_name} a subscription!"
+        await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
+    else:
+        message = f"Thank you {user_name} for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber!"
+        discord_message = f"{user_name} just gifted {recipient_user_name} a subscription!"
+        await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
 
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
@@ -3312,10 +3334,55 @@ async def process_followers_event(user_id, user_name, followed_at):
 
     # Construct the message to be sent to the channel
     message = f"Thank you {user_name} for following! Welcome to the channel!"
+    discord_message = f"{user_name} just followed!"
+    await send_to_discord(discord_message, "New Follower!", "follow.png")
 
     # Send the message to the channel
     channel = bot.get_channel(CHANNEL_NAME)
     await channel.send(message)
+
+# Function to build the Discord Notice
+async def send_to_discord(message, title, image):
+    cursor.execute("SELECT discord_alret FROM profile")
+    discord_url = cursor.fetchone()
+
+    cursor.execute("SELECT timezone FROM profile")
+    timezone = cursor.fetchone()[0]
+    if timezone:
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        time_format_date = current_time.strftime("%B %d, %Y")
+        time_format_time = current_time.strftime("%I:%M %p")
+        time_format = f"{time_format_date} at {time_format_time}"
+    else:
+        timezone = 'UTC'
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        time_format_date = current_time.strftime("%B %d, %Y")
+        time_format_time = current_time.strftime("%I:%M %p")
+        time_format = f"{time_format_date} at {time_format_time}"
+
+    payload = {"embeds": []}
+    if discord_url:
+        discord_url = discord_url[0]
+        payload["username"] = "BotOfTheSpecter"
+        payload["avatar_url"] = "https://cdn.botofthespecter.com/logo.png"
+        payload["embeds"] = [{
+            "description": message,
+            "title": title,
+            "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
+            "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
+        }]
+        
+        response = requests.post(discord_url, json=payload)
+        if response.status_code == 200 or response.status_code == 204:
+            # bot_logger.info(f"Sent to Disord {response.status_code}")
+            return
+        else:
+            bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
+    else:
+        bot_logger.error(f"Discord URL not found.")
+        return
 
 # Function to create a new group if it doesn't exist
 def group_creation():
