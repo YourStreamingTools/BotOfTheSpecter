@@ -212,6 +212,7 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS raid_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         raider_name TEXT,
+        raider_id TEXT,
         viewers INTEGER,
         raid_count INTEGER,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -3091,9 +3092,9 @@ async def delete_recorded_files():
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     # Check if the raiding broadcaster exists in the database
-    cursor.execute('SELECT raid_count FROM raid_data WHERE broadcaster_user_id = ?', (from_broadcaster_id,))
+    cursor.execute('SELECT raid_count FROM raid_data WHERE raider_id = ?', (from_broadcaster_id,))
     existing_raid_count = cursor.fetchone()
-    cursor.execute('SELECT viewers FROM raid_data WHERE broadcaster_user_id = ?', (from_broadcaster_id,))
+    cursor.execute('SELECT viewers FROM raid_data WHERE raider_id = ?', (from_broadcaster_id,))
     existing_viewer_count = cursor.fetchone()
 
     if existing_raid_count:
@@ -3101,15 +3102,15 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
         raid_count = existing_raid_count[0] + 1
         viewers = existing_viewer_count[0] + viewer_count
         cursor.execute('''
-            UPDATE raid_data SET raid_count = ? WHERE broadcaster_user_id = ?
+            UPDATE raid_data SET raid_count = ? WHERE raider_id = ?
         ''', (raid_count, from_broadcaster_id))
         cursor.execute('''
-            UPDATE raid_data SET viewers = ? WHERE broadcaster_user_id = ?
+            UPDATE raid_data SET viewers = ? WHERE raider_id = ?
         ''', (viewers, from_broadcaster_id))
     else:
         # Insert a new record for the raiding broadcaster
         cursor.execute('''
-            INSERT INTO raid_data (broadcaster_user_id, broadcaster_user_name, raid_count, viewers)
+            INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers)
             VALUES (?, ?, ?)
         ''', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
 
