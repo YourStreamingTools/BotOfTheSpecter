@@ -443,6 +443,7 @@ async def receive_messages(websocket, keepalive_timeout):
                     bot_logger.info("Received session keepalive message")
                 else:
                     # bot_logger.info(f"Received message type: {message_type}")
+                    bot_logger.info(f"Info from Twitch EventSub: {message_data}")
                     await process_eventsub_message(message_data)
             else:
                 bot_logger.error("Received unrecognized message format")
@@ -469,12 +470,14 @@ async def process_eventsub_message(message):
         # Process based on event type directly (no need to decode further)
         if event_type:
             if event_type == "channel.follow":
+                bot_logger.info(f"Follower Event Data: {event_data}")
                 await process_followers_event(
                     event_data["user_id"],
                     event_data["user_name"],
                     event_data["followed_at"]
                 )
             elif event_type == "channel.subscribe":
+                bot_logger.info(f"Subsctiption Event Data: {event_data}")
                 await process_subscription_event(
                     event_data["user_id"],
                     event_data["user_name"],
@@ -482,6 +485,7 @@ async def process_eventsub_message(message):
                     event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.message":
+                bot_logger.info(f"Subsctiption (Message) Event Data: {event_data}")
                 await process_subscription_message_event(
                     event_data["user_id"],
                     event_data["user_name"],
@@ -490,6 +494,7 @@ async def process_eventsub_message(message):
                     event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.gift":
+                bot_logger.info(f"Gift Subsctiption Event Data: {event_data}")
                 await process_giftsub_event(
                     event_data["user_id"],
                     event_data["user_name"],
@@ -499,21 +504,25 @@ async def process_eventsub_message(message):
                     event_data.get("is_anonymous", False)
                 )
             elif event_type == "channel.cheer":
+                bot_logger.info(f"Bits Event Data: {event_data}")
                 await process_cheer_event(
                     event_data["user_id"],
                     event_data["user_name"],
                     event_data["bits"]
                 )
             elif event_type == "channel.raid":
+                bot_logger.info(f"Raid Event Data: {event_data}")
                 await process_raid_event(
                     event_data["from_broadcaster_user_id"],
                     event_data["from_broadcaster_user_name"],
                     event_data["viewers"]
                 )
             elif event_type == "channel.hype_train.begin":
+                bot_logger.info(f"Hype Train Start Event Data: {event_data}")
                 level = event_data["level"]
                 await channel.send(f"The Hype Train has started! Starting at level: {level}")
             elif event_type == "channel.hype_train.end":
+                bot_logger.info(f"Hype Train End Event Data: {event_data}")
                 level = event_data["level"]
                 top_contributions = event_data.get("top_contributions", [])
                 # Craft a message about the end of the Hype Train
