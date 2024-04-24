@@ -815,8 +815,8 @@ class BotOfTheSpecter(commands.Bot):
                     # await message.channel.send("An error occurred while translating the message.")
 
             # Check user level
-            is_vip = await is_user_vip(messageAuthorID)
-            is_mod = await is_user_moderator(messageAuthorID)
+            is_vip = is_user_vip(messageAuthorID)
+            is_mod = is_user_moderator(messageAuthorID)
             user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
             # Insert into the database the number of chats during the stream
             cursor.execute('''
