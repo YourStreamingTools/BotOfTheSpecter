@@ -645,11 +645,6 @@ class BotOfTheSpecter(commands.Bot):
         if message.echo:
             return
 
-
-        # Log the message content
-        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-
-        
         # Log the message content
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
 
@@ -721,6 +716,9 @@ class BotOfTheSpecter(commands.Bot):
         else:
             pass
         
+        
+        bot_logger.info(f"Before URL")
+
         bot_logger.info(f"Before URL")
         if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
             # Fetch url_blocking option from the protection table in the user's database
@@ -778,32 +776,12 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
         else:
             pass
-        bot_logger.info(f"After URL, Before Translate")
-        # Function for translating chat messages.
-        detected_lang = translator.detect(AuthorMessage)
-        source_lang = detected_lang.lang if detected_lang else None
-        if source_lang != 'en':
-            try:
-                # Translate the message to English
-                translated_message = translator.translate(AuthorMessage, dest='en').text
 
-                # Log the translation
-                chat_logger.info(f'Translated message from {messageAuthor}: {source_lang} - "{AuthorMessage}" to: "{translated_message}"')
-
-                # Send the translated message to the chat channel
-                send_message = f'Translated message from {messageAuthor}: "{translated_message}"'
-                await message.channel.send(send_message)
-            except Exception as e:
-                chat_logger.error(f"Error translating message from {messageAuthor}: {e}")
-                # await message.channel.send("An error occurred while translating the message.")
-        bot_logger.info(f"After Translate, before User Level")
         # Check user level
         is_vip = is_user_vip(messageAuthorID)
-        bot_logger.info(f"User VIP? {is_vip}")
         is_mod = is_user_moderator(messageAuthorID)
-        bot_logger.info(f"User Mod? {is_mod}")
         user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
-        bot_logger.info(f"User Level: {user_level}")
+
         # Insert into the database the number of chats during the stream
         cursor.execute('''
                 INSERT INTO message_counts (username, message_count, user_level)
@@ -811,19 +789,19 @@ class BotOfTheSpecter(commands.Bot):
                 ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
             ''', (messageAuthor, user_level))
         conn.commit()
-        bot_logger.info(f"After User Level, before Seen today")
+
         # Has the user been seen during this stream
         cursor.execute('SELECT * FROM seen_today WHERE user_id = ?', (messageAuthorID,))
         temp_seen_users = cursor.fetchone()
 
         # Check if the user is in the list of already seen users
         if temp_seen_users:
-            bot_logger.info(f"{messageAuthor} has already had their welcome message.")
+            #bot_logger.info(f"{messageAuthor} has already had their welcome message.")
             return
 
         # Check if the user is the broadcaster
         if messageAuthor.lower() == CHANNEL_NAME.lower():
-            bot_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
+            #bot_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
             return
 
         # Check if the user is a VIP or MOD
@@ -3087,7 +3065,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
         # Insert a new record for the raiding broadcaster
         cursor.execute('''
             INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers)
-            VALUES (?, ?, ?)
+            VALUES (?, ?, ?, ?)
         ''', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
 
     # Insert data into stream_credits table
