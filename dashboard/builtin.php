@@ -98,10 +98,7 @@ if ($result->num_rows > 0) {
                   <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
                   <td><?php echo htmlspecialchars($command['response']); ?></td>
                   <td><?php echo htmlspecialchars($command['level']); ?></td>
-                  <td><?php try { if ($builtinCommands && isset($builtinCommands['status'])) { echo htmlspecialchars($builtinCommands['status']);
-                        } else { echo ''; } } catch (PDOException $e) { echo "Error fetching status: " . $e->getMessage(); }
-                    ?>
-                  </td>
+                  <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
                   <td></td>
               </tr>
               <?php endforeach; ?>
