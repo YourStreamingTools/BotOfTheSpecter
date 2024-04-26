@@ -59,6 +59,19 @@ if ($result->num_rows > 0) {
     // Handle no results found
     echo "No commands found in the database.";
 }
+
+// Check if the update request is sent via POST
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && isset($_POST['status'])) {
+    // Process the update here
+    $dbcommand = $_POST['command_name'];
+    $dbstatus = $_POST['status'];
+
+    // Update the status in the database
+    $updateQuery = $db->prepare("UPDATE builtin_commands SET status = :status WHERE command_name = :command_name");
+    $updateQuery->bindParam(':status', $dbstatus);
+    $updateQuery->bindParam(':command_name', $dbcommand);
+    $updateQuery->execute();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -99,7 +112,7 @@ if ($result->num_rows > 0) {
                   <td><?php echo htmlspecialchars($command['response']); ?></td>
                   <td><?php echo htmlspecialchars($command['level']); ?></td>
                   <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
-                  <td></td>
+                  <td><label class="switch"><input type="checkbox" class="toggle-checkbox" <?php echo $statusResult && $statusResult['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command_name']; ?>', this.checked)"><i class="fa-solid <?php echo $statusResult && $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></label></td>
               </tr>
               <?php endforeach; ?>
           </tbody>
@@ -109,6 +122,26 @@ if ($result->num_rows > 0) {
 <br><br><br>
 </div>
 
+<script>
+function toggleStatus(commandName, isChecked) {
+    var status = isChecked ? 'Enabled' : 'Disabled';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            if (xhr.status === 200) {
+                // Success, do something if needed
+                console.log('Status updated successfully');
+            } else {
+                // Error handling
+                console.error('Error updating status:', xhr.responseText);
+            }
+        }
+    };
+    xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
+}
+</script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
 <script>$(document).foundation();</script>
