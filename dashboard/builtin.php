@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
     $dbstatus = $_POST['status'];
 
     // Update the status in the database
-    $updateQuery = $db->prepare("UPDATE builtin_commands SET status = :status WHERE command_name = :command_name");
+    $updateQuery = $db->prepare("UPDATE builtin_commands SET status = :status WHERE command = :command_name");
     $updateQuery->bindParam(':status', $dbstatus);
     $updateQuery->bindParam(':command_name', $dbcommand);
     $updateQuery->execute();
@@ -107,12 +107,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
           <tbody>
               <?php foreach ($commands as $command): ?>
               <tr>
-                  <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
-                  <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
-                  <td><?php echo htmlspecialchars($command['response']); ?></td>
-                  <td><?php echo htmlspecialchars($command['level']); ?></td>
-                  <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
-                  <td><label class="switch"><input type="checkbox" class="toggle-checkbox" <?php echo $statusResult && $statusResult['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command_name']; ?>', this.checked)"><i class="fa-solid <?php echo $statusResult && $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></label></td>
+                    <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
+                    <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
+                    <td><?php echo htmlspecialchars($command['response']); ?></td>
+                    <td><?php echo htmlspecialchars($command['level']); ?></td>
+                    <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
+                    <td>
+                    <label class="switch">
+                        <input type="checkbox" class="toggle-checkbox" <?php echo ($statusResult['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command_name']); ?>', this.checked)">
+                        <i class="fa-solid <?php echo $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                    </label>
+                    </td>
               </tr>
               <?php endforeach; ?>
           </tbody>
@@ -131,8 +136,8 @@ function toggleStatus(commandName, isChecked) {
     xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
-                // Success, do something if needed
-                console.log('Status updated successfully');
+                // Reload the page after the AJAX request is completed
+                location.reload();
             } else {
                 // Error handling
                 console.error('Error updating status:', xhr.responseText);
