@@ -63,7 +63,7 @@ try {
     $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch seen users data
-    $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY username DESC");
+    $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
     $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch timed messages
