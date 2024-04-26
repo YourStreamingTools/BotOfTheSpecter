@@ -23,8 +23,8 @@ try {
     $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch all builtin commands from the bot DB
-    $getBuiltinCommands = $db->query("SELECT * FROM bultin_commands")
-    $builtinCommands = $getBuiltinCommands->fetchAll(POD::FETCH_ASSOC)
+    $getBuiltinCommands = $db->query("SELECT * FROM bultin_commands");
+    $builtinCommands = $getBuiltinCommands->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch typo counts
     $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
