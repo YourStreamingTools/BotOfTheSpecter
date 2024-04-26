@@ -98,9 +98,9 @@ if ($result->num_rows > 0) {
                   <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
                   <td><?php echo htmlspecialchars($command['response']); ?></td>
                   <td><?php echo htmlspecialchars($command['level']); ?></td>
-                  <td><?php try { if ($builtinCommands) { echo htmlspecialchars($builtinCommands['status']); } else {
-                              echo 'Enabled'; } } catch (PDOException $e) { echo "Error fetching status: " . $e->getMessage(); }
-                      ?>
+                  <td><?php try { if ($builtinCommands && isset($builtinCommands['status'])) { echo htmlspecialchars($builtinCommands['status']);
+                        } else { echo ''; } } catch (PDOException $e) { echo "Error fetching status: " . $e->getMessage(); }
+                    ?>
                   </td>
                   <td></td>
               </tr>
