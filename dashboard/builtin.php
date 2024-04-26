@@ -53,11 +53,16 @@ if ($result === false) {
 
 if ($result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
+        // Merge status information from $builtinCommands array
+        foreach ($builtinCommands as $builtinCommand) {
+            if ($builtinCommand['command'] === $row['command_name']) {
+                $row['status'] = $builtinCommand['status'];
+                break;
+            }
+        }
+        // Append the merged row to $commands array
         $commands[] = $row;
     }
-} else {
-    // Handle no results found
-    echo "No commands found in the database.";
 }
 ?>
 <!DOCTYPE html>
@@ -92,16 +97,16 @@ if ($result->num_rows > 0) {
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($commands as $command): ?>
+          <?php foreach ($commands as $command): ?>
             <tr>
-              <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
-              <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
-              <td><?php echo htmlspecialchars($command['response']);?></td>
-              <td><?php echo htmlspecialchars($command['level']); ?></td>
-              <td>Enabled</td>
-              <td></td>
+                <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
+                <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
+                <td><?php echo htmlspecialchars($command['response']); ?></td>
+                <td><?php echo htmlspecialchars($command['level']); ?></td>
+                <td><?php echo isset($command['status']) ? htmlspecialchars($command['status']) : 'Enabled'; ?></td>
+                <td></td>
             </tr>
-            <?php endforeach; ?>
+          <?php endforeach; ?>
           </tbody>
         </table>
     </div>
