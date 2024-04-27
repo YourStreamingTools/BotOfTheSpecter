@@ -715,11 +715,7 @@ class BotOfTheSpecter(commands.Bot):
                 pass
         else:
             pass
-        
-        
-        bot_logger.info(f"Before URL")
 
-        bot_logger.info(f"Before URL")
         if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
             # Fetch url_blocking option from the protection table in the user's database
             cursor.execute('SELECT url_blocking FROM protection')
@@ -1995,7 +1991,7 @@ class BotOfTheSpecter(commands.Bot):
             global current_game
             try:
                 chat_logger.info("Death Add Command ran.")
-                
+
                 # Ensure there is exactly one row in total_deaths
                 cursor.execute("SELECT COUNT(*) FROM total_deaths")
                 if cursor.fetchone()[0] == 0:
