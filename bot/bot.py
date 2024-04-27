@@ -2240,7 +2240,7 @@ class BotOfTheSpecter(commands.Bot):
             if status == 'Disabled':
                 return
         if is_mod_or_broadcaster(ctx.author):
-            REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
+            REMOTE_VERSION_URL = "https://api.botofthespecter.com/version_control.txt"
             async with aiohttp.ClientSession() as session:
                 async with session.get(REMOTE_VERSION_URL) as response:
                     if response.status == 200:
@@ -3373,7 +3373,7 @@ def update_version_control():
         os.makedirs(directory)
     
     # Define the file path with the channel name
-    file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
+    file_path = os.path.join(directory, f"{CHANNEL_NAME}_version_control.txt")
     
     # Delete the file if it exists
     if os.path.exists(file_path):
