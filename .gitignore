@@ -17,3 +17,4 @@ ssl/*.pem
 ssl/sites-available/*
 bot/test.py
 app/BotOfTheSpecter.ui
+bot/phpmyadmin.txt
