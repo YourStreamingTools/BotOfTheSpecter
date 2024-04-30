@@ -429,6 +429,8 @@ async def subscribe_to_events(session_id):
         "channel.raid",
         "channel.hype_train.begin",
         "channel.hype_train.end",
+        "channel.ad_break.begin",
+        "channel.charity_campaign.donate",
         "stream.online",
         "stream.offline"
     ]
@@ -634,6 +636,27 @@ async def process_eventsub_message(message):
                 stream_title = title
                 current_game = category_name
                 bot_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
+            elif event_type == 'channel.ad_break.begin':
+                duration_seconds = event_data["event"]["duration_seconds"]
+                minutes = duration_seconds // 60
+                seconds = duration_seconds % 60
+                if minutes == 0:
+                    formatted_duration = f"{seconds} seconds"
+                elif seconds == 0:
+                    formatted_duration = f"{minutes} minutes"
+                else:
+                    formatted_duration = f"{minutes} minutes, {seconds} seconds"
+
+                await channel.send(f"An ad is about to run for {formatted_duration}. We'll be right back after these ads.")
+            elif event_type == 'channel.charity_campaign.donate':
+                user = event_data["event"]["user_name"]
+                charity = event_data["event"]["charity_name"]
+                value = event_data["event"]["amount"]["value"]
+                currency = event_data["event"]["amount"]["currency"]
+                vaule_formatted = "{:,.2f}".format(value)
+
+                message = f"Thank you so much {user} for your ${vaule_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
+                await channel.send(message)
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
@@ -700,7 +723,7 @@ class BotOfTheSpecter(commands.Bot):
                 return  # It's a built-in command or alias, do nothing more
 
             # Check if the command exists in a hypothetical database and respond
-            mysql_cursor.execute('SELECT response, status FROM custom_commands WHERE command = ?', (command,))
+            mysql_cursor.execute('SELECT response, status FROM custom_commands WHERE command = %s', (command,))
             result = mysql_cursor.fetchone()
 
             if result:
@@ -802,14 +825,14 @@ class BotOfTheSpecter(commands.Bot):
 
         # Insert into the database the number of chats during the stream
         mysql_cursor.execute('''
-                INSERT INTO message_counts (username, message_count, user_level)
-                VALUES (?, 1, ?)
-                ON CONFLICT(username) DO UPDATE SET message_count = message_count + 1
-            ''', (messageAuthor, user_level))
+            INSERT INTO message_counts (username, message_count, user_level)
+            VALUES (%s, 1, %s)
+            ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s
+        ''', (messageAuthor, user_level, user_level))
         mysql_connection.commit()
 
         # Has the user been seen during this stream
-        mysql_cursor.execute('SELECT * FROM seen_today WHERE user_id = ?', (messageAuthorID,))
+        mysql_cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
         temp_seen_users = mysql_cursor.fetchone()
 
         # Check if the user is in the list of already seen users
@@ -829,21 +852,21 @@ class BotOfTheSpecter(commands.Bot):
         bot_logger.info(f"{messageAuthor} - MOD={is_mod}")
 
         # Check if the user is new or returning
-        mysql_cursor.execute('SELECT * FROM seen_users WHERE username = ?', (messageAuthor,))
+        mysql_cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
         user_data = mysql_cursor.fetchone()
 
         if user_data:
             user_status = True
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
-            mysql_cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (messageAuthorID,))
+            mysql_cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
             mysql_connection.commit()
             # twitch_logger.info(f"{messageAuthor} has been found in the database.")
         else:
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
-            mysql_cursor.execute('INSERT INTO seen_today (user_id) VALUES (?)', (messageAuthorID,))
+            mysql_cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
             mysql_connection.commit()
             # twitch_logger.info(f"{messageAuthor} has not been found in the database.")
 
@@ -915,11 +938,11 @@ class BotOfTheSpecter(commands.Bot):
 
         # Assign user to groups
         for name in group_names:
-            mysql_cursor.execute("SELECT * FROM groups WHERE name=?", (name,))
+            mysql_cursor.execute("SELECT * FROM 'groups' WHERE name=%s", (name,))
             group = mysql_cursor.fetchone()
             if group:
                 try:
-                    mysql_cursor.execute("INSERT OR REPLACE INTO everyone (username, group_name) VALUES (?, ?)", (messageAuthor, name))
+                    mysql_cursor.execute("INSERT OR REPLACE INTO everyone (username, group_name) VALUES (%s, %s)", (messageAuthor, name))
                     mysql_connection.commit()
                     bot_logger.info(f"User '{messageAuthor}' assigned to group '{name}' successfully.")
                 except mysql.IntegrityError:
@@ -929,7 +952,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("commands",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("commands",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -957,7 +980,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='bot')
     async def bot_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("bot",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("bot",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -968,7 +991,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("roadmap",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("roadmap",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -978,7 +1001,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='weather')
     async def weather_command(self, ctx, location: str = None) -> None:
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("weather",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("weather",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -999,7 +1022,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='time')
     async def time_command(self, ctx, timezone: str = None) -> None:
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("time",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("time",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1030,7 +1053,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("quote",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("quote",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1044,7 +1067,7 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send("No quotes available.")
         else:  # If a number is provided, retrieve the quote by its ID
-            mysql_cursor.execute("SELECT quote FROM quotes WHERE id = ?", (number,))
+            mysql_cursor.execute("SELECT quote FROM quotes WHERE id = %s", (number,))
             quote = mysql_cursor.fetchone()
             if quote:
                 await ctx.send(f"Quote {number}: " + quote[0])
@@ -1053,19 +1076,19 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='quoteadd')
     async def quote_add_command(self, ctx, *, quote):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("quoteadd",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("quoteadd",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
             if status == 'Disabled':
                 return
-        mysql_cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
+        mysql_cursor.execute("INSERT INTO quotes (quote) VALUES (%s)", (quote,))
         mysql_connection.commit()
         await ctx.send("Quote added successfully: " + quote)
 
     @commands.command(name='removequote')
     async def quote_remove_command(self, ctx, number: int = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("removequote",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removequote",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1075,13 +1098,13 @@ class BotOfTheSpecter(commands.Bot):
             ctx.send("Please specify the ID to remove.")
             return
         
-        mysql_cursor.execute("DELETE FROM quotes WHERE ID = ?", (number,))
+        mysql_cursor.execute("DELETE FROM quotes WHERE ID = %s", (number,))
         mysql_connection.commit()
         await ctx.send(f"Quote {number} has been removed.")
     
     @commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("permit",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("permit",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1101,7 +1124,7 @@ class BotOfTheSpecter(commands.Bot):
     # Command to set stream title
     @commands.command(name='settitle')
     async def set_title_command(self, ctx, *, title: str = None) -> None:
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("settitle",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("settitle",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1122,7 +1145,7 @@ class BotOfTheSpecter(commands.Bot):
     # Command to set stream game/category
     @commands.command(name='setgame')
     async def set_game_command(self, ctx, *, game: str = None) -> None:
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("setgame",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("setgame",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1151,7 +1174,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("song",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("song",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1173,7 +1196,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='timer')
     async def start_timer_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("timer",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("timer",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1220,7 +1243,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("hug",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("hug",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1230,11 +1253,11 @@ class BotOfTheSpecter(commands.Bot):
             target_user = mentioned_username.lstrip('@')
 
             # Increment hug count in the database
-            mysql_cursor.execute('INSERT INTO hug_counts (username, hug_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET hug_count = hug_count + 1', (target_user,))
+            mysql_cursor.execute('INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) ON CONFLICT(username) DO UPDATE SET hug_count = hug_count + 1', (target_user,))
             mysql_connection.commit()
 
             # Retrieve the updated count
-            mysql_cursor.execute('SELECT hug_count FROM hug_counts WHERE username = ?', (target_user,))
+            mysql_cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (target_user,))
             hug_count = mysql_cursor.fetchone()[0]
 
             # Send the message
@@ -1246,7 +1269,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("kiss",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("kiss",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1256,11 +1279,11 @@ class BotOfTheSpecter(commands.Bot):
             target_user = mentioned_username.lstrip('@')
 
             # Increment kiss count in the database
-            mysql_cursor.execute('INSERT INTO kiss_counts (username, kiss_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET kiss_count = kiss_count + 1', (target_user,))
+            mysql_cursor.execute('INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) ON CONFLICT(username) DO UPDATE SET kiss_count = kiss_count + 1', (target_user,))
             mysql_connection.commit()
 
             # Retrieve the updated count
-            mysql_cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = ?', (target_user,))
+            mysql_cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (target_user,))
             kiss_count = mysql_cursor.fetchone()[0]
 
             # Send the message
@@ -1272,7 +1295,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='ping')
     async def ping_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("ping",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("ping",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1295,7 +1318,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='translate')
     async def translate_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("translate",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("translate",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1346,7 +1369,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='cheerleader')
     async def cheerleader_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("cheerleader",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("cheerleader",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1375,7 +1398,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='mybits')
     async def mybits_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("mybits",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("mybits",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1405,7 +1428,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='lurk', aliases=('brb',))
     async def lurk_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("lurk",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("lurk",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1421,7 +1444,7 @@ class BotOfTheSpecter(commands.Bot):
                 return
 
             # Check if the user is already in the lurk table
-            mysql_cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = ?', (user_id,))
+            mysql_cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
             result = mysql_cursor.fetchone()
 
             if result:
@@ -1448,7 +1471,7 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} is now lurking.")
 
             # Update the start time in the database
-            mysql_cursor.execute('INSERT OR REPLACE INTO lurk_times (user_id, start_time) VALUES (?, ?)', (user_id, now.isoformat()))
+            mysql_cursor.execute('INSERT OR REPLACE INTO lurk_times (user_id, start_time) VALUES (%s, %s)', (user_id, now.isoformat()))
             mysql_connection.commit()
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
@@ -1456,7 +1479,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='lurking')
     async def lurking_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("lurking",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("lurking",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1470,7 +1493,7 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} tried to check lurk time in their own channel.")
                 return
     
-            mysql_cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = ?', (user_id,))
+            mysql_cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
             result = mysql_cursor.fetchone()
     
             if result:
@@ -1500,7 +1523,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("lurklead",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("lurklead",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1550,7 +1573,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("unlurk",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("unlurk",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1563,7 +1586,7 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
                 return
 
-            mysql_cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = ?', (user_id,))
+            mysql_cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
             result = mysql_cursor.fetchone()
 
             if result:
@@ -1585,7 +1608,7 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
 
                 # Remove the user's start time from the database
-                mysql_cursor.execute('DELETE FROM lurk_times WHERE user_id = ?', (user_id,))
+                mysql_cursor.execute('DELETE FROM lurk_times WHERE user_id = %s', (user_id,))
                 mysql_connection.commit()
             else:
                 await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
@@ -1595,7 +1618,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='clip')
     async def clip_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("clip",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("clip",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1650,7 +1673,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("marker",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("marker",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1683,7 +1706,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("subscription",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("subscription",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1737,7 +1760,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("uptime",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("uptime",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1778,7 +1801,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("typo",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("typo",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1794,11 +1817,11 @@ class BotOfTheSpecter(commands.Bot):
         target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
 
         # Increment typo count in the database
-        mysql_cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
+        mysql_cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
         mysql_connection.commit()
 
         # Retrieve the updated count
-        mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+        mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
         typo_count = mysql_cursor.fetchone()[0]
 
         # Send the message
@@ -1807,7 +1830,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("typos",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("typos",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1824,7 +1847,7 @@ class BotOfTheSpecter(commands.Bot):
         target_user = mentioned_username_lower.lstrip('@')
 
         # Retrieve the typo count
-        mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+        mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
         result = mysql_cursor.fetchone()
         typo_count = result[0] if result else 0
 
@@ -1834,7 +1857,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("edittypos",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("edittypos",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1867,19 +1890,19 @@ class BotOfTheSpecter(commands.Bot):
                     return
 
                 # Check if the user exists in the database
-                mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+                mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                 result = mysql_cursor.fetchone()
     
                 if result is not None:
                     # Update typo count in the database
-                    mysql_cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
+                    mysql_cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
                     mysql_connection.commit()
                     chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
                     await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
                 else:
                     # If user does not exist, send an error message and add the user with the given typo count
                     await ctx.send(f"No record for {target_user}. Adding them with the typo count.")
-                    mysql_cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (?, ?)', (target_user, new_count))
+                    mysql_cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, %s)', (target_user, new_count))
                     mysql_connection.commit()
                     chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
                     await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
@@ -1891,7 +1914,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("removetypos",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removetypos",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1917,13 +1940,13 @@ class BotOfTheSpecter(commands.Bot):
                     return
 
                 # Check if the user exists in the database
-                mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = ?', (target_user,))
+                mysql_cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                 result = mysql_cursor.fetchone()
 
                 if result:
                     current_count = result[0]
                     new_count = max(0, current_count - decrease_amount)  # Ensure count doesn't go below 0
-                    mysql_cursor.execute('UPDATE user_typos SET typo_count = ? WHERE username = ?', (new_count, target_user))
+                    mysql_cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
                     mysql_connection.commit()
                     await ctx.send(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
                 else:
@@ -1936,7 +1959,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='steam')
     async def steam_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("steam",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("steam",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1975,7 +1998,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("deaths",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deaths",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -1986,7 +2009,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.info("Deaths command ran.")
 
             # Retrieve the game-specific death count
-            mysql_cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+            mysql_cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
             game_death_count_result = mysql_cursor.fetchone()
             game_death_count = game_death_count_result[0] if game_death_count_result else 0
 
@@ -2003,7 +2026,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("deathadd",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathadd",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2021,12 +2044,12 @@ class BotOfTheSpecter(commands.Bot):
                     mysql_connection.commit()
 
                 # Increment game-specific death count & total death count
-                mysql_cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (?, 1) ON CONFLICT(game_name) DO UPDATE SET death_count = death_count + 1 WHERE game_name = ?', (current_game, current_game))
+                mysql_cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON CONFLICT(game_name) DO UPDATE SET death_count = death_count + 1 WHERE game_name = %s', (current_game, current_game))
                 mysql_cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
                 mysql_connection.commit()
 
                 # Retrieve updated counts
-                mysql_cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+                mysql_cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = mysql_cursor.fetchone()
                 game_death_count = game_death_count_result[0] if game_death_count_result else 0
 
@@ -2046,7 +2069,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("deathremove",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathremove",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2058,12 +2081,12 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info("Death Remove Command Ran")
 
                 # Decrement game-specific death count & total death count (ensure it doesn't go below 0)
-                mysql_cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = ?', (current_game,))
+                mysql_cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s', (current_game,))
                 mysql_cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
                 mysql_connection.commit()
 
                 # Retrieve updated counts
-                mysql_cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = ?', (current_game,))
+                mysql_cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = mysql_cursor.fetchone()
                 game_death_count = game_death_count_result[0] if game_death_count_result else 0
 
@@ -2084,7 +2107,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='game')
     async def game_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("game",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("game",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2098,7 +2121,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("followage",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("followage",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2177,7 +2200,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("schedule",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("schedule",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2255,14 +2278,14 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("checkupdate",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("checkupdate",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
             if status == 'Disabled':
                 return
         if is_mod_or_broadcaster(ctx.author):
-            REMOTE_VERSION_URL = "https://api.botofthespecter.com/version_control.txt"
+            REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
             async with aiohttp.ClientSession() as session:
                 async with session.get(REMOTE_VERSION_URL) as response:
                     if response.status == 200:
@@ -2292,7 +2315,7 @@ class BotOfTheSpecter(commands.Bot):
     
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("shoutout",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("shoutout",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2348,7 +2371,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='addcommand')
     async def add_command_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("addcommand",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("addcommand",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2364,7 +2387,7 @@ class BotOfTheSpecter(commands.Bot):
                 return
 
             # Insert the command and response into the database
-            mysql_cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (?, ?)', (command, response))
+            mysql_cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (%s, %s)', (command, response))
             mysql_connection.commit()
             chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
             await ctx.send(f'Custom command added: !{command}')
@@ -2373,7 +2396,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='removecommand')
     async def remove_command_command(self, ctx):
-        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=?", ("removecommand",))
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removecommand",))
         result = mysql_cursor.fetchone()
         if result:
             status = result[0]
@@ -2388,7 +2411,7 @@ class BotOfTheSpecter(commands.Bot):
                 return
 
             # Delete the command from the database
-            mysql_cursor.execute('DELETE FROM custom_commands WHERE command = ?', (command,))
+            mysql_cursor.execute('DELETE FROM custom_commands WHERE command = %s', (command,))
             mysql_connection.commit()
             chat_logger.info(f"{ctx.author.name} has removed {command}")
             await ctx.send(f'Custom command removed: !{command}')
@@ -2500,9 +2523,11 @@ def is_user_vip(user_trigger_id):
                     user_name = vip["user_name"]
                     twitch_logger.info(f"User {user_name} is a VIP Member")
                     return True
-            return False
+                twitch_logger.info(f"User {user_name} is not a VIP Member")
+                return False
+        return False
     except requests.RequestException as e:
-        print(f"Failed to retrieve VIP status: {e}")
+        twitch_logger.error(f"Failed to retrieve VIP status: {e}")
     return False
 
 # Function to check if a user is a subscriber of the channel
@@ -2558,7 +2583,7 @@ def is_user_moderator(user_trigger_id):
 # Function to add user to the table of known users
 async def user_is_seen(username):
     try:
-        mysql_cursor.execute('INSERT INTO seen_users (username) VALUES (?)', (username,))
+        mysql_cursor.execute('INSERT INTO seen_users (username) VALUES (%s)', (username,))
         mysql_connection.commit()
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
@@ -2576,18 +2601,18 @@ def fetch_api_response(url):
 
 # Function to update custom counts
 def update_custom_count(command):
-    mysql_cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command,))
+    mysql_cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
     result = mysql_cursor.fetchone()
     if result:
         current_count = result[0]
         new_count = current_count + 1
-        mysql_cursor.execute('UPDATE custom_counts SET count = ? WHERE command = ?', (new_count, command))
+        mysql_cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
     else:
-        mysql_cursor.execute('INSERT INTO custom_counts (command, count) VALUES (?, ?)', (command, 1))
+        mysql_cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, 1))
     mysql_connection.commit()
 
 def get_custom_count(command):
-    mysql_cursor.execute('SELECT count FROM custom_counts WHERE command = ?', (command,))
+    mysql_cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
     result = mysql_cursor.fetchone()
     if result:
         return result[0]
@@ -2595,14 +2620,14 @@ def get_custom_count(command):
         return 0
 
 # Functions for weather
-def get_streamer_weather():
+async def get_streamer_weather():
     mysql_cursor.execute("SELECT weather_location FROM profile")
     info = mysql_cursor.fetchone()
     location = info[0]
     chat_logger.info(f"Got {location} weather info.")
     return location
 
-def getWindDirection(deg):
+async def getWindDirection(deg):
     cardinalDirections = {
         'N': (337.5, 22.5),
         'NE': (22.5, 67.5),
@@ -2618,7 +2643,7 @@ def getWindDirection(deg):
             return direction
     return 'N/A'
 
-def get_weather(location):
+async def get_weather(location):
     owm = pyowm.OWM(WEATHER_API)
     try:
         observation = owm.weather_manager().weather_at_place(location)
@@ -2788,6 +2813,7 @@ async def process_stream_online():
     global current_game
     stream_online = True
     bot_logger.info(f"Stream is now online!")
+    asyncio.get_event_loop().create_task(timed_message())
 
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
@@ -3064,9 +3090,9 @@ async def delete_recorded_files():
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     # Check if the raiding broadcaster exists in the database
-    mysql_cursor.execute('SELECT raid_count FROM raid_data WHERE raider_id = ?', (from_broadcaster_id,))
+    mysql_cursor.execute('SELECT raid_count FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
     existing_raid_count = mysql_cursor.fetchone()
-    mysql_cursor.execute('SELECT viewers FROM raid_data WHERE raider_id = ?', (from_broadcaster_id,))
+    mysql_cursor.execute('SELECT viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
     existing_viewer_count = mysql_cursor.fetchone()
 
     if existing_raid_count:
@@ -3074,22 +3100,22 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
         raid_count = existing_raid_count[0] + 1
         viewers = existing_viewer_count[0] + viewer_count
         mysql_cursor.execute('''
-            UPDATE raid_data SET raid_count = ? WHERE raider_id = ?
+            UPDATE raid_data SET raid_count = %s WHERE raider_id = %s
         ''', (raid_count, from_broadcaster_id))
         mysql_cursor.execute('''
-            UPDATE raid_data SET viewers = ? WHERE raider_id = ?
+            UPDATE raid_data SET viewers = %s WHERE raider_id = %s
         ''', (viewers, from_broadcaster_id))
     else:
         # Insert a new record for the raiding broadcaster
         mysql_cursor.execute('''
             INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
 
     # Insert data into stream_credits table
     mysql_cursor.execute('''
         INSERT INTO stream_credits (username, event, data)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (from_broadcaster_name, "raid", viewer_count))
 
     # Commit changes to the database
@@ -3104,7 +3130,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
     # Check if the user exists in the database
-    mysql_cursor.execute('SELECT bits FROM bits_data WHERE user_id = ? OR user_name = ?', (user_id, user_name))
+    mysql_cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (user_id, user_name))
     existing_bits = mysql_cursor.fetchone()
 
     if existing_bits:
@@ -3112,8 +3138,8 @@ async def process_cheer_event(user_id, user_name, bits):
         total_bits = existing_bits[0] + bits
         mysql_cursor.execute('''
             UPDATE bits_data
-            SET bits = ?
-            WHERE user_id = ? OR user_name = ?
+            SET bits = %s
+            WHERE user_id = %s OR user_name = %s
         ''', (total_bits, user_id, user_name))
         
         # Send message to channel with total bits
@@ -3123,7 +3149,7 @@ async def process_cheer_event(user_id, user_name, bits):
         # Insert a new record for the user
         mysql_cursor.execute('''
             INSERT INTO bits_data (user_id, user_name, bits)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', (user_id, user_name, bits))
         
         discord_message = f"{user_name} just cheered {bits} bits!"
@@ -3142,13 +3168,13 @@ async def process_cheer_event(user_id, user_name, bits):
     # Insert data into stream_credits table
     mysql_cursor.execute('''
     INSERT INTO stream_credits (username, event, data)
-    VALUES (?, ?, ?)
+    VALUES (%s, %s, %s)
     ''', (user_name, "bits", bits))
     mysql_connection.commit()
 
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
     # Check if the user exists in the database
-    mysql_cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
+    mysql_cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
     existing_subscription = mysql_cursor.fetchone()
 
     if existing_subscription:
@@ -3158,27 +3184,27 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             # User upgraded their subscription plan
             mysql_cursor.execute('''
                 UPDATE subscription_data
-                SET sub_plan = ?, months = ?
-                WHERE user_id = ?
+                SET sub_plan = %s, months = %s
+                WHERE user_id = %s
             ''', (sub_plan, db_months, user_id))
         else:
             # User maintained the same subscription plan, update cumulative months
             mysql_cursor.execute('''
                 UPDATE subscription_data
-                SET months = ?
-                WHERE user_id = ?
+                SET months = %s
+                WHERE user_id = %s
             ''', (db_months, user_id))
     else:
         # User does not exist in the database, insert new record
         mysql_cursor.execute('''
             INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (user_id, user_name, sub_plan, event_months))
 
     # Insert data into stream_credits table
     mysql_cursor.execute('''
         INSERT INTO stream_credits (username, event, data)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
 
     # Commit changes to the database
@@ -3194,7 +3220,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
 
 async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
     # Check if the user exists in the database
-    mysql_cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = ?', (user_id,))
+    mysql_cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
     existing_subscription = mysql_cursor.fetchone()
 
     if existing_subscription:
@@ -3204,27 +3230,27 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             # User upgraded their subscription plan
             mysql_cursor.execute('''
                 UPDATE subscription_data
-                SET sub_plan = ?, months = ?
-                WHERE user_id = ?
+                SET sub_plan = %s, months = %s
+                WHERE user_id = %s
             ''', (sub_plan, db_months, user_id))
         else:
             # User maintained the same subscription plan, update cumulative months
             mysql_cursor.execute('''
                 UPDATE subscription_data
-                SET months = ?
-                WHERE user_id = ?
+                SET months = %s
+                WHERE user_id = %s
             ''', (db_months, user_id))
     else:
         # User does not exist in the database, insert new record
         mysql_cursor.execute('''
             INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (user_id, user_name, sub_plan, event_months))
 
     # Insert data into stream_credits table with the subscriber's message
     mysql_cursor.execute('''
         INSERT INTO stream_credits (username, event, data)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months."))
 
     # Commit changes to the database
@@ -3246,7 +3272,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
 
 async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan, user_name, anonymous):
     # Check if the recipient user exists in the database
-    mysql_cursor.execute('SELECT months FROM subscription_data WHERE user_id = ?', (recipient_user_id,))
+    mysql_cursor.execute('SELECT months FROM subscription_data WHERE user_id = %s', (recipient_user_id,))
     existing_months = mysql_cursor.fetchone()
 
     if existing_months:
@@ -3256,20 +3282,20 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
         updated_months = existing_months + 1
         mysql_cursor.execute('''
             UPDATE subscription_data
-            SET sub_plan = ?, months = ?
-            WHERE user_id = ?
+            SET sub_plan = %s, months = %s
+            WHERE user_id = %s
         ''', (sub_plan, updated_months, recipient_user_id))
     else:
         # Recipient user does not exist in the database, insert new record
         mysql_cursor.execute('''
             INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (recipient_user_id, recipient_user_name, sub_plan, 1))
 
     # Insert subscription data into stream_credits table
     mysql_cursor.execute('''
         INSERT INTO stream_credits (username, event, data)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (recipient_user_name, "subscriptions", f"{sub_plan} - GIFT SUBSCRIPTION"))
 
     # Commit changes to the database
@@ -3293,13 +3319,13 @@ async def process_followers_event(user_id, user_name, followed_at):
     # Insert a new record for the follower
     mysql_cursor.execute('''
         INSERT INTO followers_data (user_id, user_name, followed_at)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (user_id, user_name, followed_at))
 
     # Insert data into stream_credits table
     mysql_cursor.execute('''
         INSERT INTO stream_credits (username, event, data)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (user_name, "follow", ""))
 
     # Commit changes to the database
@@ -3358,35 +3384,35 @@ async def send_to_discord(message, title, image):
         return
 
 # Function to create a new group if it doesn't exist
-def group_creation():
+async def group_creation():
     group_names = ["VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
     for name in group_names:
-        mysql_cursor.execute("SELECT * FROM groups WHERE name=?", (name,))
+        mysql_cursor.execute("SELECT * FROM `groups` WHERE name=%s", (name,))
         if not mysql_cursor.fetchone():
             try:
-                mysql_cursor.execute("INSERT INTO groups (name) VALUES (?)", (name,))
+                mysql_cursor.execute("INSERT INTO `groups` (name) VALUES (%s)", (name,))
                 mysql_connection.commit()
                 bot_logger.info(f"Group '{name}' created successfully.")
-            except mysql.IntegrityError:
+            except mysql.connector.IntegrityError:
                 bot_logger.error(f"Failed to create group '{name}' due to integrity error.")
         else:
             return
 
 # Function to create the command in the database if it doesn't exist
-def builtin_commands_creation():
+async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
     try:
         for command in all_commands:
-            mysql_cursor.execute("SELECT * FROM builtin_commands WHERE command=?", (command,))
+            mysql_cursor.execute("SELECT * FROM builtin_commands WHERE command=%s", (command,))
             if not mysql_cursor.fetchone():
-                mysql_cursor.execute("INSERT INTO builtin_commands (command) VALUES (?)", (command,))
+                mysql_cursor.execute("INSERT INTO builtin_commands (command) VALUES (%s)", (command,))
                 mysql_connection.commit()
                 bot_logger.info(f"Command '{command}' added to database successfully.")
-    except mysql.Error as e:
-        bot_logger.error(f"Error:", e)
+    except mysql.connector.Error as e:
+        bot_logger.error(f"Error: {e}")
 
 # Function to tell the website what version of the bot is currently running
-def update_version_control():
+async def update_version_control():
     # Define the directory path
     directory = "/var/www/logs/version/"
     
@@ -3395,7 +3421,7 @@ def update_version_control():
         os.makedirs(directory)
     
     # Define the file path with the channel name
-    file_path = os.path.join(directory, f"{CHANNEL_NAME}_version_control.txt")
+    file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
     
     # Delete the file if it exists
     if os.path.exists(file_path):
