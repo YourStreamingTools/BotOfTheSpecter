@@ -278,7 +278,7 @@ mysql_cursor.execute('''
     ) ENGINE=InnoDB
 ''')
 mysql_cursor.execute('''
-    CREATE TABLE IF NOT EXISTS link_whitelisht (
+    CREATE TABLE IF NOT EXISTS link_whitelist (
         link TEXT,
         PRIMARY KEY (link(255))
     ) ENGINE=InnoDB
