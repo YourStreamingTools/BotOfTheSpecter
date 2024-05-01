@@ -109,7 +109,6 @@ if not os.path.exists(chat_history_folder):
 chat_history_log_file = os.path.join(chat_history_folder, f"{get_today_date()}.txt")
 chat_history_logger = setup_logger('chat_history', chat_history_log_file)
 
-# Create the database and table if it doesn't exist
 # Connect to MySQL
 mysql_connection = mysql.connector.connect(
     host=SQL_HOST,
@@ -123,6 +122,7 @@ mysql_cursor.execute("CREATE DATABASE IF NOT EXISTS {}".format(CHANNEL_NAME))
 mysql_connection.commit()
 mysql_cursor.execute("USE {}".format(CHANNEL_NAME))
 mysql_connection.commit()
+# Create the tables if it doesn't exist
 mysql_cursor.execute('''
     CREATE TABLE IF NOT EXISTS everyone (
     username TEXT,
