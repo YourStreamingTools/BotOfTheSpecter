@@ -2,10 +2,10 @@ twitchio
 twitchAPI
 aiohttp
 requests
-Flask
 translate
 websockets
 streamlink
 pyowm
 googletrans
 pytz
+mysql-connector-python
