@@ -7,4 +7,5 @@ translate
 websockets
 streamlink
 pyowm
-profanityfilter
+googletrans
+pytz
