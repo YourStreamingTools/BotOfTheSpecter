@@ -15,7 +15,7 @@ $timedMessagesData = [];
 $profileData = [];
 
 try {
-    $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
+    $db = new PDO("mysql:host=sql.botofthespecter.com;dbname={$username}", "USERNAME", "PASSWORD");
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Fetch all custom commands
@@ -41,7 +41,7 @@ try {
     // Fetch game-specific deaths
     $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
     $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Fetch total hug counts
     $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
     $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC);
@@ -49,11 +49,11 @@ try {
     // Fetch hug username-specific counts
     $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
     $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Fetch total kiss counts
     $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
     $totalKisses = $getTotalKisses->fetch(PDO::FETCH_ASSOC);
-    
+
     // Fetch kiss counts
     $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
     $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
@@ -76,30 +76,30 @@ try {
 
     // Calculate lurk durations for each user
     foreach ($lurkers as $key => $lurker) {
-      $startTime = new DateTime($lurker['start_time']);
-      $currentTime = new DateTime();
-      $interval = $currentTime->diff($startTime);
+        $startTime = new DateTime($lurker['start_time']);
+        $currentTime = new DateTime();
+        $interval = $currentTime->diff($startTime);
 
-      $timeStringParts = [];
-      if ($interval->y > 0) {
-          $timeStringParts[] = "{$interval->y} year(s)";
-      }
-      if ($interval->m > 0) {
-          $timeStringParts[] = "{$interval->m} month(s)";
-      }
-      if ($interval->d > 0) {
-          $timeStringParts[] = "{$interval->d} day(s)";
-      }
-      if ($interval->h > 0) {
-          $timeStringParts[] = "{$interval->h} hour(s)";
-      }
-      if ($interval->i > 0) {
-          $timeStringParts[] = "{$interval->i} minute(s)";
-      }
-      $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
+        $timeStringParts = [];
+        if ($interval->y > 0) {
+            $timeStringParts[] = "{$interval->y} year(s)";
+        }
+        if ($interval->m > 0) {
+            $timeStringParts[] = "{$interval->m} month(s)";
+        }
+        if ($interval->d > 0) {
+            $timeStringParts[] = "{$interval->d} day(s)";
+        }
+        if ($interval->h > 0) {
+            $timeStringParts[] = "{$interval->h} hour(s)";
+        }
+        if ($interval->i > 0) {
+            $timeStringParts[] = "{$interval->i} minute(s)";
+        }
+        $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
     }
 } catch (PDOException $e) {
-  #echo 'Error: ' . $e->getMessage();
+    echo 'Error: ' . $e->getMessage();
 }
 
 // Prepare the Twitch API request for user data
