@@ -422,6 +422,9 @@ async def subscribe_to_events(session_id):
     }
 
     v1topics = [
+        "channel.moderate",
+        "stream.online",
+        "stream.offline",
         "channel.subscribe",
         "channel.subscription.gift",
         "channel.subscription.message",
@@ -430,9 +433,7 @@ async def subscribe_to_events(session_id):
         "channel.hype_train.begin",
         "channel.hype_train.end",
         "channel.ad_break.begin",
-        "channel.charity_campaign.donate",
-        "stream.online",
-        "stream.offline"
+        "channel.charity_campaign.donate"
     ]
 
     v2topics = [
@@ -657,6 +658,36 @@ async def process_eventsub_message(message):
 
                 message = f"Thank you so much {user} for your ${vaule_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
                 await channel.send(message)
+            elif event_type == 'channel.moderate':
+                moderator_user_name = event_data["event"]["moderator_user_name"]
+                if event_data["event"]["action"] == "timeout":
+                    timeout_info = event_data["event"]["timeout"]
+                    user_name = timeout_info["user_name"]
+                    reason = timeout_info["reason"]
+                    expires_at = datetime.strptime(timeout_info["expires_at"], "%Y-%m-%dT%H:%M:%SZ")
+                    discord_message = f'{user_name} has been timmed out, their timeout expires at {expires_at} for the reason "{reason}"'
+                    discord_title = "New User Timeout!"
+                    discord_image = "clock.png"
+                elif event_data["event"]["action"] == "untimeout":
+                    untimeout_info = event_data["event"]["untimeout"]
+                    user_name = untimeout_info["user_name"]
+                    discord_message = f"{user_name} has had their timeout removed by {moderator_user_name}."
+                    discord_title = "New Untimeout User!"
+                    discord_image = "clock.png"
+                elif event_data["event"]["action"] == "ban":
+                    banned_info = event_data["event"]["ban"]
+                    banned_user_name = banned_info["user_name"]
+                    reason = banned_info["reason"]
+                    discord_message = f'{banned_user_name} has been banned for "{reason}" by {moderator_user_name}'
+                    discord_title = "New User Ban!"
+                    discord_image = "ban.png"
+                elif event_data["event"]["action"] == "unban":
+                    unban_info = event_data["event"]["unban"]
+                    banned_user_name = unban_info["user_name"]
+                    discord_message = f'{banned_user_name} has been unbanned by {moderator_user_name}'
+                    discord_title = "New Unban!"
+                    discord_image = "ban.png"
+                await send_to_discord_mod(discord_message, discord_title, discord_image)
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
@@ -3346,6 +3377,49 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
     mysql_cursor.execute("SELECT discord_alert FROM profile")
+    discord_url = mysql_cursor.fetchone()
+
+    mysql_cursor.execute("SELECT timezone FROM profile")
+    timezone = mysql_cursor.fetchone()[0]
+    if timezone:
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        time_format_date = current_time.strftime("%B %d, %Y")
+        time_format_time = current_time.strftime("%I:%M %p")
+        time_format = f"{time_format_date} at {time_format_time}"
+    else:
+        timezone = 'UTC'
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        time_format_date = current_time.strftime("%B %d, %Y")
+        time_format_time = current_time.strftime("%I:%M %p")
+        time_format = f"{time_format_date} at {time_format_time}"
+
+    payload = {"embeds": []}
+    if discord_url:
+        discord_url = discord_url[0]
+        payload["username"] = "BotOfTheSpecter"
+        payload["avatar_url"] = "https://cdn.botofthespecter.com/logo.png"
+        payload["embeds"] = [{
+            "description": message,
+            "title": title,
+            "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
+            "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
+        }]
+        
+        response = requests.post(discord_url, json=payload)
+        if response.status_code == 200 or response.status_code == 204:
+            # bot_logger.info(f"Sent to Disord {response.status_code}")
+            return
+        else:
+            bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
+    else:
+        bot_logger.error(f"Discord URL not found.")
+        return
+
+# Function to build the Discord Mod Notice 
+async def send_to_discord_mod(message, title, image):
+    mysql_cursor.execute("SELECT discord_mod FROM profile")
     discord_url = mysql_cursor.fetchone()
 
     mysql_cursor.execute("SELECT timezone FROM profile")
