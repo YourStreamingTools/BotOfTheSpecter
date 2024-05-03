@@ -666,7 +666,8 @@ async def process_eventsub_message(message):
                     user_name = timeout_info["user_name"]
                     reason = timeout_info["reason"]
                     expires_at = datetime.strptime(timeout_info["expires_at"], "%Y-%m-%dT%H:%M:%SZ")
-                    discord_message = f'{user_name} has been timmed out, their timeout expires at {expires_at} for the reason "{reason}"'
+                    expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                    discord_message = f'{user_name} has been timmed out, their timeout expires at {expires_at_formatted} for the reason "{reason}"'
                     discord_title = "New User Timeout!"
                     discord_image = "clock.png"
                 elif event_data["event"]["action"] == "untimeout":
@@ -1458,7 +1459,7 @@ class BotOfTheSpecter(commands.Bot):
         else:
             await ctx.send("Sorry, I couldn't fetch your bits information.")
 
-    @commands.command(name='lurk', aliases=('brb',))
+    @commands.command(name='lurk')
     async def lurk_command(self, ctx):
         mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("lurk",))
         result = mysql_cursor.fetchone()
@@ -1468,7 +1469,7 @@ class BotOfTheSpecter(commands.Bot):
                 return
         try:
             user_id = str(ctx.author.id)
-            now = datetime.now()
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
                 await ctx.send(f"You cannot lurk in your own channel, Streamer.")
@@ -1481,7 +1482,7 @@ class BotOfTheSpecter(commands.Bot):
 
             if result:
                 # User was lurking before
-                previous_start_time = datetime.fromisoformat(result[0])
+                previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                 lurk_duration = now - previous_start_time
 
                 # Calculate the duration
@@ -1503,7 +1504,8 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} is now lurking.")
 
             # Update the start time in the database
-            mysql_cursor.execute('INSERT OR REPLACE INTO lurk_times (user_id, start_time) VALUES (%s, %s)', (user_id, now.isoformat()))
+            formatted_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
+            mysql_cursor.execute('INSERT INTO lurk_times (user_id, start_time) VALUES (%s, %s) ON DUPLICATE KEY UPDATE start_time = %s', (user_id, formatted_datetime, formatted_datetime))
             mysql_connection.commit()
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
@@ -1519,30 +1521,30 @@ class BotOfTheSpecter(commands.Bot):
                 return
         try:
             user_id = str(ctx.author.id)
-    
+
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
                 await ctx.send(f"Streamer, you're always present!")
                 chat_logger.info(f"{ctx.author.name} tried to check lurk time in their own channel.")
                 return
-    
+
             mysql_cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
             result = mysql_cursor.fetchone()
-    
+
             if result:
-                start_time = datetime.fromisoformat(result[0])
+                start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                 elapsed_time = datetime.now() - start_time
-    
+
                 # Calculate the duration
                 days = elapsed_time.days
                 months = days // 30
                 days %= 30
                 hours, seconds = divmod(elapsed_time.seconds, 3600)
                 minutes, seconds = divmod(seconds, 60)
-    
+
                 # Build the time string
                 periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-    
+
                 # Send the lurk time message
                 await ctx.send(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
                 chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
@@ -1567,10 +1569,10 @@ class BotOfTheSpecter(commands.Bot):
 
             longest_lurk = None
             longest_lurk_user_id = None
-            now = datetime.now()
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             for user_id, start_time in lurkers:
-                start_time = datetime.fromisoformat(start_time)
+                start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
                 lurk_duration = now - start_time
 
                 if longest_lurk is None or lurk_duration > longest_lurk:
@@ -1622,7 +1624,7 @@ class BotOfTheSpecter(commands.Bot):
             result = mysql_cursor.fetchone()
 
             if result:
-                start_time = datetime.fromisoformat(result[0])
+                start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                 elapsed_time = datetime.now() - start_time
 
                 # Calculate the duration
@@ -1798,7 +1800,6 @@ class BotOfTheSpecter(commands.Bot):
             status = result[0]
             if status == 'Disabled':
                 return
-        chat_logger.info("Uptime Command ran.")
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -1814,8 +1815,7 @@ class BotOfTheSpecter(commands.Bot):
                         data = await response.json()
                         if data['data']:  # If stream is live
                             started_at_str = data['data'][0]['started_at']
-                            started_at = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
-                            started_at = started_at.replace(tzinfo=timezone.utc)
+                            started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%d %H:%M:%S%z")
                             uptime = datetime.now(timezone.utc) - started_at
                             hours, remainder = divmod(uptime.seconds, 3600)
                             minutes, seconds = divmod(remainder, 60)
@@ -2188,8 +2188,7 @@ class BotOfTheSpecter(commands.Bot):
                         for followed_channel in data['data']:
                             if followed_channel['broadcaster_login'] == target_user.lower():
                                 followed_at_str = followed_channel['followed_at']
-                                followed_at = datetime.fromisoformat(followed_at_str.replace('Z', '+00:00'))
-                                followed_at = followed_at.replace(tzinfo=timezone.utc)
+                                followed_at = datetime.strptime(followed_at_str.replace('Z', '+00:00'), "%Y-%m-%d %H:%M:%S%z")
                                 followage = datetime.now(timezone.utc) - followed_at
                                 years = followage.days // 365
                                 remaining_days = followage.days % 365
@@ -2264,22 +2263,22 @@ class BotOfTheSpecter(commands.Bot):
 
                         # Check if vacation is ongoing
                         if vacation and 'start_time' in vacation and 'end_time' in vacation:
-                            vacation_start = datetime.fromisoformat(vacation['start_time'][:-1]).replace(tzinfo=pytz.utc).astimezone(tz)
-                            vacation_end = datetime.fromisoformat(vacation['end_time'][:-1]).replace(tzinfo=pytz.utc).astimezone(tz)
+                            vacation_start = datetime.strptime(vacation['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
+                            vacation_end = datetime.strptime(vacation['end_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
                             if vacation_start <= current_time <= vacation_end:
                                 # Check if there is a stream within 2 days after the vacation ends
                                 for segment in segments:
-                                    start_time_utc = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                                    start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
                                     start_time = start_time_utc.astimezone(tz)
                                     if start_time >= vacation_end and (start_time - current_time).days <= 2:
-                                        await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')}. My next stream is on {start_time.strftime('%A, %d %B %Y')} at {start_time.strftime('%H:%M %Z')} (UTC: {start_time_utc.strftime('%H:%M')} UTC).")
+                                        await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). My next stream is on {start_time.strftime('%A, %d %B %Y')} ({start_time.strftime('%H:%M %Z')} UTC).")
                                         return
-                                await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')}. No streams during this time!")
+                                await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
                                 return
 
                         next_stream = None
                         for segment in segments:
-                            start_time_utc = datetime.fromisoformat(segment['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                            start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
                             start_time = start_time_utc.astimezone(tz)
                             if start_time > current_time:
                                 next_stream = segment
@@ -2287,7 +2286,7 @@ class BotOfTheSpecter(commands.Bot):
 
                         if next_stream:
                             start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
-                            start_time_utc = datetime.fromisoformat(next_stream['start_time'][:-1]).replace(tzinfo=pytz.utc)
+                            start_time_utc = datetime.strptime(next_stream['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
                             start_time = start_time_utc.astimezone(tz)
                             time_until = start_time - current_time
 
@@ -2299,7 +2298,7 @@ class BotOfTheSpecter(commands.Bot):
 
                             time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
 
-                            await ctx.send(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} (UTC: {start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                            await ctx.send(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} ({start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                         else:
                             await ctx.send(f"There are no upcoming streams in the next two days.")
                     else:
@@ -3351,7 +3350,7 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
-    datetime_obj = datetime.datetime.strptime(followed_at_twitch, "%Y-%m-%dT%H:%M:%S.%fZ")
+    datetime_obj = datetime.strptime(followed_at_twitch, "%Y-%m-%dT%H:%M:%S.%fZ")
     followed_at = datetime_obj.strftime("%Y-%m-%d %H:%M:%S")
 
     # Insert a new record for the follower
