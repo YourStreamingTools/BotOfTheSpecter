@@ -268,7 +268,8 @@ mysql_cursor.execute('''
         timezone TEXT DEFAULT NULL,
         weather_location TEXT DEFAULT NULL,
         discord_alert TEXT DEFAULT NULL,
-        discord_mod TEXT DEFAULT NULL
+        discord_mod TEXT DEFAULT NULL,
+        discord_alert_online TEXT DEFAULT NULL
     ) ENGINE=InnoDB
 ''')
 mysql_cursor.execute('''
@@ -2864,10 +2865,13 @@ async def process_stream_online():
         current_game = data['data'][0].get('game_name', None)
     else:
         current_game = None
+    image_data = data['data']["thumbnail_url"]
+    image = image_data.replace("{width}", "1280").replace("{height}", "720")
 
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_online_message(message)
+    await send_to_discord_stream_online(message, image)
 
 async def process_stream_offline():
     global stream_online
@@ -3447,6 +3451,56 @@ async def send_to_discord_mod(message, title, image):
             "description": message,
             "title": title,
             "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
+            "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
+        }]
+        
+        response = requests.post(discord_url, json=payload)
+        if response.status_code == 200 or response.status_code == 204:
+            # bot_logger.info(f"Sent to Disord {response.status_code}")
+            return
+        else:
+            bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
+    else:
+        bot_logger.error(f"Discord URL not found.")
+        return
+
+# Function to build the Discord Notice for Stream Online
+async def send_to_discord_stream_online(message, image):
+    mysql_cursor.execute("SELECT discord_alert_online FROM profile")
+    discord_url = mysql_cursor.fetchone()
+
+    mysql_cursor.execute("SELECT timezone FROM profile")
+    timezone = mysql_cursor.fetchone()[0]
+    if timezone:
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        time_format_date = current_time.strftime("%B %d, %Y")
+        time_format_time = current_time.strftime("%I:%M %p")
+        time_format = f"{time_format_date} at {time_format_time}"
+    else:
+        timezone = 'UTC'
+        tz = pytz.timezone(timezone)
+        current_time = datetime.now(tz)
+        time_format_date = current_time.strftime("%B %d, %Y")
+        time_format_time = current_time.strftime("%I:%M %p")
+        time_format = f"{time_format_date} at {time_format_time}"
+
+    title = f"{CHANNEL_NAME} is now live on Twitch!"
+    payload = {"content": "@everyone"}
+    if discord_url:
+        discord_url = discord_url[0]
+        payload = {"embeds": []}
+        payload["username"] = "BotOfTheSpecter"
+        payload["avatar_url"] = "https://cdn.botofthespecter.com/logo.png"
+        payload["embeds"] = [{
+            "description": message,
+            "title": title,
+            "url": f"https://twitch.tv/{CHANNEL_NAME}",
+            "image": {"url":
+                      f"{image}",
+                      "height": "720",
+                      "width": "1280"
+                      },
             "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
         }]
         
