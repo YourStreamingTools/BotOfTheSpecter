@@ -132,9 +132,10 @@ mysql_cursor.execute('''
 ''')
 mysql_cursor.execute('''
     CREATE TABLE IF NOT EXISTS `groups` (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name TEXT
-    ) ENGINE=InnoDB
+    `id` int NOT NULL AUTO_INCREMENT,
+    `name` text,
+    PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
 ''')
 mysql_cursor.execute('''
     CREATE TABLE IF NOT EXISTS custom_commands (
@@ -3517,17 +3518,24 @@ async def send_to_discord_stream_online(message, image):
 # Function to create a new group if it doesn't exist
 async def group_creation():
     group_names = ["VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
-    for name in group_names:
-        mysql_cursor.execute("SELECT * FROM `groups` WHERE name=%s", (name,))
-        if not mysql_cursor.fetchone():
-            try:
-                mysql_cursor.execute("INSERT INTO `groups` (name) VALUES (%s)", (name,))
-                mysql_connection.commit()
+    try:
+        # Check if groups already exist in the table
+        mysql_cursor.execute("SELECT name FROM `groups` WHERE name IN %s", (tuple(group_names),))
+        existing_groups = [row[0] for row in mysql_cursor.fetchall()]
+
+        # Filter out existing groups
+        new_groups = [name for name in group_names if name not in existing_groups]
+
+        # Insert new groups
+        if new_groups:
+            placeholders = ', '.join(['%s'] * len(new_groups))
+            mysql_cursor.executemany("INSERT INTO `groups` (name) VALUES (" + placeholders + ")", [(name,) for name in new_groups])
+            mysql_connection.commit()
+
+            for name in new_groups:
                 bot_logger.info(f"Group '{name}' created successfully.")
-            except mysql.connector.IntegrityError:
-                bot_logger.error(f"Failed to create group '{name}' due to integrity error.")
-        else:
-            return
+    except mysql.connector.Error as err:
+        bot_logger.error(f"Failed to create groups: {err}")
 
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
