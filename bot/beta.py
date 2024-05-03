@@ -714,6 +714,7 @@ class BotOfTheSpecter(commands.Bot):
         channel = self.get_channel(self.channel_name)
         await channel.send(f"/me is connected and ready! Running V{VERSION}")
         await check_stream_online()
+        await update_version_control()
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(timed_message())
 
@@ -3543,23 +3544,26 @@ async def builtin_commands_creation():
 
 # Function to tell the website what version of the bot is currently running
 async def update_version_control():
-    # Define the directory path
-    directory = "/var/www/logs/version/"
-    
-    # Ensure the directory exists, create it if it doesn't
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    
-    # Define the file path with the channel name
-    file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
-    
-    # Delete the file if it exists
-    if os.path.exists(file_path):
-        os.remove(file_path)
-    
-    # Write the new version to the file
-    with open(file_path, "w") as file:
-        file.write(VERSION)
+    try:
+        # Define the directory path
+        directory = "/var/www/logs/version/"
+        
+        # Ensure the directory exists, create it if it doesn't
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        
+        # Define the file path with the channel name
+        file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
+        
+        # Delete the file if it exists
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Write the new version to the file
+        with open(file_path, "w") as file:
+            file.write(VERSION)
+    except Exception as e:
+        bot_logger.error(f"An error occurred: {e}")
 
 async def check_stream_online():
     global stream_online
@@ -3611,9 +3615,6 @@ def start_bot():
 
     # Create built-in commands in the database
     builtin_commands_creation()
-
-    # Create Version Control for the website
-    update_version_control()
 
     # Start the bot
     bot.run()
