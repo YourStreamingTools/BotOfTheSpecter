@@ -33,21 +33,13 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 4.0 - BotOfTheSpecter
+### Version 4.1 - BotOfTheSpecter
 
-- Integrated Twitch EventSub for streamlined event notifications.
-- Implemented functions to ensure seamless operation even during bot restarts mid-stream.
-- Introduced dynamic database management for commands and groups.
-- Enhanced Discord notices for various Twitch EventSub events.
-- Streamlined file management with asynchronous file deletion.
-- Improved raid event processing and notification system.
-- Enhanced user management and chat moderation with added features.
-- Expanded database schema for better integration with Discord servers.
-- Optimized bot functionality for smoother operation.
-- Improved stream status handling and database management.
-- Updated various components for better performance and compatibility.
+- Switched to MySQL for database storage.
+- Updated Twitch EventSub topics.
+- Added Discord notification for stream status and moderation logs.
 
-[View Full Changelog for Version 4.0](/bot/changelog/4.0.md)
+[View Full Changelog for Version 4.1](/bot/changelog/4.1.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
