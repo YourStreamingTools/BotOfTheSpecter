@@ -43,7 +43,6 @@ $pid = '';
 $versionRunning = '';
 $betaVersionRunning = '';
 include 'bot_control.php';
-include 'beta_bot_control.php';
 include 'sqlite.php';
 
 // Twitch API URL
@@ -109,38 +108,48 @@ if ($ModStatusOutput) {
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <?php echo $BotModMessage; ?>
-<?php if ($betaAccess) { echo "<p style='color: red;'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p>"; } ?>
+<?php if ($betaAccess) { ?>
+  <p style='color: red;'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p>
+<?php } ?>
 <div class="dashboard-container">
   <!-- Bot Status -->
   <div class="dashboard-section" id="bot-status">
     <h4>Stable Bot:</h4>
     <?php echo $statusOutput; ?>
 
-    <?php echo $versionRunning; ?>
-
-    <div class="bot-actions">
-      <form action="" method="post"><button class="bot-button" type="submit" name="killBot">Stop Bot</button></form>
-      <form action="" method="post"><button class="bot-button" type="submit" name="runBot">Run Bot</button></form>
-      <form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form>
+    <?php if ($botSystemStatus) { ?>
+      <?php echo $versionRunning; ?>
+      <div class="bot-actions">
+        <form action="" method="post"><button class="bot-button" type="submit" name="killBot">Stop Bot</button></form>
+        <form action="" method="post"><button class="bot-button" type="submit" name="restartBot">Restart Bot</button></form>
+      </div>
+    <?php } else { ?>
+      <div class="bot-actions">
+        <form action="" method="post"><button class="bot-button" type="submit" name="runBot">Run Bot</button></form>
+      </div>
+    <?php } ?>
     </div>
-  </div>
 </div>
 <?php if ($betaAccess) { ?>
-<div class="dashboard-container">
-  <!-- Beta Bot Status -->
-  <div class="dashboard-section" id="beta-bot-status">
-    <h4>Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
-    <?php echo $betaStatusOutput; ?>
-
-    <?php echo $betaVersionRunning; ?>
-
-    <div class="bot-actions">
-      <form action="" method="post"><button class="bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button></form>
-      <form action="" method="post"><button class="bot-button" type="submit" name="runBetaBot">Run Beta Bot</button></form>
-      <form action="" method="post"><button class="bot-button" type="submit" name="restartBetaBot">Restart Beta Bot</button></form>
+  <div class="dashboard-container">
+    <!-- Beta Bot Status -->
+    <div class="dashboard-section" id="beta-bot-status">
+      <h4>Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
+      <?php echo $betaStatusOutput; ?>
+      
+      <?php if ($botSystemStatus) { ?>
+        <?php echo $betaVersionRunning; ?>
+        <div class="bot-actions">
+          <form action="" method="post"><button class="bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button></form>
+          <form action="" method="post"><button class="bot-button" type="submit" name="restartBetaBot">Restart Beta Bot</button></form>
+        </div>
+      <?php } else { ?>
+        <div class="bot-actions">
+          <form action="" method="post"><button class="bot-button" type="submit" name="runBetaBot">Run Beta Bot</button></form>
+        </div>
+      <?php } ?>
     </div>
   </div>
-</div>
 <?php } ?>
 </div>
 
