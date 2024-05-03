@@ -10,13 +10,13 @@ $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
 $logPath = "/var/www/logs/script/$username.txt";
 $statusOutput = getBotStatus($statusScriptPath, $username, $logPath);
-$botSystemStatus = isBotRunning($statusScriptPath, $username, $logPath);
+$botSystemStatus = getBotStatus($statusScriptPath, $username, $logPath);
 $directory = dirname($logPath);
 
 // Check if the directory exists, if not, create it
 if (!file_exists($directory)) {
     // Attempt to create the directory with full permissions
-    if (!mkdir($directory, 0777, true)) {
+    if (!mkdir($directory, 0777, True)) {
         echo "Failed to create directory: $directory";
         exit;
     }
@@ -26,7 +26,7 @@ if (!file_exists($directory)) {
 $file = fopen($logPath, 'w');
 
 // Check if the file handle was successfully created
-if ($file === false) {
+if ($file === False) {
     echo "Failed to create/open the file: $logPath";
     exit;
 }
@@ -34,36 +34,63 @@ if ($file === false) {
 // Close the file handle
 fclose($file);
 
+if (isset($_POST['runBot'])) {
+    if (isBotRunning($statusScriptPath, $username, $logPath)) {
+        $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+        $pid = intval(preg_replace('/\D/', '', $statusOutput));
+        $botSystemStatus = True; // Set to True if bot is running
+        $statusOutput = "<div class='status-message'>Bot is already running. PID $pid.</div>";
+    } else {
+        startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
+        $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+        $pid = intval(preg_replace('/\D/', '', $statusOutput));
+
+        if ($pid > 0) {
+            $botSystemStatus = True; // Set to True if bot started successfully
+            $statusOutput = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
+        } else {
+            $botSystemStatus = False; // Set to False if failed to start the bot
+            $statusOutput = "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>";
+        }
+    }
+}
+
+if (isset($_POST['killBot'])) {
+    $pid = getBotPID($statusScriptPath, $username, $logPath);
+    if ($pid > 0) {
+        killBot($pid);
+        $botSystemStatus = False; // Set to False when bot is stopped
+        $statusOutput = "<div class='status-message'>Bot stopped successfully.</div>";
+    } else {
+        $botSystemStatus = False; // Set to False if bot is not running
+        $statusOutput = "<div class='status-message error'>Bot is not running.</div>";
+    }
+}
+
+if (isset($_POST['restartBot'])) {
+    $pid = getBotPID($statusScriptPath, $username, $logPath);
+    if ($pid > 0) {
+        killBot($pid);
+        startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
+        $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+        $pid = intval(preg_replace('/\D/', '', $statusOutput));
+
+        if ($pid > 0) {
+            $botSystemStatus = True; // Set to True if bot restarted successfully
+            $statusOutput = "<div class='status-message'>Bot restarted. PID $pid.</h5>";
+        } else {
+            $botSystemStatus = False; // Set to False if failed to restart the bot
+            $statusOutput = "<div class='status-message error'>Failed to restart the bot.</div>";
+        }
+    } else {
+        $botSystemStatus = False; // Set to False if bot is not running
+        $statusOutput = "<div class='status-message error'>Bot is not running.</div>";
+    }
+}
+
 function isBotRunning($statusScriptPath, $username, $logPath) {
     $pid = getBotPID($statusScriptPath, $username, $logPath);
     return ($pid > 0);
-}
-
-function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath) {
-    // Append the log path to the command
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $logPath 2>&1 &";
-    
-    // Execute the command
-    $output = shell_exec($command);
-
-    sleep(1);
-
-    // Check for errors in the output
-    if (!empty($output) && strpos($output, 'error') !== false) {
-        return false;
-    }
-    
-    // Bot started successfully
-    return true;
-}
-
-function killBot($pid) {
-    $output = shell_exec("kill $pid > /dev/null 2>&1 &");
-    sleep(3);
-    if (isset($output) && strpos($output, 'error') !== false) {
-        return false;
-    }
-    return true;
 }
 
 function getBotPID($statusScriptPath, $username, $logPath) {
@@ -89,45 +116,9 @@ function getBotStatus($statusScriptPath, $username, $logPath) {
     }
 }
 
-// Define variables
-$betaVersionFilePath = '/var/www/logs/version/' . $username . '_beta_version_control.txt';
-$betaNewVersion = file_get_contents("/var/www/api/beta_version_control.txt");
-$BetaBotScriptPath = "/var/www/bot/beta.py";
-$BetaStatusScriptPath = "/var/www/bot/beta_status.py";
-$BetaLogPath = "/var/www/logs/script/$username.txt";
-$betaStatusOutput = getBetaBotStatus($BetaStatusScriptPath, $username, $BetaLogPath);
-$botSystemStatus = isBetaBotRunning($BetaStatusScriptPath, $username, $BetaLogPath);
-$BetaDirectory = dirname($BetaLogPath);
-
-// Check if the BetaDirectory exists, if not, create it
-if (!file_exists($BetaDirectory)) {
-    // Attempt to create the BetaDirectory with full permissions
-    if (!mkdir($BetaDirectory, 0777, true)) {
-        echo "Failed to create BetaDirectory: $BetaDirectory";
-        exit;
-    }
-}
-
-// Open the file in write mode ('w')
-$file = fopen($BetaLogPath, 'w');
-
-// Check if the file handle was successfully created
-if ($file === false) {
-    echo "Failed to create/open the file: $BetaLogPath";
-    exit;
-}
-
-// Close the file handle
-fclose($file);
-
-function isBetaBotRunning($BetaStatusScriptPath, $username, $BetaLogPath) {
-    $pid = getBetaBotPID($BetaStatusScriptPath, $username, $BetaLogPath);
-    return ($pid > 0);
-}
-
-function startBetaBot($BetaBotScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath) {
+function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath) {
     // Append the log path to the command
-    $command = "python $BetaBotScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $BetaLogPath 2>&1 &";
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $logPath 2>&1 &";
     
     // Execute the command
     $output = shell_exec($command);
@@ -135,48 +126,26 @@ function startBetaBot($BetaBotScriptPath, $username, $twitchUserId, $authToken, 
     sleep(1);
 
     // Check for errors in the output
-    if (!empty($output) && strpos($output, 'error') !== false) {
-        return false;
+    if (!empty($output) && strpos($output, 'error') !== False) {
+        return False;
     }
     
     // Bot started successfully
-    return true;
+    return True;
 }
 
-function killBetaBot($pid) {
+function killBot($pid) {
     $output = shell_exec("kill $pid > /dev/null 2>&1 &");
     sleep(3);
-    if (isset($output) && strpos($output, 'error') !== false) {
-        return false;
+    if (isset($output) && strpos($output, 'error') !== False) {
+        return False;
     }
-    return true;
-}
-
-function getBetaBotPID($BetaStatusScriptPath, $username, $BetaLogPath) {
-    $betaStatusOutput = shell_exec("python $BetaStatusScriptPath -channel $username");
-    if ($betaStatusOutput !== null) {
-        return intval(preg_replace('/\D/', '', $betaStatusOutput));
-    } else {
-        return 0;
-    }
-}
-
-function getBetaBotStatus($BetaStatusScriptPath, $username, $BetaLogPath) {
-    $betaStatusOutput = shell_exec("python $BetaStatusScriptPath -channel $username");
-    $pid = intval(preg_replace('/\D/', '', $betaStatusOutput));
-    if ($betaStatusOutput !== null) {
-        if ($pid > 0) {
-            return "<div class='status-message'>Status: PID $pid.</div>";
-        } else {
-            return "<div class='status-message error'>Status: NOT RUNNING</div>";
-        }
-    } else {
-        return "<div class='status-message error'>Unable to determine bot status.</div>";
-    }
+    $botSystemStatus = False;
+    return True;
 }
 
 // Display running version if bot is running or if bot was started or restarted
-if ($botSystemStatus == true) {
+if ($botSystemStatus == True) {
     // Check if the version control file exists
     if (file_exists($versionFilePath)) {
         // If the file exists, read its contents
@@ -191,25 +160,6 @@ if ($botSystemStatus == true) {
     } else {
         // If the file doesn't exist, display a message indicating that the version is not available
         $versionRunning = "<div class='status-message'>Version information not available.</div>";
-    }
-}
-
-// Display running version if bot is running or if bot was started or restarted
-if ($botSystemStatus == true) {
-    // Check if the version control file exists
-    if (file_exists($betaVersionFilePath)) {
-        // If the file exists, read its contents
-        $versionContent = file_get_contents($betaVersionFilePath); 
-        $betaVersionRunning = "<div class='status-message'>Running Version: $versionContent</div>";
-
-        // Compare the running version with the new version
-        if ($versionContent !== $betaNewVersion) {
-            // Display message for update if versions are different
-            $betaVersionRunning .= "<div class='status-message'>Update (V$betaNewVersion) is available.</div>";
-        }
-    } else {
-        // If the file doesn't exist, display a message indicating that the version is not available
-        $betaVersionRunning = "<div class='status-message'>Version information not available.</div>";
     }
 }
 ?>
