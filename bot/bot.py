@@ -1573,10 +1573,9 @@ class BotOfTheSpecter(commands.Bot):
 
             longest_lurk = None
             longest_lurk_user_id = None
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now()
 
             for user_id, start_time in lurkers:
-                start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
                 lurk_duration = now - start_time
 
                 if longest_lurk is None or lurk_duration > longest_lurk:
@@ -1819,7 +1818,7 @@ class BotOfTheSpecter(commands.Bot):
                         data = await response.json()
                         if data['data']:  # If stream is live
                             started_at_str = data['data'][0]['started_at']
-                            started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'))
+                            started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
                             uptime = datetime.now(timezone.utc) - started_at
                             hours, remainder = divmod(uptime.seconds, 3600)
                             minutes, seconds = divmod(remainder, 60)
@@ -2662,6 +2661,25 @@ async def get_streamer_weather():
     chat_logger.info(f"Got {location} weather info.")
     return location
 
+async def get_weather(location):
+    owm = pyowm.OWM(WEATHER_API)
+    try:
+        observation = owm.weather_manager().weather_at_place(location)
+        weather = observation.weather
+        status = weather.detailed_status
+        temperature = weather.temperature('celsius')['temp']
+        temperature_f = round(temperature * 9 / 5 + 32, 1)
+        wind_speed = round(weather.wind()['speed'])
+        wind_speed_mph = round(wind_speed / 1.6, 2)
+        humidity = weather.humidity
+        wind_direction = await getWindDirection(weather.wind()['deg'])
+
+        return f"The weather in {location} is {status} with a temperature of {temperature}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at {wind_speed}kph ({wind_speed_mph}mph) and the humidity is {humidity}%."
+    except pyowm.exceptions.NotFoundError:
+        return f"Location '{location}' not found."
+    except AttributeError:
+        return f"An error occurred while processing the weather data for '{location}'."
+
 async def getWindDirection(deg):
     cardinalDirections = {
         'N': (337.5, 22.5),
@@ -2677,25 +2695,6 @@ async def getWindDirection(deg):
         if deg >= start and deg < end:
             return direction
     return 'N/A'
-
-async def get_weather(location):
-    owm = pyowm.OWM(WEATHER_API)
-    try:
-        observation = owm.weather_manager().weather_at_place(location)
-        weather = observation.weather
-        status = weather.detailed_status
-        temperature = weather.temperature('celsius')['temp']
-        temperature_f = round(temperature * 9 / 5 + 32, 1)
-        wind_speed = round(weather.wind()['speed'])
-        wind_speed_mph = round(wind_speed / 1.6, 2)
-        humidity = weather.humidity
-        wind_direction = getWindDirection(weather.wind()['deg'])
-
-        return f"The weather in {location} is {status} with a temperature of {temperature}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at {wind_speed}kph ({wind_speed_mph}mph) and the humidity is {humidity}%."
-    except pyowm.exceptions.NotFoundError:
-        return f"Location '{location}' not found."
-    except AttributeError:
-        return f"An error occurred while processing the weather data for '{location}'."
 
 # Function to trigger updating stream title or game
 class GameNotFoundException(Exception):
