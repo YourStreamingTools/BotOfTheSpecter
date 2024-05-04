@@ -640,7 +640,7 @@ async def process_eventsub_message(message):
                 current_game = category_name
                 bot_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
             elif event_type == 'channel.ad_break.begin':
-                duration_seconds = event_data["event"]["duration_seconds"]
+                duration_seconds = event_data["duration_seconds"]
                 minutes = duration_seconds // 60
                 seconds = duration_seconds % 60
                 if minutes == 0:
@@ -3354,7 +3354,7 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
-    datetime_obj = datetime.strptime(followed_at_twitch, "%Y-%m-%dT%H:%M:%S.%fZ")
+    datetime_obj = datetime.strptime(followed_at_twitch, "%Y-%m-%d %H:%M:%S")
     followed_at = datetime_obj.strftime("%Y-%m-%d %H:%M:%S")
 
     # Insert a new record for the follower
