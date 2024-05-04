@@ -2556,8 +2556,8 @@ def is_user_vip(user_trigger_id):
                     user_name = vip["user_name"]
                     twitch_logger.info(f"User {user_name} is a VIP Member")
                     return True
-                twitch_logger.info(f"User {user_name} is not a VIP Member")
-                return False
+            twitch_logger.info(f"User ID: {user_trigger_id} is not a VIP Member")
+            return False
         return False
     except requests.RequestException as e:
         twitch_logger.error(f"Failed to retrieve VIP status: {e}")
