@@ -1048,11 +1048,11 @@ class BotOfTheSpecter(commands.Bot):
             if ' ' in location:
                 await ctx.send(f"Please provide the location in the format: City,CountryCode (e.g. Sydney,AU)")
                 return
-            weather_info = get_weather(location)
+            weather_info = await get_weather(location)
         else:
-            location = get_streamer_weather()
+            location = await get_streamer_weather()
             if location:
-                weather_info = get_weather(location)
+                weather_info = await get_weather(location)
             else:
                 weather_info = "I'm sorry, something went wrong trying to get the current weather."
         await ctx.send(weather_info)
