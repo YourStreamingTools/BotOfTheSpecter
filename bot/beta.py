@@ -713,7 +713,7 @@ class BotOfTheSpecter(commands.Bot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await channel.send(f"/me is connected and ready! Running V{VERSION}B")
         await check_stream_online()
         await update_version_control()
         asyncio.get_event_loop().create_task(twitch_eventsub())
@@ -741,7 +741,6 @@ class BotOfTheSpecter(commands.Bot):
         messageAuthor = message.author.name
         messageAuthorID = message.author.id
         AuthorMessage = message.content
-        group_names = []
 
         # Handle commands
         await self.handle_commands(message)
@@ -875,11 +874,6 @@ class BotOfTheSpecter(commands.Bot):
             #bot_logger.info(f"{messageAuthor} has already had their welcome message.")
             return
 
-        # Check if the user is the broadcaster
-        if messageAuthor.lower() == CHANNEL_NAME.lower():
-            #bot_logger.info(f"{CHANNEL_NAME} can't have a welcome message.")
-            return
-
         # Check if the user is a VIP or MOD
         is_vip = is_user_vip(messageAuthorID)
         bot_logger.info(f"{messageAuthor} - VIP={is_vip}")
@@ -891,6 +885,9 @@ class BotOfTheSpecter(commands.Bot):
         user_data = mysql_cursor.fetchone()
 
         if user_data:
+            # Check if the user is the broadcaster
+            if messageAuthor.lower() == CHANNEL_NAME.lower():
+                return
             user_status = True
             welcome_message = user_data[2]
             user_status_enabled = user_data[3]
@@ -898,6 +895,9 @@ class BotOfTheSpecter(commands.Bot):
             mysql_connection.commit()
             # twitch_logger.info(f"{messageAuthor} has been found in the database.")
         else:
+            # Check if the user is the broadcaster
+            if messageAuthor.lower() == CHANNEL_NAME.lower():
+                return
             user_status = False
             welcome_message = None
             user_status_enabled = 'True'
@@ -951,11 +951,13 @@ class BotOfTheSpecter(commands.Bot):
         else:
             # Status disabled for user
             chat_logger.info(f"Message not sent for {messageAuthor} as status is disabled.")
+        await self.user_grouping(messageAuthor, messageAuthorID)
 
+    async def user_grouping(messageAuthor, messageAuthorID):
+        group_names = []
         # Check if the user is the broadcaster
         if messageAuthor == CHANNEL_NAME:
             return
-
         # Check if the user is a subscriber
         subscription_tier = is_user_subscribed(messageAuthorID)
         if subscription_tier:
@@ -2556,8 +2558,8 @@ def is_user_vip(user_trigger_id):
                     user_name = vip["user_name"]
                     twitch_logger.info(f"User {user_name} is a VIP Member")
                     return True
-                twitch_logger.info(f"User {user_name} is not a VIP Member")
-                return False
+            twitch_logger.info(f"User ID: {user_trigger_id} is not a VIP Member")
+            return False
         return False
     except requests.RequestException as e:
         twitch_logger.error(f"Failed to retrieve VIP status: {e}")
