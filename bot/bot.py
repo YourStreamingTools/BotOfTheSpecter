@@ -1819,7 +1819,7 @@ class BotOfTheSpecter(commands.Bot):
                         data = await response.json()
                         if data['data']:  # If stream is live
                             started_at_str = data['data'][0]['started_at']
-                            started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%d %H:%M:%S%z")
+                            started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'))
                             uptime = datetime.now(timezone.utc) - started_at
                             hours, remainder = divmod(uptime.seconds, 3600)
                             minutes, seconds = divmod(remainder, 60)
