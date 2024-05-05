@@ -953,7 +953,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.info(f"Message not sent for {messageAuthor} as status is disabled.")
         await self.user_grouping(messageAuthor, messageAuthorID)
 
-    async def user_grouping(messageAuthor, messageAuthorID):
+    async def user_grouping(self, messageAuthor, messageAuthorID):
         group_names = []
         # Check if the user is the broadcaster
         if messageAuthor == CHANNEL_NAME:
