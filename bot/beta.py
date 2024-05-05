@@ -3140,24 +3140,14 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
         # Update the raid count for the raiding broadcaster
         raid_count = existing_raid_count[0] + 1
         viewers = existing_viewer_count[0] + viewer_count
-        mysql_cursor.execute('''
-            UPDATE raid_data SET raid_count = %s WHERE raider_id = %s
-        ''', (raid_count, from_broadcaster_id))
-        mysql_cursor.execute('''
-            UPDATE raid_data SET viewers = %s WHERE raider_id = %s
-        ''', (viewers, from_broadcaster_id))
+        mysql_cursor.execute('UPDATE raid_data SET raid_count = %s WHERE raider_id = %s', (raid_count, from_broadcaster_id))
+        mysql_cursor.execute('UPDATE raid_data SET viewers = %s WHERE raider_id = %s', (viewers, from_broadcaster_id))
     else:
         # Insert a new record for the raiding broadcaster
-        mysql_cursor.execute('''
-            INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers)
-            VALUES (%s, %s, %s, %s)
-        ''', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
+        mysql_cursor.execute('INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers) VALUES (%s, %s, %s, %s)', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
 
     # Insert data into stream_credits table
-    mysql_cursor.execute('''
-        INSERT INTO stream_credits (username, event, data)
-        VALUES (%s, %s, %s)
-    ''', (from_broadcaster_name, "raid", viewer_count))
+    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (from_broadcaster_name, "raid", viewer_count))
 
     # Commit changes to the database
     mysql_connection.commit()
@@ -3177,21 +3167,14 @@ async def process_cheer_event(user_id, user_name, bits):
     if existing_bits:
         # Update the user's total bits count
         total_bits = existing_bits[0] + bits
-        mysql_cursor.execute('''
-            UPDATE bits_data
-            SET bits = %s
-            WHERE user_id = %s OR user_name = %s
-        ''', (total_bits, user_id, user_name))
+        mysql_cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (total_bits, user_id, user_name))
         
         # Send message to channel with total bits
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
     else:
         # Insert a new record for the user
-        mysql_cursor.execute('''
-            INSERT INTO bits_data (user_id, user_name, bits)
-            VALUES (%s, %s, %s)
-        ''', (user_id, user_name, bits))
+        mysql_cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (user_id, user_name, bits))
         
         discord_message = f"{user_name} just cheered {bits} bits!"
         if bits < 100:
@@ -3207,10 +3190,7 @@ async def process_cheer_event(user_id, user_name, bits):
         await channel.send(f"Thank you {user_name} for {bits} bits!")
 
     # Insert data into stream_credits table
-    mysql_cursor.execute('''
-    INSERT INTO stream_credits (username, event, data)
-    VALUES (%s, %s, %s)
-    ''', (user_name, "bits", bits))
+    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
     mysql_connection.commit()
 
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
@@ -3223,30 +3203,16 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
         existing_sub_plan, db_months = existing_subscription
         if existing_sub_plan != sub_plan:
             # User upgraded their subscription plan
-            mysql_cursor.execute('''
-                UPDATE subscription_data
-                SET sub_plan = %s, months = %s
-                WHERE user_id = %s
-            ''', (sub_plan, db_months, user_id))
+            mysql_cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, db_months, user_id))
         else:
             # User maintained the same subscription plan, update cumulative months
-            mysql_cursor.execute('''
-                UPDATE subscription_data
-                SET months = %s
-                WHERE user_id = %s
-            ''', (db_months, user_id))
+            mysql_cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
     else:
         # User does not exist in the database, insert new record
-        mysql_cursor.execute('''
-            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (%s, %s, %s, %s)
-        ''', (user_id, user_name, sub_plan, event_months))
+        mysql_cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
 
     # Insert data into stream_credits table
-    mysql_cursor.execute('''
-        INSERT INTO stream_credits (username, event, data)
-        VALUES (%s, %s, %s)
-    ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
+    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
 
     # Commit changes to the database
     mysql_connection.commit()
@@ -3269,30 +3235,16 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
         existing_sub_plan, db_months = existing_subscription
         if existing_sub_plan != sub_plan:
             # User upgraded their subscription plan
-            mysql_cursor.execute('''
-                UPDATE subscription_data
-                SET sub_plan = %s, months = %s
-                WHERE user_id = %s
-            ''', (sub_plan, db_months, user_id))
+            mysql_cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, db_months, user_id))
         else:
             # User maintained the same subscription plan, update cumulative months
-            mysql_cursor.execute('''
-                UPDATE subscription_data
-                SET months = %s
-                WHERE user_id = %s
-            ''', (db_months, user_id))
+            mysql_cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
     else:
         # User does not exist in the database, insert new record
-        mysql_cursor.execute('''
-            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (%s, %s, %s, %s)
-        ''', (user_id, user_name, sub_plan, event_months))
+        mysql_cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
 
     # Insert data into stream_credits table with the subscriber's message
-    mysql_cursor.execute('''
-        INSERT INTO stream_credits (username, event, data)
-        VALUES (%s, %s, %s)
-    ''', (user_name, "subscriptions", f"{sub_plan} - {event_months} months."))
+    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months."))
 
     # Commit changes to the database
     mysql_connection.commit()
@@ -3321,23 +3273,13 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
         existing_months = existing_months[0]
         # Update the existing subscription with the new cumulative months
         updated_months = existing_months + 1
-        mysql_cursor.execute('''
-            UPDATE subscription_data
-            SET sub_plan = %s, months = %s
-            WHERE user_id = %s
-        ''', (sub_plan, updated_months, recipient_user_id))
+        mysql_cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, updated_months, recipient_user_id))
     else:
         # Recipient user does not exist in the database, insert new record
-        mysql_cursor.execute('''
-            INSERT INTO subscription_data (user_id, user_name, sub_plan, months)
-            VALUES (%s, %s, %s, %s)
-        ''', (recipient_user_id, recipient_user_name, sub_plan, 1))
+        mysql_cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (recipient_user_id, recipient_user_name, sub_plan, 1))
 
     # Insert subscription data into stream_credits table
-    mysql_cursor.execute('''
-        INSERT INTO stream_credits (username, event, data)
-        VALUES (%s, %s, %s)
-    ''', (recipient_user_name, "subscriptions", f"{sub_plan} - GIFT SUBSCRIPTION"))
+    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (recipient_user_name, "subscriptions", f"{sub_plan} - GIFT SUBSCRIPTION"))
 
     # Commit changes to the database
     mysql_connection.commit()
@@ -3361,16 +3303,10 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
     followed_at = datetime_obj.strftime("%Y-%m-%d %H:%M:%S")
 
     # Insert a new record for the follower
-    mysql_cursor.execute('''
-        INSERT INTO followers_data (user_id, user_name, followed_at)
-        VALUES (%s, %s, %s)
-    ''', (user_id, user_name, followed_at))
+    mysql_cursor.execute('INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (%s, %s, %s)', (user_id, user_name, followed_at))
 
     # Insert data into stream_credits table
-    mysql_cursor.execute('''
-        INSERT INTO stream_credits (username, event, data)
-        VALUES (%s, %s, %s)
-    ''', (user_name, "follow", ""))
+    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "follow", ""))
 
     # Commit changes to the database
     mysql_connection.commit()
