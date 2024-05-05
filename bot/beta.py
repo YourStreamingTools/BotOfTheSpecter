@@ -861,11 +861,7 @@ class BotOfTheSpecter(commands.Bot):
         user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
 
         # Insert into the database the number of chats during the stream
-        mysql_cursor.execute('''
-            INSERT INTO message_counts (username, message_count, user_level)
-            VALUES (%s, 1, %s)
-            ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s
-        ''', (messageAuthor, user_level, user_level))
+        mysql_cursor.execute('INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s', (messageAuthor, user_level, user_level))
         mysql_connection.commit()
 
         # Has the user been seen during this stream
