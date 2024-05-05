@@ -851,11 +851,14 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
         else:
             pass
+        await self.message_counting(messageAuthor, messageAuthorID, message)
 
+    async def message_counting(self, messageAuthor, messageAuthorID, message):
         # Check user level
         is_vip = is_user_vip(messageAuthorID)
         is_mod = is_user_moderator(messageAuthorID)
-        user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
+        is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
+        user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
 
         # Insert into the database the number of chats during the stream
         mysql_cursor.execute('''
