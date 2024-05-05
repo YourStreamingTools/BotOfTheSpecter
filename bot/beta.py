@@ -2896,11 +2896,15 @@ async def send_online_message(message):
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
     mysql_cursor.execute('DELETE FROM seen_today')
+    mysql_cursor.execute('TRUNCATE TABLE seen_today')
+    mysql_cursor.execute('ALTER TABLE seen_today AUTO_INCREMENT = 1')
     mysql_connection.commit()
 
 # Function to clear the ending credits table at the end of stream
 async def clear_credits_data():
     mysql_cursor.execute('DELETE FROM stream_credits')
+    mysql_cursor.execute('TRUNCATE TABLE stream_credits')
+    mysql_cursor.execute('ALTER TABLE stream_credits AUTO_INCREMENT = 1')
     mysql_connection.commit()
 
 # Function for timed messages
