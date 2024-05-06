@@ -58,12 +58,12 @@ if (isset($params['access_token'])) {
         $userSTMT->execute();
         $userResult = $userSTMT->get_result();
         $user = $userResult->fetch_assoc();
-        $twitchUserId = $user['twitch_user_id'];
+        $userAccountID = $user['id'];
 
         // Prepare and execute the SQL statement
         $discord_id = $user_data['id'];
         $avatar = $user_data['avatar'];
-        $sql = "INSERT INTO discord_users (user_id, discord_id, avatar) VALUES ('$twitchUserId', '$discord_id', '$avatar')";
+        $sql = "INSERT INTO discord_users (user_id, discord_id, avatar) VALUES ('$userAccountID', '$discord_id', '$avatar')";
         
         if ($conn->query($sql) === TRUE) {
             // Redirect back to discordbot.php
