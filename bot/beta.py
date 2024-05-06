@@ -764,6 +764,7 @@ class BotOfTheSpecter(commands.Bot):
                 if result[1] == 'Enabled':
                     response = result[0]
                     switches = ['(customapi.', '(count)', '(daysuntil.', '(command.']
+                    responses_to_send = []
                     while any(switch in response for switch in switches):
                         if '(customapi.' in response:
                             url_match = re.search(r'\(customapi\.(\S+)\)', response)
@@ -793,13 +794,24 @@ class BotOfTheSpecter(commands.Bot):
                                 mysql_cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
                                 sub_response = mysql_cursor.fetchone()
                                 if sub_response:
-                                    response = response.replace(f"(command.{sub_command})", sub_response)
-                                    chat_logger.info(f"{command} command ran with response: {sub_response}")
-                                    await message.channel.send(sub_response)
+                                    response = response.replace(f"(command.{sub_command})", sub_response[0])
+                                    responses_to_send.append(sub_response[0])
                                 else:
                                     chat_logger.error(f"{sub_command} is no longer available.")
                                     await message.channel.send(f"The command {sub_command} is no longer available.")
+                    # Send the individual responses
+                    if len(responses_to_send) > 1:
+                        for resp in responses_to_send:
+                            chat_logger.info(f"{command} command ran with response: {resp}")
+                            await message.channel.send(resp)
                         else:
+                        else:
+                            break
+                        
+                    # Send the modified response if no sub-commands are left
+                    if not any(switch in response for switch in switches):
+                        chat_logger.info(f"{command} command ran with response: {response}")
+                    else:
                             break
                         
                     # Send the modified response if no sub-commands are left
