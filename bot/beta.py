@@ -650,7 +650,7 @@ async def process_eventsub_message(message):
                 else:
                     formatted_duration = f"{minutes} minutes, {seconds} seconds"
 
-                await channel.send(f"An ad is about to run for {formatted_duration}. We'll be right back after these ads.")
+                await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
             elif event_type == 'channel.charity_campaign.donate':
                 user = event_data["event"]["user_name"]
                 charity = event_data["event"]["charity_name"]
@@ -787,8 +787,9 @@ class BotOfTheSpecter(commands.Bot):
                                 days_left = (event_date - current_date).days
                                 response = response.replace(f"(daysuntil.{date_str})", str(days_left))
                         if '(command.' in response:
-                            command_matches = re.findall(r'\(command\.(\w+)\)', response)
-                            for sub_command in command_matches:
+                            command_match = re.search(r'\(command\.(\w+)\)', response)
+                            if command_match:
+                                sub_command = command_match.group(1)
                                 mysql_cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
                                 sub_response = mysql_cursor.fetchone()
                                 if sub_response:
@@ -798,11 +799,13 @@ class BotOfTheSpecter(commands.Bot):
                                 else:
                                     chat_logger.error(f"{sub_command} is no longer available.")
                                     await message.channel.send(f"The command {sub_command} is no longer available.")
-                                    continue
-                                
-                    # Send the final response if there are no more placeholders
-                    chat_logger.info(f"{command} command ran with response: {response}")
-                    await message.channel.send(response)
+                        else:
+                            break
+                        
+                    # Send the modified response if no sub-commands are left
+                    if not any(switch in response for switch in switches):
+                        chat_logger.info(f"{command} command ran with response: {response}")
+                        await message.channel.send(response)
                 else:
                     chat_logger.info(f"{command} not ran because it's disabled.")
             else:
