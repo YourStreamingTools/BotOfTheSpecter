@@ -56,9 +56,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($interval === false) {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
         } else {
-            // Insert new message into SQLite database
             try {
-                $stmt = $db->prepare("INSERT INTO timed_messages (interval, message) VALUES (?, ?)");
+                $stmt = $db->prepare("INSERT INTO timed_messages (interval, message, status) VALUES (?, ?, 'Enabled')");
                 $stmt->execute([$interval, $message]);
                 $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.';
             } catch (PDOException $e) {
@@ -133,7 +132,7 @@ if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
         $displayMessages = "<p style='color: green;'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
     } elseif (!empty($_GET['errorMessage'])) {
-        $displayMessages = "<p style='color: red;'>". htmlspecialchars($_GET['erorrMessage']) . "</p>";
+        $displayMessages = "<p style='color: red;'>". htmlspecialchars($_GET['errorMessage']) . "</p>";
     }
 }
 ?>
