@@ -67,7 +67,7 @@ $is_linked = ($discord_userResult->num_rows > 0);
 <br>
 <?php if (!$is_linked) {
     echo '<h3>Linking your discord account to Specter will allow you to do some really cool stuff.</h3>';
-    echo '<button onclick="linkDiscord()">Link Discord</button>';
+    echo '<button  class="defult-button" onclick="linkDiscord()">Link Discord</button>';
 } else { ?>
     <h3>Discord Bot Coming Soon!</h3>
     <h3>Thanks for linking your account, we're still building out this page.</h3>
