@@ -3131,15 +3131,13 @@ async def delete_recorded_files():
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     # Check if the raiding broadcaster exists in the database
-    mysql_cursor.execute('SELECT raid_count FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
-    existing_raid_count = mysql_cursor.fetchone()
-    mysql_cursor.execute('SELECT viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
-    existing_viewer_count = mysql_cursor.fetchone()
+    mysql_cursor.execute('SELECT raid_count, viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
+    existing_data = mysql_cursor.fetchone()
 
-    if existing_raid_count:
-        # Update the raid count for the raiding broadcaster
-        raid_count = existing_raid_count[0] + 1
-        viewers = existing_viewer_count[0] + viewer_count
+    if existing_data:
+        existing_raid_count, existing_viewer_count = existing_data
+        raid_count = existing_raid_count + 1
+        viewers = existing_viewer_count + viewer_count
         mysql_cursor.execute('UPDATE raid_data SET raid_count = %s, viewers = %s WHERE raider_id = %s', (raid_count, viewers, from_broadcaster_id))
     else:
         # Insert a new record for the raiding broadcaster
