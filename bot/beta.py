@@ -38,7 +38,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.1"
+VERSION = "4.2"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -763,7 +763,7 @@ class BotOfTheSpecter(commands.Bot):
             if result:
                 if result[1] == 'Enabled':
                     response = result[0]
-                    switches = ['(customapi.', '(count)', '(daysuntil.']
+                    switches = ['(customapi.', '(count)', '(daysuntil.', '(command.']
                     while any(switch in response for switch in switches):
                         if '(customapi.' in response:
                             url_match = re.search(r'\(customapi\.(\S+)\)', response)
@@ -786,6 +786,21 @@ class BotOfTheSpecter(commands.Bot):
                                 current_date = datetime.now().date()
                                 days_left = (event_date - current_date).days
                                 response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                        if '(command.' in response:
+                            command_matches = re.findall(r'\(command\.(\w+)\)', response)
+                            for sub_command in command_matches:
+                                mysql_cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
+                                sub_response = mysql_cursor.fetchone()
+                                if sub_response:
+                                    response = response.replace(f"(command.{sub_command})", sub_response)
+                                    chat_logger.info(f"{command} command ran with response: {sub_response}")
+                                    await message.channel.send(sub_response)
+                                else:
+                                    chat_logger.error(f"{sub_command} is no longer available.")
+                                    await message.channel.send(f"The command {sub_command} is no longer available.")
+                                    continue
+                                
+                    # Send the final response if there are no more placeholders
                     chat_logger.info(f"{command} command ran with response: {response}")
                     await message.channel.send(response)
                 else:
