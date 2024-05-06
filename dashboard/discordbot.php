@@ -65,7 +65,13 @@ $is_linked = ($discord_userResult->num_rows > 0);
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<?php if (!$is_linked) { echo '<h3>DOT NOT CLICK LINK DISCORD!<br>THIS PAGE IS COMING SOON!</h3><button onclick="linkDiscord()">Link Discord</button>'; } ?>
+<?php if (!$is_linked) {
+    echo '<h3>Linking your discord account to Specter will allow you to do some really cool stuff.</h3>';
+    echo '<button onclick="linkDiscord()">Link Discord</button>';
+} else { ?>
+    <h3>Discord Bot Coming Soon!</h3>
+    <h3>Thanks for linking your account, we're still building out this page.</h3>
+<?php } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
