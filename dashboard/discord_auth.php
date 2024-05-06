@@ -3,6 +3,9 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1); 
 error_reporting(E_ALL);
 
+// Start session
+session_start();
+
 // Connect to database
 require_once "db_connect.php";
 
@@ -50,7 +53,6 @@ if (isset($params['access_token'])) {
 
     // Save user information to the database
     if (isset($user_data['id'])) {
-        session_start();
         $access_token = $_SESSION['access_token'];
         $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
         $userSTMT->bind_param("s", $access_token);
@@ -62,11 +64,11 @@ if (isset($params['access_token'])) {
         $discord_id = $user_data['id'];
 
         // Use INSERT ... ON DUPLICATE KEY UPDATE to insert or update the row
-        $sql = "INSERT INTO discord_users (user_id, discord_id, avatar) VALUES (?, ?, ?) 
+        $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) 
                 ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
 
         $insertStmt = $conn->prepare($sql);
-        $insertStmt->bind_param("iss", $twitchUserId, $discord_id);
+        $insertStmt->bind_param("is", $twitchUserId, $discord_id);
 
         if ($insertStmt->execute()) {
             // Redirect back to discordbot.php
@@ -74,8 +76,7 @@ if (isset($params['access_token'])) {
         } else {
             echo "Error inserting or updating data: " . $conn->error;
         }
-    }
-    else {
+    } else {
         echo "Error: Failed to retrieve user information from Discord API.";
     }
 } else {
