@@ -111,7 +111,7 @@ $buildStatus = "";
   <br><br><br>
   <div class="container">
   <h2>Add Discord Webhook URL</h2>
-    <form action="add_webhook.php" method="post">
+    <form action="" method="post">
         <label for="option">Select an option:</label>
         <select id="option" name="option">
             <option value="1">Discord Alert (For Twitch Logs)</option>
