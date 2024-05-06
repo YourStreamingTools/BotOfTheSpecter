@@ -109,8 +109,9 @@ $buildStatus = "";
   <h4>Thanks for linking your account, this is not required but if you'd like to add the bot itself to your discord server, you can by clicking the button below.</h4>
   <button class="defult-button" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
   <br><br><br>
-  <div class="container">
+  <div class="columns">
   <h2>Add Discord Webhook URL</h2>
+    <div class="small-6">
     <form action="" method="post">
         <label for="option">Select an option:</label>
         <select id="option" name="option">
@@ -122,6 +123,7 @@ $buildStatus = "";
         <input type="text" id="webhook" name="webhook" required>
         <input type="submit" value="Submit"><br><br><br>
     </form>
+    </div>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p style='color: green;'>Webhook URL added successfully</p>"; } ?>
   </div>
 <?php } ?>
