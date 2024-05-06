@@ -50,7 +50,6 @@ if (isset($params['access_token'])) {
 
     // Save user information to the database
     if (isset($user_data['id'])) {
-        // Get user ID from Twitch session
         session_start();
         $access_token = $_SESSION['access_token'];
         $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
@@ -58,20 +57,25 @@ if (isset($params['access_token'])) {
         $userSTMT->execute();
         $userResult = $userSTMT->get_result();
         $user = $userResult->fetch_assoc();
-        $userAccountID = $user['id'];
+        $twitchUserId = $user['id'];
 
-        // Prepare and execute the SQL statement
         $discord_id = $user_data['id'];
-        $avatar = $user_data['avatar'];
-        $sql = "INSERT INTO discord_users (user_id, discord_id, avatar) VALUES ('$userAccountID', '$discord_id', '$avatar')";
-        
-        if ($conn->query($sql) === TRUE) {
+
+        // Use INSERT ... ON DUPLICATE KEY UPDATE to insert or update the row
+        $sql = "INSERT INTO discord_users (user_id, discord_id, avatar) VALUES (?, ?, ?) 
+                ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
+
+        $insertStmt = $conn->prepare($sql);
+        $insertStmt->bind_param("iss", $twitchUserId, $discord_id);
+
+        if ($insertStmt->execute()) {
             // Redirect back to discordbot.php
             header('Location: discordbot.php');
         } else {
-            echo "Error: " . $sql . "<br>" . $conn->error;
+            echo "Error inserting or updating data: " . $conn->error;
         }
-    } else {
+    }
+    else {
         echo "Error: Failed to retrieve user information from Discord API.";
     }
 } else {
