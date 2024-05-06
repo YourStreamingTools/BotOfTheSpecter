@@ -42,18 +42,18 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-  if (isset($_POST['command']) && isset($_POST['response'])) {
-      $newCommand = $_POST['command'];
-      $newResponse = $_POST['response'];
-      
-      // Insert new command into SQLite database
-      try {
-          $stmt = $db->prepare("INSERT INTO custom_commands (command, response) VALUES (?, ?)");
-          $stmt->execute([$newCommand, $newResponse]);
-      } catch (PDOException $e) {
-          echo 'Error adding command: ' . $e->getMessage();
-      }
-  }
+    if (isset($_POST['command']) && isset($_POST['response'])) {
+        $newCommand = $_POST['command'];
+        $newResponse = $_POST['response'];
+        
+        // Insert new command into MySQL database
+        try {
+            $stmt = $db->prepare("INSERT INTO custom_commands (command, response, status) VALUES (?, ?, 'Enabled')");
+            $stmt->execute([$newCommand, $newResponse]);
+        } catch (PDOException $e) {
+            echo 'Error adding command: ' . $e->getMessage();
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
