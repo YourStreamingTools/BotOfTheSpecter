@@ -50,13 +50,21 @@ if (isset($params['access_token'])) {
 
     // Save user information to the database
     if (isset($user_data['id'])) {
+        // Get user ID from Twitch session
+        session_start();
+        $access_token = $_SESSION['access_token'];
+        $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
+        $userSTMT->bind_param("s", $access_token);
+        $userSTMT->execute();
+        $userResult = $userSTMT->get_result();
+        $user = $userResult->fetch_assoc();
+        $twitchUserId = $user['twitch_user_id'];
+
+        // Prepare and execute the SQL statement
         $discord_id = $user_data['id'];
-        $username = $user_data['username'];
-        $discriminator = $user_data['discriminator'];
         $avatar = $user_data['avatar'];
-
-        $sql = "INSERT INTO discord_users (discord_id, username, discriminator, avatar) VALUES ('$discord_id', '$username', '$discriminator', '$avatar')";
-
+        $sql = "INSERT INTO discord_users (user_id, discord_id, avatar) VALUES ('$twitchUserId', '$discord_id', '$avatar')";
+        
         if ($conn->query($sql) === TRUE) {
             // Redirect back to discordbot.php
             header('Location: discordbot.php');
