@@ -122,7 +122,7 @@ $buildStatus = "";
         <input type="text" id="webhook" name="webhook" required>
         <input type="submit" value="Submit"><br><br><br>
     </form>
-    <?php echo $buildStatus; ?>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p style='color: green;'>Webhook URL added successfully</p>"; } ?>
   </div>
 <?php } ?>
 </div>
