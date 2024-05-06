@@ -804,19 +804,7 @@ class BotOfTheSpecter(commands.Bot):
                         for resp in responses_to_send:
                             chat_logger.info(f"{command} command ran with response: {resp}")
                             await message.channel.send(resp)
-                        else:
-                        else:
-                            break
-                        
-                    # Send the modified response if no sub-commands are left
-                    if not any(switch in response for switch in switches):
-                        chat_logger.info(f"{command} command ran with response: {response}")
                     else:
-                            break
-                        
-                    # Send the modified response if no sub-commands are left
-                    if not any(switch in response for switch in switches):
-                        chat_logger.info(f"{command} command ran with response: {response}")
                         await message.channel.send(response)
                 else:
                     chat_logger.info(f"{command} not ran because it's disabled.")
