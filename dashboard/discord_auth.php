@@ -32,33 +32,42 @@ $context = stream_context_create($options);
 $response = file_get_contents($token_url, false, $context);
 $params = json_decode($response, true);
 
-// Get user information using the access token
-$user_url = 'https://discord.com/api/users/@me';
-$token = $params['access_token'];
-$user_options = array(
-    'http' => array(
-        'header' => "Authorization: Bearer $token\r\n",
-        'method' => 'GET'
-    )
-);
+// Check if access token was received successfully
+if (isset($params['access_token'])) {
+    // Get user information using the access token
+    $user_url = 'https://discord.com/api/users/@me';
+    $token = $params['access_token'];
+    $user_options = array(
+        'http' => array(
+            'header' => "Authorization: Bearer $token\r\n",
+            'method' => 'GET'
+        )
+    );
 
-$user_context = stream_context_create($user_options);
-$user_response = file_get_contents($user_url, false, $user_context);
-$user_data = json_decode($user_response, true);
+    $user_context = stream_context_create($user_options);
+    $user_response = file_get_contents($user_url, false, $user_context);
+    $user_data = json_decode($user_response, true);
 
-// Save user information to the database
-$discord_id = $user_data['id'];
-$username = $user_data['username'];
-$discriminator = $user_data['discriminator'];
-$avatar = $user_data['avatar'];
+    // Save user information to the database
+    if (isset($user_data['id'])) {
+        $discord_id = $user_data['id'];
+        $username = $user_data['username'];
+        $discriminator = $user_data['discriminator'];
+        $avatar = $user_data['avatar'];
 
-$sql = "INSERT INTO users (discord_id, username, discriminator, avatar) VALUES ('$discord_id', '$username', '$discriminator', '$avatar')";
+        $sql = "INSERT INTO discord_users (discord_id, username, discriminator, avatar) VALUES ('$discord_id', '$username', '$discriminator', '$avatar')";
 
-if ($conn->query($sql) === TRUE) {
-    // Redirect back to discordbot.php
-    header('Location: discordbot.php');
+        if ($conn->query($sql) === TRUE) {
+            // Redirect back to discordbot.php
+            header('Location: discordbot.php');
+        } else {
+            echo "Error: " . $sql . "<br>" . $conn->error;
+        }
+    } else {
+        echo "Error: Failed to retrieve user information from Discord API.";
+    }
 } else {
-    echo "Error: " . $sql . "<br>" . $conn->error;
+    echo "Error: Failed to retrieve access token from Discord API.";
 }
 
 // Close MySQL connection
