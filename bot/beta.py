@@ -3140,8 +3140,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
         # Update the raid count for the raiding broadcaster
         raid_count = existing_raid_count[0] + 1
         viewers = existing_viewer_count[0] + viewer_count
-        mysql_cursor.execute('UPDATE raid_data SET raid_count = %s WHERE raider_id = %s', (raid_count, from_broadcaster_id))
-        mysql_cursor.execute('UPDATE raid_data SET viewers = %s WHERE raider_id = %s', (viewers, from_broadcaster_id))
+        mysql_cursor.execute('UPDATE raid_data SET raid_count = %s, viewers = %s WHERE raider_id = %s', (raid_count, viewers, from_broadcaster_id))
     else:
         # Insert a new record for the raiding broadcaster
         mysql_cursor.execute('INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers) VALUES (%s, %s, %s, %s)', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
@@ -3408,9 +3407,6 @@ async def send_to_discord_mod(message, title, image):
 
 # Function to build the Discord Notice for Stream Online
 async def send_to_discord_stream_online(message, image):
-    mysql_cursor.execute("SELECT discord_alert_online FROM profile")
-    discord_url = mysql_cursor.fetchone()
-
     mysql_cursor.execute("SELECT timezone FROM profile")
     timezone = mysql_cursor.fetchone()[0]
     if timezone:
@@ -3427,9 +3423,12 @@ async def send_to_discord_stream_online(message, image):
         time_format_time = current_time.strftime("%I:%M %p")
         time_format = f"{time_format_date} at {time_format_time}"
 
-    title = f"{CHANNEL_NAME} is now live on Twitch!"
-    payload = {"content": "@everyone"}
+    mysql_cursor.execute("SELECT discord_alert_online FROM profile")
+    discord_url = mysql_cursor.fetchone()
+
     if discord_url:
+        title = f"{CHANNEL_NAME} is now live on Twitch!"
+        payload = {"content": "@everyone"}
         discord_url = discord_url[0]
         payload = {"embeds": []}
         payload["username"] = "BotOfTheSpecter"
@@ -3469,11 +3468,9 @@ async def group_creation():
 
         # Insert new groups
         if new_groups:
-            placeholders = ', '.join(['%s'] * len(new_groups))
-            mysql_cursor.executemany("INSERT INTO `groups` (name) VALUES (" + placeholders + ")", [(name,) for name in new_groups])
-            mysql_connection.commit()
-
             for name in new_groups:
+                mysql_cursor.execute("INSERT INTO `groups` (name) VALUES (%s)", (name,))
+                mysql_connection.commit()
                 bot_logger.info(f"Group '{name}' created successfully.")
     except mysql.connector.Error as err:
         bot_logger.error(f"Failed to create groups: {err}")
@@ -3482,11 +3479,21 @@ async def group_creation():
 async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
     try:
-        for command in all_commands:
-            mysql_cursor.execute("SELECT * FROM builtin_commands WHERE command=%s", (command,))
-            if not mysql_cursor.fetchone():
-                mysql_cursor.execute("INSERT INTO builtin_commands (command) VALUES (%s)", (command,))
-                mysql_connection.commit()
+        # Check if commands already exist in the table
+        mysql_cursor.execute("SELECT command FROM builtin_commands WHERE command IN %s", (tuple(all_commands),))
+        existing_commands = [row[0] for row in mysql_cursor.fetchall()]
+
+        # Filter out existing commands
+        new_commands = [command for command in all_commands if command not in existing_commands]
+
+        # Insert new commands
+        if new_commands:
+            placeholders = ', '.join(['(%s)'] * len(new_commands))
+            values = [(command,) for command in new_commands]
+            mysql_cursor.executemany("INSERT INTO builtin_commands (command) VALUES " + placeholders, values)
+            mysql_connection.commit()
+
+            for command in new_commands:
                 bot_logger.info(f"Command '{command}' added to database successfully.")
     except mysql.connector.Error as e:
         bot_logger.error(f"Error: {e}")
