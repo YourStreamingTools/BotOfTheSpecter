@@ -69,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $profile_key = "discord_alert_online";
           break;
       default:
-          echo "Invalid option";
+        $buildStatus = "Invalid option";
           exit;
   }
 
@@ -77,13 +77,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   $stmt = $db->prepare("UPDATE profile SET $profile_key = :webhook");
   $stmt->bindParam(':webhook', $webhook);
   if ($stmt->execute()) {
-      echo "Webhook URL added successfully";
+    $buildStatus = "Webhook URL added successfully";
   } else {
-      echo "Error adding webhook URL: " . $stmt->errorInfo()[2];
+    $buildStatus = "Error adding webhook URL: " . $stmt->errorInfo()[2];
   }
 
   $stmt->closeCursor();
 }
+$buildStatus = "";
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -108,7 +109,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <h4>Thanks for linking your account, this is not required but if you'd like to add the bot itself to your discord server, you can by clicking the button below.</h4>
   <button class="defult-button" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
   <br><br><br>
-  <div class="dashboard-container">
+  <div class="container">
   <h2>Add Discord Webhook URL</h2>
     <form action="add_webhook.php" method="post">
         <label for="option">Select an option:</label>
@@ -121,6 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <input type="text" id="webhook" name="webhook" required>
         <input type="submit" value="Submit"><br><br><br>
     </form>
+    <?php echo $buildStatus; ?>
   </div>
 <?php } ?>
 </div>
