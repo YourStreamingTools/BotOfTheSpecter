@@ -787,6 +787,16 @@ class BotOfTheSpecter(commands.Bot):
                                 current_date = datetime.now().date()
                                 days_left = (event_date - current_date).days
                                 response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                        if '(user)' in response:
+                            user_mention = re.search(r'<@(\d+)>', messageContent)
+                            if user_mention:
+                                mentioned_user_id = user_mention.group(1)
+                                # Use mentioned user's name
+                                user_name = await get_display_name(mentioned_user_id)
+                            else:
+                                # Default to message author's name
+                                user_name = messageAuthor
+                            response = response.replace('(user)', user_name)
                         if '(command.' in response:
                             command_match = re.search(r'\(command\.(\w+)\)', response)
                             if command_match:
