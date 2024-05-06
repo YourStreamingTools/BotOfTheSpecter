@@ -51,6 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
         $deleteStmt->execute();
         // Success message 
         $status = "Command removed successfully";
+
+        // Reload the page after 1 seconds
+        header("Refresh: 1; url={$_SERVER['PHP_SELF']}");
+        exit();
     } catch (PDOException $e) {
         // Handle potential errors here
         $status = "Error removing command: " . $e->getMessage();
