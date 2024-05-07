@@ -23,6 +23,7 @@ from twitchio.ext import commands
 import streamlink
 import pyowm
 import pytz
+from jokeapi import Jokes
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -51,7 +52,7 @@ SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "game", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -1114,7 +1115,20 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 ctx.send(f"Streamer timezone is not set.")
         await ctx.send(time_format)
-    
+
+    @commands.command(name='joke')
+    async def joke_command(self, ctx):
+        joke = await Jokes()
+        get_joke = await joke.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
+        category = get_joke["category"]
+        if get_joke["type"] == "single":
+            await ctx.send(f"Here's a joke from {category}: {get_joke["joke"]}")
+        else:
+            await ctx.send(f"Here's a joke from {category}:")
+            await ctx.send(f"{get_joke["setup"]}")
+            await time.sleep(2)
+            await ctx.send(f"{get_joke["delivery"]}")
+
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("quote",))
