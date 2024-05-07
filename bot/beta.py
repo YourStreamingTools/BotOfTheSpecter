@@ -763,7 +763,7 @@ class BotOfTheSpecter(commands.Bot):
             if result:
                 if result[1] == 'Enabled':
                     response = result[0]
-                    switches = ['(customapi.', '(count)', '(daysuntil.', '(command.']
+                    switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(command.']
                     responses_to_send = []
                     while any(switch in response for switch in switches):
                         if '(customapi.' in response:
