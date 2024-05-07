@@ -38,7 +38,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.1"
+VERSION = "4.2"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -650,7 +650,7 @@ async def process_eventsub_message(message):
                 else:
                     formatted_duration = f"{minutes} minutes, {seconds} seconds"
 
-                await channel.send(f"An ad is about to run for {formatted_duration}. We'll be right back after these ads.")
+                await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
             elif event_type == 'channel.charity_campaign.donate':
                 user = event_data["event"]["user_name"]
                 charity = event_data["event"]["charity_name"]
@@ -763,7 +763,8 @@ class BotOfTheSpecter(commands.Bot):
             if result:
                 if result[1] == 'Enabled':
                     response = result[0]
-                    switches = ['(customapi.', '(count)', '(daysuntil.']
+                    switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(command.']
+                    responses_to_send = []
                     while any(switch in response for switch in switches):
                         if '(customapi.' in response:
                             url_match = re.search(r'\(customapi\.(\S+)\)', response)
@@ -786,8 +787,35 @@ class BotOfTheSpecter(commands.Bot):
                                 current_date = datetime.now().date()
                                 days_left = (event_date - current_date).days
                                 response = response.replace(f"(daysuntil.{date_str})", str(days_left))
-                    chat_logger.info(f"{command} command ran with response: {response}")
-                    await message.channel.send(response)
+                        if '(user)' in response:
+                            user_mention = re.search(r'<@(\d+)>', messageContent)
+                            if user_mention:
+                                mentioned_user_id = user_mention.group(1)
+                                # Use mentioned user's name
+                                user_name = await get_display_name(mentioned_user_id)
+                            else:
+                                # Default to message author's name
+                                user_name = messageAuthor
+                            response = response.replace('(user)', user_name)
+                        if '(command.' in response:
+                            command_match = re.search(r'\(command\.(\w+)\)', response)
+                            if command_match:
+                                sub_command = command_match.group(1)
+                                mysql_cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
+                                sub_response = mysql_cursor.fetchone()
+                                if sub_response:
+                                    response = response.replace(f"(command.{sub_command})", sub_response[0])
+                                    responses_to_send.append(sub_response[0])
+                                else:
+                                    chat_logger.error(f"{sub_command} is no longer available.")
+                                    await message.channel.send(f"The command {sub_command} is no longer available.")
+                    # Send the individual responses
+                    if len(responses_to_send) > 1:
+                        for resp in responses_to_send:
+                            chat_logger.info(f"{command} command ran with response: {resp}")
+                            await message.channel.send(resp)
+                    else:
+                        await message.channel.send(response)
                 else:
                     chat_logger.info(f"{command} not ran because it's disabled.")
             else:
@@ -851,11 +879,14 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
         else:
             pass
+        await self.message_counting(messageAuthor, messageAuthorID, message)
 
+    async def message_counting(self, messageAuthor, messageAuthorID, message):
         # Check user level
         is_vip = is_user_vip(messageAuthorID)
         is_mod = is_user_moderator(messageAuthorID)
-        user_level = 'mod' if is_mod else 'vip' if is_vip else 'normal'
+        is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
+        user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
 
         # Insert into the database the number of chats during the stream
         mysql_cursor.execute('INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s', (messageAuthor, user_level, user_level))
@@ -2891,11 +2922,15 @@ async def send_online_message(message):
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
     mysql_cursor.execute('DELETE FROM seen_today')
+    mysql_cursor.execute('TRUNCATE TABLE seen_today')
+    mysql_cursor.execute('ALTER TABLE seen_today AUTO_INCREMENT = 1')
     mysql_connection.commit()
 
 # Function to clear the ending credits table at the end of stream
 async def clear_credits_data():
     mysql_cursor.execute('DELETE FROM stream_credits')
+    mysql_cursor.execute('TRUNCATE TABLE stream_credits')
+    mysql_cursor.execute('ALTER TABLE stream_credits AUTO_INCREMENT = 1')
     mysql_connection.commit()
 
 # Function for timed messages
@@ -3123,17 +3158,14 @@ async def delete_recorded_files():
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     # Check if the raiding broadcaster exists in the database
-    mysql_cursor.execute('SELECT raid_count FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
-    existing_raid_count = mysql_cursor.fetchone()
-    mysql_cursor.execute('SELECT viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
-    existing_viewer_count = mysql_cursor.fetchone()
+    mysql_cursor.execute('SELECT raid_count, viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
+    existing_data = mysql_cursor.fetchone()
 
-    if existing_raid_count:
-        # Update the raid count for the raiding broadcaster
-        raid_count = existing_raid_count[0] + 1
-        viewers = existing_viewer_count[0] + viewer_count
-        mysql_cursor.execute('UPDATE raid_data SET raid_count = %s WHERE raider_id = %s', (raid_count, from_broadcaster_id))
-        mysql_cursor.execute('UPDATE raid_data SET viewers = %s WHERE raider_id = %s', (viewers, from_broadcaster_id))
+    if existing_data:
+        existing_raid_count, existing_viewer_count = existing_data
+        raid_count = existing_raid_count + 1
+        viewers = existing_viewer_count + viewer_count
+        mysql_cursor.execute('UPDATE raid_data SET raid_count = %s, viewers = %s WHERE raider_id = %s', (raid_count, viewers, from_broadcaster_id))
     else:
         # Insert a new record for the raiding broadcaster
         mysql_cursor.execute('INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers) VALUES (%s, %s, %s, %s)', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
@@ -3400,9 +3432,6 @@ async def send_to_discord_mod(message, title, image):
 
 # Function to build the Discord Notice for Stream Online
 async def send_to_discord_stream_online(message, image):
-    mysql_cursor.execute("SELECT discord_alert_online FROM profile")
-    discord_url = mysql_cursor.fetchone()
-
     mysql_cursor.execute("SELECT timezone FROM profile")
     timezone = mysql_cursor.fetchone()[0]
     if timezone:
@@ -3419,9 +3448,12 @@ async def send_to_discord_stream_online(message, image):
         time_format_time = current_time.strftime("%I:%M %p")
         time_format = f"{time_format_date} at {time_format_time}"
 
-    title = f"{CHANNEL_NAME} is now live on Twitch!"
-    payload = {"content": "@everyone"}
+    mysql_cursor.execute("SELECT discord_alert_online FROM profile")
+    discord_url = mysql_cursor.fetchone()
+
     if discord_url:
+        title = f"{CHANNEL_NAME} is now live on Twitch!"
+        payload = {"content": "@everyone"}
         discord_url = discord_url[0]
         payload = {"embeds": []}
         payload["username"] = "BotOfTheSpecter"
@@ -3461,11 +3493,9 @@ async def group_creation():
 
         # Insert new groups
         if new_groups:
-            placeholders = ', '.join(['%s'] * len(new_groups))
-            mysql_cursor.executemany("INSERT INTO `groups` (name) VALUES (" + placeholders + ")", [(name,) for name in new_groups])
-            mysql_connection.commit()
-
             for name in new_groups:
+                mysql_cursor.execute("INSERT INTO `groups` (name) VALUES (%s)", (name,))
+                mysql_connection.commit()
                 bot_logger.info(f"Group '{name}' created successfully.")
     except mysql.connector.Error as err:
         bot_logger.error(f"Failed to create groups: {err}")
@@ -3474,11 +3504,21 @@ async def group_creation():
 async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
     try:
-        for command in all_commands:
-            mysql_cursor.execute("SELECT * FROM builtin_commands WHERE command=%s", (command,))
-            if not mysql_cursor.fetchone():
-                mysql_cursor.execute("INSERT INTO builtin_commands (command) VALUES (%s)", (command,))
-                mysql_connection.commit()
+        # Check if commands already exist in the table
+        mysql_cursor.execute("SELECT command FROM builtin_commands WHERE command IN %s", (tuple(all_commands),))
+        existing_commands = [row[0] for row in mysql_cursor.fetchall()]
+
+        # Filter out existing commands
+        new_commands = [command for command in all_commands if command not in existing_commands]
+
+        # Insert new commands
+        if new_commands:
+            placeholders = ', '.join(['(%s)'] * len(new_commands))
+            values = [(command,) for command in new_commands]
+            mysql_cursor.executemany("INSERT INTO builtin_commands (command) VALUES " + placeholders, values)
+            mysql_connection.commit()
+
+            for command in new_commands:
                 bot_logger.info(f"Command '{command}' added to database successfully.")
     except mysql.connector.Error as e:
         bot_logger.error(f"Error: {e}")
