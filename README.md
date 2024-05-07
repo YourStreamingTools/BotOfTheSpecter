@@ -33,13 +33,17 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 4.1 - BotOfTheSpecter
+### Version 4.2 - BotOfTheSpecter
 
-- Switched to MySQL for database storage.
-- Updated Twitch EventSub topics.
-- Added Discord notification for stream status and moderation logs.
+- Updated the `ad break` wording for better clarity and consistency.
+- Added `(user)` & `(command.)` into the custom command switch.
+- Fixed the following issues:
+    - `message counting` for the broadcaster's user level.
+    - `process_raid_event` function where the data wasn't being fetched correctly.
+    - `discord_alert_online` function can now send online alerts.
+    - `builtin_commands_creation` function where the commadns wern't being inserted into the table correctly.
 
-[View Full Changelog for Version 4.1](/bot/changelog/4.1.md)
+[View Full Changelog for Version 4.2](/bot/changelog/4.2.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
