@@ -9,3 +9,4 @@ pyowm
 googletrans
 pytz
 mysql-connector-python
+jokeapi
