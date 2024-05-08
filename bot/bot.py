@@ -1118,6 +1118,12 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='joke')
     async def joke_command(self, ctx):
+        mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("joke",))
+        result = mysql_cursor.fetchone()
+        if result:
+            status = result[0]
+            if status == 'Disabled':
+                return
         joke = await Jokes()
         get_joke = await joke.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
         category = get_joke["category"]
@@ -2462,7 +2468,7 @@ class BotOfTheSpecter(commands.Bot):
                 return
 
             # Insert the command and response into the database
-            mysql_cursor.execute('INSERT OR REPLACE INTO custom_commands (command, response) VALUES (%s, %s)', (command, response))
+            mysql_cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
             mysql_connection.commit()
             chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
             await ctx.send(f'Custom command added: !{command}')
@@ -3527,9 +3533,9 @@ async def builtin_commands_creation():
 
         # Insert new commands
         if new_commands:
-            placeholders = ', '.join(['(%s)'] * len(new_commands))
-            values = [(command,) for command in new_commands]
-            mysql_cursor.executemany("INSERT INTO builtin_commands (command) VALUES " + placeholders, values)
+            placeholders = ', '.join(['(%s, %s)'] * len(new_commands))
+            values = [(command, 'Enabled') for command in new_commands]
+            mysql_cursor.executemany("INSERT INTO builtin_commands (command, status) VALUES " + placeholders, values)
             mysql_connection.commit()
 
             for command in new_commands:
