@@ -10,7 +10,7 @@ $botScriptPath = "/var/www/bot/bot.py";
 $statusScriptPath = "/var/www/bot/status.py";
 $logPath = "/var/www/logs/script/$username.txt";
 $statusOutput = getBotStatus($statusScriptPath, $username, $logPath);
-$botSystemStatus = getBotStatus($statusScriptPath, $username, $logPath);
+$botSystemStatus = checkBotRunning($statusScriptPath, $username, $logPath);
 $directory = dirname($logPath);
 
 // Check if the directory exists, if not, create it
@@ -113,6 +113,23 @@ function getBotStatus($statusScriptPath, $username, $logPath) {
         }
     } else {
         return "<div class='status-message error'>Unable to determine bot status.</div>";
+    }
+}
+
+function checkBotRunning($statusScriptPath, $username, $logPath) {
+    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    if ($statusOutput !== null) {
+        if ($pid > 0) {
+            $botSystemStatus = True;
+            return True;
+        } else {
+            $botSystemStatus = False;
+            return False;
+        }
+    } else {
+        $botSystemStatus = False;
+        return False;
     }
 }
 
