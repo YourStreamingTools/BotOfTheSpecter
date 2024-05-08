@@ -2941,17 +2941,21 @@ async def send_online_message(message):
 
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
-    mysql_cursor.execute('DELETE FROM seen_today')
-    mysql_cursor.execute('TRUNCATE TABLE seen_today')
-    mysql_cursor.execute('ALTER TABLE seen_today AUTO_INCREMENT = 1')
-    mysql_connection.commit()
+    try:
+        mysql_cursor.execute('TRUNCATE TABLE seen_today')
+        mysql_connection.commit()
+        bot_logger.info('Seen today table cleared successfully.')
+    except mysql.connector.Error as err:
+        bot_logger.error(f'Failed to clear seen today table: {err}')
 
 # Function to clear the ending credits table at the end of stream
 async def clear_credits_data():
-    mysql_cursor.execute('DELETE FROM stream_credits')
-    mysql_cursor.execute('TRUNCATE TABLE stream_credits')
-    mysql_cursor.execute('ALTER TABLE stream_credits AUTO_INCREMENT = 1')
-    mysql_connection.commit()
+    try:
+        mysql_cursor.execute('TRUNCATE TABLE stream_credits')
+        mysql_connection.commit()
+        bot_logger.info('Stream credits table cleared successfully.')
+    except mysql.connector.Error as err:
+        bot_logger.error(f'Failed to clear stream credits table: {err}')
 
 # Function for timed messages
 async def timed_message():
