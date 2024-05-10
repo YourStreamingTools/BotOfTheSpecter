@@ -57,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
         } else {
             try {
-                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`) VALUES (?, ?, "Enabled")');
+                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`) VALUES (?, ?)');
                 $stmt->execute([$interval, $message]);
                 $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.';
             } catch (PDOException $e) {
