@@ -318,6 +318,7 @@ permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
 scheduled_tasks = []
+last_poll_progress_update = 0
 global stream_online
 global current_game
 global stream_title
@@ -713,7 +714,6 @@ async def process_eventsub_message(message):
                     reward_cost = event_data["reward"].get("cost")
             elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                 if event_type == "channel.poll.begin":
-                    # CODE OUT POLL BEGIN
                     poll_title = event_data.get("title")
                     choices_titles = [choice.get("title") for choice in event_data.get("choices", [])]
                     bits_voting_enabled = event_data.get("bits_voting", {}).get("is_enabled", False)
@@ -740,23 +740,31 @@ async def process_eventsub_message(message):
                         message += "."
                     await channel.send(message)
                 elif event_type == "channel.poll.progress":
-                    # CODE OUT POLL PROGRESS
-                    poll_title = event_data.get("title")
-                    choices_data = []
-                    for choice in event_data.get("choices", []):
-                        choice_title = choice.get("title")
-                        bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled", False) else 0
-                        channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled", False) else 0
-                        total_votes = choice.get("votes")
-                        choices_data.append({
-                            "title": choice_title,
-                            "bits_votes": bits_votes,
-                            "channel_points_votes": channel_points_votes,
-                            "total_votes": total_votes
-                        })
-                    poll_ends_at = event_data.get("ends_at")
+                    current_time = time.time()
+                    if current_time - last_poll_progress_update >= 30:
+                        poll_title = event_data.get("title")
+                        choices_data = []
+                        for choice in event_data.get("choices", []):
+                            choice_title = choice.get("title")
+                            bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled", False) else 0
+                            channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled", False) else 0
+                            total_votes = choice.get("votes")
+                            choices_data.append({
+                                "title": choice_title,
+                                "bits_votes": bits_votes,
+                                "channel_points_votes": channel_points_votes,
+                                "total_votes": total_votes
+                            })
+                        message = f"Poll Progress: {poll_title}\n"
+                        for choice_data in choices_data:
+                            choice_title = choice_data["title"]
+                            bits_votes = choice_data["bits_votes"]
+                            channel_points_votes = choice_data["channel_points_votes"]
+                            total_votes = choice_data["total_votes"]
+                            message += f"- {choice_title}: Bits Votes - {bits_votes}, Channel Points Votes - {channel_points_votes}, Total Votes - {total_votes}\n"
+                        await channel.send(message)
+                        last_poll_progress_update = current_time
                 elif event_type == "channel.poll.end":
-                    # CODE OUT POLL END
                     poll_title = event_data.get("title")
                     choices_data = []
                     for choice in event_data.get("choices", []):
@@ -770,6 +778,16 @@ async def process_eventsub_message(message):
                             "channel_points_votes": channel_points_votes,
                             "total_votes": total_votes
                         })
+                    sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
+                    winning_choice = sorted_choices[0] if sorted_choices else None
+                    message = f"The poll '{poll_title}' has ended!\n"
+                    if winning_choice:
+                        message += f"The winning choice is '{winning_choice['title']}' with {winning_choice['total_votes']} votes.\n"
+                    else:
+                        message += f"The winning choice is '{winning_choice['title']}' but there are no votes recorded for this poll.\n"
+                    for choice_data in sorted_choices:
+                        message += f"- {choice_data['title']}: Bits Votes - {choice_data['bits_votes']}, Channel Points Votes - {choice_data['channel_points_votes']}, Total Votes - {choice_data['total_votes']}\n"
+                    await channel.send(message)
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
