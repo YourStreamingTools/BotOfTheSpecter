@@ -57,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
         } else {
             try {
-                $stmt = $db->prepare("INSERT INTO timed_messages (interval_count, message, status) VALUES (?, ?, 'Enabled')");
+                $stmt = $db->prepare('INSERT INTO timed_messages ("interval_count", "message", "status") VALUES (?, ?, "Enabled")');
                 $stmt->execute([$interval, $message]);
                 $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.';
             } catch (PDOException $e) {
@@ -100,7 +100,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($message_exists && $edit_interval !== false) {
             // Update the message and/or interval for the selected message in the database
             try {
-                $stmt = $db->prepare("UPDATE timed_messages SET interval_count = ?, message = ? WHERE id = ?");
+                $stmt = $db->prepare('UPDATE timed_messages SET "interval_count" = ?, "message" = ? WHERE id = ?');
                 $stmt->execute([$edit_interval, $edit_message_content, $edit_message_id]);
                 // Optionally, you can check if the update was successful and provide feedback to the user
                 $updated = $stmt->rowCount() > 0; // Check if any rows were affected
@@ -171,7 +171,7 @@ if ($displayMessageData) {
                     <span id="messageError" class="form-error" style="display: none;">Message is required</span>
             </div>
             <div class="small-12 medium-12 column">
-                    <label for="interval">Interval:</label>
+                    <label for="interval">Interval: (Minutes, Between 5-60)</label>
                     <input type="number" name="interval" id="interval" min="5" max="60" required>
                     <span id="intervalError" class="form-error" style="display: none;">Please pick a time between 5 and 60 minutes</span>
             </div>
@@ -200,7 +200,7 @@ if ($displayMessageData) {
                 </div>
                 <div class="small-12 medium-3 column">
                     <label for="edit_interval">New Interval:</label>
-                    <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval']; ?>">
+                    <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval_count']; ?>">
                 </div>
                 <div class="small-12 medium-12 column">
                     <label for="edit_message_content">New Message:</label>
