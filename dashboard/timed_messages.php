@@ -200,7 +200,7 @@ if ($displayMessageData) {
                 </div>
                 <div class="small-12 medium-3 column">
                     <label for="edit_interval">New Interval:</label>
-                    <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval_count']; ?>">
+                    <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['`interval_count`']; ?>">
                 </div>
                 <div class="small-12 medium-12 column">
                     <label for="edit_message_content">New Message:</label>
