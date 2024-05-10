@@ -700,20 +700,76 @@ async def process_eventsub_message(message):
             elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
                 if event_type == "channel.channel_points_automatic_reward_redemption.add":
                     # CODE OUT AUTOMATIC REWARD REDEMPTIONS
-                    return
+                    event_id = event_data.get("id")
+                    reward_type = event_data["reward"].get("type")
+                    reward_cost = event_data["reward"].get("cost")
+                    user_input = event_data.get("user_input")
                 elif event_type == "channel.channel_points_custom_reward_redemption.add":
                     # CODE OUT CUSTOM REWARD REDEMPTIONS
-                    return
+                    event_id = event_data.get("id")
+                    user_input = event_data.get("user_input")
+                    reward_id = event_data["reward"].get("id")
+                    reward_title = event_data["reward"].get("title")
+                    reward_cost = event_data["reward"].get("cost")
             elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                 if event_type == "channel.poll.begin":
                     # CODE OUT POLL BEGIN
-                    return
+                    poll_title = event_data.get("title")
+                    choices_titles = [choice.get("title") for choice in event_data.get("choices", [])]
+                    bits_voting_enabled = event_data.get("bits_voting", {}).get("is_enabled", False)
+                    bits_amount_per_vote = event_data.get("bits_voting", {}).get("amount_per_vote", 0) if bits_voting_enabled else 0
+                    channel_points_voting_enabled = event_data.get("channel_points_voting", {}).get("is_enabled", False)
+                    channel_points_amount_per_vote = event_data.get("channel_points_voting", {}).get("amount_per_vote", 0) if channel_points_voting_enabled else 0
+                    poll_ends_at = event_data.get("ends_at")
+                    message = f"Poll '{poll_title}' has started!\n"
+                    message += "Choices:\n"
+                    for choice_title in choices_titles:
+                        message += f"- {choice_title}\n"
+                    if bits_voting_enabled:
+                        message += f"Bits Voting Enabled: Amount per Vote - {bits_amount_per_vote}\n"
+                    if channel_points_voting_enabled:
+                        message += f"Channel Points Voting Enabled: Amount per Vote - {channel_points_amount_per_vote}\n"
+                    time_now = datetime.now()
+                    time_until_end = poll_ends_at - time_now
+                    # Convert the time difference to minutes and seconds
+                    minutes, seconds = divmod(time_until_end.total_seconds(), 60)
+                    message += f"Poll ending in {int(minutes)} minutes"
+                    if seconds > 0:
+                        message += f" and {int(seconds)} seconds."
+                    else:
+                        message += "."
+                    await channel.send(message)
                 elif event_type == "channel.poll.progress":
                     # CODE OUT POLL PROGRESS
-                    return
+                    poll_title = event_data.get("title")
+                    choices_data = []
+                    for choice in event_data.get("choices", []):
+                        choice_title = choice.get("title")
+                        bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled", False) else 0
+                        channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled", False) else 0
+                        total_votes = choice.get("votes")
+                        choices_data.append({
+                            "title": choice_title,
+                            "bits_votes": bits_votes,
+                            "channel_points_votes": channel_points_votes,
+                            "total_votes": total_votes
+                        })
+                    poll_ends_at = event_data.get("ends_at")
                 elif event_type == "channel.poll.end":
                     # CODE OUT POLL END
-                    return
+                    poll_title = event_data.get("title")
+                    choices_data = []
+                    for choice in event_data.get("choices", []):
+                        choice_title = choice.get("title")
+                        bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled", False) else 0
+                        channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled", False) else 0
+                        total_votes = choice.get("votes")
+                        choices_data.append({
+                            "title": choice_title,
+                            "bits_votes": bits_votes,
+                            "channel_points_votes": channel_points_votes,
+                            "total_votes": total_votes
+                        })
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
