@@ -308,6 +308,15 @@ mysql_cursor.execute('''
         PRIMARY KEY (username(255))
     ) ENGINE=InnoDB
 ''')
+mysql_cursor.execute('''
+    CREATE TABLE IF NOT EXISTS channel_point_rewards (
+        reward_id TEXT,
+        reward_title TEXT,
+        reward_cost TEXT,
+        custom_message TEXT,
+        PRIMARY KEY (reward_id(255))
+    )
+''')
 mysql_connection.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
@@ -700,18 +709,41 @@ async def process_eventsub_message(message):
                 await send_to_discord_mod(discord_message, discord_title, discord_image)
             elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
                 if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                    # CODE OUT AUTOMATIC REWARD REDEMPTIONS
                     event_id = event_data.get("id")
-                    reward_type = event_data["reward"].get("type")
+                    reward_title = event_data["reward"].get("type")
                     reward_cost = event_data["reward"].get("cost")
-                    user_input = event_data.get("user_input")
+                    mysql_cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (event_id,))
+                    result = mysql_cursor.fetchone()
+                    if result is not None and len(result) == 2:
+                        if result[0] == 0:
+                            mysql_cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (event_id, reward_title, reward_cost))
+                        else:
+                            existing_custom_message = result[1]
+                            if existing_custom_message:
+                                message = existing_custom_message
+                                channel.send(message)
+                            else:
+                                pass
+                    else:
+                        bot_logger.error("Error: Unexpected result from database query.")
                 elif event_type == "channel.channel_points_custom_reward_redemption.add":
-                    # CODE OUT CUSTOM REWARD REDEMPTIONS
-                    event_id = event_data.get("id")
-                    user_input = event_data.get("user_input")
                     reward_id = event_data["reward"].get("id")
                     reward_title = event_data["reward"].get("title")
                     reward_cost = event_data["reward"].get("cost")
+                    mysql_cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                    result = mysql_cursor.fetchone()
+                    if result is not None and len(result) == 2:
+                        if result[0] == 0:
+                            mysql_cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
+                        else:
+                            existing_custom_message = result[1]
+                            if existing_custom_message:
+                                message = existing_custom_message
+                                channel.send(message)
+                            else:
+                                pass
+                    else:
+                        bot_logger.error("Error: Unexpected result from database query.")
             elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                 if event_type == "channel.poll.begin":
                     poll_title = event_data.get("title")
