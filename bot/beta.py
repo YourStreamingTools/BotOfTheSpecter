@@ -39,7 +39,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.2"
+VERSION = "4.3"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -436,7 +436,12 @@ async def subscribe_to_events(session_id):
         "channel.hype_train.begin",
         "channel.hype_train.end",
         "channel.ad_break.begin",
-        "channel.charity_campaign.donate"
+        "channel.charity_campaign.donate",
+        "channel.channel_points_automatic_reward_redemption.add",
+        "channel.channel_points_custom_reward_redemption.add",
+        "channel.poll.begin",
+        "channel.poll.progress",
+        "channel.poll.end"
     ]
 
     v2topics = [
@@ -692,6 +697,23 @@ async def process_eventsub_message(message):
                     discord_title = "New Unban!"
                     discord_image = "ban.png"
                 await send_to_discord_mod(discord_message, discord_title, discord_image)
+            elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
+                if event_type == "channel.channel_points_automatic_reward_redemption.add":
+                    # CODE OUT AUTOMATIC REWARD REDEMPTIONS
+                    return
+                elif event_type == "channel.channel_points_custom_reward_redemption.add":
+                    # CODE OUT CUSTOM REWARD REDEMPTIONS
+                    return
+            elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
+                if event_type == "channel.poll.begin":
+                    # CODE OUT POLL BEGIN
+                    return
+                elif event_type == "channel.poll.progress":
+                    # CODE OUT POLL PROGRESS
+                    return
+                elif event_type == "channel.poll.end":
+                    # CODE OUT POLL END
+                    return
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
@@ -3347,6 +3369,10 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
+    # Truncate the timestamp to six digits for microseconds
+    followed_at_twitch = followed_at_twitch[:26]
+
+    # Parse the truncated timestamp
     datetime_obj = datetime.strptime(followed_at_twitch, "%Y-%m-%dT%H:%M:%S.%fZ")
     followed_at = datetime_obj.strftime("%Y-%m-%d %H:%M:%S")
 
