@@ -132,7 +132,8 @@ if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
         $displayMessages = "<p style='color: green;'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
     } elseif (!empty($_GET['errorMessage'])) {
-        $displayMessages = "<p style='color: red;'>". htmlspecialchars($_GET['errorMessage']) . "</p>";
+        $errorMessage = isset($_GET['errorMessage']) ? $_GET['errorMessage'] : '';
+        $displayMessages = "<p style='color: red;'>". htmlspecialchars($errorMessage) . "</p>";
     }
 }
 ?>
