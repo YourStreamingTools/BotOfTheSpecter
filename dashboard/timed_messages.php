@@ -57,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
         } else {
             try {
-                $stmt = $db->prepare("INSERT INTO timed_messages (`interval`, message, status) VALUES (?, ?, 'Enabled')");
+                $stmt = $db->prepare("INSERT INTO timed_messages (interval_count, message, status) VALUES (?, ?, 'Enabled')");
                 $stmt->execute([$interval, $message]);
                 $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.';
             } catch (PDOException $e) {
@@ -100,7 +100,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($message_exists && $edit_interval !== false) {
             // Update the message and/or interval for the selected message in the database
             try {
-                $stmt = $db->prepare("UPDATE timed_messages SET `interval` = ?, message = ? WHERE id = ?");
+                $stmt = $db->prepare("UPDATE timed_messages SET interval_count = ?, message = ? WHERE id = ?");
                 $stmt->execute([$edit_interval, $edit_message_content, $edit_message_id]);
                 // Optionally, you can check if the update was successful and provide feedback to the user
                 $updated = $stmt->rowCount() > 0; // Check if any rows were affected
