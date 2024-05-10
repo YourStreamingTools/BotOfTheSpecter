@@ -44,9 +44,19 @@ if(isset($_GET['logType'])) {
     $logType = $_GET['logType'];
     $logPath = "/var/www/logs/$logType/$username.txt";
     if(file_exists($logPath)) {
-      $logLines = file($logPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-      $logContent = implode("\n", array_reverse($logLines));  
-        
+        // Read the file in reverse
+        $file = new SplFileObject($logPath);
+        $file->seek(PHP_INT_MAX); // Move to the end of the file
+        $linesTotal = $file->key(); // Get the total number of lines
+        $startLine = max(0, $linesTotal - 200); // Calculate the starting line number
+
+        $logLines = [];
+        $file->seek($startLine);
+        while (!$file->eof()) {
+            $logLines[] = $file->fgets();
+        }
+        $logContent = implode("", array_reverse($logLines));
+
         // Check if the log content is empty
         if (trim($logContent) === '') {
             $logContent = "Nothing has been logged yet.";
@@ -72,7 +82,6 @@ if(isset($_GET['logType'])) {
 <br>
 <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<h2>Logs:</h2>
 <ul class="tabs" data-tabs id="logTabs">
     <li class="tabs-title <?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
     <li class="tabs-title <?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="#script">Script Logs</a></li>
