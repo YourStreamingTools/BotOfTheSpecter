@@ -3347,6 +3347,10 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
+    # Truncate the timestamp to six digits for microseconds
+    followed_at_twitch = followed_at_twitch[:26]
+
+    # Parse the truncated timestamp
     datetime_obj = datetime.strptime(followed_at_twitch, "%Y-%m-%dT%H:%M:%S.%fZ")
     followed_at = datetime_obj.strftime("%Y-%m-%d %H:%M:%S")
 
