@@ -709,14 +709,14 @@ async def process_eventsub_message(message):
                 await send_to_discord_mod(discord_message, discord_title, discord_image)
             elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
                 if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                    event_id = event_data.get("id")
+                    reward_id = event_data.get("id")
                     reward_title = event_data["reward"].get("type")
                     reward_cost = event_data["reward"].get("cost")
-                    mysql_cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (event_id,))
+                    mysql_cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
                     result = mysql_cursor.fetchone()
                     if result is not None and len(result) == 2:
                         if result[0] == 0:
-                            mysql_cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (event_id, reward_title, reward_cost))
+                            mysql_cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
                         else:
                             existing_custom_message = result[1]
                             if existing_custom_message:
