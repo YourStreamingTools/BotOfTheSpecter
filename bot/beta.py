@@ -317,6 +317,26 @@ mysql_cursor.execute('''
         PRIMARY KEY (reward_id(255))
     )
 ''')
+mysql_cursor.execute('''
+    CREATE TABLE IF NOT EXISTS poll_results (
+        poll_id TEXT,
+        poll_name TEXT,
+        poll_option_one TEXT,
+        poll_option_two TEXT,
+        poll_option_three TEXT,
+        poll_option_four TEXT,
+        poll_option_five TEXT,
+        poll_option_one_results INTEGER,
+        poll_option_two_results INTEGER,
+        poll_option_three_results INTEGER,
+        poll_option_four_results INTEGER,
+        poll_option_five_results INTEGER,
+        bits_used INTEGER,
+        channel_points_used INTEGER,
+        started_at DATETIME,
+        ended_at DATETIME
+    )
+''')
 mysql_connection.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
@@ -750,38 +770,47 @@ async def process_eventsub_message(message):
                 if event_type == "channel.poll.begin":
                     poll_title = event_data.get("title")
                     choices_titles = [choice.get("title") for choice in event_data.get("choices", [])]
-                    bits_voting_enabled = event_data.get("bits_voting", {}).get("is_enabled", False)
-                    bits_amount_per_vote = event_data.get("bits_voting", {}).get("amount_per_vote", 0) if bits_voting_enabled else 0
-                    channel_points_voting_enabled = event_data.get("channel_points_voting", {}).get("is_enabled", False)
-                    channel_points_amount_per_vote = event_data.get("channel_points_voting", {}).get("amount_per_vote", 0) if channel_points_voting_enabled else 0
-                    poll_ends_at = event_data.get("ends_at")
-                    message = f"Poll '{poll_title}' has started!\n"
-                    message += "Choices:\n"
+                    bits_voting_enabled = event_data.get("bits_voting", {}).get("is_enabled")
+                    bits_amount_per_vote = event_data.get("bits_voting", {}).get("amount_per_vote") if bits_voting_enabled else False
+                    channel_points_voting_enabled = event_data.get("channel_points_voting", {}).get("is_enabled")
+                    channel_points_amount_per_vote = event_data.get("channel_points_voting", {}).get("amount_per_vote") if channel_points_voting_enabled else False
+                    poll_ends_at = datetime.strptime(event_data.get("ends_at")[:-11], "%Y-%m-%dT%H:%M:%S")
+                    message = f"Poll '{poll_title}' has started! \n"
+                    message += "Choices: \n"
                     for choice_title in choices_titles:
-                        message += f"- {choice_title}\n"
+                        message += f"- {choice_title} \n"
                     if bits_voting_enabled:
-                        message += f"Bits Voting Enabled: Amount per Vote - {bits_amount_per_vote}\n"
+                        message += f"Bits Voting Enabled: Amount per Vote - {bits_amount_per_vote} \n"
                     if channel_points_voting_enabled:
-                        message += f"Channel Points Voting Enabled: Amount per Vote - {channel_points_amount_per_vote}\n"
-                    time_now = datetime.now()
-                    time_until_end = poll_ends_at - time_now
-                    # Convert the time difference to minutes and seconds
+                        message += f"Channel Points Voting Enabled: Amount per Vote - {channel_points_amount_per_vote} \n"
+                    tz = pytz.timezone("UTC")
+                    utc_now = datetime.now(tz)
+                    poll_ends_at_utc = tz.localize(poll_ends_at)
+                    time_until_end = poll_ends_at_utc - utc_now
                     minutes, seconds = divmod(time_until_end.total_seconds(), 60)
-                    message += f"Poll ending in {int(minutes)} minutes"
+                    if minutes > 0:
+                        message += f"Poll ending in {int(minutes)} minutes"
+                        is_minutes = True
+                    else:
+                        is_minutes = False
                     if seconds > 0:
-                        message += f" and {int(seconds)} seconds."
+                        if is_minutes is not False:
+                            message += f" and {int(seconds)} seconds."
+                        else:
+                            message += f"Poll ending in {int(seconds)} seconds."
                     else:
                         message += "."
                     await channel.send(message)
                 elif event_type == "channel.poll.progress":
                     current_time = time.time()
+                    last_poll_progress_update = current_time
                     if current_time - last_poll_progress_update >= 30:
                         poll_title = event_data.get("title")
                         choices_data = []
                         for choice in event_data.get("choices", []):
                             choice_title = choice.get("title")
-                            bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled", False) else 0
-                            channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled", False) else 0
+                            bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else False
+                            channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else False
                             total_votes = choice.get("votes")
                             choices_data.append({
                                 "title": choice_title,
@@ -797,14 +826,14 @@ async def process_eventsub_message(message):
                             total_votes = choice_data["total_votes"]
                             message += f"- {choice_title}: Bits Votes - {bits_votes}, Channel Points Votes - {channel_points_votes}, Total Votes - {total_votes}\n"
                         await channel.send(message)
-                        last_poll_progress_update = current_time
                 elif event_type == "channel.poll.end":
+                    poll_id = event_data.get("id")
                     poll_title = event_data.get("title")
                     choices_data = []
                     for choice in event_data.get("choices", []):
                         choice_title = choice.get("title")
-                        bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled", False) else 0
-                        channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled", False) else 0
+                        bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else False
+                        channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else False
                         total_votes = choice.get("votes")
                         choices_data.append({
                             "title": choice_title,
@@ -814,14 +843,25 @@ async def process_eventsub_message(message):
                         })
                     sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
                     winning_choice = sorted_choices[0] if sorted_choices else None
-                    message = f"The poll '{poll_title}' has ended!\n"
+                    message = f"The poll '{poll_title}' has ended! \n"
                     if winning_choice:
-                        message += f"The winning choice is '{winning_choice['title']}' with {winning_choice['total_votes']} votes.\n"
+                        message += f"The winning choice is '{winning_choice['title']}' with {winning_choice['total_votes']} votes. \n"
                     else:
-                        message += f"The winning choice is '{winning_choice['title']}' but there are no votes recorded for this poll.\n"
+                        message += f"The winning choice is '{winning_choice['title']}' but there are no votes recorded for this poll. \n"
                     for choice_data in sorted_choices:
-                        message += f"- {choice_data['title']}: Bits Votes - {choice_data['bits_votes']}, Channel Points Votes - {choice_data['channel_points_votes']}, Total Votes - {choice_data['total_votes']}\n"
+                        message += f"- {choice_data['title']}: Bits Votes - {choice_data['bits_votes']}, Channel Points Votes - {choice_data['channel_points_votes']}, Total Votes - {choice_data['total_votes']} \n"
                     await channel.send(message)
+                    mysql_cursor.execute("INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s)", (poll_id, poll_title))
+                    mysql_connection.commit()
+                    sql_options = ["one", "two", "three", "four", "five"]
+                    sql_query = "UPDATE poll_results SET "
+                    for i in enumerate(sql_options, start=1):
+                        sql_query += f"poll_option_{i} = %s, "
+                    sql_query = sql_query.rstrip(", ")
+                    sql_query += " WHERE poll_id = %s"
+                    params = [choice_data["title"] if i < len(sorted_choices) else None for i, choice_data in enumerate(sorted_choices)] + [None, None, None, None, None, poll_id]
+                    mysql_cursor.execute(sql_query, params)
+                    mysql_connection.commit()
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
