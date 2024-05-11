@@ -14,6 +14,7 @@
           <?php if($_SERVER['REQUEST_URI'] == '/followers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="followers.php">Your Followers</a></li>
           <?php if($_SERVER['REQUEST_URI'] == '/subscribers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="subscribers.php">Your Subscribers</a></li>
           <?php if($_SERVER['REQUEST_URI'] == '/vips.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="vips.php">Your VIPs</a></li>
+          <?php if($_SERVER['REQUEST_URI'] == '/channel_rewards.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="channel_rewards.php">Channel Point Rewards</a></li>
         </ul>
       </li>
       <li>
