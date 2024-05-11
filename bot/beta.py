@@ -709,6 +709,7 @@ async def process_eventsub_message(message):
                 await send_to_discord_mod(discord_message, discord_title, discord_image)
             elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
                 if event_type == "channel.channel_points_automatic_reward_redemption.add":
+                    bot_logger.info(f"Chanel Point Authomatic Reward Event Data: {event_data}")
                     reward_id = event_data.get("id")
                     reward_title = event_data["reward"].get("type")
                     reward_cost = event_data["reward"].get("cost")
@@ -727,6 +728,7 @@ async def process_eventsub_message(message):
                     else:
                         bot_logger.error("Error: Unexpected result from database query.")
                 elif event_type == "channel.channel_points_custom_reward_redemption.add":
+                    bot_logger.info(f"Chanel Point Custom Reward Event Data: {event_data}")
                     reward_id = event_data["reward"].get("id")
                     reward_title = event_data["reward"].get("title")
                     reward_cost = event_data["reward"].get("cost")
