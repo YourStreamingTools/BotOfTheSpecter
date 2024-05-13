@@ -1149,7 +1149,14 @@ class BotOfTheSpecter(commands.Bot):
         else:
             # Status disabled for user
             chat_logger.info(f"Message not sent for {messageAuthor} as status is disabled.")
+        await self.walkon_sound(CHANNEL_NAME, "walkon", messageAuthor)
         await self.user_grouping(messageAuthor, messageAuthorID)
+
+    async def walkon_sound(self, channel, event_type, message_author):
+        async with websockets.connect("ws://localhost:8765") as websocket_notice:
+            await websocket_notice.send(f"channel_name:{channel}")
+            await websocket_notice.send(event_type)
+            await websocket_notice.send(message_author)
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
         group_names = []
