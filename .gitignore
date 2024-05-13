@@ -19,3 +19,4 @@ bot/test.py
 app/BotOfTheSpecter.ui
 bot/phpmyadmin.txt
 bot/sql/*
+bot/test_websocket.py
