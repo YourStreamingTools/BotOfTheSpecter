@@ -1230,7 +1230,11 @@ class BotOfTheSpecter(commands.Bot):
                 return
         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
-    
+
+    @commands.command(name='version')
+    async def version_command(self, ctx):
+        await ctx.send(f"The version that is currently running is V{VERSION}B")
+
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("roadmap",))
