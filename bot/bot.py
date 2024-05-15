@@ -2126,7 +2126,7 @@ class BotOfTheSpecter(commands.Bot):
                     mysql_connection.commit()
 
                 # Increment game-specific death count & total death count
-                mysql_cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON CONFLICT(game_name) DO UPDATE SET death_count = death_count + 1 WHERE game_name = %s', (current_game, current_game))
+                mysql_cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1', (current_game,))
                 mysql_cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
                 mysql_connection.commit()
 
