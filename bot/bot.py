@@ -1337,7 +1337,7 @@ class BotOfTheSpecter(commands.Bot):
             target_user = mentioned_username.lstrip('@')
 
             # Increment hug count in the database
-            mysql_cursor.execute('INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) ON CONFLICT(username) DO UPDATE SET hug_count = hug_count + 1', (target_user,))
+            mysql_cursor.execute('INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', (target_user,))
             mysql_connection.commit()
 
             # Retrieve the updated count
@@ -1363,7 +1363,7 @@ class BotOfTheSpecter(commands.Bot):
             target_user = mentioned_username.lstrip('@')
 
             # Increment kiss count in the database
-            mysql_cursor.execute('INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) ON CONFLICT(username) DO UPDATE SET kiss_count = kiss_count + 1', (target_user,))
+            mysql_cursor.execute('INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1', (target_user,))
             mysql_connection.commit()
 
             # Retrieve the updated count
@@ -1899,7 +1899,7 @@ class BotOfTheSpecter(commands.Bot):
         target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
 
         # Increment typo count in the database
-        mysql_cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON CONFLICT(username) DO UPDATE SET typo_count = typo_count + 1', (target_user,))
+        mysql_cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE typo_count = typo_count + 1', (target_user,))
         mysql_connection.commit()
 
         # Retrieve the updated count
