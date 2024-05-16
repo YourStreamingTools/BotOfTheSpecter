@@ -1806,7 +1806,7 @@ class BotOfTheSpecter(commands.Bot):
             for user_id, start_time in lurkers:
                 lurk_duration = now - start_time
 
-                if longest_lurk is None or lurk_duration > longest_lurk:
+                if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
                     longest_lurk = lurk_duration
                     longest_lurk_user_id = user_id
 
