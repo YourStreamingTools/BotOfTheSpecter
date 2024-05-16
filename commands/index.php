@@ -27,25 +27,21 @@ if (isset($_GET['user'])) {
     // Get username from URL
     $username = sanitize_input($_GET['user']);
     
-    // Path to SQLite database
-    $db_path = "/var/www/bot/commands/{$username}.db";
-
     try {
-        // Check if database file exists
-        if (!file_exists($db_path)) {
-            throw new Exception("User '$username' does not use our system.");
-        }
-        
+        // Connect to the MySQL database
+        $db = new PDO("mysql:host=sql.botofthespecter.com;dbname={$username}", "USERNAME", "PASSWORD");
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
         // Update Title for the Username
         $title = "User Commands: $username";
 
-        // Connect to SQLite database
-        $db = new SQLite3($db_path);
-
         // Check if custom_commands table exists
-        $check_table_query = "SELECT name FROM sqlite_master WHERE type='table' AND name='custom_commands'";
-        $table_result = $db->querySingle($check_table_query);
-        if ($table_result === false) {
+        $check_table_query = "SHOW TABLES LIKE 'custom_commands'";
+        $stmt = $db->prepare($check_table_query);
+        $stmt->execute();
+        $table_exists = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$table_exists) {
             throw new Exception("No custom commands found for user '$username'.");
         }
 
@@ -54,13 +50,13 @@ if (isset($_GET['user'])) {
         $result = $db->query($query);
 
         // Fetch commands into an array
-        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             $commands[] = $row;
         }
 
         // Close database connection
-        $db->close();
-    } catch (Exception $e) {
+        $db = null;
+    } catch (PDOException $e) {
         $buildResults = "<p>Error: " . $e->getMessage() . "</p>";
     }
 }
