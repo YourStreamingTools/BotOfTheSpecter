@@ -351,6 +351,8 @@ last_poll_progress_update = 0
 global stream_online
 global current_game
 global stream_title
+global botstarted
+botstarted = datetime.now()
 stream_online = False
 current_game = None
 
@@ -1235,7 +1237,9 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.command(name='version')
     async def version_command(self, ctx):
-        await ctx.send(f"The version that is currently running is V{VERSION}B")
+        global botstarted
+        uptime = datetime.now() - botstarted
+        await ctx.send(f"The version that is currently running is V{VERSION}B. Bot started at {botstarted.strftime('%Y-%m-%d %H:%M:%S')}, uptime is {uptime}.")
 
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
@@ -2847,7 +2851,7 @@ def is_user_moderator(user_trigger_id):
 # Function to add user to the table of known users
 async def user_is_seen(username):
     try:
-        mysql_cursor.execute('INSERT INTO seen_users (username) VALUES (%s)', (username,))
+        mysql_cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
         mysql_connection.commit()
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
