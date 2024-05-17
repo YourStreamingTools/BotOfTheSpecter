@@ -717,6 +717,8 @@ class BotOfTheSpecter(commands.Bot):
         await channel.send(f"/me is connected and ready! Running V{VERSION}")
         await check_stream_online()
         await update_version_control()
+        await group_creation()
+        await builtin_commands_creation()
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(timed_message())
 
@@ -3512,8 +3514,16 @@ async def send_to_discord_stream_online(message, image):
 async def group_creation():
     group_names = ["VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
     try:
-        # Check if groups already exist in the table
-        mysql_cursor.execute("SELECT name FROM `groups` WHERE name IN %s", (tuple(group_names),))
+        # Create placeholders for each group name
+        placeholders = ', '.join(['%s'] * len(group_names))
+        
+        # Construct the query string with the placeholders
+        query = f"SELECT name FROM `groups` WHERE name IN ({placeholders})"
+        
+        # Execute the query with the tuple of group names
+        mysql_cursor.execute(query, tuple(group_names))
+        
+        # Fetch the existing groups from the database
         existing_groups = [row[0] for row in mysql_cursor.fetchall()]
 
         # Filter out existing groups
@@ -3532,8 +3542,16 @@ async def group_creation():
 async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
     try:
-        # Check if commands already exist in the table
-        mysql_cursor.execute("SELECT command FROM builtin_commands WHERE command IN %s", (tuple(all_commands),))
+        # Create placeholders for each command
+        placeholders = ', '.join(['%s'] * len(all_commands))
+        
+        # Construct the query string with the placeholders
+        query = f"SELECT command FROM builtin_commands WHERE command IN ({placeholders})"
+        
+        # Execute the query with the tuple of all commands
+        mysql_cursor.execute(query, tuple(all_commands))
+        
+        # Fetch the existing commands from the database
         existing_commands = [row[0] for row in mysql_cursor.fetchall()]
 
         # Filter out existing commands
@@ -3543,7 +3561,8 @@ async def builtin_commands_creation():
         if new_commands:
             placeholders = ', '.join(['(%s, %s)'] * len(new_commands))
             values = [(command, 'Enabled') for command in new_commands]
-            mysql_cursor.executemany("INSERT INTO builtin_commands (command, status) VALUES " + placeholders, values)
+            insert_query = "INSERT INTO builtin_commands (command, status) VALUES " + placeholders
+            mysql_cursor.executemany(insert_query, values)
             mysql_connection.commit()
 
             for command in new_commands:
@@ -3618,12 +3637,6 @@ async def event_command_error(error):
 def start_bot():
     # Schedule bot tasks
     asyncio.get_event_loop().create_task(refresh_token_every_day())
-    
-    # Create groups if they don't exist
-    group_creation()
-
-    # Create built-in commands in the database
-    builtin_commands_creation()
 
     # Start the bot
     bot.run()
