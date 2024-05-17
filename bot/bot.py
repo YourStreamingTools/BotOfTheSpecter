@@ -887,7 +887,7 @@ class BotOfTheSpecter(commands.Bot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
-        await channel.send(f"/me is connected and ready! Running V{VERSION}B")
+        await channel.send(f"/me is connected and ready! Running V{VERSION}")
         await check_stream_online()
         await update_version_control()
         await group_creation()
