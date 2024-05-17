@@ -39,7 +39,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.3"
+VERSION = "4.4"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -607,7 +607,7 @@ async def process_eventsub_message(message):
                     event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.message":
-                bot_logger.info(f"Subsctiption (Message) Event Data: {event_data}")
+                bot_logger.info(f"Subscription (Message) Event Data: {event_data}")
                 tier_mapping = {
                     "1000": "Tier 1",
                     "2000": "Tier 2",
@@ -615,11 +615,12 @@ async def process_eventsub_message(message):
                 }
                 tier = event_data["tier"]
                 tier_name = tier_mapping.get(tier, tier)
+                subscription_message = event_data.get("message", "")
                 await process_subscription_message_event(
                     event_data["user_id"],
                     event_data["user_name"],
                     tier_name,
-                    event_data("message"),
+                    subscription_message,
                     event_data.get("cumulative_months", 1)
                 )
             elif event_type == "channel.subscription.gift":
@@ -1239,7 +1240,18 @@ class BotOfTheSpecter(commands.Bot):
     async def version_command(self, ctx):
         global botstarted
         uptime = datetime.now() - botstarted
-        await ctx.send(f"The version that is currently running is V{VERSION}B. Bot started at {botstarted.strftime('%Y-%m-%d %H:%M:%S')}, uptime is {uptime}.")
+        uptime_days = uptime.days
+        uptime_hours, remainder = divmod(uptime.seconds, 3600)
+        uptime_minutes, _ = divmod(remainder, 60)
+        message = f"The version that is currently running is V{VERSION}B. "
+        message += f"Bot started at {botstarted.strftime('%Y-%m-%d %H:%M:%S')}, uptime is "
+        if uptime_days > 0:
+            message += f"{uptime_days} days, "
+        if uptime_hours > 0:
+            message += f"{uptime_hours} hours, "
+        if uptime_minutes > 0 or (uptime_days == 0 and uptime_hours == 0):
+            message += f"{uptime_minutes} minutes, "
+        await ctx.send(f"{message[:-2]}")
 
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
@@ -3099,15 +3111,23 @@ async def process_stream_online():
     # Extract necessary data from the API response
     if data.get('data'):
         current_game = data['data'][0].get('game_name', None)
+        image_data = data['data'][0].get('thumbnail_url', None)
     else:
         current_game = None
-    image_data = data['data']["thumbnail_url"]
-    image = image_data.replace("{width}", "1280").replace("{height}", "720")
+        image_data = None
+
+    if image_data:
+        image = image_data.replace("{width}", "1280").replace("{height}", "720")
+    else:
+        image = None
 
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_online_message(message)
-    await send_to_discord_stream_online(message, image)
+    if image:
+        await send_to_discord_stream_online(message, image)
+    else:
+        await send_to_discord_stream_online(message, "")
 
 async def process_stream_offline():
     global stream_online
@@ -3543,7 +3563,7 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
     mysql_cursor.execute('INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (%s, %s, %s)', (user_id, user_name, followed_at))
 
     # Insert data into stream_credits table
-    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "follow", ""))
+    mysql_cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "follow", 0))
 
     # Commit changes to the database
     mysql_connection.commit()
@@ -3560,138 +3580,115 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
     mysql_cursor.execute("SELECT discord_alert FROM profile")
-    discord_url = mysql_cursor.fetchone()
-
+    result = mysql_cursor.fetchone()
+    if not result or not result[0]:
+        bot_logger.error("Discord URL not found or is None.")
+        return
+    discord_url = result[0]
     mysql_cursor.execute("SELECT timezone FROM profile")
-    timezone = mysql_cursor.fetchone()[0]
-    if timezone:
-        tz = pytz.timezone(timezone)
-        current_time = datetime.now(tz)
-        time_format_date = current_time.strftime("%B %d, %Y")
-        time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
-    else:
-        timezone = 'UTC'
-        tz = pytz.timezone(timezone)
-        current_time = datetime.now(tz)
-        time_format_date = current_time.strftime("%B %d, %Y")
-        time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
-
-    payload = {"embeds": []}
-    if discord_url:
-        discord_url = discord_url[0]
-        payload["username"] = "BotOfTheSpecter"
-        payload["avatar_url"] = "https://cdn.botofthespecter.com/logo.png"
-        payload["embeds"] = [{
+    timezone_result = mysql_cursor.fetchone()
+    timezone = timezone_result[0] if timezone_result else 'UTC'
+    tz = pytz.timezone(timezone)
+    current_time = datetime.now(tz)
+    time_format_date = current_time.strftime("%B %d, %Y")
+    time_format_time = current_time.strftime("%I:%M %p")
+    time_format = f"{time_format_date} at {time_format_time}"
+    payload = {
+        "username": "BotOfTheSpecter",
+        "avatar_url": "https://cdn.botofthespecter.com/logo.png",
+        "embeds": [{
             "description": message,
             "title": title,
             "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
             "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
         }]
-        
+    }
+    try:
         response = requests.post(discord_url, json=payload)
-        if response.status_code == 200 or response.status_code == 204:
-            # bot_logger.info(f"Sent to Disord {response.status_code}")
+        if response.status_code in [200, 204]:
+            # bot_logger.info(f"Sent to Discord {response.status_code}")
             return
         else:
             bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
-    else:
-        bot_logger.error(f"Discord URL not found.")
-        return
+    except requests.exceptions.RequestException as e:
+        bot_logger.error(f"Request to Discord failed: {e}")
 
 # Function to build the Discord Mod Notice 
 async def send_to_discord_mod(message, title, image):
     mysql_cursor.execute("SELECT discord_mod FROM profile")
-    discord_url = mysql_cursor.fetchone()
-
+    result = mysql_cursor.fetchone()
+    if not result or not result[0]:
+        bot_logger.error("Discord URL for mod notifications not found or is None.")
+        return
+    discord_url = result[0]
     mysql_cursor.execute("SELECT timezone FROM profile")
-    timezone = mysql_cursor.fetchone()[0]
-    if timezone:
-        tz = pytz.timezone(timezone)
-        current_time = datetime.now(tz)
-        time_format_date = current_time.strftime("%B %d, %Y")
-        time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
-    else:
-        timezone = 'UTC'
-        tz = pytz.timezone(timezone)
-        current_time = datetime.now(tz)
-        time_format_date = current_time.strftime("%B %d, %Y")
-        time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
-
-    payload = {"embeds": []}
-    if discord_url:
-        discord_url = discord_url[0]
-        payload["username"] = "BotOfTheSpecter"
-        payload["avatar_url"] = "https://cdn.botofthespecter.com/logo.png"
-        payload["embeds"] = [{
+    timezone_result = mysql_cursor.fetchone()
+    timezone = timezone_result[0] if timezone_result else 'UTC'
+    tz = pytz.timezone(timezone)
+    current_time = datetime.now(tz)
+    time_format_date = current_time.strftime("%B %d, %Y")
+    time_format_time = current_time.strftime("%I:%M %p")
+    time_format = f"{time_format_date} at {time_format_time}"
+    payload = {
+        "username": "BotOfTheSpecter",
+        "avatar_url": "https://cdn.botofthespecter.com/logo.png",
+        "embeds": [{
             "description": message,
             "title": title,
             "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
             "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
         }]
-        
+    }
+    try:
         response = requests.post(discord_url, json=payload)
-        if response.status_code == 200 or response.status_code == 204:
-            # bot_logger.info(f"Sent to Disord {response.status_code}")
+        if response.status_code in [200, 204]:
+            # bot_logger.info(f"Sent to Discord {response.status_code}")
             return
         else:
             bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
-    else:
-        bot_logger.error(f"Discord URL not found.")
-        return
+    except requests.exceptions.RequestException as e:
+        bot_logger.error(f"Request to Discord failed: {e}")
 
 # Function to build the Discord Notice for Stream Online
 async def send_to_discord_stream_online(message, image):
     mysql_cursor.execute("SELECT timezone FROM profile")
     timezone = mysql_cursor.fetchone()[0]
-    if timezone:
-        tz = pytz.timezone(timezone)
-        current_time = datetime.now(tz)
-        time_format_date = current_time.strftime("%B %d, %Y")
-        time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
-    else:
+    if not timezone:
         timezone = 'UTC'
-        tz = pytz.timezone(timezone)
-        current_time = datetime.now(tz)
-        time_format_date = current_time.strftime("%B %d, %Y")
-        time_format_time = current_time.strftime("%I:%M %p")
-        time_format = f"{time_format_date} at {time_format_time}"
-
+    tz = pytz.timezone(timezone)
+    current_time = datetime.now(tz)
+    time_format_date = current_time.strftime("%B %d, %Y")
+    time_format_time = current_time.strftime("%I:%M %p")
+    time_format = f"{time_format_date} at {time_format_time}"
     mysql_cursor.execute("SELECT discord_alert_online FROM profile")
     discord_url = mysql_cursor.fetchone()
-
     if discord_url:
-        title = f"{CHANNEL_NAME} is now live on Twitch!"
-        payload = {"content": "@everyone"}
         discord_url = discord_url[0]
-        payload = {"embeds": []}
-        payload["username"] = "BotOfTheSpecter"
-        payload["avatar_url"] = "https://cdn.botofthespecter.com/logo.png"
-        payload["embeds"] = [{
-            "description": message,
-            "title": title,
-            "url": f"https://twitch.tv/{CHANNEL_NAME}",
-            "image": {"url":
-                      f"{image}",
-                      "height": "720",
-                      "width": "1280"
-                      },
-            "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
-        }]
-        
+        title = f"{CHANNEL_NAME} is now live on Twitch!"
+        payload = {
+            "username": "BotOfTheSpecter",
+            "avatar_url": "https://cdn.botofthespecter.com/logo.png",
+            "content": "@everyone",
+            "embeds": [{
+                "description": message,
+                "title": title,
+                "url": f"https://twitch.tv/{CHANNEL_NAME}",
+                "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
+            }]
+        }
+        if image:
+            payload["embeds"][0]["image"] = {
+                "url": image,
+                "height": 720,
+                "width": 1280
+            }
         response = requests.post(discord_url, json=payload)
-        if response.status_code == 200 or response.status_code == 204:
-            # bot_logger.info(f"Sent to Disord {response.status_code}")
-            return
+        if response.status_code in (200, 204):
+            bot_logger.info(f"Message sent to Discord successfully - Status Code: {response.status_code}")
         else:
             bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
     else:
-        bot_logger.error(f"Discord URL not found.")
-        return
+        bot_logger.error("Discord URL not found.")
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
