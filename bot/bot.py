@@ -39,7 +39,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.2"
+VERSION = "4.3"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -52,7 +52,7 @@ SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "game", "joke", "ping", "weather", "time", "song", "version", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -308,6 +308,35 @@ mysql_cursor.execute('''
         PRIMARY KEY (username(255))
     ) ENGINE=InnoDB
 ''')
+mysql_cursor.execute('''
+    CREATE TABLE IF NOT EXISTS channel_point_rewards (
+        reward_id TEXT,
+        reward_title TEXT,
+        reward_cost TEXT,
+        custom_message TEXT,
+        PRIMARY KEY (reward_id(255))
+    )
+''')
+mysql_cursor.execute('''
+    CREATE TABLE IF NOT EXISTS poll_results (
+        poll_id TEXT,
+        poll_name TEXT,
+        poll_option_one TEXT,
+        poll_option_two TEXT,
+        poll_option_three TEXT,
+        poll_option_four TEXT,
+        poll_option_five TEXT,
+        poll_option_one_results INTEGER,
+        poll_option_two_results INTEGER,
+        poll_option_three_results INTEGER,
+        poll_option_four_results INTEGER,
+        poll_option_five_results INTEGER,
+        bits_used INTEGER,
+        channel_points_used INTEGER,
+        started_at DATETIME,
+        ended_at DATETIME
+    )
+''')
 mysql_connection.commit()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
@@ -318,9 +347,12 @@ permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
 scheduled_tasks = []
+last_poll_progress_update = 0
 global stream_online
 global current_game
 global stream_title
+global botstarted
+botstarted = datetime.now()
 stream_online = False
 current_game = None
 
@@ -436,7 +468,12 @@ async def subscribe_to_events(session_id):
         "channel.hype_train.begin",
         "channel.hype_train.end",
         "channel.ad_break.begin",
-        "channel.charity_campaign.donate"
+        "channel.charity_campaign.donate",
+        "channel.channel_points_automatic_reward_redemption.add",
+        "channel.channel_points_custom_reward_redemption.add",
+        "channel.poll.begin",
+        "channel.poll.progress",
+        "channel.poll.end"
     ]
 
     v2topics = [
@@ -692,6 +729,141 @@ async def process_eventsub_message(message):
                     discord_title = "New Unban!"
                     discord_image = "ban.png"
                 await send_to_discord_mod(discord_message, discord_title, discord_image)
+            elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
+                if event_type == "channel.channel_points_automatic_reward_redemption.add":
+                    bot_logger.info(f"Chanel Point Authomatic Reward Event Data: {event_data}")
+                    reward_id = event_data.get("id")
+                    reward_title = event_data["reward"].get("type")
+                    reward_cost = event_data["reward"].get("cost")
+                    mysql_cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                    result = mysql_cursor.fetchone()
+                    if result is not None and len(result) == 2:
+                        if result[0] == 0:
+                            mysql_cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
+                        else:
+                            existing_custom_message = result[1]
+                            if existing_custom_message:
+                                message = existing_custom_message
+                                channel.send(message)
+                            else:
+                                pass
+                    else:
+                        bot_logger.error("Error: Unexpected result from database query.")
+                elif event_type == "channel.channel_points_custom_reward_redemption.add":
+                    bot_logger.info(f"Chanel Point Custom Reward Event Data: {event_data}")
+                    reward_id = event_data["reward"].get("id")
+                    reward_title = event_data["reward"].get("title")
+                    reward_cost = event_data["reward"].get("cost")
+                    mysql_cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                    result = mysql_cursor.fetchone()
+                    if result is not None and len(result) == 2:
+                        if result[0] == 0:
+                            mysql_cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
+                        else:
+                            existing_custom_message = result[1]
+                            if existing_custom_message:
+                                message = existing_custom_message
+                                channel.send(message)
+                            else:
+                                pass
+                    else:
+                        bot_logger.error("Error: Unexpected result from database query.")
+            elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
+                if event_type == "channel.poll.begin":
+                    poll_title = event_data.get("title")
+                    choices_titles = [choice.get("title") for choice in event_data.get("choices", [])]
+                    bits_voting_enabled = event_data.get("bits_voting", {}).get("is_enabled")
+                    bits_amount_per_vote = event_data.get("bits_voting", {}).get("amount_per_vote") if bits_voting_enabled else False
+                    channel_points_voting_enabled = event_data.get("channel_points_voting", {}).get("is_enabled")
+                    channel_points_amount_per_vote = event_data.get("channel_points_voting", {}).get("amount_per_vote") if channel_points_voting_enabled else False
+                    poll_ends_at = datetime.strptime(event_data.get("ends_at")[:-11], "%Y-%m-%dT%H:%M:%S")
+                    message = f"Poll '{poll_title}' has started! \n"
+                    message += "Choices: \n"
+                    for choice_title in choices_titles:
+                        message += f"- {choice_title} \n"
+                    if bits_voting_enabled:
+                        message += f"Bits Voting Enabled: Amount per Vote - {bits_amount_per_vote} \n"
+                    if channel_points_voting_enabled:
+                        message += f"Channel Points Voting Enabled: Amount per Vote - {channel_points_amount_per_vote} \n"
+                    tz = pytz.timezone("UTC")
+                    utc_now = datetime.now(tz)
+                    poll_ends_at_utc = tz.localize(poll_ends_at)
+                    time_until_end = poll_ends_at_utc - utc_now
+                    minutes, seconds = divmod(time_until_end.total_seconds(), 60)
+                    if minutes > 0:
+                        message += f"Poll ending in {int(minutes)} minutes"
+                        is_minutes = True
+                    else:
+                        is_minutes = False
+                    if seconds > 0:
+                        if is_minutes is not False:
+                            message += f" and {int(seconds)} seconds."
+                        else:
+                            message += f"Poll ending in {int(seconds)} seconds."
+                    else:
+                        message += "."
+                    await channel.send(message)
+                elif event_type == "channel.poll.progress":
+                    current_time = time.time()
+                    last_poll_progress_update = current_time
+                    if current_time - last_poll_progress_update >= 30:
+                        poll_title = event_data.get("title")
+                        choices_data = []
+                        for choice in event_data.get("choices", []):
+                            choice_title = choice.get("title")
+                            bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else False
+                            channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else False
+                            total_votes = choice.get("votes")
+                            choices_data.append({
+                                "title": choice_title,
+                                "bits_votes": bits_votes,
+                                "channel_points_votes": channel_points_votes,
+                                "total_votes": total_votes
+                            })
+                        message = f"Poll Progress: {poll_title}\n"
+                        for choice_data in choices_data:
+                            choice_title = choice_data["title"]
+                            bits_votes = choice_data["bits_votes"]
+                            channel_points_votes = choice_data["channel_points_votes"]
+                            total_votes = choice_data["total_votes"]
+                            message += f"- {choice_title}: Bits Votes - {bits_votes}, Channel Points Votes - {channel_points_votes}, Total Votes - {total_votes}\n"
+                        await channel.send(message)
+                elif event_type == "channel.poll.end":
+                    poll_id = event_data.get("id")
+                    poll_title = event_data.get("title")
+                    choices_data = []
+                    for choice in event_data.get("choices", []):
+                        choice_title = choice.get("title")
+                        bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else False
+                        channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else False
+                        total_votes = choice.get("votes")
+                        choices_data.append({
+                            "title": choice_title,
+                            "bits_votes": bits_votes,
+                            "channel_points_votes": channel_points_votes,
+                            "total_votes": total_votes
+                        })
+                    sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
+                    winning_choice = sorted_choices[0] if sorted_choices else None
+                    message = f"The poll '{poll_title}' has ended! \n"
+                    if winning_choice:
+                        message += f"The winning choice is '{winning_choice['title']}' with {winning_choice['total_votes']} votes. \n"
+                    else:
+                        message += f"The winning choice is '{winning_choice['title']}' but there are no votes recorded for this poll. \n"
+                    for choice_data in sorted_choices:
+                        message += f"- {choice_data['title']}: Bits Votes - {choice_data['bits_votes']}, Channel Points Votes - {choice_data['channel_points_votes']}, Total Votes - {choice_data['total_votes']} \n"
+                    await channel.send(message)
+                    mysql_cursor.execute("INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s)", (poll_id, poll_title))
+                    mysql_connection.commit()
+                    sql_options = ["one", "two", "three", "four", "five"]
+                    sql_query = "UPDATE poll_results SET "
+                    for i in enumerate(sql_options, start=1):
+                        sql_query += f"poll_option_{i} = %s, "
+                    sql_query = sql_query.rstrip(", ")
+                    sql_query += " WHERE poll_id = %s"
+                    params = [choice_data["title"] if i < len(sorted_choices) else None for i, choice_data in enumerate(sorted_choices)] + [None, None, None, None, None, poll_id]
+                    mysql_cursor.execute(sql_query, params)
+                    mysql_connection.commit()
             elif event_type in ["stream.online", "stream.offline"]:
                 if event_type == "stream.online":
                     await process_stream_online()
@@ -1055,7 +1227,13 @@ class BotOfTheSpecter(commands.Bot):
                 return
         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
         await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
-    
+
+    @commands.command(name='version')
+    async def version_command(self, ctx):
+        global botstarted
+        uptime = datetime.now() - botstarted
+        await ctx.send(f"The version that is currently running is V{VERSION}. Bot started at {botstarted.strftime('%Y-%m-%d %H:%M:%S')}, uptime is {uptime}.")
+
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         mysql_cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("roadmap",))
@@ -2666,7 +2844,7 @@ def is_user_moderator(user_trigger_id):
 # Function to add user to the table of known users
 async def user_is_seen(username):
     try:
-        mysql_cursor.execute('INSERT INTO seen_users (username) VALUES (%s)', (username,))
+        mysql_cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
         mysql_connection.commit()
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
@@ -3351,10 +3529,8 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
 async def process_followers_event(user_id, user_name, followed_at_twitch):
     # Truncate the timestamp to six digits for microseconds
     followed_at_twitch = followed_at_twitch[:26]
-
-    # Parse the truncated timestamp
-    datetime_obj = datetime.strptime(followed_at_twitch, "%Y-%m-%dT%H:%M:%S.%fZ")
-    followed_at = datetime_obj.strftime("%Y-%m-%d %H:%M:%S")
+    time_now = datetime.now()
+    followed_at = time_now.strftime("%Y-%m-%d %H:%M:%S")
 
     # Insert a new record for the follower
     mysql_cursor.execute('INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (%s, %s, %s)', (user_id, user_name, followed_at))
