@@ -1786,32 +1786,26 @@ class BotOfTheSpecter(commands.Bot):
                 return
         try:
             user_id = str(ctx.author.id)
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
+            now = datetime.now()
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
                 await ctx.send(f"You cannot lurk in your own channel, Streamer.")
                 chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
                 return
-
             # Check if the user is already in the lurk table
             cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
             result = cursor.fetchone()
-
             if result:
                 # User was lurking before
                 previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                 lurk_duration = now - previous_start_time
-
                 # Calculate the duration
                 days, seconds = divmod(lurk_duration.total_seconds(), 86400)
                 months, days = divmod(days, 30)
                 hours, remainder = divmod(seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
-
                 # Create time string
                 periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
                 time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-
                 # Inform the user of their previous lurk time
                 await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
                 chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
@@ -1819,7 +1813,6 @@ class BotOfTheSpecter(commands.Bot):
                 # User is not in the lurk table
                 await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
                 chat_logger.info(f"{ctx.author.name} is now lurking.")
-
             # Update the start time in the database
             formatted_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute('INSERT INTO lurk_times (user_id, start_time) VALUES (%s, %s) ON DUPLICATE KEY UPDATE start_time = %s', (user_id, formatted_datetime, formatted_datetime))
@@ -1827,6 +1820,9 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='lurking')
     async def lurking_command(self, ctx):
