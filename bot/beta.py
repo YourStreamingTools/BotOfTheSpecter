@@ -583,7 +583,6 @@ async def receive_messages(websocket, keepalive_timeout):
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         event_type = message.get("payload", {}).get("subscription", {}).get("type")
         event_data = message.get("payload", {}).get("event")
@@ -901,7 +900,6 @@ class BotOfTheSpecter(commands.Bot):
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             # Ignore messages from the bot itself
             if message.echo:
@@ -1050,7 +1048,6 @@ class BotOfTheSpecter(commands.Bot):
 
     async def message_counting(self, messageAuthor, messageAuthorID, message):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             # Check user level
             is_vip = await is_user_vip(messageAuthorID)
@@ -1153,7 +1150,6 @@ class BotOfTheSpecter(commands.Bot):
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             group_names = []
             # Check if the user is the broadcaster
@@ -1192,7 +1188,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='commands', aliases=['cmds',])
     async def commands_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("commands",))
             result = cursor.fetchone()
@@ -1222,7 +1217,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='bot')
     async def bot_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("bot",))
             result = cursor.fetchone()
@@ -1239,7 +1233,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='version')
     async def version_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("version",))
             result = cursor.fetchone()
@@ -1268,7 +1261,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("roadmap",))
             result = cursor.fetchone()
@@ -1284,7 +1276,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='weather')
     async def weather_command(self, ctx, location: str = None) -> None:
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("weather",))
             result = cursor.fetchone()
@@ -1311,7 +1302,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='time')
     async def time_command(self, ctx, timezone: str = None) -> None:
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("time",))
             result = cursor.fetchone()
@@ -1348,7 +1338,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='joke')
     async def joke_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("joke",))
             result = cursor.fetchone()
@@ -1373,7 +1362,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("quote",))
             result = cursor.fetchone()
@@ -1402,7 +1390,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='quoteadd')
     async def quote_add_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("quoteadd",))
             result = cursor.fetchone()
@@ -1420,7 +1407,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='removequote')
     async def quote_remove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removequote",))
             result = cursor.fetchone()
@@ -1441,7 +1427,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("permit",))
             result = cursor.fetchone()
@@ -1466,7 +1451,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='settitle')
     async def set_title_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("settitle",))
             result = cursor.fetchone()
@@ -1492,7 +1476,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='setgame')
     async def set_game_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("setgame",))
             result = cursor.fetchone()
@@ -1526,7 +1509,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='song')
     async def get_current_song_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("song",))
             result = cursor.fetchone()
@@ -1554,7 +1536,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='timer')
     async def start_timer_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("timer",))
             result = cursor.fetchone()
@@ -1597,7 +1578,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("hug",))
             result = cursor.fetchone()
@@ -1626,7 +1606,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("kiss",))
             result = cursor.fetchone()
@@ -1655,7 +1634,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='ping')
     async def ping_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("ping",))
             result = cursor.fetchone()
@@ -1682,7 +1660,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='translate')
     async def translate_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("translate",))
             result = cursor.fetchone()
@@ -1731,7 +1708,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='cheerleader')
     async def cheerleader_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("cheerleader",))
             result = cursor.fetchone()
@@ -1766,7 +1742,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='mybits')
     async def mybits_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("mybits",))
             result = cursor.fetchone()
@@ -1802,7 +1777,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='lurk')
     async def lurk_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("lurk",))
         result = cursor.fetchone()
         if result:
@@ -1852,7 +1826,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='lurking')
     async def lurking_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("lurking",))
             result = cursor.fetchone()
@@ -1896,7 +1869,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("lurklead",))
             result = cursor.fetchone()
@@ -1944,7 +1916,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("unlurk",))
             result = cursor.fetchone()
@@ -1989,7 +1960,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='clip')
     async def clip_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("clip",))
             result = cursor.fetchone()
@@ -2048,7 +2018,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("marker",))
             result = cursor.fetchone()
@@ -2087,7 +2056,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("subscription",))
             result = cursor.fetchone()
@@ -2144,7 +2112,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("uptime",))
             result = cursor.fetchone()
@@ -2189,7 +2156,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("typo",))
             result = cursor.fetchone()
@@ -2223,7 +2189,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("typos",))
             result = cursor.fetchone()
@@ -2256,7 +2221,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("edittypos",))
             result = cursor.fetchone()
@@ -2313,7 +2277,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removetypos",))
             result = cursor.fetchone()
@@ -2359,7 +2322,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='steam')
     async def steam_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("steam",))
             result = cursor.fetchone()
@@ -2403,7 +2365,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deaths",))
             result = cursor.fetchone()
@@ -2434,7 +2395,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathadd",))
             result = cursor.fetchone()
@@ -2478,7 +2438,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathremove",))
             result = cursor.fetchone()
@@ -2518,7 +2477,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='game')
     async def game_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         try:
             cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("game",))
             result = cursor.fetchone()
@@ -2541,7 +2499,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("followage",))
         result = cursor.fetchone()
         if result:
@@ -2614,7 +2571,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("schedule",))
         result = cursor.fetchone()
         if result:
@@ -2694,7 +2650,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='checkupdate')
     async def check_update_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("checkupdate",))
         result = cursor.fetchone()
         if result:
@@ -2733,7 +2688,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("shoutout",))
         result = cursor.fetchone()
         if result:
@@ -2791,7 +2745,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='addcommand')
     async def add_command_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("addcommand",))
         result = cursor.fetchone()
         if result:
@@ -2818,7 +2771,6 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name='removecommand')
     async def remove_command_command(self, ctx):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
         cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removecommand",))
         result = cursor.fetchone()
         if result:
@@ -3006,7 +2958,6 @@ def is_user_moderator(user_trigger_id):
 # Function to add user to the table of known users
 async def user_is_seen(username):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
         sqldb.commit()
@@ -3027,7 +2978,6 @@ def fetch_api_response(url):
 # Function to update custom counts
 def update_custom_count(command):
     sqldb = get_mysql_connection()
-    cursor = sqldb.cursor()
     cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
     result = cursor.fetchone()
     if result:
@@ -3040,7 +2990,6 @@ def update_custom_count(command):
 
 def get_custom_count(command):
     sqldb = get_mysql_connection()
-    cursor = sqldb.cursor()
     cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
     result = cursor.fetchone()
     if result:
@@ -3051,7 +3000,6 @@ def get_custom_count(command):
 # Functions for weather
 async def get_streamer_weather():
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     cursor.execute("SELECT weather_location FROM profile")
     info = cursor.fetchone()
     location = info[0]
@@ -3300,7 +3248,6 @@ async def send_online_message(message):
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('TRUNCATE TABLE seen_today')
         sqldb.commit()
@@ -3311,7 +3258,6 @@ async def clear_seen_today():
 # Function to clear the ending credits table at the end of stream
 async def clear_credits_data():
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('TRUNCATE TABLE stream_credits')
         sqldb.commit()
@@ -3322,7 +3268,6 @@ async def clear_credits_data():
 # Function for timed messages
 async def timed_message():
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     global scheduled_tasks
     global stream_online
     if stream_online:
@@ -3546,7 +3491,6 @@ async def delete_recorded_files():
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('SELECT raid_count, viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
         existing_data = cursor.fetchone()
@@ -3570,7 +3514,6 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (user_id, user_name))
         existing_bits = cursor.fetchone()
@@ -3599,7 +3542,6 @@ async def process_cheer_event(user_id, user_name, bits):
 
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
         existing_subscription = cursor.fetchone()
@@ -3625,7 +3567,6 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
 
 async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
         existing_subscription = cursor.fetchone()
@@ -3653,7 +3594,6 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
 
 async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan, user_name, anonymous):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute('SELECT months FROM subscription_data WHERE user_id = %s', (recipient_user_id,))
         existing_months = cursor.fetchone()
@@ -3682,7 +3622,6 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         followed_at_twitch = followed_at_twitch[:26]
         time_now = datetime.now()
@@ -3702,7 +3641,6 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute("SELECT discord_alert FROM profile")
         result = cursor.fetchone()
@@ -3743,7 +3681,6 @@ async def send_to_discord(message, title, image):
 # Function to build the Discord Mod Notice 
 async def send_to_discord_mod(message, title, image):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute("SELECT discord_mod FROM profile")
         result = cursor.fetchone()
@@ -3785,7 +3722,6 @@ async def send_to_discord_mod(message, title, image):
 # Function to build the Discord Notice for Stream Online
 async def send_to_discord_stream_online(message, image):
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         cursor.execute("SELECT timezone FROM profile")
         timezone = cursor.fetchone()[0]
@@ -3832,7 +3768,6 @@ async def send_to_discord_stream_online(message, image):
 # Function to create a new group if it doesn't exist
 async def group_creation():
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         group_names = ["VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
         try:
@@ -3861,7 +3796,6 @@ async def group_creation():
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         all_commands = list(mod_commands) + list(builtin_commands)
         try:
@@ -3938,7 +3872,6 @@ async def check_stream_online():
 
 async def known_users():
     sqldb = await get_mysql_connection()
-    cursor = sqldb.cursor()
     try:
         # Get all the mods and put them into the databse
         url = f'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={CHANNEL_NAME}'
