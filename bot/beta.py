@@ -338,7 +338,6 @@ cursor.execute('''
     )
 ''')
 sqldb.commit()
-cursor.close()
 sqldb.close()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
@@ -876,7 +875,6 @@ async def process_eventsub_message(message):
     except Exception as e:
         bot_logger.error(f"Error processing EventSub message: {e}")
     finally:
-        cursor.close()
         sqldb.close()
 
 class BotOfTheSpecter(commands.Bot):
@@ -1042,7 +1040,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 pass
         finally:
-            cursor.close()
             sqldb.close()
             await self.message_counting(messageAuthor, messageAuthorID, message)
 
@@ -1138,7 +1135,6 @@ class BotOfTheSpecter(commands.Bot):
                 # Status disabled for user
                 chat_logger.info(f"Message not sent for {messageAuthor} as status is disabled.")
         finally:
-            cursor.close()
             sqldb.close()
             await self.walkon_sound(CHANNEL_NAME, "walkon", messageAuthor)
             await self.user_grouping(messageAuthor, messageAuthorID)
@@ -1182,7 +1178,6 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     bot_logger.error(f"Group '{name}' does not exist.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='commands', aliases=['cmds',])
@@ -1211,7 +1206,6 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send(response_message)
             await ctx.send(custom_response_message)
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='bot')
@@ -1227,7 +1221,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
             await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='version')
@@ -1255,7 +1248,6 @@ class BotOfTheSpecter(commands.Bot):
                 message += f"{uptime_minutes} minutes, "
             await ctx.send(f"{message[:-2]}")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='roadmap')
@@ -1270,7 +1262,6 @@ class BotOfTheSpecter(commands.Bot):
                     return
             await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='weather')
@@ -1296,7 +1287,6 @@ class BotOfTheSpecter(commands.Bot):
                     weather_info = "I'm sorry, something went wrong trying to get the current weather."
             await ctx.send(weather_info)
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='time')
@@ -1332,7 +1322,6 @@ class BotOfTheSpecter(commands.Bot):
                     ctx.send(f"Streamer timezone is not set.")
             await ctx.send(time_format)
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='joke')
@@ -1356,7 +1345,6 @@ class BotOfTheSpecter(commands.Bot):
                 await asyncio.sleep(2)
                 await ctx.send(f"{get_joke['delivery']}")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='quote')
@@ -1384,7 +1372,6 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     await ctx.send(f"No quote found with ID {number}.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='quoteadd')
@@ -1401,7 +1388,6 @@ class BotOfTheSpecter(commands.Bot):
             sqldb.commit()
             await ctx.send("Quote added successfully: " + quote)
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='removequote')
@@ -1421,7 +1407,6 @@ class BotOfTheSpecter(commands.Bot):
             sqldb.commit()
             await ctx.send(f"Quote {number} has been removed.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='permit')
@@ -1445,7 +1430,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} tried to use the command, !permit, but couldn't as they are not a moderator.")
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='settitle')
@@ -1469,7 +1453,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         finally:
-            cursor.close()
             sqldb.close()
 
     # Command to set stream game/category
@@ -1503,7 +1486,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='song')
@@ -1530,7 +1512,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.error(f"An error occurred while getting current song: {e}")
                 await ctx.send("Sorry, there was an error retrieving the current song.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='timer')
@@ -1572,7 +1553,6 @@ class BotOfTheSpecter(commands.Bot):
                 await asyncio.sleep(interval)
             await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='hug')
@@ -1600,7 +1580,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
                 await ctx.send("Usage: !hug @username")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='kiss')
@@ -1628,7 +1607,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
                 await ctx.send("Usage: !kiss @username")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='ping')
@@ -1654,7 +1632,6 @@ class BotOfTheSpecter(commands.Bot):
                 bot_logger.error(f"Error Pinging. {output}")
                 await ctx.send(f'Error pinging')
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='translate')
@@ -1702,7 +1679,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.error(f"Translating error: {e}")
                 await ctx.send("An error occurred while translating the message.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='cheerleader')
@@ -1736,7 +1712,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send("Sorry, I couldn't fetch the leaderboard.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='mybits')
@@ -1771,7 +1746,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send("Sorry, I couldn't fetch your bits information.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='lurk')
@@ -1820,7 +1794,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='lurking')
@@ -1863,7 +1836,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.error(f"Error in lurking_command: {e}")
                 await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='lurklead')
@@ -1910,7 +1882,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.error(f"Error in lurklead_command: {e}")
                 await ctx.send("Oops, something went wrong while trying to find the lurk leader.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='unlurk', aliases=('back',))
@@ -1954,7 +1925,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.error(f"Error in unlurk_command: {e}")
                 await ctx.send(f"Oops, something went wrong with the unlurk command.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='clip')
@@ -2012,7 +1982,6 @@ class BotOfTheSpecter(commands.Bot):
                 twitch_logger.error(f"Error making clip: {e}")
                 await ctx.send("An error occurred while making the request. Please try again later.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='marker')
@@ -2050,7 +2019,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='subscription', aliases=['mysub'])
@@ -2106,7 +2074,6 @@ class BotOfTheSpecter(commands.Bot):
                 twitch_logger.error(f"Error retrieving subscription information: {e}")
                 await ctx.send("An error occurred while making the request. Please try again later.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='uptime')
@@ -2150,7 +2117,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.error(f"Error retrieving stream data: {e}")
                 await ctx.send("Oops, something went wrong while trying to check uptime.")
         finally:
-            cursor.close()
             sqldb.close()
     
     @commands.command(name='typo')
@@ -2183,7 +2149,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in typo_command: {e}")
             await ctx.send(f"An error occurred while trying to add to your typo count.")
         finally:
-            cursor.close()
             sqldb.close()
     
     @commands.command(name='typos', aliases=('typocount',))
@@ -2215,7 +2180,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in typos_command: {e}")
             await ctx.send(f"An error occurred while trying to check typos.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='edittypos', aliases=('edittypo',))
@@ -2271,7 +2235,6 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='removetypos', aliases=('removetypo',))
@@ -2316,7 +2279,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='steam')
@@ -2359,7 +2321,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in steam_command: {e}")
             await ctx.send("An error occurred while trying to check the Steam store.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='deaths')
@@ -2389,7 +2350,6 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"An error occurred while executing the command. {e}")
                 chat_logger.error(f"Error in deaths_command: {e}")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='deathadd', aliases=['death+',])
@@ -2432,7 +2392,6 @@ class BotOfTheSpecter(commands.Bot):
                 chat_logger.info(f"{ctx.author.name} tried to use the command, death add, but couldn't as they are not a moderator.")
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='deathremove', aliases=['death-',])
@@ -2470,8 +2429,7 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 chat_logger.info(f"{ctx.author.name} tried to use the command, death remove, but couldn't as they are not a moderator.")
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
-        finally:
-            cursor.close()
+        finally: 
             sqldb.close()
     
     @commands.command(name='game')
@@ -2493,7 +2451,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in game_command: {e}")
             await ctx.send("Oops, something went wrong while trying to retrieve the game information.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='followage')
@@ -2565,7 +2522,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
         finally:
-            cursor.close()
             sqldb.close()
 
     @commands.command(name='schedule')
@@ -3508,7 +3464,6 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(f"Wow! {from_broadcaster_name} is raiding with {viewer_count} viewers!")
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function for BITS
@@ -3537,7 +3492,6 @@ async def process_cheer_event(user_id, user_name, bits):
         cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
         sqldb.commit()
     finally:
-        cursor.close()
         sqldb.close()
 
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
@@ -3562,7 +3516,6 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
     finally:
-        cursor.close()
         sqldb.close()
 
 async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
@@ -3589,7 +3542,6 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
     finally:
-        cursor.close()
         sqldb.close()
 
 async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan, user_name, anonymous):
@@ -3616,7 +3568,6 @@ async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function for FOLLOWERS
@@ -3635,7 +3586,6 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function to build the Discord Notice
@@ -3675,7 +3625,6 @@ async def send_to_discord(message, title, image):
         except requests.exceptions.RequestException as e:
             bot_logger.error(f"Request to Discord failed: {e}")
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function to build the Discord Mod Notice 
@@ -3716,7 +3665,6 @@ async def send_to_discord_mod(message, title, image):
         except requests.exceptions.RequestException as e:
             bot_logger.error(f"Request to Discord failed: {e}")
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function to build the Discord Notice for Stream Online
@@ -3762,7 +3710,6 @@ async def send_to_discord_stream_online(message, image):
         else:
             bot_logger.error("Discord URL not found.")
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function to create a new group if it doesn't exist
@@ -3790,7 +3737,6 @@ async def group_creation():
         except sqldb.connector.Error as err:
             bot_logger.error(f"Failed to create groups: {err}")
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function to create the command in the database if it doesn't exist
@@ -3821,7 +3767,6 @@ async def builtin_commands_creation():
         except sqldb.connector.Error as e:
             bot_logger.error(f"Error: {e}")
     finally:
-        cursor.close()
         sqldb.close()
 
 # Function to tell the website what version of the bot is currently running
@@ -3908,7 +3853,6 @@ async def known_users():
         else:
             pass
     finally:
-        cursor.close()
         sqldb.close()
 
 def get_mysql_connection():
