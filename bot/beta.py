@@ -338,6 +338,7 @@ cursor.execute('''
     )
 ''')
 sqldb.commit()
+cursor.close()
 sqldb.close()
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
@@ -2221,94 +2222,91 @@ class BotOfTheSpecter(commands.Bot):
     async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         cursor = sqldb.cursor()
-        cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("edittypos",))
-        result = cursor.fetchone()
-        if result:
-            status = result[0]
-            if status == 'Disabled':
-                return
-        if is_mod_or_broadcaster(ctx.author):
-            chat_logger.info("Edit Typos Command ran.")
-            try:
-                # Determine the target user: mentioned user or the command caller
-                mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
-                target_user = mentioned_username_lower.lstrip('@')
-                chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
-    
-                # Check if mentioned_username is not provided
-                if mentioned_username is None:
-                    chat_logger.error("There was no mentioned username for the command to run.")
-                    await ctx.send("Usage: !edittypos @username [amount]")
+        try:
+            cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("edittypos",))
+            result = cursor.fetchone()
+            if result:
+                status = result[0]
+                if status == 'Disabled':
                     return
-
-                # Check if new_count is not provided
-                if new_count is None:
-                    chat_logger.error("There was no count added to the command to edit.")
-                    await ctx.send(f"Usage: !edittypos @{target_user} [amount]")
-                    return
-
-                # Check if new_count is non-negative
-                if new_count is not None and new_count < 0:
-                    chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
-                    await ctx.send(f"Typo count cannot be negative.")
-                    return
-
-                # Check if the user exists in the database
-                cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                result = cursor.fetchone()
-    
-                if result is not None:
-                    # Update typo count in the database
-                    cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
-                    sqldb.commit()
-                    chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
-                    await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
-                else:
-                    # If user does not exist, send an error message and add the user with the given typo count
-                    await ctx.send(f"No record for {target_user}. Adding them with the typo count.")
-                    cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, %s)', (target_user, new_count))
-                    sqldb.commit()
-                    chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
-                    await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
-            except Exception as e:
-                chat_logger.error(f"Error in edit_typo_command: {e}")
-                await ctx.send(f"An error occurred while trying to edit typos. {e}")
-        else:
-            await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+            if is_mod_or_broadcaster(ctx.author):
+                chat_logger.info("Edit Typos Command ran.")
+                try:
+                    # Determine the target user: mentioned user or the command caller
+                    mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
+                    target_user = mentioned_username_lower.lstrip('@')
+                    chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
+                    # Check if mentioned_username is not provided
+                    if mentioned_username is None:
+                        chat_logger.error("There was no mentioned username for the command to run.")
+                        await ctx.send("Usage: !edittypos @username [amount]")
+                        return
+                    # Check if new_count is not provided
+                    if new_count is None:
+                        chat_logger.error("There was no count added to the command to edit.")
+                        await ctx.send(f"Usage: !edittypos @{target_user} [amount]")
+                        return
+                    # Check if new_count is non-negative
+                    if new_count < 0:
+                        chat_logger.error(f"Typo count for {target_user} tried to be set to {new_count}.")
+                        await ctx.send(f"Typo count cannot be negative.")
+                        return
+                    # Check if the user exists in the database
+                    cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
+                    result = cursor.fetchone()
+                    if result is not None:
+                        # Update typo count in the database
+                        cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
+                        sqldb.commit()
+                        chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
+                        await ctx.send(f"Typo count for {target_user} has been updated to {new_count}.")
+                    else:
+                        # If user does not exist, add the user with the given typo count
+                        cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, %s)', (target_user, new_count))
+                        sqldb.commit()
+                        chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
+                        await ctx.send(f"Typo count for {target_user} has been set to {new_count}.")
+                except Exception as e:
+                    chat_logger.error(f"Error in edit_typo_command: {e}")
+                    await ctx.send(f"An error occurred while trying to edit typos. {e}")
+            else:
+                await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in edit_typo_command: {e}")
+            await ctx.send(f"An error occurred while trying to edit typos.")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         cursor = sqldb.cursor()
-        cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removetypos",))
-        result = cursor.fetchone()
-        if result:
-            status = result[0]
-            if status == 'Disabled':
-                return
         try:
+            cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("removetypos",))
+            result = cursor.fetchone()
+            if result:
+                status = result[0]
+                if status == 'Disabled':
+                    return
             if is_mod_or_broadcaster(ctx.author):
                 # Ensure a username is mentioned
-                if not mentioned_username is None:
+                if mentioned_username is None:
                     chat_logger.error("Command missing username parameter.")
-                    await ctx.send(f"Usage: !remotetypos @username")
+                    await ctx.send(f"Usage: !removetypos @username")
                     return
-            
                 # Determine the target user: mentioned user or the command caller
                 mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                 target_user = mentioned_username_lower.lstrip('@')
                 chat_logger.info(f"Remove Typos Command ran with params")
-                
                 # Validate decrease_amount is non-negative
                 if decrease_amount < 0:
-                    chat_logger.error(f"Typo count for {target_user} tried to be {new_count}.")
+                    chat_logger.error(f"Invalid decrease amount {decrease_amount} for typo count of {target_user}.")
                     await ctx.send(f"Remove amount cannot be negative.")
                     return
-
                 # Check if the user exists in the database
                 cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                 result = cursor.fetchone()
-
                 if result:
                     current_count = result[0]
                     new_count = max(0, current_count - decrease_amount)  # Ensure count doesn't go below 0
@@ -2322,178 +2320,191 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='steam')
     async def steam_command(self, ctx):
         sqldb = await get_mysql_connection()
         cursor = sqldb.cursor()
-        cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("steam",))
-        result = cursor.fetchone()
-        if result:
-            status = result[0]
-            if status == 'Disabled':
-                return
-        global current_game
-
-        async with aiohttp.ClientSession() as session:
-            response = await session.get("http://api.steampowered.com/ISteamApps/GetAppList/v2")
-            if response.status == 200:
-                data = await response.json()
-                steam_app_list = {app['name'].lower(): app['appid'] for app in data['applist']['apps']}
-            else:
-                await ctx.send("Failed to fetch Steam games list.")
-                return
-
-        # Normalize the game name to lowercase to improve matching chances
-        game_name_lower = current_game.lower()
-
-        # First try with "The" at the beginning
-        if game_name_lower.startswith('The '):
-            game_name_without_the = game_name_lower[4:]
-            if game_name_without_the in steam_app_list:
-                game_id = steam_app_list[game_name_without_the]
+        try:
+            cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("steam",))
+            result = cursor.fetchone()
+            if result:
+                status = result[0]
+                if status == 'Disabled':
+                    return
+            global current_game
+            async with aiohttp.ClientSession() as session:
+                response = await session.get("http://api.steampowered.com/ISteamApps/GetAppList/v2")
+                if response.status == 200:
+                    data = await response.json()
+                    steam_app_list = {app['name'].lower(): app['appid'] for app in data['applist']['apps']}
+                else:
+                    await ctx.send("Failed to fetch Steam games list.")
+                    return
+            # Normalize the game name to lowercase to improve matching chances
+            game_name_lower = current_game.lower()
+            # First try with "The" at the beginning
+            if game_name_lower.startswith('The '):
+                game_name_without_the = game_name_lower[4:]
+                if game_name_without_the in steam_app_list:
+                    game_id = steam_app_list[game_name_without_the]
+                    store_url = f"https://store.steampowered.com/app/{game_id}"
+                    await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
+                    return
+            # If the game with "The" at the beginning is not found, try without it
+            if game_name_lower in steam_app_list:
+                game_id = steam_app_list[game_name_lower]
                 store_url = f"https://store.steampowered.com/app/{game_id}"
                 await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
-                return
-
-        # If the game with "The" at the beginning is not found, try without it
-        if game_name_lower in steam_app_list:
-            game_id = steam_app_list[game_name_lower]
-            store_url = f"https://store.steampowered.com/app/{game_id}"
-            await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
-        else:
-            await ctx.send("This game is not available on Steam.")
+            else:
+                await ctx.send("This game is not available on Steam.")
+        except Exception as e:
+            chat_logger.error(f"Error in steam_command: {e}")
+            await ctx.send("An error occurred while trying to check the Steam store.")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         sqldb = await get_mysql_connection()
         cursor = sqldb.cursor()
-        cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deaths",))
-        result = cursor.fetchone()
-        if result:
-            status = result[0]
-            if status == 'Disabled':
-                return
         try:
-            global current_game
-            chat_logger.info("Deaths command ran.")
-
-            # Retrieve the game-specific death count
-            cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
-            game_death_count_result = cursor.fetchone()
-            game_death_count = game_death_count_result[0] if game_death_count_result else 0
-
-            # Retrieve the total death count
-            cursor.execute('SELECT death_count FROM total_deaths')
-            total_death_count_result = cursor.fetchone()
-            total_death_count = total_death_count_result[0] if total_death_count_result else 0
-
-            chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
-            await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
-        except Exception as e:
-            await ctx.send(f"An error occurred while executing the command. {e}")
-            chat_logger.error(f"Error in deaths_command: {e}")
+            cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deaths",))
+            result = cursor.fetchone()
+            if result:
+                status = result[0]
+                if status == 'Disabled':
+                    return
+            try:
+                global current_game
+                chat_logger.info("Deaths command ran.")
+                # Retrieve the game-specific death count
+                cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
+                game_death_count_result = cursor.fetchone()
+                game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                # Retrieve the total death count
+                cursor.execute('SELECT death_count FROM total_deaths')
+                total_death_count_result = cursor.fetchone()
+                total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
+                await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+            except Exception as e:
+                await ctx.send(f"An error occurred while executing the command. {e}")
+                chat_logger.error(f"Error in deaths_command: {e}")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='deathadd', aliases=['death+',])
     async def deathadd_command(self, ctx):
         sqldb = await get_mysql_connection()
         cursor = sqldb.cursor()
-        cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathadd",))
-        result = cursor.fetchone()
-        if result:
-            status = result[0]
-            if status == 'Disabled':
-                return
-        if is_mod_or_broadcaster(ctx.author):
-            global current_game
-            try:
-                chat_logger.info("Death Add Command ran.")
-
-                # Ensure there is exactly one row in total_deaths
-                cursor.execute("SELECT COUNT(*) FROM total_deaths")
-                if cursor.fetchone()[0] == 0:
-                    cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
+        try:
+            cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathadd",))
+            result = cursor.fetchone()
+            if result:
+                status = result[0]
+                if status == 'Disabled':
+                    return
+            if is_mod_or_broadcaster(ctx.author):
+                global current_game
+                try:
+                    chat_logger.info("Death Add Command ran.")
+                    # Ensure there is exactly one row in total_deaths
+                    cursor.execute("SELECT COUNT(*) FROM total_deaths")
+                    if cursor.fetchone()[0] == 0:
+                        cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
+                        sqldb.commit()
+                    # Increment game-specific death count & total death count
+                    cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1', (current_game,))
+                    cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
                     sqldb.commit()
-
-                # Increment game-specific death count & total death count
-                cursor.execute('INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1', (current_game,))
-                cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
-                sqldb.commit()
-
-                # Retrieve updated counts
-                cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
-                game_death_count_result = cursor.fetchone()
-                game_death_count = game_death_count_result[0] if game_death_count_result else 0
-
-                cursor.execute('SELECT death_count FROM total_deaths')
-                total_death_count_result = cursor.fetchone()
-                total_death_count = total_death_count_result[0] if total_death_count_result else 0
-
-                chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
-                chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
-                await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
-            except Exception as e:
-                await ctx.send(f"An error occurred while executing the command. {e}")
-                chat_logger.error(f"Error in deathadd_command: {e}")
-        else:
-            chat_logger.info(f"{ctx.author.name} tried to use the command, death add, but couldn't has they are not a moderator.")
-            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                    # Retrieve updated counts
+                    cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
+                    game_death_count_result = cursor.fetchone()
+                    game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                    cursor.execute('SELECT death_count FROM total_deaths')
+                    total_death_count_result = cursor.fetchone()
+                    total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                    chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
+                    chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
+                    await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                except Exception as e:
+                    await ctx.send(f"An error occurred while executing the command. {e}")
+                    chat_logger.error(f"Error in deathadd_command: {e}")
+            else:
+                chat_logger.info(f"{ctx.author.name} tried to use the command, death add, but couldn't as they are not a moderator.")
+                await ctx.send("You must be a moderator or the broadcaster to use this command.")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
         sqldb = await get_mysql_connection()
         cursor = sqldb.cursor()
-        cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathremove",))
-        result = cursor.fetchone()
-        if result:
-            status = result[0]
-            if status == 'Disabled':
-                return
-        if is_mod_or_broadcaster(ctx.author):
-            global current_game
-            try:
-                chat_logger.info("Death Remove Command Ran")
-
-                # Decrement game-specific death count & total death count (ensure it doesn't go below 0)
-                cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s', (current_game,))
-                cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
-                sqldb.commit()
-
-                # Retrieve updated counts
-                cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
-                game_death_count_result = cursor.fetchone()
-                game_death_count = game_death_count_result[0] if game_death_count_result else 0
-
-                cursor.execute('SELECT death_count FROM total_deaths')
-                total_death_count_result = cursor.fetchone()
-                total_death_count = total_death_count_result[0] if total_death_count_result else 0
-
-                # Send the message
-                chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
-                chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
-                await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
-            except Exception as e:
-                await ctx.send(f"An error occurred while executing the command. {e}")
-                chat_logger.error(f"Error in deaths_command: {e}")
-        else:
-            chat_logger.info(f"{ctx.author.name} tried to use the command, death remove, but couldn't has they are not a moderator.")
-            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+        try:
+            cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("deathremove",))
+            result = cursor.fetchone()
+            if result:
+                status = result[0]
+                if status == 'Disabled':
+                    return
+            if is_mod_or_broadcaster(ctx.author):
+                global current_game
+                try:
+                    chat_logger.info("Death Remove Command Ran")
+                    # Decrement game-specific death count & total death count (ensure it doesn't go below 0)
+                    cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s', (current_game,))
+                    cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
+                    sqldb.commit()
+                    # Retrieve updated counts
+                    cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
+                    game_death_count_result = cursor.fetchone()
+                    game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                    cursor.execute('SELECT death_count FROM total_deaths')
+                    total_death_count_result = cursor.fetchone()
+                    total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                    # Send the message
+                    chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
+                    chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
+                    await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+                except Exception as e:
+                    await ctx.send(f"An error occurred while executing the command. {e}")
+                    chat_logger.error(f"Error in deaths_command: {e}")
+            else:
+                chat_logger.info(f"{ctx.author.name} tried to use the command, death remove, but couldn't as they are not a moderator.")
+                await ctx.send("You must be a moderator or the broadcaster to use this command.")
+        finally:
+            cursor.close()
+            sqldb.close()
     
     @commands.command(name='game')
     async def game_command(self, ctx):
         sqldb = await get_mysql_connection()
         cursor = sqldb.cursor()
-        cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("game",))
-        result = cursor.fetchone()
-        if result:
-            status = result[0]
-            if status == 'Disabled':
-                return
-        global current_game
-        if current_game is not None:
-            await ctx.send(f"The current game we're playing is: {current_game}")
-        else:
-            await ctx.send("We're not currently streaming any specific game category.")
+        try:
+            cursor.execute("SELECT status FROM custom_commands WHERE command=%s", ("game",))
+            result = cursor.fetchone()
+            if result:
+                status = result[0]
+                if status == 'Disabled':
+                    return
+            global current_game
+            if current_game is not None:
+                await ctx.send(f"The current game we're playing is: {current_game}")
+            else:
+                await ctx.send("We're not currently streaming any specific game category.")
+        except Exception as e:
+            chat_logger.error(f"Error in game_command: {e}")
+            await ctx.send("Oops, something went wrong while trying to retrieve the game information.")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
@@ -2510,59 +2521,49 @@ class BotOfTheSpecter(commands.Bot):
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
         }
-        if mentioned_username:
-            user_info = await self.fetch_users(names=[target_user])
-            if user_info:
-                mentioned_user_id = user_info[0].id
-                params = {
-                    'user_id': CHANNEL_ID,
-                    'broadcaster_id': mentioned_user_id
-                }
-        else:
-            params = {
-                'user_id': CHANNEL_ID,
-                'broadcaster_id': ctx.author.id
-            }
         try:
+            if mentioned_username:
+                user_info = await self.fetch_users(names=[target_user])
+                if user_info:
+                    mentioned_user_id = user_info[0].id
+                    params = {
+                        'from_id': mentioned_user_id,
+                        'to_id': CHANNEL_ID
+                    }
+                else:
+                    await ctx.send(f"User {target_user} not found.")
+                    return
+            else:
+                params = {
+                    'from_id': ctx.author.id,
+                    'to_id': CHANNEL_ID
+                }
             async with aiohttp.ClientSession() as session:
-                async with session.get('https://api.twitch.tv/helix/channels/followed', headers=headers, params=params) as response:
+                async with session.get('https://api.twitch.tv/helix/users/follows', headers=headers, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        followage_text = None
-
-                        # Iterate over followed channels to find the target user
-                        for followed_channel in data['data']:
-                            if followed_channel['broadcaster_login'] == target_user.lower():
-                                followed_at_str = followed_channel['followed_at']
-                                followed_at = datetime.strptime(followed_at_str.replace('Z', '+00:00'), "%Y-%m-%d %H:%M:%S%z")
-                                followage = datetime.now(timezone.utc) - followed_at
-                                years = followage.days // 365
-                                remaining_days = followage.days % 365
-                                months = remaining_days // 30
-                                remaining_days %= 30
-                                days = remaining_days
-
-                                if years > 0:
-                                    years_text = f"{years} {'year' if years == 1 else 'years'}"
-                                else:
-                                    years_text = ""
-
-                                if months > 0:
-                                    months_text = f"{months} {'month' if months == 1 else 'months'}"
-                                else:
-                                    months_text = ""
-
-                                if days > 0:
-                                    days_text = f"{days} {'day' if days == 1 else 'days'}"
-                                else:
-                                    days_text = ""
-
-                                # Join the non-empty parts with commas
-                                parts = [part for part in [years_text, months_text, days_text] if part]
-                                followage_text = ", ".join(parts)
-                                break
-
-                        if followage_text:
+                        if data['total'] > 0:
+                            followed_at_str = data['data'][0]['followed_at']
+                            followed_at = datetime.strptime(followed_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
+                            followage = datetime.now(timezone.utc) - followed_at
+                            years, days = divmod(followage.days, 365)
+                            months, days = divmod(days, 30)
+                            hours, seconds = divmod(followage.seconds, 3600)
+                            minutes, seconds = divmod(seconds, 60)
+                            parts = []
+                            if years > 0:
+                                parts.append(f"{years} year{'s' if years > 1 else ''}")
+                            if months > 0:
+                                parts.append(f"{months} month{'s' if months > 1 else ''}")
+                            if days > 0:
+                                parts.append(f"{days} day{'s' if days > 1 else ''}")
+                            if hours > 0:
+                                parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
+                            if minutes > 0:
+                                parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+                            if seconds > 0:
+                                parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
+                            followage_text = ", ".join(parts)
                             await ctx.send(f"{target_user} has been following for: {followage_text}.")
                             chat_logger.info(f"{target_user} has been following for: {followage_text}.")
                         else:
@@ -2574,6 +2575,9 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
+        finally:
+            cursor.close()
+            sqldb.close()
 
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
