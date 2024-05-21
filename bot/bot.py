@@ -1712,7 +1712,7 @@ class BotOfTheSpecter(commands.Bot):
                 return
         try:
             user_id = str(ctx.author.id)
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now()
 
             if ctx.author.name.lower() == CHANNEL_NAME.lower():
                 await ctx.send(f"You cannot lurk in your own channel, Streamer.")
