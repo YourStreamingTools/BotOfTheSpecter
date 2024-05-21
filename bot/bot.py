@@ -39,7 +39,7 @@ CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.3.1"
+VERSION = "4.3.2"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -2406,67 +2406,49 @@ class BotOfTheSpecter(commands.Bot):
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
         }
-        if mentioned_username:
-            user_info = await self.fetch_users(names=[target_user])
-            if user_info:
-                mentioned_user_id = user_info[0].id
-                params = {
-                    'user_id': CHANNEL_ID,
-                    'broadcaster_id': mentioned_user_id
-                }
-        else:
-            params = {
-                'user_id': CHANNEL_ID,
-                'broadcaster_id': ctx.author.id
-            }
         try:
+            if mentioned_username:
+                user_info = await self.fetch_users(names=[target_user])
+                if user_info:
+                    mentioned_user_id = user_info[0].id
+                    params = {
+                        'broadcaster_id': CHANNEL_ID,
+                        'user_id': mentioned_user_id
+                    }
+            else:
+                params = {
+                    'broadcaster_id': CHANNEL_ID,
+                    'user_id': ctx.author.id
+                }
             async with aiohttp.ClientSession() as session:
-                async with session.get('https://api.twitch.tv/helix/channels/followed', headers=headers, params=params) as response:
+                async with session.get('https://api.twitch.tv/helix/channels/followers', headers=headers, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        followage_text = None
+                        if 'data' in data and len(data['data']) > 0:
+                            followed_at_str = data['data'][0]['followed_at']
+                            followed_at = datetime.strptime(followed_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
+                            followage = datetime.now(timezone.utc) - followed_at
 
-                        # Iterate over followed channels to find the target user
-                        for followed_channel in data['data']:
-                            if followed_channel['broadcaster_login'] == target_user.lower():
-                                followed_at_str = followed_channel['followed_at']
-                                followed_at = datetime.strptime(followed_at_str.replace('Z', '+00:00'), "%Y-%m-%d %H:%M:%S%z")
-                                followage = datetime.now(timezone.utc) - followed_at
-                                years = followage.days // 365
-                                remaining_days = followage.days % 365
-                                months = remaining_days // 30
-                                remaining_days %= 30
-                                days = remaining_days
+                            years = followage.days // 365
+                            remaining_days = followage.days % 365
+                            months = remaining_days // 30
+                            remaining_days %= 30
+                            days = remaining_days
 
-                                if years > 0:
-                                    years_text = f"{years} {'year' if years == 1 else 'years'}"
-                                else:
-                                    years_text = ""
+                            years_text = f"{years} {'year' if years == 1 else 'years'}" if years > 0 else ""
+                            months_text = f"{months} {'month' if months == 1 else 'months'}" if months > 0 else ""
+                            days_text = f"{days} {'day' if days == 1 else 'days'}" if days > 0 else ""
 
-                                if months > 0:
-                                    months_text = f"{months} {'month' if months == 1 else 'months'}"
-                                else:
-                                    months_text = ""
+                            parts = [part for part in [years_text, months_text, days_text] if part]
+                            followage_text = ", ".join(parts)
 
-                                if days > 0:
-                                    days_text = f"{days} {'day' if days == 1 else 'days'}"
-                                else:
-                                    days_text = ""
-
-                                # Join the non-empty parts with commas
-                                parts = [part for part in [years_text, months_text, days_text] if part]
-                                followage_text = ", ".join(parts)
-                                break
-
-                        if followage_text:
                             await ctx.send(f"{target_user} has been following for: {followage_text}.")
                             chat_logger.info(f"{target_user} has been following for: {followage_text}.")
                         else:
                             await ctx.send(f"{target_user} does not follow {CHANNEL_NAME}.")
                             chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
                     else:
-                        await ctx.send(f"Failed to retrieve followage information for {target_user}.")
-                        chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
+                        chat_logger.info(f"Failed to retrieve followage information for {target_user}. Status code: {response.status}")
         except Exception as e:
             chat_logger.error(f"Error retrieving followage: {e}")
             await ctx.send(f"Oops, something went wrong while trying to check followage.")
