@@ -898,33 +898,39 @@ class BotOfTheSpecter(commands.Bot):
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
         sqldb = await get_mysql_connection()
+        cursor = sqldb.cursor()
         try:
             # Ignore messages from the bot itself
             if message.echo:
                 return
+    
             # Log the message content
             chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+    
             # Check for a valid author before proceeding
             if message.author is None:
                 bot_logger.error("Received a message without a valid author.")
                 return
-            # Log the message content
-            chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-            # Get message content to check if the message is a custom command
+    
+            # Handle commands
+            await self.handle_commands(message)
+    
             messageContent = message.content.strip().lower()
             messageAuthor = message.author.name
             messageAuthorID = message.author.id
             AuthorMessage = message.content
-            # Handle commands
-            await self.handle_commands(message)
+    
             if messageContent.startswith('!'):
                 command_parts = messageContent.split()
                 command = command_parts[0][1:]  # Extract the command without '!'
+    
                 # Log all command usage
                 chat_logger.info(f"{messageAuthor} used the command: {command}")
+    
                 if command in builtin_commands or command in builtin_aliases:
                     chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                     return  # It's a built-in command or alias, do nothing more
+    
                 # Check if the command exists in a hypothetical database and respond
                 cursor.execute('SELECT response, status FROM custom_commands WHERE command = %s', (command,))
                 result = cursor.fetchone()
@@ -933,6 +939,7 @@ class BotOfTheSpecter(commands.Bot):
                         response = result[0]
                         switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(command.']
                         responses_to_send = []
+    
                         while any(switch in response for switch in switches):
                             if '(customapi.' in response:
                                 url_match = re.search(r'\(customapi\.(\S+)\)', response)
@@ -940,6 +947,7 @@ class BotOfTheSpecter(commands.Bot):
                                     url = url_match.group(1)
                                     api_response = fetch_api_response(url)
                                     response = response.replace(f"(customapi.{url})", api_response)
+    
                             if '(count)' in response:
                                 try:
                                     update_custom_count(command)
@@ -947,6 +955,7 @@ class BotOfTheSpecter(commands.Bot):
                                     response = response.replace('(count)', str(get_count))
                                 except Exception as e:
                                     chat_logger.error(f"{e}")
+    
                             if '(daysuntil.' in response:
                                 get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
                                 if get_date:
@@ -955,6 +964,7 @@ class BotOfTheSpecter(commands.Bot):
                                     current_date = datetime.now().date()
                                     days_left = (event_date - current_date).days
                                     response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+    
                             if '(user)' in response:
                                 user_mention = re.search(r'<@(\d+)>', messageContent)
                                 if user_mention:
@@ -965,6 +975,7 @@ class BotOfTheSpecter(commands.Bot):
                                     # Default to message author's name
                                     user_name = messageAuthor
                                 response = response.replace('(user)', user_name)
+    
                             if '(command.' in response:
                                 command_match = re.search(r'\(command\.(\w+)\)', response)
                                 if command_match:
@@ -977,6 +988,7 @@ class BotOfTheSpecter(commands.Bot):
                                     else:
                                         chat_logger.error(f"{sub_command} is no longer available.")
                                         await message.channel.send(f"The command {sub_command} is no longer available.")
+    
                         # Send the individual responses
                         if len(responses_to_send) > 1:
                             for resp in responses_to_send:
@@ -990,6 +1002,7 @@ class BotOfTheSpecter(commands.Bot):
                     pass
             else:
                 pass
+            
             if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                 # Fetch url_blocking option from the protection table in the user's database
                 cursor.execute('SELECT url_blocking FROM protection')
@@ -999,6 +1012,7 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     # If url_blocking not found in the database, default to False
                     url_blocking = False
+    
                 # Check if url_blocking is enabled
                 if url_blocking:
                     # Check if the user is permitted to post links
@@ -1008,6 +1022,7 @@ class BotOfTheSpecter(commands.Bot):
                     if is_mod_or_broadcaster(messageAuthor):
                         # User is a mod or is the broadcaster, they are by default permitted.
                         return
+    
                     # Fetch link whitelist from the database
                     cursor.execute('SELECT link FROM link_whitelist')
                     whitelisted_links = cursor.fetchall()
@@ -1015,11 +1030,13 @@ class BotOfTheSpecter(commands.Bot):
                     cursor.execute('SELECT link FROM link_blacklisting')
                     blacklisted_links = cursor.fetchall()
                     blacklisted_links = [link[0] for link in blacklisted_links]
+    
                     # Check if the message content contains any whitelisted or blacklisted link
                     contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
                     contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
                     # Check if the message content contains a Twitch clip link
                     contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+    
                     if contains_blacklisted_link:
                         # Delete the message if it contains a blacklisted URL
                         await message.delete()
@@ -1039,7 +1056,10 @@ class BotOfTheSpecter(commands.Bot):
                     chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
             else:
                 pass
+        except Exception as e:
+            bot_logger.error(f"An error occurred in event_message: {e}")
         finally:
+            cursor.close()
             sqldb.close()
             await self.message_counting(messageAuthor, messageAuthorID, message)
 
