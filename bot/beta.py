@@ -1604,6 +1604,8 @@ class BotOfTheSpecter(commands.Bot):
                 if result:
                     # User was lurking before
                     previous_start_time = result[0]
+                    # Convert previous_start_time from string to datetime
+                    previous_start_time = datetime.strptime(previous_start_time, "%Y-%m-%d %H:%M:%S")
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
@@ -1625,8 +1627,8 @@ class BotOfTheSpecter(commands.Bot):
                 await cursor.execute('INSERT INTO lurk_times (user_id, start_time) VALUES (%s, %s) ON DUPLICATE KEY UPDATE start_time = %s', (user_id, formatted_datetime, formatted_datetime))
                 await sqldb.commit()
         except Exception as e:
-           chat_logger.error(f"Error in lurk_command: {e}")
-           await ctx.send(f"Oops, something went wrong while trying to lurk.")
+            chat_logger.error(f"Error in lurk_command: {e}")
+            await ctx.send(f"Oops, something went wrong while trying to lurk.")
         finally:
             sqldb.close()
 
