@@ -968,6 +968,10 @@ class BotOfTheSpecter(commands.Bot):
                             elif subscription_tier == "Tier 3":
                                 group_names.append("Subscriber T3")
 
+                # If the user is not a MOD, VIP, or Subscriber, assign them the role "Normal"
+                if not group_names:
+                    group_names.append("Normal")
+
                 # Assign user to groups
                 for name in group_names:
                     await cursor.execute("SELECT * FROM `groups` WHERE name=%s", (name,))
