@@ -668,173 +668,173 @@ class BotOfTheSpecter(commands.Bot):
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
         sqldb = await get_mysql_connection()
-        cursor = sqldb.cursor()
-        try:
-            # Ignore messages from the bot itself
-            if message.echo:
-                return
-    
-            # Log the message content
-            chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-    
-            # Check for a valid author before proceeding
-            if message.author is None:
-                bot_logger.error("Received a message without a valid author.")
-                return
-    
-            # Handle commands
-            await self.handle_commands(message)
-    
-            messageContent = message.content.strip().lower()
-            messageAuthor = message.author.name
-            messageAuthorID = message.author.id
-            AuthorMessage = message.content
-    
-            if messageContent.startswith('!'):
-                command_parts = messageContent.split()
-                command = command_parts[0][1:]  # Extract the command without '!'
-    
-                # Log all command usage
-                chat_logger.info(f"{messageAuthor} used the command: {command}")
-    
-                if command in builtin_commands or command in builtin_aliases:
-                    chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
-                    return  # It's a built-in command or alias, do nothing more
-    
-                # Check if the command exists in a hypothetical database and respond
-                cursor.execute('SELECT response, status FROM custom_commands WHERE command = %s', (command,))
-                result = cursor.fetchone()
-                if result:
-                    if result[1] == 'Enabled':
-                        response = result[0]
-                        switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(command.']
-                        responses_to_send = []
-    
-                        while any(switch in response for switch in switches):
-                            if '(customapi.' in response:
-                                url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                                if url_match:
-                                    url = url_match.group(1)
-                                    api_response = fetch_api_response(url)
-                                    response = response.replace(f"(customapi.{url})", api_response)
-    
-                            if '(count)' in response:
-                                try:
-                                    update_custom_count(command)
-                                    get_count = get_custom_count(command)
-                                    response = response.replace('(count)', str(get_count))
-                                except Exception as e:
-                                    chat_logger.error(f"{e}")
-    
-                            if '(daysuntil.' in response:
-                                get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
-                                if get_date:
-                                    date_str = get_date.group(1)
-                                    event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                                    current_date = datetime.now().date()
-                                    days_left = (event_date - current_date).days
-                                    response = response.replace(f"(daysuntil.{date_str})", str(days_left))
-    
-                            if '(user)' in response:
-                                user_mention = re.search(r'<@(\d+)>', messageContent)
-                                if user_mention:
-                                    mentioned_user_id = user_mention.group(1)
-                                    # Use mentioned user's name
-                                    user_name = await get_display_name(mentioned_user_id)
-                                else:
-                                    # Default to message author's name
-                                    user_name = messageAuthor
-                                response = response.replace('(user)', user_name)
-    
-                            if '(command.' in response:
-                                command_match = re.search(r'\(command\.(\w+)\)', response)
-                                if command_match:
-                                    sub_command = command_match.group(1)
-                                    cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
-                                    sub_response = cursor.fetchone()
-                                    if sub_response:
-                                        response = response.replace(f"(command.{sub_command})", sub_response[0])
-                                        responses_to_send.append(sub_response[0])
+        async with sqldb.cursor() as cursor:
+            channel = message.channel
+            try:
+                # Ignore messages from the bot itself
+                if message.echo:
+                    return
+
+                # Log the message content
+                chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+
+                # Check for a valid author before proceeding
+                if message.author is None:
+                    bot_logger.error("Received a message without a valid author.")
+                    return
+
+                # Handle commands
+                await self.handle_commands(message)
+
+                messageContent = message.content.strip().lower()
+                messageAuthor = message.author.name
+                messageAuthorID = message.author.id
+                AuthorMessage = message.content
+
+                if messageContent.startswith('!'):
+                    command_parts = messageContent.split()
+                    command = command_parts[0][1:]  # Extract the command without '!'
+
+                    # Log all command usage
+                    chat_logger.info(f"{messageAuthor} used the command: {command}")
+
+                    if command in builtin_commands or command in builtin_aliases:
+                        chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
+                        return  # It's a built-in command or alias, do nothing more
+
+                    # Check if the command exists in a hypothetical database and respond
+                    await cursor.execute('SELECT response, status FROM custom_commands WHERE command = %s', (command,))
+                    result = await cursor.fetchone()
+                    if result:
+                        if result[1] == 'Enabled':
+                            response = result[0]
+                            switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(command.']
+                            responses_to_send = []
+
+                            while any(switch in response for switch in switches):
+                                if '(customapi.' in response:
+                                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                                    if url_match:
+                                        url = url_match.group(1)
+                                        api_response = fetch_api_response(url)
+                                        response = response.replace(f"(customapi.{url})", api_response)
+
+                                if '(count)' in response:
+                                    try:
+                                        update_custom_count(command)
+                                        get_count = get_custom_count(command)
+                                        response = response.replace('(count)', str(get_count))
+                                    except Exception as e:
+                                        chat_logger.error(f"{e}")
+
+                                if '(daysuntil.' in response:
+                                    get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
+                                    if get_date:
+                                        date_str = get_date.group(1)
+                                        event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                                        current_date = datetime.now().date()
+                                        days_left = (event_date - current_date).days
+                                        response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+
+                                if '(user)' in response:
+                                    user_mention = re.search(r'<@(\d+)>', messageContent)
+                                    if user_mention:
+                                        mentioned_user_id = user_mention.group(1)
+                                        # Use mentioned user's name
+                                        user_name = await get_display_name(mentioned_user_id)
                                     else:
-                                        chat_logger.error(f"{sub_command} is no longer available.")
-                                        await message.channel.send(f"The command {sub_command} is no longer available.")
-    
-                        # Send the individual responses
-                        if len(responses_to_send) > 1:
-                            for resp in responses_to_send:
-                                chat_logger.info(f"{command} command ran with response: {resp}")
-                                await message.channel.send(resp)
+                                        # Default to message author's name
+                                        user_name = messageAuthor
+                                    response = response.replace('(user)', user_name)
+
+                                if '(command.' in response:
+                                    command_match = re.search(r'\(command\.(\w+)\)', response)
+                                    if command_match:
+                                        sub_command = command_match.group(1)
+                                        await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
+                                        sub_response = await cursor.fetchone()
+                                        if sub_response:
+                                            response = response.replace(f"(command.{sub_command})", sub_response[0])
+                                            responses_to_send.append(sub_response[0])
+                                        else:
+                                            chat_logger.error(f"{sub_command} is no longer available.")
+                                            await channel.send(f"The command {sub_command} is no longer available.")
+
+                            # Send the individual responses
+                            if len(responses_to_send) > 1:
+                                for resp in responses_to_send:
+                                    chat_logger.info(f"{command} command ran with response: {resp}")
+                                    await channel.send(resp)
+                            else:
+                                await channel.send(response)
                         else:
-                            await message.channel.send(response)
+                            chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
-                        chat_logger.info(f"{command} not ran because it's disabled.")
+                        chat_logger.info(f"{command} not found in the database.")
+
+                if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
+                    # Fetch url_blocking option from the protection table in the user's database
+                    await cursor.execute('SELECT url_blocking FROM protection')
+                    result = await cursor.fetchone()
+                    if result:
+                        url_blocking = bool(result[0])
+                    else:
+                        # If url_blocking not found in the database, default to False
+                        url_blocking = False
+
+                    # Check if url_blocking is enabled
+                    if url_blocking:
+                        # Check if the user is permitted to post links
+                        if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
+                            # User is permitted, skip URL blocking
+                            return
+                        if is_mod_or_broadcaster(messageAuthor):
+                            # User is a mod or is the broadcaster, they are by default permitted.
+                            return
+
+                        # Fetch link whitelist from the database
+                        await cursor.execute('SELECT link FROM link_whitelist')
+                        whitelisted_links = await cursor.fetchall()
+                        whitelisted_links = [link[0] for link in whitelisted_links]
+                        await cursor.execute('SELECT link FROM link_blacklisting')
+                        blacklisted_links = await cursor.fetchall()
+                        blacklisted_links = [link[0] for link in blacklisted_links]
+
+                        # Check if the message content contains any whitelisted or blacklisted link
+                        contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
+                        contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
+                        # Check if the message content contains a Twitch clip link
+                        contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+ 
+                        if contains_blacklisted_link:
+                            # Delete the message if it contains a blacklisted URL
+                            await message.delete()
+                            chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                            await channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
+                            return  # Stop further processing
+                        elif not contains_whitelisted_link and not contains_twitch_clip_link:
+                            # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
+                            await message.delete()
+                            chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
+                            # Notify the user not to post links without permission
+                            await channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
+                            return  # Stop further processing
+                        else:
+                            chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
+                    else:
+                        chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
                 else:
                     pass
-            else:
-                pass
-            
-            if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
-                # Fetch url_blocking option from the protection table in the user's database
-                cursor.execute('SELECT url_blocking FROM protection')
-                result = cursor.fetchone()
-                if result:
-                    url_blocking = bool(result[0])
-                else:
-                    # If url_blocking not found in the database, default to False
-                    url_blocking = False
-    
-                # Check if url_blocking is enabled
-                if url_blocking:
-                    # Check if the user is permitted to post links
-                    if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
-                        # User is permitted, skip URL blocking
-                        return
-                    if is_mod_or_broadcaster(messageAuthor):
-                        # User is a mod or is the broadcaster, they are by default permitted.
-                        return
-    
-                    # Fetch link whitelist from the database
-                    cursor.execute('SELECT link FROM link_whitelist')
-                    whitelisted_links = cursor.fetchall()
-                    whitelisted_links = [link[0] for link in whitelisted_links]
-                    cursor.execute('SELECT link FROM link_blacklisting')
-                    blacklisted_links = cursor.fetchall()
-                    blacklisted_links = [link[0] for link in blacklisted_links]
-    
-                    # Check if the message content contains any whitelisted or blacklisted link
-                    contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
-                    contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
-                    # Check if the message content contains a Twitch clip link
-                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
-    
-                    if contains_blacklisted_link:
-                        # Delete the message if it contains a blacklisted URL
-                        await message.delete()
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                        await message.channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
-                        return  # Stop further processing
-                    elif not contains_whitelisted_link and not contains_twitch_clip_link:
-                        # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
-                        await message.delete()
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                        # Notify the user not to post links without permission
-                        await message.channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
-                        return  # Stop further processing
-                    else:
-                        chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
-                else:
-                    chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
-            else:
-                pass
-        except Exception as e:
-            bot_logger.error(f"An error occurred in event_message: {e}")
-        finally:
-            cursor.close()
-            sqldb.close()
-            await self.message_counting(messageAuthor, messageAuthorID, message)
+            except Exception as e:
+                bot_logger.error(f"An error occurred in event_message: {e}")
+            finally:
+                await cursor.close()
+                sqldb.close()
+                await self.message_counting(messageAuthor, messageAuthorID, message)
 
     async def message_counting(self, messageAuthor, messageAuthorID, message):
         sqldb = await get_mysql_connection()
+        channel = message.channel
         try:
             async with sqldb.cursor() as cursor:
                 # Check user level
@@ -887,47 +887,48 @@ class BotOfTheSpecter(commands.Bot):
                         # VIP user
                         if user_status and welcome_message:
                             # Returning user with custom welcome message
-                            await message.channel.send(welcome_message)
+                            await channel.send(welcome_message)
                         elif user_status:
                             # Returning user
                             vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {messageAuthor}!"
-                            await message.channel.send(vip_welcome_message)
+                            await channel.send(vip_welcome_message)
                         else:
                             # New user
                             await user_is_seen(messageAuthor)
                             new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {messageAuthor} a warm welcome!"
-                            await message.channel.send(new_vip_welcome_message)
+                            await channel.send(new_vip_welcome_message)
                     elif is_mod:
                         # Moderator user
                         if user_status and welcome_message:
                             # Returning user with custom welcome message
-                            await message.channel.send(welcome_message)
+                            await channel.send(welcome_message)
                         elif user_status:
                             # Returning user
                             mod_welcome_message = f"MOD ON DUTY! Welcome in {messageAuthor}. The power of the sword has increased!"
-                            await message.channel.send(mod_welcome_message)
+                            await channel.send(mod_welcome_message)
                         else:
                             # New user
                             await user_is_seen(messageAuthor)
                             new_mod_welcome_message = f"MOD ON DUTY! Welcome in {messageAuthor}. The power of the sword has increased! Let's give {messageAuthor} a warm welcome!"
-                            await message.channel.send(new_mod_welcome_message)
+                            await channel.send(new_mod_welcome_message)
                     else:
                         # Non-VIP and Non-mod user
                         if user_status and welcome_message:
                             # Returning user with custom welcome message
-                            await message.channel.send(welcome_message)
+                            await channel.send(welcome_message)
                         elif user_status:
                             # Returning user
                             welcome_back_message = f"Welcome back {messageAuthor}, glad to see you again!"
-                            await message.channel.send(welcome_back_message)
+                            await channel.send(welcome_back_message)
                         else:
                             # New user
                             await user_is_seen(messageAuthor)
                             new_user_welcome_message = f"{messageAuthor} is new to the community, let's give them a warm welcome!"
-                            await message.channel.send(new_user_welcome_message)
+                            await channel.send(new_user_welcome_message)
                 else:
-                    # Status disabled for user
-                    chat_logger.info(f"Message not sent for {messageAuthor} as status is disabled.")
+                    chat_logger.info(f"User status for {messageAuthor} is disabled.")
+        except Exception as e:
+            chat_logger.error(f"Error in message_counting: {e}")
         finally:
             sqldb.close()
             await self.walkon_sound(CHANNEL_NAME, "walkon", messageAuthor)
@@ -3752,35 +3753,41 @@ async def known_users():
     sqldb = await get_mysql_connection()
     try:
         # Get all the mods and put them into the database
-        url = f'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={CHANNEL_ID}'
+        url_mods = f'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={CHANNEL_ID}'
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
             "Client-Id": TWITCH_API_CLIENT_ID,
             "Content-Type": "application/json"
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
+            async with session.get(url_mods, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    moderators = data['data']
+                    moderators = data.get('data', [])
                     mod_list = [mod['user_name'] for mod in moderators]
                     async with sqldb.cursor() as cursor:
                         for mod in mod_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (mod, "mod", "mod"))
                         await sqldb.commit()
+                    bot_logger.info(f"Added moderators to the database: {mod_list}")
+                else:
+                    bot_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
 
         # Get all the VIPs and put them into the database
-        url = f'https://api.twitch.tv/helix/chat/chatters?broadcaster_id={CHANNEL_ID}'
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    vips = data['data']
-                    vip_list = vips['vips']
-                    async with sqldb.cursor() as cursor:
-                        for vip in vip_list:
-                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "vip", "vip"))
-                        await sqldb.commit()
+        url_vips = f'https://api.twitch.tv/helix/chat/chatters?broadcaster_id={CHANNEL_ID}'
+        async with session.get(url_vips, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                vips = data.get('data', {}).get('vips', [])
+                async with sqldb.cursor() as cursor:
+                    for vip in vips:
+                        await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "vip", "vip"))
+                    await sqldb.commit()
+                bot_logger.info(f"Added VIPs to the database: {vips}")
+            else:
+                bot_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
+    except Exception as e:
+        bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
         sqldb.close()
 
