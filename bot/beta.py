@@ -947,25 +947,27 @@ class BotOfTheSpecter(commands.Bot):
             if messageAuthor == CHANNEL_NAME:
                 return
 
-            # Check if the user is a moderator
-            if await is_user_mod(messageAuthor):
-                group_names = ["MOD"]  # Override any other groups if user is a MOD
-            else:
-                # Check if the user is a subscriber
-                subscription_tier = await is_user_subscribed(messageAuthorID)
-                if subscription_tier:
-                    # Map subscription tier to group name
-                    if subscription_tier == "Tier 1":
-                        group_names.append("Subscriber T1")
-                    elif subscription_tier == "Tier 2":
-                        group_names.append("Subscriber T2")
-                    elif subscription_tier == "Tier 3":
-                        group_names.append("Subscriber T3")
-                # Check if the user is a VIP
-                if await is_user_vip(messageAuthor):
-                    group_names.append("VIP")
-
             async with sqldb.cursor() as cursor:
+                # Check if the user is a moderator
+                if await is_user_mod(messageAuthor):
+                    group_names = ["MOD"]  # Override any other groups
+                else:
+                    # Check if the user is a VIP
+                    if await is_user_vip(messageAuthor):
+                        group_names = ["VIP"]  # Override subscriber groups
+
+                    # Check if the user is a subscriber, only if they are not a VIP or MOD
+                    if not group_names:
+                        subscription_tier = await is_user_subscribed(messageAuthorID)
+                        if subscription_tier:
+                            # Map subscription tier to group name
+                            if subscription_tier == "Tier 1":
+                                group_names.append("Subscriber T1")
+                            elif subscription_tier == "Tier 2":
+                                group_names.append("Subscriber T2")
+                            elif subscription_tier == "Tier 3":
+                                group_names.append("Subscriber T3")
+
                 # Assign user to groups
                 for name in group_names:
                     await cursor.execute("SELECT * FROM `groups` WHERE name=%s", (name,))
