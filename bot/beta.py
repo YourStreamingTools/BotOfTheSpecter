@@ -946,19 +946,24 @@ class BotOfTheSpecter(commands.Bot):
             # Check if the user is the broadcaster
             if messageAuthor == CHANNEL_NAME:
                 return
-            # Check if the user is a subscriber
-            subscription_tier = await is_user_subscribed(messageAuthorID)
-            if subscription_tier:
-                # Map subscription tier to group name
-                if subscription_tier == "Tier 1":
-                    group_names.append("Subscriber T1")
-                elif subscription_tier == "Tier 2":
-                    group_names.append("Subscriber T2")
-                elif subscription_tier == "Tier 3":
-                    group_names.append("Subscriber T3")
-            # Check if the user is a VIP
-            if await is_user_vip(messageAuthor):
-                group_names.append("VIP")
+
+            # Check if the user is a moderator
+            if await is_user_mod(messageAuthor):
+                group_names = ["MOD"]  # Override any other groups if user is a MOD
+            else:
+                # Check if the user is a subscriber
+                subscription_tier = await is_user_subscribed(messageAuthorID)
+                if subscription_tier:
+                    # Map subscription tier to group name
+                    if subscription_tier == "Tier 1":
+                        group_names.append("Subscriber T1")
+                    elif subscription_tier == "Tier 2":
+                        group_names.append("Subscriber T2")
+                    elif subscription_tier == "Tier 3":
+                        group_names.append("Subscriber T3")
+                # Check if the user is a VIP
+                if await is_user_vip(messageAuthor):
+                    group_names.append("VIP")
 
             async with sqldb.cursor() as cursor:
                 # Assign user to groups
@@ -978,6 +983,8 @@ class BotOfTheSpecter(commands.Bot):
                             bot_logger.error(f"Failed to assign user '{messageAuthor}' to group '{name}'.")
                     else:
                         bot_logger.error(f"Group '{name}' does not exist.")
+        except Exception as e:
+            bot_logger.error(f"An error occurred in user_grouping: {e}")
         finally:
             sqldb.close()
 
