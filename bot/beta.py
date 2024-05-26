@@ -838,8 +838,8 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Check user level
-                is_vip = await is_user_vip(messageAuthorID)
-                is_mod = await is_user_moderator(messageAuthorID)
+                is_vip = await is_user_vip(messageAuthor)
+                is_mod = await is_user_mod(messageAuthor)
                 is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
                 user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
 
@@ -957,7 +957,7 @@ class BotOfTheSpecter(commands.Bot):
                 elif subscription_tier == "Tier 3":
                     group_names.append("Subscriber T3")
             # Check if the user is a VIP
-            if await is_user_vip(messageAuthorID):
+            if await is_user_vip(messageAuthor):
                 group_names.append("VIP")
 
             async with sqldb.cursor() as cursor:
@@ -2703,7 +2703,7 @@ def is_mod_or_broadcaster(user):
         return True
 
     # Check if the user is a moderator
-    elif is_user_mod(user):
+    elif is_user_mod(user.name):
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
@@ -2711,52 +2711,44 @@ def is_mod_or_broadcaster(user):
         twitch_logger.info(f"User {user.name} does not have required permissions.")
         return False
 
-# Function to check if a user is a MOD of the channel using the Twitch API
-def is_user_mod(user):
-    # Send request to Twitch API to check if user is a moderator
-    headers = {
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
-    }
-    params = {
-        "broadcaster_id": f"{CHANNEL_ID}",
-        "user_name": user.name
-    }
-
-    response = requests.get("https://api.twitch.tv/helix/moderation/moderators", headers=headers, params=params)
-    if response.status_code == 200:
-        moderators = response.json().get("data", [])
-        for mod in moderators:
-            if mod["user_name"].lower() == user.name.lower():
-                twitch_logger.info(f"User {user.name} is a Moderator")
+async def is_user_mod(username):
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor() as cursor:
+        try:
+            # Query the database to check if the user is a moderator
+            await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
+            result = await cursor.fetchone()
+            if result and result[0] == 'MOD':
+                twitch_logger.info(f"User {username} is a Moderator")
                 return True
+            else:
+                return False
+        except Exception as e:
+            twitch_logger.error(f"An error occurred in is_user_mod: {e}")
             return False
-    return False
+        finally:
+            sqldb.close()
 
 # Function to check if a user is a VIP of the channel using the Twitch API
-def is_user_vip(user_trigger_id):
-    headers = {
-        'Client-ID': TWITCH_API_CLIENT_ID,
-        'Authorization': f'Bearer {CHANNEL_AUTH}',
-    }
-    params = {
-        'broadcaster_id': CHANNEL_ID
-    }
-    try:
-        response = requests.get('https://api.twitch.tv/helix/channels/vips', headers=headers, params=params)
-        if response.status_code == 200:
-            vips = response.json().get("data", [])
-            for vip in vips:
-                if vip["user_id"] == user_trigger_id:
-                    user_name = vip["user_name"]
-                    twitch_logger.info(f"User {user_name} is a VIP Member")
-                    return True
-            twitch_logger.info(f"User ID: {user_trigger_id} is not a VIP Member")
+async def is_user_vip(username):
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor() as cursor:
+        try:
+            # Query the database to check if the user is a VIP
+            await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
+            result = await cursor.fetchone()
+            if result and result[0] == 'VIP':
+                twitch_logger.info(f"User ID {username} is a VIP Member")
+                return True
+            else:
+                twitch_logger.info(f"User ID {username} is not a VIP Member")
+                return False
+        except Exception as e:
+            twitch_logger.error(f"An error occurred in is_user_vip: {e}")
             return False
-        return False
-    except requests.RequestException as e:
-        twitch_logger.error(f"Failed to retrieve VIP status: {e}")
-    return False
+        finally:
+            sqldb.close()
+
 
 # Function to check if a user is a subscriber of the channel
 def is_user_subscribed(user_id):
@@ -2784,29 +2776,6 @@ def is_user_subscribed(user_id):
                 tier_name = tier_mapping.get(tier, tier)
                 return tier_name
     return None
-
-# Function to check if a user is a MOD of the channel using the Twitch API
-def is_user_moderator(user_trigger_id):
-    # Send request to Twitch API to check if user is a moderator
-    headers = {
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
-    }
-    params = {
-        "broadcaster_id": f"{CHANNEL_ID}",
-        "user_id": user_trigger_id
-    }
-
-    response = requests.get("https://api.twitch.tv/helix/moderation/moderators", headers=headers, params=params)
-    if response.status_code == 200:
-        moderators = response.json().get("data", [])
-        for mod in moderators:
-            if mod["user_id"] == user_trigger_id:
-                user_name = mod["user_name"]
-                twitch_logger.info(f"User {user_name} is a Moderator")
-                return True
-            return False
-    return False
 
 # Function to add user to the table of known users
 async def user_is_seen(username):
@@ -3648,7 +3617,7 @@ async def send_to_discord_stream_online(message, image):
 async def group_creation():
     sqldb = await get_mysql_connection()
     try:
-        group_names = ["VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
+        group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
         try:
             async with sqldb.cursor() as cursor:
                 # Create placeholders for each group name
@@ -3767,7 +3736,7 @@ async def known_users():
                     mod_list = [mod['user_name'] for mod in moderators]
                     async with sqldb.cursor() as cursor:
                         for mod in mod_list:
-                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (mod, "mod", "mod"))
+                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (mod, "MOD", "MOD"))
                         await sqldb.commit()
                     bot_logger.info(f"Added moderators to the database: {mod_list}")
                 else:
@@ -3782,7 +3751,7 @@ async def known_users():
                     vip_list = [vip['user_name'] for vip in vips]
                     async with sqldb.cursor() as cursor:
                         for vip in vip_list:
-                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "vip", "vip"))
+                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "VIP", "VIP"))
                         await sqldb.commit()
                     bot_logger.info(f"Added VIPs to the database: {vip_list}")
                 else:
