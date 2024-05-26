@@ -3752,14 +3752,14 @@ async def check_stream_online():
 async def known_users():
     sqldb = await get_mysql_connection()
     try:
-        # Get all the mods and put them into the database
-        url_mods = f'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={CHANNEL_ID}'
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
             "Client-Id": TWITCH_API_CLIENT_ID,
             "Content-Type": "application/json"
         }
         async with aiohttp.ClientSession() as session:
+            # Get all the mods and put them into the database
+            url_mods = f'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={CHANNEL_ID}'
             async with session.get(url_mods, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -3773,19 +3773,20 @@ async def known_users():
                 else:
                     bot_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
 
-        # Get all the VIPs and put them into the database
-        url_vips = f'https://api.twitch.tv/helix/chat/chatters?broadcaster_id={CHANNEL_ID}'
-        async with session.get(url_vips, headers=headers) as response:
-            if response.status == 200:
-                data = await response.json()
-                vips = data.get('data', {}).get('vips', [])
-                async with sqldb.cursor() as cursor:
-                    for vip in vips:
-                        await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "vip", "vip"))
-                    await sqldb.commit()
-                bot_logger.info(f"Added VIPs to the database: {vips}")
-            else:
-                bot_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
+            # Get all the VIPs and put them into the database
+            url_vips = f'https://api.twitch.tv/helix/channels/vips?broadcaster_id={CHANNEL_ID}'
+            async with session.get(url_vips, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    vips = data.get('data', [])
+                    vip_list = [vip['user_name'] for vip in vips]
+                    async with sqldb.cursor() as cursor:
+                        for vip in vip_list:
+                            await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "vip", "vip"))
+                        await sqldb.commit()
+                    bot_logger.info(f"Added VIPs to the database: {vip_list}")
+                else:
+                    bot_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
     except Exception as e:
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
