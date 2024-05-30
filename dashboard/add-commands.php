@@ -59,61 +59,68 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-    <br>
-    <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-    <br>
-    <div class="row">
-    <form method="post" action="">
-        <div class="row">
-            <div class="small-12 medium-6 column">
-                <label for="command">Command:</label>
-                <input type="text" name="command" id="command" required>
+<div class="container">
+<br>
+<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<br>
+<div class="columns">
+    <div class="column">
+        <form method="post" action="">
+            <div class="field">
+                <label class="label" for="command">Command:</label>
+                <div class="control">
+                    <input class="input" type="text" name="command" id="command" required>
+                </div>
             </div>
-            <div class="small-12 medium-6 column">
-                <label for="response">Response:</label>
-                <input type="text" name="response" id="response" required>
+            <div class="field">
+                <label class="label" for="response">Response:</label>
+                <div class="control">
+                    <input class="input" type="text" name="response" id="response" required>
+                </div>
             </div>
-        </div>
-        <input type="submit" class="defult-button" value="Add Command">
-    </form>
-    <br>
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
-        <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
-            <p style="color: green;">Command "<?php echo $_POST['command']; ?>" has been successfully added to the database.</p>
+            <div class="control">
+                <button class="button is-primary" type="submit">Add Command</button>
+            </div>
+        </form>
+        <br>
+        <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+            <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
+                <p class="has-text-success">Command "<?php echo $_POST['command']; ?>" has been successfully added to the database.</p>
+            <?php endif; ?>
         <?php endif; ?>
-    <?php endif; ?>
-    <div class="small-12 medium-6 column">
-        <p style='color: #87CEEB;'>
+    </div>
+</div>
+<div class="columns">
+    <div class="column">
+        <p class='has-text-info'>
         When adding commands via this site, please note the following:<br>
         <strong>1. Avoid using the exclamation mark (!) in your command.</strong> This will be automatically added.<br>
         <strong>2. Alternatively, you or your moderators can add commands during a stream using the command !addcommand.</strong> 
         <br>Example: !addcommand mycommand This is my command
     </p>
     </div>
-    <div class="small-12 medium-6 column">
-        <p style='color: #87CEEB;'>
+    <div class="column">
+        <p class='has-text-info'>
         Custom Variables to use while adding commands:<br>
         <strong>(count)</strong>: Using this option allows you to count how many times that command has been used and output that count in the command.<br>
         <strong>(customapi.URL)</strong>: Using this option allows you to get JSON API responses in chat. e.g. (customapi.https://api.botofthespecter.com/joke.php?api=APIKEY)<br>
-        <strong>(daysuntil.DATE)</strong>: Using this option allows you to calulate the difference between two dates. e.g. (daysuntil.2024-12-25)<br>
-        <strong>(user)</strong>: Using this option allow you to tag a user in any spot of the command. When trigging the command, you have to tag the user, e.g. !mycommand @BotOfTheSpecter<br>
-        <stong>(command.COMMAND)</stong>: Using this option allows you to call other custom commands from one command, e.g. <strong>!raidtools (command.raid1) (command.raid2) (command.raid3)</strong>.
+        <strong>(daysuntil.DATE)</strong>: Using this option allows you to calculate the difference between two dates. e.g. (daysuntil.2024-12-25)<br>
+        <strong>(user)</strong>: Using this option allows you to tag a user in any spot of the command. When triggering the command, you have to tag the user, e.g. !mycommand @BotOfTheSpecter<br>
+        <strong>(command.COMMAND)</strong>: Using this option allows you to call other custom commands from one command, e.g. <strong>!raidtools (command.raid1) (command.raid2) (command.raid3)</strong>.
     </p>
     </div>
 </div>
+</div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 </body>
 </html>
