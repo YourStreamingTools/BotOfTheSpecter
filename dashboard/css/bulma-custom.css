@@ -3,7 +3,7 @@ html, body {
     color: #e0e0e0;
     height: 100%;
     margin: 0;
-    font-family: 'Arial', sans-serif;
+    font-family: 'Arial', 'sans-serif';
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -81,9 +81,14 @@ footer {
     border-radius: 50%;
 }
 
-.centered-box {
+.moderator-box {
     display: flex;
     justify-content: center;
     align-items: center;
     text-align: center;
+    padding: 20px;
+    background-color: #1f1f1f;
+    color: #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 20px;
 }
