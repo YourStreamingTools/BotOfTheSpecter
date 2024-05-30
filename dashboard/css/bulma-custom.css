@@ -145,3 +145,11 @@ footer {
     background-color: #3273dc;
     border-color: #3273dc;
 }
+
+.log-content {
+    display: none;
+}
+
+.log-content.is-active {
+    display: block;
+}
