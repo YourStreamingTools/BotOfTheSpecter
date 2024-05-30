@@ -153,3 +153,7 @@ footer {
 .log-content.is-active {
     display: block;
 }
+
+.tabs a {
+  color: #ffffff;
+}
