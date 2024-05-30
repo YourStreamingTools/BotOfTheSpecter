@@ -66,69 +66,69 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
   $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = :welcome_message WHERE id = :user_id");
   $messageQuery->bindParam(':welcome_message', $newWelcomeMessage);
   $messageQuery->bindParam(':user_id', $userId);
-  $messageQuery->execute(); // Correct spelling here
+  $messageQuery->execute();
   echo "<script>window.location.reload();</script>";
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<h2>Known Users & Welcome Messages</h2>
-<p style='color: red;'>Click the Edit Button within the users table, edit the welcome welcome in the text box, when done, click the edit button agian to save.</p>
-<table class="bot-table">
-  <thead>
-    <tr>
-      <th>Username</th>
-      <th>Welcome Message</th>
-      <th>Status</th>
-      <th>Action</th>
-      <th>Edit</th>
-    </tr>
-  </thead>
-  <tbody>
-    <?php foreach ($seenUsersData as $userData): ?>
+<div class="container">
+  <br>
+  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <h2 class="title is-4">Known Users & Welcome Messages</h2>
+  <p class="has-text-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</p>
+  <table class="table is-fullwidth is-striped is-hoverable">
+    <thead>
       <tr>
-        <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?></td>
-        <td>
-          <div id="welcome-message-<?php echo $userData['id']; ?>">
-            <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
-          </div>
-          <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
-            <textarea class="welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
-          </div>
-        </td>
-        <td>
-          <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
-            <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
-          </span>
-        </td>
-        <td>
-          <label class="switch">
-            <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)">
-            <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-          </label>
-        </td>
-        <td>
-          <button class="edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fa-solid fa-pencil-alt"></i></button>
-        </td>
+        <th>Username</th>
+        <th>Welcome Message</th>
+        <th>Status</th>
+        <th>Action</th>
+        <th>Edit</th>
       </tr>
-    <?php endforeach; ?>
-  </tbody>
-</table>
-<br><br><br><br>
+    </thead>
+    <tbody>
+      <?php foreach ($seenUsersData as $userData): ?>
+        <tr>
+          <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?></td>
+          <td>
+            <div id="welcome-message-<?php echo $userData['id']; ?>">
+              <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
+            </div>
+            <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
+              <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+            </div>
+          </td>
+          <td>
+            <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
+              <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
+            </span>
+          </td>
+          <td>
+            <label class="checkbox">
+              <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)">
+              <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+            </label>
+          </td>
+          <td>
+            <button class="button is-small is-primary edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fas fa-pencil-alt"></i></button>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  <br><br><br><br>
 </div>
 
 <script>
@@ -158,13 +158,13 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
       editBox.style.display = 'block';
       welcomeMessage.style.display = 'none';
       // Change the color of the edit button
-      this.classList.add('editing');
+      this.classList.add('is-warning');
     } else {
       // Save the updated welcome message
       const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
       updateWelcomeMessage(userId, newWelcomeMessage);
-      // Remove the editing class from the edit button
-      this.classList.remove('editing');
+      // Remove the warning class from the edit button
+      this.classList.remove('is-warning');
     }
   });
 });
@@ -182,7 +182,5 @@ function updateWelcomeMessage(userId, newWelcomeMessage) {
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 </body>
 </html>
