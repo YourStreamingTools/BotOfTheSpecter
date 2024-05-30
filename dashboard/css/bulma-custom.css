@@ -1,6 +1,10 @@
-body {
+html, body {
     background-color: #101010;
     color: #e0e0e0;
+    height: 100%;
+}
+.container {
+    margin-top: 50px;
 }
 .box, .hero, .button {
     background-color: #1f1f1f;
@@ -17,9 +21,6 @@ body {
 }
 h1, h4 {
     color: #ffffff;
-}
-.container {
-    margin-top: 50px;
 }
 .buttons .button {
     margin-right: 10px;
