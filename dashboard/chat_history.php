@@ -57,8 +57,7 @@ include 'sqlite.php';
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <h2 class="title is-2">Chat History</h2>
   <div class="tabs is-boxed" id="chatTabs">
