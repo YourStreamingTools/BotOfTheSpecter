@@ -69,62 +69,53 @@ if(isset($_GET['logType'])) {
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<ul class="tabs" data-tabs id="logTabs">
-    <li class="tabs-title <?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
-    <li class="tabs-title <?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="#script">Script Logs</a></li>
-    <li class="tabs-title <?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="#chat">Chat Logs</a></li>
-    <li class="tabs-title <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="#twitch">Twitch Logs</a></li>
-    <li class="tabs-title <?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="#api">API Logs</a></li>
-</ul>
-
-<div class="tabs-content" data-tabs-content="logTabs">
-    <div class="tabs-panel <?php echo $logType === 'bot' ? 'is-active' : ''; ?>" id="bot">
-        <h3>Bot Logs</h3>
+<div class="container">
+  <br>
+  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <div class="tabs is-boxed">
+    <ul>
+      <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="?logType=bot">Bot Logs</a></li>
+      <li class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="?logType=script">Script Logs</a></li>
+      <li class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="?logType=chat">Chat Logs</a></li>
+      <li class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="?logType=twitch">Twitch Logs</a></li>
+      <li class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="?logType=api">API Logs</a></li>
+    </ul>
+  </div>
+  
+  <div>
+    <div class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>">
+        <h3 class="title is-5">Bot Logs</h3>
         <pre><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
-    <div class="tabs-panel <?php echo $logType === 'script' ? 'is-active' : ''; ?>" id="script">
-        <h3>Script Logs</h3>
+    <div class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>">
+        <h3 class="title is-5">Script Logs</h3>
         <pre><?php echo $logType === 'script' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
-    <div class="tabs-panel <?php echo $logType === 'chat' ? 'is-active' : ''; ?>" id="chat">
-        <h3>Chat Logs</h3>
+    <div class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>">
+        <h3 class="title is-5">Chat Logs</h3>
         <pre><?php echo $logType === 'chat' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
-    <div class="tabs-panel <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>" id="twitch">
-        <h3>Twitch Logs</h3>
+    <div class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>">
+        <h3 class="title is-5">Twitch Logs</h3>
         <pre><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
-    <div class="tabs-panel <?php echo $logType === 'api' ? 'is-active' : ''; ?>" id="api">
-        <h3>API Logs</h3>
+    <div class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>">
+        <h3 class="title is-5">API Logs</h3>
         <pre><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
     </div>
-</div>
+  </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
-<script>
-$(document).ready(function() {
-    $("#logTabs a").click(function(e) {
-        e.preventDefault();
-        var logType = $(this).attr('href').replace('#', '');
-        window.location.href = "logs.php?logType=" + logType;
-    });
-});
-</script>
 </body>
 </html>
