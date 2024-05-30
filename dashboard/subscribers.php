@@ -100,28 +100,28 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
+<div class="container">
   <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if ($displaySearchBar) : ?>
-    <div class="row column">
-        <div class="search-container">
-            <input type="text" id="subscriber-search" placeholder="Search for Subscribers...">
+    <div class="field">
+        <div class="control">
+            <input class="input" type="text" id="subscriber-search" placeholder="Search for Subscribers...">
         </div>
     </div>
   <?php endif; ?>
-  <h1>Your Subscribers:</h1>
-  <div class="subscribers-grid">
+  <h1 class="title is-4">Your Subscribers:</h1>
+  <div class="columns is-multiline">
     <?php
     // Define a custom sorting function to sort by subscription tier in descending order
     usort($subscribersForCurrentPage, function ($a, $b) {
@@ -161,17 +161,30 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
 
         // Check if $username is the same as $subscriberDisplayName
         if ($twitchDisplayName == $subscriberDisplayName) {
-            echo "<div class='subscriber-broadcaster'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span></div>
-            ";
+            echo "<div class='column is-one-quarter'>
+                    <div class='box'>
+                        <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
+                        <span>Subscription Tier: $subscriptionTier</span>
+                    </div>
+                  </div>";
         } else {
             // Check if it's a gift subscription
             if ($isGift) {
-                echo "<div class='subscriber'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span><span>Gift Sub from $gifterName</span></div>
-                ";
+                echo "<div class='column is-one-quarter'>
+                        <div class='box'>
+                            <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
+                            <span>Subscription Tier: $subscriptionTier</span><br>
+                            <span>Gift Sub from $gifterName</span>
+                        </div>
+                      </div>";
             // else show everything else as not gift subscription
             } else {
-                echo "<div class='subscriber'><span>$subscriberDisplayName</span><span>Subscription Tier: $subscriptionTier</span></div>
-                ";
+                echo "<div class='column is-one-quarter'>
+                        <div class='box'>
+                            <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
+                            <span>Subscription Tier: $subscriptionTier</span>
+                        </div>
+                      </div>";
             }
         }
     endforeach;
@@ -179,33 +192,31 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
   </div>
 
   <!-- Pagination -->
-  <div class="pagination">
+  <nav class="pagination is-centered" role="navigation" aria-label="pagination">
       <?php if ($totalPages > 1) : ?>
           <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
               <?php if ($page === $currentPage) : ?>
-                  <span class="current-page"><?php echo $page; ?></span>
+                  <span class="pagination-link is-current"><?php echo $page; ?></span>
               <?php else : ?>
-                  <a href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
+                  <a class="pagination-link" href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
               <?php endif; ?>
           <?php endfor; ?>
       <?php endif; ?>
-  </div>
+  </nav>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 <script>
 $(document).ready(function() {
     <?php if ($displaySearchBar) : ?>
     $('#subscriber-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();
-        $('.subscriber').each(function() {
-            var subscriberName = $(this).find('span').text().toLowerCase();
+        $('.column .box span').each(function() {
+            var subscriberName = $(this).text().toLowerCase();
             if (subscriberName.includes(searchTerm)) {
-                $(this).show();
+                $(this).closest('.column').show();
             } else {
-                $(this).hide();
+                $(this).closest('.column').hide();
             }
         });
     });
