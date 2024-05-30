@@ -54,26 +54,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command']) && isset($_
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
+<div class="container">
   <br>
   <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <div class="row">
-    <div class="columns">
-      <h4>Bot Commands</h4>
+  <div class="columns">
+    <div class="column">
+      <h4 class="title is-4">Bot Commands</h4>
       <?php if (empty($commands)): ?>
         <p>No commands found.</p>
       <?php else: ?>
-        <input type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
-        <table class="bot-table" id="commandsTable">
+        <div class="field">
+          <div class="control">
+            <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+          </div>
+        </div>
+        <table class="table is-striped is-fullwidth" id="commandsTable">
           <thead>
             <tr>
               <th>Command</th>
@@ -89,9 +93,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command']) && isset($_
                 <td><?php echo $command['response']; ?></td>
                 <td><?php echo $command['status']; ?></td>
                 <td>
-                  <label class="switch">
+                  <label class="checkbox">
                     <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked)">
-                    <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                    <span class="icon is-small">
+                      <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                    </span>
                   </label>
                 </td>
               </tr>
@@ -101,7 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command']) && isset($_
       <?php endif; ?>
     </div>
   </div>
-<br><br><br>
+  <br><br><br>
 </div>
 
 <script>
@@ -121,8 +127,6 @@ function toggleStatus(command, isChecked) {
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 <script src="/js/search.js"></script>
 </body>
 </html>
