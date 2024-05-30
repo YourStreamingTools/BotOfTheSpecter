@@ -99,18 +99,17 @@ $buildStatus = "";
 <!-- /Navigation -->
 
 <div class="container">
-<br>
-<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<?php if (!$is_linked) {
-  echo '<h3 class="subtitle is-5">Linking your discord account to Specter will allow you to do some really cool stuff.</h3>';
-  echo '<button class="button is-link" onclick="linkDiscord()">Link Discord</button>';
-} else { ?>
-  <h4 class="subtitle is-5">Thanks for linking your account, this is not required but if you'd like to add the bot itself to your discord server, you can by clicking the button below.</h4>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <?php if (!$is_linked) {
+    echo '<h3 class="subtitle is-5">Linking your discord account to Specter will allow you to do some really cool stuff.</h3><br>';
+    echo '<button class="button is-link" onclick="linkDiscord()">Link Discord</button>';
+  } else { ?>
+  <h4 class="subtitle is-5">Thank you for linking your account. While the Discord integration is not yet active, you are welcome to add the bot to your server by clicking the button below.</h4>
   <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
   <br><br><br>
-  <div class="columns">
   <h2 class="title is-4">Add Discord Webhook URL</h2>
+  <div class="columns">
     <div class="column is-half">
     <form action="" method="post">
       <div class="field">
@@ -131,9 +130,7 @@ $buildStatus = "";
           <input class="input" type="text" id="webhook" name="webhook" required>
         </div>
       </div>
-      <div class="control">
-        <input class="button is-primary" type="submit" value="Submit">
-      </div>
+      <div class="control"><input class="button is-primary" type="submit" value="Submit"></div>
     </form>
     </div>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>Webhook URL added successfully</p>"; } ?>
