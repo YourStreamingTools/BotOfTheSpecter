@@ -69,56 +69,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!-- /Navigation -->
 
 <div class="container">
-<br>
-<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<div class="columns">
-    <div class="column">
-        <form method="post" action="">
-            <div class="field">
-                <label class="label" for="command">Command:</label>
-                <div class="control">
-                    <input class="input" type="text" name="command" id="command" required>
+    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <br>
+    <div class="columns">
+        <div class="column">
+            <form method="post" action="">
+                <div class="field">
+                    <label class="label" for="command">Command:</label>
+                    <div class="control">
+                        <input class="input" type="text" name="command" id="command" required>
+                    </div>
                 </div>
-            </div>
-            <div class="field">
-                <label class="label" for="response">Response:</label>
-                <div class="control">
-                    <input class="input" type="text" name="response" id="response" required>
+                <div class="field">
+                    <label class="label" for="response">Response:</label>
+                    <div class="control">
+                        <input class="input" type="text" name="response" id="response" required>
+                    </div>
                 </div>
-            </div>
-            <div class="control">
-                <button class="button is-primary" type="submit">Add Command</button>
-            </div>
-        </form>
-        <br>
-        <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
-            <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
-                <p class="has-text-success">Command "<?php echo $_POST['command']; ?>" has been successfully added to the database.</p>
+                <div class="control">
+                    <button class="button is-primary" type="submit">Add Command</button>
+                </div>
+            </form>
+            <br>
+            <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+                <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
+                    <p class="has-text-success">Command "<?php echo $_POST['command']; ?>" has been successfully added to the database.</p>
+                <?php endif; ?>
             <?php endif; ?>
-        <?php endif; ?>
+        </div>
     </div>
-</div>
-<div class="columns">
-    <div class="column">
-        <p class='has-text-info'>
-        When adding commands via this site, please note the following:<br>
-        <strong>1. Avoid using the exclamation mark (!) in your command.</strong> This will be automatically added.<br>
-        <strong>2. Alternatively, you or your moderators can add commands during a stream using the command !addcommand.</strong> 
-        <br>Example: !addcommand mycommand This is my command
-    </p>
+    <div class="columns">
+        <div class="column">
+            <h3 class='has-text-info'>
+                When adding commands via this site, please note the following:<br>
+                <ul>
+                    <li>Avoid using the exclamation mark (!) in your command. This will be automatically added.</li>
+                    <li>Alternatively, you or your moderators can add commands during a stream using the command !addcommand.<br>
+                        Example: <code>!addcommand mycommand This is my command</code></li>
+                </ul>
+            </h3>
+        </div>
+        <div class="column">
+            <h3 class='has-text-info'>
+                Custom Variables to use while adding commands:<br>
+                <ul>
+                    <li>(count): Using this option allows you to count how many times that command has been used and output that count in the command.</li>
+                    <li>(customapi.URL): Using this option allows you to get JSON API responses in chat. e.g. <code>(customapi.https://api.botofthespecter.com/joke.php?api=APIKEY)</code></li>
+                    <li>(daysuntil.DATE): Using this option allows you to calculate the difference between two dates. e.g. <code>(daysuntil.2024-12-25)</code></li>
+                    <li>(user): Using this option allows you to tag a user in any spot of the command. When triggering the command, you have to tag the user, e.g. <code>!mycommand @BotOfTheSpecter</code></li>
+                    <li>(command.COMMAND): Using this option allows you to call other custom commands from one command, e.g. <code>!raidtools (command.raid1) (command.raid2) (command.raid3)</code></li>
+                </ul>
+            </h3>
+        </div>
     </div>
-    <div class="column">
-        <p class='has-text-info'>
-        Custom Variables to use while adding commands:<br>
-        <strong>(count)</strong>: Using this option allows you to count how many times that command has been used and output that count in the command.<br>
-        <strong>(customapi.URL)</strong>: Using this option allows you to get JSON API responses in chat. e.g. (customapi.https://api.botofthespecter.com/joke.php?api=APIKEY)<br>
-        <strong>(daysuntil.DATE)</strong>: Using this option allows you to calculate the difference between two dates. e.g. (daysuntil.2024-12-25)<br>
-        <strong>(user)</strong>: Using this option allows you to tag a user in any spot of the command. When triggering the command, you have to tag the user, e.g. !mycommand @BotOfTheSpecter<br>
-        <strong>(command.COMMAND)</strong>: Using this option allows you to call other custom commands from one command, e.g. <strong>!raidtools (command.raid1) (command.raid2) (command.raid3)</strong>.
-    </p>
-    </div>
-</div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
