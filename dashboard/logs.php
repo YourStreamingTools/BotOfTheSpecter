@@ -79,43 +79,60 @@ if(isset($_GET['logType'])) {
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
+<body>
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <div class="tabs is-boxed">
     <ul>
-      <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="?logType=bot">Bot Logs</a></li>
-      <li class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="?logType=script">Script Logs</a></li>
-      <li class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="?logType=chat">Chat Logs</a></li>
-      <li class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="?logType=twitch">Twitch Logs</a></li>
-      <li class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="?logType=api">API Logs</a></li>
+      <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
+      <li class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="#script">Script Logs</a></li>
+      <li class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="#chat">Chat Logs</a></li>
+      <li class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="#twitch">Twitch Logs</a></li>
+      <li class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="#api">API Logs</a></li>
     </ul>
   </div>
-  
-  <div>
-    <div class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>">
-        <h3 class="title is-5">Bot Logs</h3>
-        <pre><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
-    </div>
-    <div class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>">
-        <h3 class="title is-5">Script Logs</h3>
-        <pre><?php echo $logType === 'script' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
-    </div>
-    <div class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>">
-        <h3 class="title is-5">Chat Logs</h3>
-        <pre><?php echo $logType === 'chat' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
-    </div>
-    <div class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>">
-        <h3 class="title is-5">Twitch Logs</h3>
-        <pre><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
-    </div>
-    <div class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>">
-        <h3 class="title is-5">API Logs</h3>
-        <pre><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
-    </div>
+  <div id="bot" class="log-content <?php echo $logType === 'bot' ? 'is-active' : ''; ?>">
+    <h3 class="title is-5">Bot Logs</h3>
+    <pre><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+  </div>
+  <div id="script" class="log-content <?php echo $logType === 'script' ? 'is-active' : ''; ?>">
+    <h3 class="title is-5">Script Logs</h3>
+    <pre><?php echo $logType === 'script' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+  </div>
+  <div id="chat" class="log-content <?php echo $logType === 'chat' ? 'is-active' : ''; ?>">
+    <h3 class="title is-5">Chat Logs</h3>
+    <pre><?php echo $logType === 'chat' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+  </div>
+  <div id="twitch" class="log-content <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>">
+    <h3 class="title is-5">Twitch Logs</h3>
+    <pre><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+  </div>
+  <div id="api" class="log-content <?php echo $logType === 'api' ? 'is-active' : ''; ?>">
+    <h3 class="title is-5">API Logs</h3>
+    <pre><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
   </div>
 </div>
 
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll('.tabs li');
+    const logContents = document.querySelectorAll('.log-content');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(item => item.classList.remove('is-active'));
+        tab.classList.add('is-active');
+        const target = tab.querySelector('a').getAttribute('href').substring(1);
+        logContents.forEach(content => {
+          content.classList.remove('is-active');
+          if (content.id === target) {
+            content.classList.add('is-active');
+          }
+        });
+      });
+    });
+  });
+</script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
 </html>
