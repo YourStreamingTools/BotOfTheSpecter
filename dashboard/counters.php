@@ -41,28 +41,27 @@ $countType = '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Headder -->
-    <?php include('header.php'); ?>
-    <!-- /Headder -->
-  </head>
+<head>
+  <!-- Header -->
+  <?php include('header.php'); ?>
+  <!-- /Header -->
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <div class="tabs is-boxed is-centered" id="countTabs">
     <ul>
-      <li class="<?php echo $countType === 'lurking' ? 'is-active' : ''; ?>"><a href="#lurking">Currently Lurking Users</a></li>
-      <li class="<?php echo $countType === 'typo' ? 'is-active' : ''; ?>"><a href="#typo">Typo Counts</a></li>
-      <li class="<?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="#deaths">Deaths Overview</a></li>
-      <li class="<?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="#hugs">Hug Counts</a></li>
-      <li class="<?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="#kisses">Kiss Counts</a></li>
-      <li class="<?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="#custom">Custom Counts</a></li>
+      <li class="<?php echo $countType === 'lurking' ? 'is-active' : ''; ?>"><a href="?countType=lurking#lurking">Currently Lurking Users</a></li>
+      <li class="<?php echo $countType === 'typo' ? 'is-active' : ''; ?>"><a href="?countType=typo#typo">Typo Counts</a></li>
+      <li class="<?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="?countType=deaths#deaths">Deaths Overview</a></li>
+      <li class="<?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="?countType=hugs#hugs">Hug Counts</a></li>
+      <li class="<?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="?countType=kisses#kisses">Kiss Counts</a></li>
+      <li class="<?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="?countType=custom#custom">Custom Counts</a></li>
     </ul>
   </div>
   <div class="content">
@@ -227,9 +226,27 @@ document.addEventListener('DOMContentLoaded', () => {
       tabContents.forEach(content => content.classList.remove('is-active'));
       tab.parentElement.classList.add('is-active');
       document.getElementById(target).classList.add('is-active');
+      history.pushState(null, null, `?countType=${target}#${target}`);
     });
   });
+
+  // Activate the tab based on the URL parameter
+  if (window.location.search) {
+    const params = new URLSearchParams(window.location.search);
+    const countType = params.get('countType');
+    if (countType) {
+      const initialTab = document.querySelector(`#countTabs li a[href="#${countType}"]`).parentElement;
+      initialTab.classList.add('is-active');
+      document.getElementById(countType).classList.add('is-active');
+    }
+  } else {
+    // Default to the first tab
+    const defaultTab = tabs[0].parentElement;
+    defaultTab.classList.add('is-active');
+    document.getElementById(defaultTab.querySelector('a').getAttribute('href').substring(1)).classList.add('is-active');
+  }
 });
 </script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
 </html>
