@@ -85,11 +85,11 @@ if(isset($_GET['logType'])) {
   <br>
   <div class="tabs is-boxed">
     <ul>
-      <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="#bot">Bot Logs</a></li>
-      <li class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="#script">Script Logs</a></li>
-      <li class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="#chat">Chat Logs</a></li>
-      <li class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="#twitch">Twitch Logs</a></li>
-      <li class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="#api">API Logs</a></li>
+      <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="?logType=bot#bot">Bot Logs</a></li>
+      <li class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="?logType=script#script">Script Logs</a></li>
+      <li class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="?logType=chat#chat">Chat Logs</a></li>
+      <li class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="?logType=twitch#twitch">Twitch Logs</a></li>
+      <li class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="?logType=api#api">API Logs</a></li>
     </ul>
   </div>
   <div id="bot" class="log-content <?php echo $logType === 'bot' ? 'is-active' : ''; ?>">
@@ -131,8 +131,6 @@ if(isset($_GET['logType'])) {
     tabs.forEach(tab => {
       tab.addEventListener('click', (event) => {
         event.preventDefault();
-        const href = tab.querySelector('a').getAttribute('href').substring(1);
-        window.history.pushState(null, null, `#${href}`);
         activateTab(tab);
       });
     });
