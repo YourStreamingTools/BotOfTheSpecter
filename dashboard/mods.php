@@ -40,7 +40,7 @@ include 'sqlite.php';
 
 // API endpoint to fetch moderators
 $moderatorsURL = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=$broadcasterID";
-$clientID = ''; // CHANGE TO MAKE THIS WORK
+$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
 $allModerators = [];
 do {
@@ -109,34 +109,32 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <br>
-  <h1 class="title is-4">Your Moderators:</h1>
-  <div class="columns is-multiline">
-      <?php foreach ($moderatorsForCurrentPage as $moderator) : 
-          $modDisplayName = $moderator['user_name'];
-      ?>
-      <div class="column is-one-quarter">
-          <div class="box">
-              <span><?php echo $modDisplayName; ?></span>
-          </div>
-      </div>
-      <?php endforeach; ?>
-  </div>
-
-  <!-- Pagination -->
-  <nav class="pagination is-centered" role="navigation" aria-label="pagination">
-      <?php if ($totalPages > 1) : ?>
-          <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
-              <?php if ($page === $currentPage) : ?>
-                  <span class="pagination-link is-current"><?php echo $page; ?></span>
-              <?php else : ?>
-                  <a class="pagination-link" href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
-              <?php endif; ?>
-          <?php endfor; ?>
-      <?php endif; ?>
-  </nav>
+    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <br>
+    <h1 class="title is-4">Your Moderators:</h1>
+    <div class="columns is-multiline is-centered">
+        <?php foreach ($moderatorsForCurrentPage as $moderator) : 
+            $modDisplayName = $moderator['user_name'];
+        ?>
+        <div class="column is-one-quarter">
+            <div class="box is-centered">
+                <p><?php echo $modDisplayName; ?></p>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>  
+    <!-- Pagination -->
+    <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+        <?php if ($totalPages > 1) : ?>
+            <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
+                <?php if ($page === $currentPage) : ?>
+                    <span class="pagination-link is-current"><?php echo $page; ?></span>
+                <?php else : ?>
+                    <a class="pagination-link" href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
+                <?php endif; ?>
+            <?php endfor; ?>
+        <?php endif; ?>
+    </nav>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
