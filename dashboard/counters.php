@@ -67,7 +67,7 @@ $countType = '';
   <div class="content">
     <div class="tabs-content">
       <div class="tab-content <?php echo $countType === 'lurking' ? 'is-active' : ''; ?>" id="lurking">
-        <h3>Currently Lurking Users</h3>
+        <h3 class="title">Currently Lurking Users</h3>
         <table class="table is-striped is-fullwidth">
           <thead>
             <tr>
@@ -86,7 +86,7 @@ $countType = '';
         </table>
       </div>
       <div class="tab-content <?php echo $countType === 'typo' ? 'is-active' : ''; ?>" id="typo">
-        <h3>Typo Counts</h3>
+        <h3 class="title">Typo Counts</h3>
         <table class="table is-striped is-fullwidth">
           <thead>
             <tr>
@@ -105,7 +105,7 @@ $countType = '';
         </table>
       </div>
       <div class="tab-content <?php echo $countType === 'deaths' ? 'is-active' : ''; ?>" id="deaths">
-        <h3>Deaths Overview</h3>
+        <h3 class="title">Deaths Overview</h3>
         <table class="table is-striped is-fullwidth">
           <thead>
             <tr>
@@ -128,7 +128,7 @@ $countType = '';
         </table>
       </div>
       <div class="tab-content <?php echo $countType === 'hugs' ? 'is-active' : ''; ?>" id="hugs">
-        <h3>Hug Counts</h3>
+        <h3 class="title">Hug Counts</h3>
         <table class="table is-striped is-fullwidth">
           <thead>
             <tr>
@@ -151,7 +151,7 @@ $countType = '';
         </table>
       </div>
       <div class="tab-content <?php echo $countType === 'kisses' ? 'is-active' : ''; ?>" id="kisses">
-        <h3>Kiss Counts</h3>
+        <h3 class="title">Kiss Counts</h3>
         <table class="table is-striped is-fullwidth">
           <thead>
             <tr>
@@ -174,7 +174,7 @@ $countType = '';
         </table>
       </div>
       <div class="tab-content <?php echo $countType === 'custom' ? 'is-active' : ''; ?>" id="custom">
-        <h3>Custom Counts</h3>
+        <h3 class="title">Custom Counts</h3>
         <table class="table is-striped is-fullwidth">
           <thead>
             <tr>
