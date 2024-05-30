@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
@@ -111,34 +111,45 @@ $commandCountsJs = json_encode(array_column($commandData, 'count', 'command'));
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
+<div class="container">
 <br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
-<div class="medium-4">
-  <h2>Edit Custom Counter</h2>
+<div class="column is-half">
+  <h2 class="title is-5">Edit Custom Counter</h2>
   <form action="" method="post">
     <input type="hidden" name="action" value="update">
-    <label for="command">Command:</label>
-    <select id="command" name="command" required onchange="updateCurrentCount(this.value)">
-      <option value="">Select a command</option>
-      <?php foreach ($commands as $command): ?>
-        <option value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
-      <?php endforeach; ?>
-    </select>
-    <div id="current-typo-count"></div>
-    <label for="command_count">New Command Count:</label>
-    <input type="number" id="command_count" name="command_count" required min="0">
-    <input type="submit" class="defult-button" value="Update Command Count">
+    <div class="field">
+      <label class="label" for="command">Command:</label>
+      <div class="control">
+        <div class="select">
+          <select id="command" name="command" required onchange="updateCurrentCount(this.value)">
+            <option value="">Select a command</option>
+            <?php foreach ($commands as $command): ?>
+              <option value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label class="label" for="command_count">New Command Count:</label>
+      <div class="control">
+        <input class="input" type="number" id="command_count" name="command_count" required min="0">
+      </div>
+    </div>
+    <div class="control">
+      <input type="submit" class="button is-primary" value="Update Command Count">
+    </div>
   </form>
   <?php echo "<p>$status</p>" ?>
 </div>
@@ -150,7 +161,6 @@ function updateCurrentCount(command) {
     fetch('?action=get_command_count&command=' + encodeURIComponent(command))
       .then(response => response.text())
       .then(data => {
-        // Assuming that data is the typo count
         var commandCountInput = document.getElementById('command_count');
         commandCountInput.value = data;
       })
@@ -162,7 +172,5 @@ function updateCurrentCount(command) {
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 </body>
 </html>
