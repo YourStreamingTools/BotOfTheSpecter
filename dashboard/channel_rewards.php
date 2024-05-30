@@ -57,51 +57,51 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<table class="bot-table">
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Name</th>
-      <th>Cost</th>
-      <th>Bot Message</th>
-      <th>Edit</th>
-    </tr>
-  </thead>
-  <tbody>
-    <?php foreach ($channelPointRewards as $reward): ?>
+<div class="container">
+  <br>
+  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <table class="table is-striped is-fullwidth">
+    <thead>
       <tr>
-        <td><?php echo isset($reward['reward_id']) ? htmlspecialchars($reward['reward_id']) : ''; ?></td>
-        <td><?php echo isset($reward['reward_title']) ? htmlspecialchars($reward['reward_title']) : ''; ?></td>
-        <td><?php echo isset($reward['reward_cost']) ? htmlspecialchars($reward['reward_cost']) : ''; ?></td>
-        <td>
-          <div id="<?php echo $reward['reward_id']; ?>">
-            <?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?>
-          </div>
-          <div class="edit-box" id="edit-box-<?php echo $reward['reward_id']; ?>" style="display: none;">
-            <textarea class="custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
-          </div>
-        </td>
-        <td>
-          <button class="edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fa-solid fa-pencil-alt"></i></button>
-        </td>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Cost</th>
+        <th>Bot Message</th>
+        <th>Edit</th>
       </tr>
-    <?php endforeach; ?>
-  </tbody>
-</table>
-<br><br>
+    </thead>
+    <tbody>
+      <?php foreach ($channelPointRewards as $reward): ?>
+        <tr>
+          <td><?php echo isset($reward['reward_id']) ? htmlspecialchars($reward['reward_id']) : ''; ?></td>
+          <td><?php echo isset($reward['reward_title']) ? htmlspecialchars($reward['reward_title']) : ''; ?></td>
+          <td><?php echo isset($reward['reward_cost']) ? htmlspecialchars($reward['reward_cost']) : ''; ?></td>
+          <td>
+            <div id="<?php echo $reward['reward_id']; ?>">
+              <?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?>
+            </div>
+            <div class="edit-box" id="edit-box-<?php echo $reward['reward_id']; ?>" style="display: none;">
+              <textarea class="textarea custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
+            </div>
+          </td>
+          <td>
+            <button class="button is-small is-info edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-pencil-alt"></i></button>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  <br><br>
 </div>
 
 <script>
@@ -140,7 +140,5 @@ function updateWelcomeMessage(rewardid, newCustomMessage) {
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 </body>
 </html>
