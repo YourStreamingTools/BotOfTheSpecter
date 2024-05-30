@@ -102,32 +102,36 @@ footer {
 }
 
 .table thead th {
-    background-color: #333;
+    background-color: #1f1f1f;
     color: #e0e0e0;
-    border-color: #444;
+    border: 1px solid #444444;
 }
 
 .table tbody tr {
     background-color: #1f1f1f;
     color: #e0e0e0;
-    border-color: #444;
+    border: 1px solid #444444;
+}
+
+.table.is-striped tbody tr:not(.is-selected):nth-child(even) {
+    background-color: #1f1f1f;
 }
 
 .table tbody tr:nth-child(even) {
-    background-color: #2a2a2a;
+    background-color: #1f1f1f;
 }
 
 .table tbody tr:hover {
-    background-color: #333;
+    background-color: #1f1f1f;
 }
 
 .table td, .table th {
     padding: 10px;
-    border-color: #444;
+    border: 1px solid #444444;
 }
 
 .table .edit-box {
-    background-color: #2a2a2a;
+    background-color: #1f1f1f;
     color: #e0e0e0;
 }
 
