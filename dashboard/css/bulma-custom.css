@@ -6,6 +6,10 @@ html, body {
     font-family: 'Arial', sans-serif;
 }
 
+h1, h2, h3, h4, h5, h6, title {
+    color: #ffffff;
+}
+
 .container {
     margin-top: 50px;
     padding: 20px;
@@ -44,10 +48,6 @@ html, body {
 
 .has-text-danger {
     color: #ff3860 !important;
-}
-
-h1, h4 {
-    color: #ffffff;
 }
 
 .buttons .button {
