@@ -99,46 +99,46 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<h1>Your Moderators:</h1>
-  <div class="moderator-grid">
-      <?php foreach ($moderatorsData['data'] as $moderator) : 
+<div class="container">
+  <br>
+  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <h1 class="title is-4">Your Moderators:</h1>
+  <div class="columns is-multiline">
+      <?php foreach ($moderatorsForCurrentPage as $moderator) : 
           $modDisplayName = $moderator['user_name'];
       ?>
-      <div class="moderator">
-          <span><?php echo $modDisplayName; ?></span>
+      <div class="column is-one-quarter">
+          <div class="box">
+              <span><?php echo $modDisplayName; ?></span>
+          </div>
       </div>
       <?php endforeach; ?>
   </div>
 
   <!-- Pagination -->
-  <div class="pagination">
+  <nav class="pagination is-centered" role="navigation" aria-label="pagination">
       <?php if ($totalPages > 1) : ?>
           <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
               <?php if ($page === $currentPage) : ?>
-                  <span class="current-page"><?php echo $page; ?></span>
+                  <span class="pagination-link is-current"><?php echo $page; ?></span>
               <?php else : ?>
-                  <a href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
+                  <a class="pagination-link" href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
               <?php endif; ?>
           <?php endfor; ?>
       <?php endif; ?>
-  </div>
+  </nav>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 </body>
 </html>
