@@ -157,3 +157,7 @@ footer {
 .tabs a {
   color: #ffffff;
 }
+
+.toggle-checkbox {
+    display: none;
+}
