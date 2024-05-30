@@ -82,7 +82,7 @@ if(isset($_GET['logType'])) {
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <div class="tabs is-boxed">
+  <div class="tabs is-boxed is-centered">
     <ul>
       <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="?logType=bot#bot">Bot Logs</a></li>
       <li class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="?logType=script#script">Script Logs</a></li>
