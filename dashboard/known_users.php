@@ -72,11 +72,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <!-- /Header -->
-  </head>
+<head>
+  <!-- Header -->
+  <?php include('header.php'); ?>
+  <!-- /Header -->
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
@@ -87,7 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
   <br>
   <h2 class="title is-4">Known Users & Welcome Messages</h2>
   <p class="has-text-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</p>
-  <table class="table is-fullwidth is-striped is-hoverable">
+  <table class="table is-fullwidth">
     <thead>
       <tr>
         <th>Username</th>
