@@ -150,69 +150,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
+<div class="container">
   <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if ($displaySearchBar) : ?>
-    <div class="row column">
-        <div class="search-container">
-            <input type="text" id="vip-search" placeholder="Search for VIPs...">
+    <div class="field">
+        <div class="control">
+            <input class="input" type="text" id="vip-search" placeholder="Search for VIPs...">
         </div>
     </div>
   <?php endif; ?>
-  <div class="vip-form-group"><form method="POST"><h4>Add or Remove a user from your VIP list:<br>
-    <div class="vip-form-group"><label for="username">Username:</label><input type="text" id="vip-username" name="vip-username" required></div><div class="vip-form-group"><button type="submit" name="action" value="add">Add VIP</button>&nbsp;&nbsp;&nbsp;<button type="submit" name="action" value="remove">Remove VIP</button></div></h4></form>
+  <div class="box">
+    <form method="POST">
+      <h4 class="title is-4">Add or Remove a user from your VIP list:</h4>
+      <div class="field">
+        <label class="label" for="vip-username">Username:</label>
+        <div class="control">
+          <input class="input" type="text" id="vip-username" name="vip-username" required>
+        </div>
+      </div>
+      <div class="field">
+        <div class="control">
+          <button class="button is-success" type="submit" name="action" value="add">Add VIP</button>
+          <button class="button is-danger" type="submit" name="action" value="remove">Remove VIP</button>
+        </div>
+      </div>
+    </form>
     <?php echo $VIPUserStatus; ?>
   </div>
-  <h1>Your VIPs:</h1>
-  <div class="vip-grid">
+  <h1 class="title is-4">Your VIPs:</h1>
+  <div class="columns is-multiline">
         <?php foreach ($VIPsForCurrentPage as $vip) : 
             $vipDisplayName = $vip['user_name'];
         ?>
-        <div class="vip">
-            <span><?php echo $vipDisplayName; ?></span>
+        <div class="column is-one-quarter">
+            <div class="box">
+                <span><?php echo $vipDisplayName; ?></span>
+            </div>
         </div>
         <?php endforeach; ?>
   </div>
 
   <!-- Pagination -->
-  <div class="pagination">
+  <nav class="pagination is-centered" role="navigation" aria-label="pagination">
       <?php if ($totalPages > 1) : ?>
           <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
               <?php if ($page === $currentPage) : ?>
-                  <span class="current-page"><?php echo $page; ?></span>
+                  <span class="pagination-link is-current"><?php echo $page; ?></span>
               <?php else : ?>
-                  <a href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
+                  <a class="pagination-link" href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
               <?php endif; ?>
           <?php endfor; ?>
       <?php endif; ?>
-  </div>
+  </nav>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 <script>
 $(document).ready(function() {
     <?php if ($displaySearchBar) : ?>
     $('#vip-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();
-        $('.vip').each(function() {
-            var vipName = $(this).find('span').text().toLowerCase();
+        $('.column .box span').each(function() {
+            var vipName = $(this).text().toLowerCase();
             if (vipName.includes(searchTerm)) {
-                $(this).show();
+                $(this).closest('.column').show();
             } else {
-                $(this).hide();
+                $(this).closest('.column').hide();
             }
         });
     });
