@@ -67,8 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <table class="table is-striped is-fullwidth">
     <thead>
@@ -101,7 +100,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
       <?php endforeach; ?>
     </tbody>
   </table>
-  <br><br>
 </div>
 
 <script>
