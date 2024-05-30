@@ -117,9 +117,7 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
             $modDisplayName = $moderator['user_name'];
         ?>
         <div class="column is-one-quarter">
-            <div class="box is-centered">
-                <p><?php echo $modDisplayName; ?></p>
-            </div>
+            <div class="moderator-box"><?php echo $modDisplayName; ?></div>
         </div>
         <?php endforeach; ?>
     </div>  
