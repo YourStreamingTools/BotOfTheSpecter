@@ -1,62 +1,70 @@
-<div class="title-bar" data-responsive-toggle="mobile-menu" data-hide-for="medium">
-  <button class="menu-icon" type="button" data-toggle="mobile-menu"></button>
-  <div class="title-bar-title">Menu</div>
+<div class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a class="navbar-item" href="#">
+      <span class="icon">
+        <i class="fas fa-bars"></i>
+      </span>
+      <span>BotOfTheSpecter</span>
+    </a>
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div id="navbarBasic" class="navbar-menu">
+    <div class="navbar-start">
+      <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/bot.php') echo 'is-active'; ?>" href="bot.php">Dashboard</a>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Twitch Data</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/mods.php') echo 'is-active'; ?>" href="mods.php">Your Mods</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/followers.php') echo 'is-active'; ?>" href="followers.php">Your Followers</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/subscribers.php') echo 'is-active'; ?>" href="subscribers.php">Your Subscribers</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/vips.php') echo 'is-active'; ?>" href="vips.php">Your VIPs</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/channel_rewards.php') echo 'is-active'; ?>" href="channel_rewards.php">Channel Point Rewards</a>
+        </div>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Logs</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/logs.php') echo 'is-active'; ?>" href="logs.php">View Logs</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/chat_history.php') echo 'is-active'; ?>" href="chat_history.php">Chat History</a>
+        </div>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Bot Messages</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/known_users.php') echo 'is-active'; ?>" href="known_users.php">Welcome Messages</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/timed_messages.php') echo 'is-active'; ?>" href="timed_messages.php">Timed Messages</a>
+        </div>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Bot Counting</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/counters.php') echo 'is-active'; ?>" href="counters.php">Counters</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/edit_typos.php') echo 'is-active'; ?>" href="edit_typos.php">Edit Typos</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/edit_custom_counts.php') echo 'is-active'; ?>" href="edit_custom_counts.php">Edit Custom Counters</a>
+        </div>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Bot Commands</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/builtin.php') echo 'is-active'; ?>" href="builtin.php">View Built-in Commands</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/commands.php') echo 'is-active'; ?>" href="commands.php">View Custom Commands</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/add-commands.php') echo 'is-active'; ?>" href="add-commands.php">Add Custom Command</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/remove-commands.php') echo 'is-active'; ?>" href="remove-commands.php">Remove Custom Command</a>
+          <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/edit-commands.php') echo 'is-active'; ?>" href="edit-commands.php">Edit Custom Command</a>
+        </div>
+      </div>
+      <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/discordbot.php') echo 'is-active'; ?>" href="discordbot.php">Discord Bot</a>
+      <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/profile.php') echo 'is-active'; ?>" href="profile.php">Profile</a>
+      <a class="navbar-item <?php if($_SERVER['REQUEST_URI'] == '/logout.php') echo 'is-active'; ?>" href="logout.php">Logout</a>
+    </div>
+    <div class="navbar-end">
+      <div class="navbar-item">
+        <a class="popup-link" onclick="showPopup()">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</a>
+      </div>
+    </div>
+  </div>
 </div>
-<nav class="top-bar stacked-for-medium" id="mobile-menu">
-  <div class="top-bar-left">
-    <ul class="dropdown vertical medium-horizontal menu" data-responsive-menu="drilldown medium-dropdown hinge-in-from-top hinge-out-from-top">
-      <li class="menu-text">BotOfTheSpecter</li>
-      <?php if($_SERVER['REQUEST_URI'] == '/bot.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="bot.php">Dashboard</a></li>
-      <li>
-        <a>Twitch Data</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <?php if($_SERVER['REQUEST_URI'] == '/mods.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="mods.php">Your Mods</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/followers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="followers.php">Your Followers</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/subscribers.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="subscribers.php">Your Subscribers</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/vips.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="vips.php">Your VIPs</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/channel_rewards.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="channel_rewards.php">Channel Point Rewards</a></li>
-        </ul>
-      </li>
-      <li>
-        <a>Logs</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <?php if($_SERVER['REQUEST_URI'] == '/logs.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="logs.php">View Logs</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/chat_history.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="chat_history.php">Chat History</a></li>
-        </ul>
-      </li>
-      <li>
-        <a>Bot Messages</a>
-        <ul class="vertical menu" data-dropdown-menu>
-        <?php if($_SERVER['REQUEST_URI'] == '/known_users.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="known_users.php">Welcome Messages</a></li>
-        <?php if($_SERVER['REQUEST_URI'] == '/timed_messages.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="timed_messages.php">Timed Messages</a></li>
-        </ul>
-      </li>
-      <li>
-        <a>Bot Counting</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <?php if($_SERVER['REQUEST_URI'] == '/counters.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="counters.php">Counters</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/edit_typos.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit_typos.php">Edit Typos</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/edit_custom_counts.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit_custom_counts.php">Edit Custom Counters</a></li>
-        </ul>
-      </li>
-      <li>
-        <a>Bot Commands</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <?php if($_SERVER['REQUEST_URI'] == '/builtin.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="builtin.php">View Built-in Commands</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/commands.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="commands.php">View Custom Commands</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/add-commands.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="add-commands.php">Add Custom Command</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/remove-commands.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="remove-commands.php">Remove Custom Command</a></li>
-          <?php if($_SERVER['REQUEST_URI'] == '/edit-commands.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="edit-commands.php">Edit Custom Command</a></li>
-        </ul>
-      </li>
-      <?php if($_SERVER['REQUEST_URI'] == '/discordbot.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="discordbot.php">Discord Bot</a></li>
-      <?php if($_SERVER['REQUEST_URI'] == '/profile.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="profile.php">Profile</a></li>
-      <?php if($_SERVER['REQUEST_URI'] == '/logout.php') echo '<li class="is-active">'; else echo '<li>' ?><a href="logout.php">Logout</a></li>
-    </ul>
-  </div>
-  <div class="top-bar-right">
-    <ul class="menu">
-      <li><a class="popup-link" onclick="showPopup()">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</a></li>
-    </ul>
-  </div>
-</nav>
