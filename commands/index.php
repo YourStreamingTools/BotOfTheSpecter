@@ -67,7 +67,7 @@ if (isset($_GET['user'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
-    <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
     <link rel="stylesheet" type="text/css" href="https://botofthespecter.com/style.css">
     <link rel="stylesheet" href="custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
@@ -79,50 +79,55 @@ if (isset($_GET['user'])) {
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
-    <header>
-        <h1>BotOfTheSpecter</h1>
+    <header class="has-background-info has-text-white py-4">
+        <h1 class="title is-1 has-text-centered">BotOfTheSpecter</h1>
     </header>
-    <div class="container">
-    <div class="row">
-        <div class="medium-12 columns">
-            <?php if (isset($_GET['user'])): ?>
-                <?php echo $buildResults; ?>
-                <?php if (!empty($commands)): ?>
-                    <table class="bot-table">
-                        <thead>
-                            <tr>
-                                <th>Built-in Commands</th>
-                                <th>Custom Commands</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php $maxRows = max(count($builtCommands), count($commands)); ?>
-                            <?php for ($i = 0; $i < $maxRows; $i++): ?>
+    <div class="container mt-5">
+        <div class="columns is-centered">
+            <div class="column is-10">
+                <?php if (isset($_GET['user'])): ?>
+                    <?php echo $buildResults; ?>
+                    <?php if (!empty($commands)): ?>
+                        <table class="table is-striped is-fullwidth">
+                            <thead>
                                 <tr>
-                                    <td><?php echo isset($builtCommands[$i]) ? '!' . htmlspecialchars($builtCommands[$i]['command_name']) : ''; ?></td>
-                                    <td><?php echo isset($commands[$i]) ? '!' . htmlspecialchars($commands[$i]['command']) : ''; ?></td>
+                                    <th>Built-in Commands</th>
+                                    <th>Custom Commands</th>
                                 </tr>
-                            <?php endfor; ?>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                <?php $maxRows = max(count($builtCommands), count($commands)); ?>
+                                <?php for ($i = 0; $i < $maxRows; $i++): ?>
+                                    <tr>
+                                        <td><?php echo isset($builtCommands[$i]) ? '!' . htmlspecialchars($builtCommands[$i]['command_name']) : ''; ?></td>
+                                        <td><?php echo isset($commands[$i]) ? '!' . htmlspecialchars($commands[$i]['command']) : ''; ?></td>
+                                    </tr>
+                                <?php endfor; ?>
+                            </tbody>
+                        </table>
+                    <?php else: ?>
+                        <p>No commands found.</p>
+                    <?php endif; ?>
                 <?php else: ?>
-                    <p>No commands found.</p>
+                    <h2 class="title is-2">Search for User Commands:</h2>
+                    <div class="field has-addons">
+                        <div class="control">
+                            <form method='get' action='<?php echo $_SERVER['PHP_SELF']; ?>' class='search-form'>
+                                <input class="input" type="text" id='user_search' name='user' placeholder="Enter username">
+                        </div>
+                        <div class="control">
+                            <input type='submit' value='Search' class='button is-info'>
+                            </form>
+                        </div>
+                    </div>
                 <?php endif; ?>
-            <?php else: ?>
-                <h2>Search for User Commands:</h2>
-                <div class="medium-4">
-                    <form method='get' action='<?php echo $_SERVER['PHP_SELF']; ?>' class='search-form'>
-                        <label for='user_search' class='search-label'>Enter username:</label>
-                        <input type='text' id='user_search' name='user' class='search-input'>
-                        <input type='submit' value='Search' class='default-button'>
-                    </form>
-                </div>
-            <?php endif; ?>
+            </div>
         </div>
     </div>
-    </div>
-    <footer>
-        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
+    <footer class="footer has-background-info has-text-white py-4">
+        <div class="content has-text-centered">
+            &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
+        </div>
     </footer>
 </body>
 </html>
