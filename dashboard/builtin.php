@@ -76,54 +76,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-  <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <div class="row">
-    <div class="columns">
-      <h4>Bot Commands</h4>
-      <p style='color: red;'>Soon you'll be able to enable and disable the built in commands. If there's a command you don't use you can disable it from working.</p>
-        <input type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
-        <table class="bot-table" id="commandsTable">
-          <thead>
-              <tr>
-                  <th>Command</th>
-                  <th>Functionality</th>
-                  <th>Example Response</th>
-                  <th>Usage Level</th>
-                  <th>Status</th>
-                  <th>Action</th>
-              </tr>
-          </thead>
-          <tbody>
-              <?php foreach ($commands as $command): ?>
-              <tr>
-                    <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
-                    <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
-                    <td><?php echo htmlspecialchars($command['response']); ?></td>
-                    <td><?php echo htmlspecialchars($command['level']); ?></td>
-                    <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
-                    <td>
-                    <label class="switch">
-                        <input type="checkbox" class="toggle-checkbox" <?php echo ($statusResult['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command_name']); ?>', this.checked)">
-                        <i class="fa-solid <?php echo $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                    </label>
-                    </td>
-              </tr>
-              <?php endforeach; ?>
-          </tbody>
-        </table>
+<div class="container">
+<br>
+<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<div class="box">
+    <h4 class="title is-4">Bot Commands</h4>
+    <p class="has-text-danger">Soon you'll be able to enable and disable the built in commands. If there's a command you don't use you can disable it from working.</p>
+    <div class="field">
+        <div class="control">
+            <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+        </div>
     </div>
-  </div>
+    <table class="table is-fullwidth" id="commandsTable">
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Functionality</th>
+                <th>Example Response</th>
+                <th>Usage Level</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($commands as $command): ?>
+            <tr>
+                <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
+                <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
+                <td><?php echo htmlspecialchars($command['response']); ?></td>
+                <td><?php echo htmlspecialchars($command['level']); ?></td>
+                <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
+                <td>
+                <label class="switch">
+                    <input type="checkbox" class="toggle-checkbox" <?php echo ($statusResult['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command_name']); ?>', this.checked)">
+                    <i class="fa-solid <?php echo $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                </label>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
 <br><br><br>
 </div>
 
@@ -148,8 +150,5 @@ function toggleStatus(commandName, isChecked) {
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
-<script src="/js/search.js"></script>
 </body>
 </html>
