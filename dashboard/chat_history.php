@@ -47,60 +47,76 @@ include 'sqlite.php';
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<h2>Chat History</h2>
-<ul class="tabs" data-tabs id="chatTabs">
-  <?php
-  // Fetch chat history dates
-  $dateFolder = "/var/www/logs/chat_history/$username/";
-  $dates = scandir($dateFolder);
+<div class="container">
+  <br>
+  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <h2 class="title is-2">Chat History</h2>
+  <div class="tabs is-boxed" id="chatTabs">
+    <ul>
+      <?php
+      // Fetch chat history dates
+      $dateFolder = "/var/www/logs/chat_history/$username/";
+      $dates = scandir($dateFolder);
 
-  // Display chat history dates as tabs
-  foreach ($dates as $date) {
-    if ($date !== '.' && $date !== '..') {
-      $dateWithoutExtension = pathinfo($date, PATHINFO_FILENAME);
-      echo "<li class='tabs-title'><a href='?date=$dateWithoutExtension'>$dateWithoutExtension</a></li>";
+      // Display chat history dates as tabs
+      foreach ($dates as $date) {
+        if ($date !== '.' && $date !== '..') {
+          $dateWithoutExtension = pathinfo($date, PATHINFO_FILENAME);
+          echo "<li class='tab-item'><a href='?date=$dateWithoutExtension'>$dateWithoutExtension</a></li>";
+        }
+      }
+      ?>
+    </ul>
+  </div>
+  <div class="content">
+    <?php
+    // Display chat history content for the selected date
+    if (isset($_GET['date'])) {
+      $selectedDate = $_GET['date'];
+      $filename = "/var/www/logs/chat_history/$username/$selectedDate.txt";
+      if (file_exists($filename)) {
+        $chatHistory = file_get_contents($filename);
+        echo "<div class='box'>";
+        echo "<h3 class='title is-3'>$selectedDate Chat</h3>";
+        echo "<pre>$chatHistory</pre>";
+        echo "</div>";
+      } else {
+        echo "<div class='box'>";
+        echo "<h3 class='title is-3'>$selectedDate Chat</h3>";
+        echo "Chat history not found for the selected date";
+        echo "</div>";
+      }
     }
-  }
-  ?>
-</ul>
-<div class="tabs-content" data-tabs-content="chatTabs">
-  <?php
-  // Display chat history content for the selected date
-  if(isset($_GET['date'])) {
-    $selectedDate = $_GET['date'];
-    $filename = "/var/www/logs/chat_history/$username/$selectedDate.txt";
-    if (file_exists($filename)) {
-      $chatHistory = file_get_contents($filename);
-      echo "<div class='tabs-panel is-active' id='$selectedDate'>";
-      echo "<h3>$selectedDate Chat</h3>";
-      echo "<pre>$chatHistory</pre>";
-      echo "</div>";
-    } else {
-      echo "<div class='tabs-panel is-active' id='$selectedDate'>";
-      echo "<h3>$selectedDate Chat</h3>";
-      echo "Chat history not found for the selected date";
-      echo "</div>";
-    }
-  }
-  ?>
-</div>
+    ?>
+  </div>
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tabs = document.querySelectorAll('#chatTabs li a');
+  const tabContents = document.querySelectorAll('.tab-content');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', (event) => {
+      event.preventDefault();
+      const target = tab.getAttribute('href').substring(1);
+      tabs.forEach(item => item.parentElement.classList.remove('is-active'));
+      tabContents.forEach(content => content.classList.remove('is-active'));
+      tab.parentElement.classList.add('is-active');
+      document.getElementById(target).classList.add('is-active');
+    });
+  });
+});
+</script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 </body>
 </html>
