@@ -37,7 +37,7 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
-$countType= '';
+$countType = '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -51,183 +51,185 @@ $countType= '';
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<ul class="tabs" data-tabs id="countTabs">
-    <li class="tabs-title <?php echo $countType === 'lurking' ? 'is-active' : ''; ?>"><a href="#lurking">Currently Lurking Users</a></li>
-    <li class="tabs-title <?php echo $countType === 'typo' ? 'is-active' : ''; ?>"><a href="#typo">Typo Counts</a></li>
-    <li class="tabs-title <?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="#deaths">Deaths Overview</a></li>
-    <li class="tabs-title <?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="#hugs">Hug Counts</a></li>
-    <li class="tabs-title <?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="#kisses">Kiss Counts</a></li>
-    <li class="tabs-title <?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="#custom">Custom Counts</a></li>
-</ul>
-<div class="tabs-content" data-tabs-content="countTabs">
-  <div class="tabs-panel <?php echo $countType === 'lurking' ? 'is-active' : ''; ?>" id="lurking">
-    <h3>Currently Lurking Users</h3>
-    <pre>
-      <table class="counter-table">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Lurk Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($lurkers as $lurker): $displayName = $usernames[$lurker['user_id']] ?? $lurker['user_id'];?>
+<div class="container">
+  <br>
+  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <div class="tabs is-boxed is-centered" id="countTabs">
+    <ul>
+      <li class="<?php echo $countType === 'lurking' ? 'is-active' : ''; ?>"><a href="#lurking">Currently Lurking Users</a></li>
+      <li class="<?php echo $countType === 'typo' ? 'is-active' : ''; ?>"><a href="#typo">Typo Counts</a></li>
+      <li class="<?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="#deaths">Deaths Overview</a></li>
+      <li class="<?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="#hugs">Hug Counts</a></li>
+      <li class="<?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="#kisses">Kiss Counts</a></li>
+      <li class="<?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="#custom">Custom Counts</a></li>
+    </ul>
+  </div>
+  <div class="content">
+    <div class="tabs-content">
+      <div class="tab-content <?php echo $countType === 'lurking' ? 'is-active' : ''; ?>" id="lurking">
+        <h3>Currently Lurking Users</h3>
+        <table class="table is-striped is-fullwidth">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Lurk Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($lurkers as $lurker): $displayName = $usernames[$lurker['user_id']] ?? $lurker['user_id']; ?>
             <tr>
               <td id="<?php echo $lurker['user_id']; ?>"><?php echo htmlspecialchars($displayName); ?></td>
               <td id="lurk_duration"><?php echo htmlspecialchars($lurker['lurk_duration']); ?></td>
             </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </pre>
-  </div>
-  <div class="tabs-panel <?php echo $countType === 'typo' ? 'is-active' : ''; ?>" id="typo">
-    <h3>Typo Counts</h3>
-    <pre>
-      <table class="counter-table">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Typo Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($typos as $typo): ?>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div class="tab-content <?php echo $countType === 'typo' ? 'is-active' : ''; ?>" id="typo">
+        <h3>Typo Counts</h3>
+        <table class="table is-striped is-fullwidth">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Typo Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($typos as $typo): ?>
             <tr>
               <td><?php echo htmlspecialchars($typo['username']); ?></td>
               <td><?php echo htmlspecialchars($typo['typo_count']); ?></td>
             </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </pre>
-  </div>
-  <div class="tabs-panel <?php echo $countType === 'deaths' ? 'is-active' : ''; ?>" id="deaths">
-    <h3>Deaths Overview</h3>
-    <pre>
-      <table class="counter-table">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Total Deaths -->
-          <tr>
-            <td>Total Deaths</td>
-            <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? '0'); ?></td>
-          </tr>
-          <!-- Game-Specific Deaths -->
-          <?php foreach ($gameDeaths as $gameDeath): ?>
-          <tr>
-            <td><?php echo htmlspecialchars($gameDeath['game_name']); ?></td>
-            <td><?php echo htmlspecialchars($gameDeath['death_count']); ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </pre>
-  </div>
-  <div class="tabs-panel <?php echo $countType === 'hugs' ? 'is-active' : ''; ?>" id="hugs">
-    <h3>Hug Counts</h3>
-    <pre>
-      <table class="counter-table">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Hug Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Total Hugs -->
-          <tr>
-            <td>Total Hugs</td>
-            <td><?php echo htmlspecialchars($totalHugs['total_hug_count'] ?? '0'); ?></td>
-          </tr>
-          <!-- Username-Specific Hugs -->
-          <?php foreach ($hugCounts as $hugCount): ?>
-          <tr>
-            <td><?php echo htmlspecialchars($hugCount['username']); ?></td>
-            <td><?php echo htmlspecialchars($hugCount['hug_count']); ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </pre>
-  </div>
-  <div class="tabs-panel <?php echo $countType === 'kisses' ? 'is-active' : ''; ?>" id="kisses">
-    <h3>Kiss Counts</h3>
-    <pre>
-      <table class="counter-table">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Kiss Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Total Kisses -->
-          <tr>
-            <td>Total Kisses</td>
-            <td><?php echo htmlspecialchars($totalKisses['total_kiss_count'] ?? '0'); ?></td>
-          </tr>
-          <!-- Username-Specific Kisses -->
-          <?php foreach ($kissCounts as $kissCount): ?>
-          <tr>
-            <td><?php echo htmlspecialchars($kissCount['username']); ?></td>
-            <td><?php echo htmlspecialchars($kissCount['kiss_count']); ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </pre>
-  </div>
-  <div class="tabs-panel <?php echo $countType === 'custom' ? 'is-active' : ''; ?>" id="custom">
-    <h3>Custom Counts</h3>
-    <pre>
-      <table class="counter-table">
-        <thead>
-          <tr>
-            <th>Command</th>
-            <th>Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($customCounts as $customCount): ?>
-          <tr>
-            <td><?php echo htmlspecialchars($customCount['command']); ?></td>
-            <td><?php echo htmlspecialchars($customCount['count']); ?></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </pre>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div class="tab-content <?php echo $countType === 'deaths' ? 'is-active' : ''; ?>" id="deaths">
+        <h3>Deaths Overview</h3>
+        <table class="table is-striped is-fullwidth">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total Deaths</td>
+              <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? '0'); ?></td>
+            </tr>
+            <?php foreach ($gameDeaths as $gameDeath): ?>
+            <tr>
+              <td><?php echo htmlspecialchars($gameDeath['game_name']); ?></td>
+              <td><?php echo htmlspecialchars($gameDeath['death_count']); ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div class="tab-content <?php echo $countType === 'hugs' ? 'is-active' : ''; ?>" id="hugs">
+        <h3>Hug Counts</h3>
+        <table class="table is-striped is-fullwidth">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Hug Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total Hugs</td>
+              <td><?php echo htmlspecialchars($totalHugs['total_hug_count'] ?? '0'); ?></td>
+            </tr>
+            <?php foreach ($hugCounts as $hugCount): ?>
+            <tr>
+              <td><?php echo htmlspecialchars($hugCount['username']); ?></td>
+              <td><?php echo htmlspecialchars($hugCount['hug_count']); ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div class="tab-content <?php echo $countType === 'kisses' ? 'is-active' : ''; ?>" id="kisses">
+        <h3>Kiss Counts</h3>
+        <table class="table is-striped is-fullwidth">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Kiss Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total Kisses</td>
+              <td><?php echo htmlspecialchars($totalKisses['total_kiss_count'] ?? '0'); ?></td>
+            </tr>
+            <?php foreach ($kissCounts as $kissCount): ?>
+            <tr>
+              <td><?php echo htmlspecialchars($kissCount['username']); ?></td>
+              <td><?php echo htmlspecialchars($kissCount['kiss_count']); ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div class="tab-content <?php echo $countType === 'custom' ? 'is-active' : ''; ?>" id="custom">
+        <h3>Custom Counts</h3>
+        <table class="table is-striped is-fullwidth">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($customCounts as $customCount): ?>
+            <tr>
+              <td><?php echo htmlspecialchars($customCount['command']); ?></td>
+              <td><?php echo htmlspecialchars($customCount['count']); ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 <script>
-    $(document).ready(function() {
-        $("#countTabs a").click(function(e) {
-            e.preventDefault();
-            var countType = $(this).attr('href').replace('#', '');
-
-            // Remove active class from all tabs and panels
-            $(".tabs-title").removeClass("is-active");
-            $(".tabs-panel").removeClass("is-active");
-
-            // Add active class to clicked tab and corresponding panel
-            $(this).parent().addClass("is-active");
-            $("#" + countType).addClass("is-active");
-        });
+document.addEventListener('DOMContentLoaded', () => {
+  // Get all "navbar-burger" elements
+  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+  // Check if there are any navbar burgers
+  if ($navbarBurgers.length > 0) {
+    // Add a click event on each of them
+    $navbarBurgers.forEach(el => {
+      el.addEventListener('click', () => {
+        // Get the target from the "data-target" attribute
+        const target = el.dataset.target;
+        const $target = document.getElementById(target);
+        // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+        el.classList.toggle('is-active');
+        $target.classList.toggle('is-active');
+      });
     });
+  }
+});
+document.addEventListener('DOMContentLoaded', () => {
+  const tabs = document.querySelectorAll('#countTabs li a');
+  const tabContents = document.querySelectorAll('.tab-content');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', (event) => {
+      event.preventDefault();
+      const target = tab.getAttribute('href').substring(1);
+      tabs.forEach(item => item.parentElement.classList.remove('is-active'));
+      tabContents.forEach(content => content.classList.remove('is-active'));
+      tab.parentElement.classList.add('is-active');
+      document.getElementById(target).classList.add('is-active');
+    });
+  });
+});
 </script>
 </body>
 </html>
