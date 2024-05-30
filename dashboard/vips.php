@@ -40,7 +40,7 @@ include 'sqlite.php';
 
 // API endpoint to fetch VIPs of the channel
 $vipsURL = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID";
-$clientID = ''; // CHANGE TO MAKE THIS WORK
+$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
 $allVIPs = [];
 $VIPUserStatus="";
@@ -160,8 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if ($displaySearchBar) : ?>
     <div class="field">
@@ -194,9 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $vipDisplayName = $vip['user_name'];
         ?>
         <div class="column is-one-quarter">
-            <div class="box">
-                <span><?php echo $vipDisplayName; ?></span>
-            </div>
+            <div class="box centered-box"><?php echo $vipDisplayName; ?></div>
         </div>
         <?php endforeach; ?>
   </div>
