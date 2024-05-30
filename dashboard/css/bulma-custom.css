@@ -1,0 +1,29 @@
+body {
+    background-color: #101010;
+    color: #e0e0e0;
+}
+.box, .hero, .button {
+    background-color: #1f1f1f;
+    color: #e0e0e0;
+}
+.button.is-light.is-outlined {
+    border-color: #e0e0e0;
+}
+.has-text-success {
+    color: #00d1b2 !important;
+}
+.has-text-danger {
+    color: #ff3860 !important;
+}
+h1, h4 {
+    color: #ffffff;
+}
+.container {
+    margin-top: 50px;
+}
+.buttons .button {
+    margin-right: 10px;
+}
+footer {
+    margin-top: 20px;
+}
