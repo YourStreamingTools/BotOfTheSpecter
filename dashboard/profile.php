@@ -64,19 +64,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
+<div class="container">
 <br>
-<h1><?php echo "$greeting! <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<table class="dark-mode-table">
+<h1 class="title is-4"><?php echo "$greeting! <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<table class="table is-fullwidth is-striped is-hoverable">
   <tr>
     <td><strong>Your Username:</strong></td>
     <td><?php echo $username; ?></td>
@@ -103,29 +103,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   </tr>
 </table>
 <p><strong>Your API Key:</strong> <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
-<button type="button" class="defult-button" id="show-api-key">Show API Key</button>
-<button type="button" class="defult-button" id="hide-api-key" style="display:none;">Hide API Key</button>
+<button type="button" class="button is-primary" id="show-api-key">Show API Key</button>
+<button type="button" class="button is-primary" id="hide-api-key" style="display:none;">Hide API Key</button>
 <br><br>
-<button type="button" class="defult-button" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
+<button type="button" class="button is-primary" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
 <br><br><br>
-<h2>Update Profile</h2>
+<h2 class="title is-4">Update Profile</h2>
 <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
-  <div class="small-3">
-    <div class="column"><label for="timezone">Timezone:</label><input type="text" id="timezone" name="timezone" value="<?php echo $timezone; ?>"></div>
-    <div class="column"><label for="weather_location">Weather Location:</label><input type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>"></div>
-    <div class="column"><input type="submit" value="Submit"></div>
+  <div class="field">
+    <label class="label" for="timezone">Timezone:</label>
+    <div class="control">
+      <input class="input" type="text" id="timezone" name="timezone" value="<?php echo $timezone; ?>">
+    </div>
+  </div>
+  <div class="field">
+    <label class="label" for="weather_location">Weather Location:</label>
+    <div class="control">
+      <input class="input" type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>">
+    </div>
+  </div>
+  <div class="control">
+    <input type="submit" class="button is-primary" value="Submit">
   </div>
 </form>
 <br>
-<?php echo $status; ?>
+<?php if (!empty($status)): ?>
+  <div class="notification is-primary">
+    <?php echo htmlspecialchars($status); ?>
+  </div>
+<?php endif; ?>
 </div>
+
 <!-- Include the JavaScript files -->
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/profile.js"></script>
 <script src="/js/obsbutton.js" defer></script>
 <script src="/js/timezone.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 
 <!-- JavaScript code to convert and display the dates -->
 <script>
