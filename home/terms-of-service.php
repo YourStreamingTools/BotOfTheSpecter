@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - Terms of Service</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
     <link rel="stylesheet" type="text/css" href="style.css">
-  	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-  	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Tools4Streaming" />
     <meta name="twitter:title" content="BotOfTheSpecter" />
@@ -14,13 +15,17 @@
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
-    <header>
-        <h1>BotOfTheSpecter</h1>
-        <a href="https://botofthespecter.com/" class="login-button">HOME</a>
+    <header class="hero is-primary">
+        <div class="hero-body">
+            <div class="container">
+                <h1 class="title">BotOfTheSpecter</h1>
+                <a href="https://botofthespecter.com/" class="button is-light is-outlined">HOME</a>
+            </div>
+        </div>
     </header>
-    <div class="container">
-        <div class="bio">
-            <h1>Terms of Service</h1>
+    <div class="container mt-6">
+        <div class="content">
+            <h1 class="title">Terms of Service</h1>
             <ol>
                 <li><strong>Acceptance of Terms</strong>: By accessing or using our services, you agree to be bound by these Terms of Service.</li>
                 <li><strong>Description of Service</strong>: Our services include providing Twitch and Discord bot functionalities.</li>
@@ -37,8 +42,10 @@
             </ol>
         </div>
     </div>
-    <footer>
-        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved. | Server 1
+    <footer class="footer">
+        <div class="content has-text-centered">
+            &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved. | Server 1
+        </div>
     </footer>
 </body>
 </html>
