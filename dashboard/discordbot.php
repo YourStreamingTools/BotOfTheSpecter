@@ -98,40 +98,50 @@ $buildStatus = "";
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
+<div class="container">
 <br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <?php if (!$is_linked) {
-  echo '<h3>Linking your discord account to Specter will allow you to do some really cool stuff.</h3>';
-  echo '<button class="defult-button" onclick="linkDiscord()">Link Discord</button>';
+  echo '<h3 class="subtitle is-5">Linking your discord account to Specter will allow you to do some really cool stuff.</h3>';
+  echo '<button class="button is-link" onclick="linkDiscord()">Link Discord</button>';
 } else { ?>
-  <h4>Thanks for linking your account, this is not required but if you'd like to add the bot itself to your discord server, you can by clicking the button below.</h4>
-  <button class="defult-button" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
+  <h4 class="subtitle is-5">Thanks for linking your account, this is not required but if you'd like to add the bot itself to your discord server, you can by clicking the button below.</h4>
+  <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
   <br><br><br>
   <div class="columns">
-  <h2>Add Discord Webhook URL</h2>
-    <div class="small-6">
+  <h2 class="title is-4">Add Discord Webhook URL</h2>
+    <div class="column is-half">
     <form action="" method="post">
-        <label for="option">Select an option:</label>
-        <select id="option" name="option">
-            <option value="1">Discord Alert (For Twitch Logs)</option>
-            <option value="2">Discord Mod Alert (For Mod logs from Twitch)</option>
-            <option value="3">Discord Alert Online (For posting in discord when the stream is online)</option>
-        </select>
-        <label for="webhook">Discord Webhook URL:</label>
-        <input type="text" id="webhook" name="webhook" required>
-        <input type="submit" value="Submit"><br><br><br>
+      <div class="field">
+        <label class="label" for="option">Select an option:</label>
+        <div class="control">
+          <div class="select">
+            <select id="option" name="option">
+              <option value="1">Discord Alert (For Twitch Logs)</option>
+              <option value="2">Discord Mod Alert (For Mod logs from Twitch)</option>
+              <option value="3">Discord Alert Online (For posting in discord when the stream is online)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="label" for="webhook">Discord Webhook URL:</label>
+        <div class="control">
+          <input class="input" type="text" id="webhook" name="webhook" required>
+        </div>
+      </div>
+      <div class="control">
+        <input class="button is-primary" type="submit" value="Submit">
+      </div>
     </form>
     </div>
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p style='color: green;'>Webhook URL added successfully</p>"; } ?>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>Webhook URL added successfully</p>"; } ?>
   </div>
 <?php } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 <?php if (!$is_linked) {
   echo '<script>function linkDiscord() { window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscord_auth.php&scope=identify+openid+guilds"; } </script>';
   } else { echo '<script>function discordBotInvite() { window.open("https://discord.com/oauth2/authorize?client_id=1170683250797187132&scope=applications.commands%20bot&permissions=8", "_blank"); } </script>'; } ?>
