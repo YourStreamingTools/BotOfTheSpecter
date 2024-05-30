@@ -121,38 +121,37 @@ $commandCountsJs = json_encode(array_column($commandData, 'count', 'command'));
 <!-- /Navigation -->
 
 <div class="container">
-<br>
-<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<div class="column is-half">
-  <h2 class="title is-5">Edit Custom Counter</h2>
-  <form action="" method="post">
-    <input type="hidden" name="action" value="update">
-    <div class="field">
-      <label class="label" for="command">Command:</label>
-      <div class="control">
-        <div class="select">
-          <select id="command" name="command" required onchange="updateCurrentCount(this.value)">
-            <option value="">Select a command</option>
-            <?php foreach ($commands as $command): ?>
-              <option value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
-            <?php endforeach; ?>
-          </select>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <div class="column is-half">
+    <h2 class="title is-5">Edit Custom Counter</h2>
+    <form action="" method="post">
+      <input type="hidden" name="action" value="update">
+      <div class="field">
+        <label class="label" for="command">Command:</label>
+        <div class="control">
+          <div class="select">
+            <select id="command" name="command" required onchange="updateCurrentCount(this.value)">
+              <option value="">Select a command</option>
+              <?php foreach ($commands as $command): ?>
+                <option value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="field">
-      <label class="label" for="command_count">New Command Count:</label>
-      <div class="control">
-        <input class="input" type="number" id="command_count" name="command_count" required min="0">
+      <div class="field">
+        <label class="label" for="command_count">New Command Count:</label>
+        <div class="control">
+          <input class="input" type="number" id="command_count" name="command_count" required min="0">
+        </div>
       </div>
-    </div>
-    <div class="control">
-      <input type="submit" class="button is-primary" value="Update Command Count">
-    </div>
-  </form>
-  <?php echo "<p>$status</p>" ?>
-</div>
+      <div class="control">
+        <input type="submit" class="button is-primary" value="Update Command Count">
+      </div>
+    </form>
+    <?php echo "<p>$status</p>" ?>
+  </div>
 </div>
 
 <script>
