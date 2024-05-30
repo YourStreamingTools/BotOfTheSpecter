@@ -46,7 +46,7 @@ $allFollowers = [];
 $showDisclaimer = true;
 // API endpoint to fetch followers
 $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
-$clientID = ''; // CHANGE TO MAKE THIS WORK
+$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   $showDisclaimer = false;
   $allFollowers = [];
@@ -193,8 +193,7 @@ $followerCount = $followersData['total'];
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if ($showDisclaimer): ?>
   <!-- Disclaimer and Button -->
@@ -207,7 +206,7 @@ $followerCount = $followersData['total'];
   <div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
     <?php if (isset($_GET['load']) && $_GET['load'] == 'followers'): ?>
     <h1 class="title is-4">Your Followers: (<?php echo $followerCount; ?>)</h1>
-    <h3><?php echo $liveData ?></h3>
+    <h3><?php echo $liveData ?></h3><br>
     <div class="columns is-multiline">
         <?php foreach ($followersForCurrentPage as $follower) : 
             $followerDisplayName = $follower['user_name'];
