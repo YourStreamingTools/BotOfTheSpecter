@@ -69,17 +69,16 @@ if(isset($_GET['logType'])) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <!-- /Header -->
-  </head>
+<head>
+  <!-- Header -->
+  <?php include('header.php'); ?>
+  <!-- /Header -->
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<body>
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
@@ -131,7 +130,8 @@ if(isset($_GET['logType'])) {
     tabs.forEach(tab => {
       tab.addEventListener('click', (event) => {
         event.preventDefault();
-        activateTab(tab);
+        const target = tab.querySelector('a').getAttribute('href');
+        window.location.href = target;
       });
     });
     // Activate the tab based on the URL hash
