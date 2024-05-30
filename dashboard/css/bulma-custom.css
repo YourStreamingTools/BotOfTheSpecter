@@ -25,10 +25,6 @@ h1, h2, h3, h4, h5, h6 {
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
 }
 
 .button.is-light.is-outlined {
@@ -83,4 +79,11 @@ footer {
 
 .round-image {
     border-radius: 50%;
+}
+
+.centered-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
 }
