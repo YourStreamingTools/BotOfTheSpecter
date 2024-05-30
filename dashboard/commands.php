@@ -64,8 +64,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command']) && isset($_
 <!-- /Navigation -->
 
 <div class="container">
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <div class="columns">
     <div class="column">
       <h4 class="title is-4">Bot Commands</h4>
@@ -107,23 +107,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command']) && isset($_
       <?php endif; ?>
     </div>
   </div>
-  <br><br><br>
 </div>
 
 <script>
 function toggleStatus(command, isChecked) {
-    var status = isChecked ? 'Enabled' : 'Disabled';
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "", true);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            console.log(xhr.responseText);
-            // Reload the page after the AJAX request is completed
-            location.reload();
-        }
-    };
-    xhr.send("command=" + encodeURIComponent(command) + "&status=" + status);
+  var status = isChecked ? 'Enabled' : 'Disabled';
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "", true);
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      console.log(xhr.responseText);
+      // Reload the page after the AJAX request is completed
+      location.reload();
+    }
+  };
+  xhr.send("command=" + encodeURIComponent(command) + "&status=" + status);
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
