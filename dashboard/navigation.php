@@ -1,9 +1,6 @@
 <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
   <div class="navbar-brand">
-    <a class="navbar-item" href="#">
-      <span class="icon">
-        <i class="fas fa-bars"></i>
-      </span>
+    <a class="navbar-item" href="../">
       <span>BotOfTheSpecter</span>
     </a>
     <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
