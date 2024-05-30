@@ -131,99 +131,118 @@ $displayMessageData = !empty($_GET['successMessage']) || !empty($_GET['errorMess
 if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
         $errorMessage = isset($_GET['successMessage']) ? $_GET['successMessage'] : '';
-        $displayMessages = "<p style='color: green;'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
+        $displayMessages = "<p class='has-text-success'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
     } elseif (!empty($_GET['errorMessage'])) {
         $errorMessage = isset($_GET['errorMessage']) ? $_GET['errorMessage'] : '';
-        $displayMessages = "<p style='color: red;'>". htmlspecialchars($errorMessage) . "</p>";
+        $displayMessages = "<p class='has-text-danger'>". htmlspecialchars($errorMessage) . "</p>";
     }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-    <br>
-    <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-    <p style='color: red;'>Please be advised that this function is currently undergoing heavy development and testing, and may not function properly at this time.</p>
-    <br>
-    <?php if ($displayMessages): ?>
-    <div class="messages">
-        <?php echo $displayMessages; ?>
-    </div>
-    <br>
-    <?php endif; ?>
-    <div class="medium-6 columns">
-        <div class="row">
-            <div class="small-12 medium-12 column">
-                <h4>Add a timed message:</h4>
-                <form id="addMessageForm" method="post" action="">
-                    <label for="message">Message:</label>
-                    <input type="text" name="message" id="message" required>
-                    <span id="messageError" class="form-error" style="display: none;">Message is required</span>
+<div class="container">
+<br>
+<h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+<p class="has-text-danger">Please be advised that this function is currently undergoing heavy development and testing, and may not function properly at this time.</p>
+<br>
+<?php if ($displayMessages): ?>
+<div class="notification is-primary">
+    <?php echo $displayMessages; ?>
+</div>
+<br>
+<?php endif; ?>
+<div class="columns">
+    <div class="column is-half">
+        <h4 class="title is-5">Add a timed message:</h4>
+        <form id="addMessageForm" method="post" action="">
+            <div class="field">
+                <label class="label" for="message">Message:</label>
+                <div class="control">
+                    <input class="input" type="text" name="message" id="message" required>
+                    <span id="messageError" class="help is-danger" style="display: none;">Message is required</span>
+                </div>
             </div>
-            <div class="small-12 medium-12 column">
-                    <label for="interval">Interval: (Minutes, Between 5-60)</label>
-                    <input type="number" name="interval" id="interval" min="5" max="60" required>
-                    <span id="intervalError" class="form-error" style="display: none;">Please pick a time between 5 and 60 minutes</span>
+            <div class="field">
+                <label class="label" for="interval">Interval: (Minutes, Between 5-60)</label>
+                <div class="control">
+                    <input class="input" type="number" name="interval" id="interval" min="5" max="60" required>
+                    <span id="intervalError" class="help is-danger" style="display: none;">Please pick a time between 5 and 60 minutes</span>
+                </div>
             </div>
-        </div>
-        <input type="submit" class="defult-button" value="Add Message">
+            <div class="control">
+                <input type="submit" class="button is-primary" value="Add Message">
+            </div>
         </form>
     </div>
     <?php
     $items_in_database = !empty($timedMessagesData);
     if ($items_in_database): ?>
-    <div class="row">
-        <div class="small-12 medium-6 column">
-            <h4>Edit a timed message:</h4>
+    <div class="column is-half">
+        <h4 class="title is-5">Edit a timed message:</h4>
         <form method="post" action="">
-            <div class="row">
-                <div class="small-12 medium-6 column">
-                    <label for="edit_message">Select Message to Edit:</label>
-                    <select name="edit_message" id="edit_message" onchange="showResponse()">
-                        <option value="">PICK A MESSAGE TO EDIT</option>
-                        <?php usort($timedMessagesData, function($a, $b) { return $a['id'] - $b['id']; }); foreach ($timedMessagesData as $message): ?>
-                            <option value="<?php echo $message['id']; ?>">
-                                (<?php echo $message['id']; ?>) <?php echo $message['message']; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="small-12 medium-3 column">
-                    <label for="edit_interval">New Interval:</label>
-                    <input type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval_count']; ?>">
-                </div>
-                <div class="small-12 medium-12 column">
-                    <label for="edit_message_content">New Message:</label>
-                    <input type="text" name="edit_message_content" id="edit_message_content" required value="<?php echo $message['message']; ?>">
+            <div class="field">
+                <label class="label" for="edit_message">Select Message to Edit:</label>
+                <div class="control">
+                    <div class="select is-fullwidth">
+                        <select name="edit_message" id="edit_message" onchange="showResponse()">
+                            <option value="">PICK A MESSAGE TO EDIT</option>
+                            <?php usort($timedMessagesData, function($a, $b) { return $a['id'] - $b['id']; }); foreach ($timedMessagesData as $message): ?>
+                                <option value="<?php echo $message['id']; ?>">
+                                    (<?php echo $message['id']; ?>) <?php echo $message['message']; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
             </div>
-            <input type="submit" class="defult-button" value="Edit Message">
+            <div class="field">
+                <label class="label" for="edit_interval">New Interval:</label>
+                <div class="control">
+                    <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required value="<?php echo $message['interval_count']; ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label" for="edit_message_content">New Message:</label>
+                <div class="control">
+                    <input class="input" type="text" name="edit_message_content" id="edit_message_content" required value="<?php echo $message['message']; ?>">
+                </div>
+            </div>
+            <div class="control">
+                <input type="submit" class="button is-primary" value="Edit Message">
+            </div>
         </form>
-        </div>
-        <div class="small-12 medium-6 column">
-            <br><br>
-                <h4>Remove a timed message:</h4>
-            <form method="post" action="">
-                <label for="remove_message">Select Message to Remove:</label>
-                <select name="remove_message" id="remove_message">
-                    <?php foreach ($timedMessagesData as $message): ?>
-                        <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <input type="submit" class="defult-button" value="Remove Message">
-            </form>
-        </div>
     </div>
+    <div class="column is-half">
+        <h4 class="title is-5">Remove a timed message:</h4>
+        <form method="post" action="">
+            <div class="field">
+                <label class="label" for="remove_message">Select Message to Remove:</label>
+                <div class="control">
+                    <div class="select is-fullwidth">
+                        <select name="remove_message" id="remove_message">
+                            <?php foreach ($timedMessagesData as $message): ?>
+                                <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="control">
+                <input type="submit" class="button is-danger" value="Remove Message">
+            </div>
+        </form>
+    </div>
+</div>
 <?php endif; ?>
 </div>
 
@@ -239,7 +258,7 @@ function showResponse() {
     var messageData = timedMessagesData.find(m => m.id == editMessage);
     if (messageData) {
         editMessageContent.value = messageData.message;
-        editIntervalInput.value = messageData.interval;
+        editIntervalInput.value = messageData.interval_count;
     } else {
         editMessageContent.value = '';
         editIntervalInput.value = '';
@@ -250,7 +269,5 @@ function showResponse() {
 window.onload = showResponse;
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 </body>
 </html>
