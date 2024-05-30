@@ -72,7 +72,7 @@ try {
     $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
 
     // Get Channel Point Rewards
-    $getChannelPointRewards = $db->query("SELECT * from channel_point_rewards ORDER BY reward_cost DESC");
+    $getChannelPointRewards = $db->query("SELECT * from channel_point_rewards");
     $channelPointRewards = $getChannelPointRewards->fetchall(PDO::FETCH_ASSOC); 
 
     // Fetch profile
