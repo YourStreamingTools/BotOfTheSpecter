@@ -109,11 +109,11 @@ if ($ModStatusOutput) {
 
 <div class="container">
   <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php echo $BotModMessage; ?>
-  <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p>"; } ?>
-  <div class="box">
+  <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
+  <div>
     <!-- Bot Status -->
     <div class="box" id="bot-status">
       <h4 class="title is-4">Stable Bot:</h4>
@@ -133,7 +133,8 @@ if ($ModStatusOutput) {
     </div>
   </div>
   <?php if ($betaAccess) { ?>
-  <div class="box">
+    <br>
+  <div>
     <!-- Beta Bot Status -->
     <div class="box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
