@@ -113,24 +113,36 @@ if(isset($_GET['logType'])) {
     <pre><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
   </div>
 </div>
-
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('.tabs li');
     const logContents = document.querySelectorAll('.log-content');
+    function activateTab(tab) {
+      tabs.forEach(item => item.classList.remove('is-active'));
+      tab.classList.add('is-active');
+      const target = tab.querySelector('a').getAttribute('href').substring(1);
+      logContents.forEach(content => {
+        content.classList.remove('is-active');
+        if (content.id === target) {
+          content.classList.add('is-active');
+        }
+      });
+    }
     tabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        tabs.forEach(item => item.classList.remove('is-active'));
-        tab.classList.add('is-active');
-        const target = tab.querySelector('a').getAttribute('href').substring(1);
-        logContents.forEach(content => {
-          content.classList.remove('is-active');
-          if (content.id === target) {
-            content.classList.add('is-active');
-          }
-        });
+      tab.addEventListener('click', (event) => {
+        event.preventDefault();
+        activateTab(tab);
       });
     });
+    // Activate the tab based on the URL hash
+    if (window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      const initialTab = document.querySelector(`.tabs li a[href="#${hash}"]`).parentElement;
+      activateTab(initialTab);
+    } else {
+      // Default to the first tab
+      activateTab(tabs[0]);
+    }
   });
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
