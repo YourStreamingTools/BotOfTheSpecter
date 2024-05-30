@@ -131,6 +131,8 @@ if(isset($_GET['logType'])) {
     tabs.forEach(tab => {
       tab.addEventListener('click', (event) => {
         event.preventDefault();
+        const href = tab.querySelector('a').getAttribute('href').substring(1);
+        window.history.pushState(null, null, `#${href}`);
         activateTab(tab);
       });
     });
