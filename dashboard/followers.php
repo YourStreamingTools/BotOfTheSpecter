@@ -1,5 +1,8 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
@@ -180,78 +183,67 @@ $followerCount = $followersData['total'];
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Headder -->
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
+    <!-- /Header -->
   </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<?php if ($showDisclaimer): ?>
-<!-- Disclaimer and Button -->
-<div class="row column text-center">
+<div class="container">
+  <br>
+  <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <?php if ($showDisclaimer): ?>
+  <!-- Disclaimer and Button -->
+  <div class="content has-text-centered">
     <p>Disclaimer: Due to the time it takes to pull followers from Twitch, if you'd like to view all your followers, please click the button below.</p>
-    <a href="?load=followers" class="button large">View Followers</a>
-</div>
-
-<?php endif; ?>
-<!-- Followers Content Container (initially hidden) -->
-<div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
+    <a href="?load=followers" class="button is-large is-primary">View Followers</a>
+  </div>
+  <?php endif; ?>
+  <!-- Followers Content Container (initially hidden) -->
+  <div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
     <?php if (isset($_GET['load']) && $_GET['load'] == 'followers'): ?>
-    <h1>Your Followers: (<?php echo $followerCount; ?>)</h1>
+    <h1 class="title is-4">Your Followers: (<?php echo $followerCount; ?>)</h1>
     <h3><?php echo $liveData ?></h3>
-    <div class="followers-grid">
+    <div class="columns is-multiline">
         <?php foreach ($followersForCurrentPage as $follower) : 
             $followerDisplayName = $follower['user_name'];
         ?>
-        <div class="follower">
-            <span><?php echo $followerDisplayName; ?></span>
-            <span class="follow-time">
-              <?php echo date('d F Y', strtotime($follower['followed_at'])); ?><br>
-              <?php echo date('H:i', strtotime($follower['followed_at'])); ?>
-            </span>
+        <div class="column is-one-third">
+            <div class="box">
+                <span><?php echo $followerDisplayName; ?></span>
+                <br>
+                <span class="has-text-grey-light">
+                  <?php echo date('d F Y', strtotime($follower['followed_at'])); ?><br>
+                  <?php echo date('H:i', strtotime($follower['followed_at'])); ?>
+                </span>
+            </div>
         </div>
         <?php endforeach; ?>
     </div>
     
     <!-- Pagination -->
-    <div class="pagination">
-      <?php if ($totalPages > 1) : ?>
-          <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
-              <?php if ($page === $currentPage) : ?>
-                  <span class="current-page"><?php echo $page; ?></span>
-              <?php else : ?>
-                  <a href="followers.php?load=followers&page=<?php echo $page; ?>"><?php echo $page; ?></a>
-              <?php endif; ?>
-          <?php endfor; ?>
-      <?php endif; ?>
-    </div>
+    <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+      <ul class="pagination-list">
+        <?php if ($totalPages > 1) : ?>
+            <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
+                <?php if ($page === $currentPage) : ?>
+                    <li><a class="pagination-link is-current"><?php echo $page; ?></a></li>
+                <?php else : ?>
+                    <li><a class="pagination-link" href="followers.php?load=followers&page=<?php echo $page; ?>"><?php echo $page; ?></a></li>
+                <?php endif; ?>
+            <?php endfor; ?>
+        <?php endif; ?>
+      </ul>
+    </nav>
     <?php endif; ?>
-</div>
-<br>
+  </div>
+  <br>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var btn = document.getElementById('view-followers-btn');
-    btn.addEventListener('click', function() {
-        // Hide the disclaimer div
-        var disclaimerDiv = document.querySelector('.disclaimer'); // Select the disclaimer div
-        disclaimerDiv.style.display = 'none'; // Hide it
-
-        // Redirect to the same page with a 'load' parameter to trigger PHP loading
-        window.location.href = '?load=followers';
-    });
-});
-</script>
 </body>
 </html>
