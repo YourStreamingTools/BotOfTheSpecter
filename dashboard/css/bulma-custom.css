@@ -81,7 +81,7 @@ footer {
     border-radius: 50%;
 }
 
-.moderator-box {
+.centered-box {
     display: flex;
     justify-content: center;
     align-items: center;
