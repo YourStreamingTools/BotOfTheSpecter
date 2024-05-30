@@ -78,31 +78,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <h1 class="title is-4"><?php echo "$greeting! <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <table class="table is-fullwidth is-striped is-hoverable">
   <tr>
-    <td><strong>Your Username:</strong></td>
+    <td>Your Username:</td>
     <td><?php echo $username; ?></td>
   </tr>
   <tr>
-    <td><strong>Display Name:</strong></td>
+    <td>Display Name:</td>
     <td><?php echo $twitchDisplayName; ?></td>
   </tr>
   <tr>
-    <td><strong>You Joined:</strong></td>
+    <td>You Joined:</td>
     <td><span id="localSignupDate"></span></td>
   </tr>
   <tr>
-    <td><strong>Your Last Login:</strong></td>
+    <td>Your Last Login:</td>
     <td><span id="localLastLogin"></span></td>
   </tr>
   <tr>
-    <td><strong>Time Zone:</strong></td>
+    <td>Time Zone:</td>
     <td><?php echo $timezone; ?></td>
   </tr>
   <tr>
-    <td><strong>Weather Location:</strong></td>
+    <td>Weather Location:</td>
     <td><?php echo $weather; ?></td>
   </tr>
 </table>
-<p><strong>Your API Key:</strong> <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
+<p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
 <button type="button" class="button is-primary" id="show-api-key">Show API Key</button>
 <button type="button" class="button is-primary" id="hide-api-key" style="display:none;">Hide API Key</button>
 <br><br>
