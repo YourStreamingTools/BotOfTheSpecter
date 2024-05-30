@@ -37,7 +37,7 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
-$countType = '';
+$countType = isset($_GET['countType']) ? $_GET['countType'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -197,55 +197,37 @@ $countType = '';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  // Get all "navbar-burger" elements
-  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
-  // Check if there are any navbar burgers
-  if ($navbarBurgers.length > 0) {
-    // Add a click event on each of them
-    $navbarBurgers.forEach(el => {
-      el.addEventListener('click', () => {
-        // Get the target from the "data-target" attribute
-        const target = el.dataset.target;
-        const $target = document.getElementById(target);
-        // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
-        el.classList.toggle('is-active');
-        $target.classList.toggle('is-active');
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll('.tabs li');
+    const tabContents = document.querySelectorAll('.tab-content');
+    function activateTab(tab) {
+      tabs.forEach(item => item.classList.remove('is-active'));
+      tab.classList.add('is-active');
+      const target = tab.querySelector('a').getAttribute('href').substring(1);
+      tabContents.forEach(content => {
+        content.classList.remove('is-active');
+        if (content.id === target) {
+          content.classList.add('is-active');
+        }
+      });
+    }
+    tabs.forEach(tab => {
+      tab.addEventListener('click', (event) => {
+        event.preventDefault();
+        const target = tab.querySelector('a').getAttribute('href');
+        window.location.href = target;
       });
     });
-  }
-});
-document.addEventListener('DOMContentLoaded', () => {
-  const tabs = document.querySelectorAll('#countTabs li a');
-  const tabContents = document.querySelectorAll('.tab-content');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', (event) => {
-      event.preventDefault();
-      const target = tab.getAttribute('href').substring(1);
-      tabs.forEach(item => item.parentElement.classList.remove('is-active'));
-      tabContents.forEach(content => content.classList.remove('is-active'));
-      tab.parentElement.classList.add('is-active');
-      document.getElementById(target).classList.add('is-active');
-      history.pushState(null, null, `?countType=${target}#${target}`);
-    });
-  });
-
-  // Activate the tab based on the URL parameter
-  if (window.location.search) {
-    const params = new URLSearchParams(window.location.search);
-    const countType = params.get('countType');
-    if (countType) {
-      const initialTab = document.querySelector(`#countTabs li a[href="#${countType}"]`).parentElement;
-      initialTab.classList.add('is-active');
-      document.getElementById(countType).classList.add('is-active');
+    // Activate the tab based on the URL hash
+    if (window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      const initialTab = document.querySelector(`.tabs li a[href="#${hash}"]`).parentElement;
+      activateTab(initialTab);
+    } else {
+      // Default to the first tab
+      activateTab(tabs[0]);
     }
-  } else {
-    // Default to the first tab
-    const defaultTab = tabs[0].parentElement;
-    defaultTab.classList.add('is-active');
-    document.getElementById(defaultTab.querySelector('a').getAttribute('href').substring(1)).classList.add('is-active');
-  }
-});
+  });
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
