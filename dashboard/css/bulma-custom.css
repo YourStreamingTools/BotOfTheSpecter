@@ -92,3 +92,52 @@ footer {
     border-radius: 8px;
     margin-bottom: 20px;
 }
+
+/* Dark mode table styles */
+.table {
+    width: 100%;
+    background-color: #1f1f1f;
+    color: #e0e0e0;
+    border-collapse: collapse;
+}
+
+.table thead th {
+    background-color: #333;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+.table tbody tr {
+    background-color: #1f1f1f;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+.table tbody tr:nth-child(even) {
+    background-color: #2a2a2a;
+}
+
+.table tbody tr:hover {
+    background-color: #333;
+}
+
+.table td, .table th {
+    padding: 10px;
+    border-color: #444;
+}
+
+.table .edit-box {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+}
+
+.button.is-info {
+    background-color: #209cee;
+    border-color: #209cee;
+    color: #fff;
+}
+
+.button.is-info:hover {
+    background-color: #3273dc;
+    border-color: #3273dc;
+}
