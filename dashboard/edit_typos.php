@@ -95,8 +95,6 @@ try {
   $typoData = [];
 }
 
-$status = "";
-
 // Check for AJAX request to get the current typo count
 if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET['username'])) {
   $requestedUsername = $_GET['username'];
@@ -112,7 +110,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET
     }
     echo $status;
   } catch (PDOException $e) {
-      $status = "Error: " . $e->getMessage();
+    $status = "Error: " . $e->getMessage();
   }
   exit;
 }
@@ -122,74 +120,90 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Headder -->
+<head>
+    <!-- Header -->
     <?php include('header.php'); ?>
-    <!-- /Headder -->
-  </head>
+    <!-- /Header -->
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-  <br>
-  <h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <br>
-  <div class="row">
-    <div class="small-12 medium-6 columns">
-      <h2>Edit User Typos</h2>
-      <form action="" method="post">
-        <input type="hidden" name="action" value="update">
-        <label for="typo-username">Username:</label>
-        <select id="typo-username" name="typo-username" required onchange="updateCurrentCount(this.value)">
-          <option value="">Select a user</option>
-          <?php foreach ($usernames as $typo_name): ?>
-            <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
-          <?php endforeach; ?>
-        </select>
-        <div id="current-typo-count"></div>
-        <label for="typo_count">New Typo Count:</label>
-        <input type="number" id="typo_count" name="typo_count" required min="0">
-        <input type="submit" class="defult-button" value="Update Typo Count">
-      </form>
-      <?php echo "<p>$status</p>" ?>
+<div class="container">
+    <br>
+    <h1 class="title is-4"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <br>
+    <div class="columns">
+        <div class="column is-half">
+            <h2 class="title is-5">Edit User Typos</h2>
+            <form action="" method="post">
+                <input type="hidden" name="action" value="update">
+                <div class="field">
+                    <label class="label" for="typo-username">Username:</label>
+                    <div class="control">
+                        <div class="select">
+                            <select id="typo-username" name="typo-username" required onchange="updateCurrentCount(this.value)">
+                                <option value="">Select a user</option>
+                                <?php foreach ($usernames as $typo_name): ?>
+                                    <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label" for="typo_count">New Typo Count:</label>
+                    <div class="control">
+                        <input class="input" type="number" id="typo_count" name="typo_count" required min="0">
+                    </div>
+                </div>
+                <div class="control">
+                    <input type="submit" class="button is-primary" value="Update Typo Count">
+                </div>
+            </form>
+            <?php echo "<p>$status</p>" ?>
+        </div>
+        <div class="column is-half">
+            <h2 class="title is-5">Remove User Typo Record</h2>
+            <form action="" method="post">
+                <input type="hidden" name="action" value="remove">
+                <div class="field">
+                    <label class="label" for="typo-username-remove">Username:</label>
+                    <div class="control">
+                        <div class="select">
+                            <select id="typo-username-remove" name="typo-username-remove" required onchange="updateCurrentCount(this.value)">
+                                <option value="">Select a user</option>
+                                <?php foreach ($usernames as $typo_name): ?>
+                                    <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="control">
+                    <input type="submit" class="button is-danger" value="Remove Typo Record">
+                </div>
+            </form>
+        </div>
     </div>
-    <div class="small-12 medium-6 columns">
-      <h2>Remove User Typo Record</h2>
-      <form action="" method="post">
-        <input type="hidden" name="action" value="remove">
-        <label for="typo-username-remove">Username:</label>
-        <select id="typo-username-remove" name="typo-username-remove" required onchange="updateCurrentCount(this.value)">
-          <option value="">Select a user</option>
-          <?php foreach ($usernames as $typo_name): ?>
-            <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
-          <?php endforeach; ?>
-        </select>
-        <input type="submit" class="defult-button" value="Remove Typo Record">
-      </form>
-    </div>
-  </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script>$(document).foundation();</script>
 <script>
 function updateCurrentCount(username) {
-  if (username) {
-    fetch('?action=get_typo_count&username=' + encodeURIComponent(username))
-      .then(response => response.text())
-      .then(data => {
-        // Assuming that data is the typo count
+    if (username) {
+        fetch('?action=get_typo_count&username=' + encodeURIComponent(username))
+            .then(response => response.text())
+            .then(data => {
+                var typoCountInput = document.getElementById('typo_count');
+                typoCountInput.value = data;
+            })
+            .catch(error => console.error('Error:', error));
+    } else {
         var typoCountInput = document.getElementById('typo_count');
-        typoCountInput.value = data;
-      })
-      .catch(error => console.error('Error:', error));
-  } else {
-    var typoCountInput = document.getElementById('typo_count');
-    typoCountInput.value = '';
-  }
+        typoCountInput.value = '';
+    }
 }
 </script>
 </body>
