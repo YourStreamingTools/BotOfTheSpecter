@@ -108,8 +108,7 @@ if ($ModStatusOutput) {
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php echo $BotModMessage; ?>
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
@@ -119,6 +118,7 @@ if ($ModStatusOutput) {
       <h4 class="title is-4">Stable Bot:</h4>
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?>
+      <br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killBot">Stop Bot</button>
@@ -129,6 +129,7 @@ if ($ModStatusOutput) {
         <form action="" method="post">
           <button class="button is-warning" type="submit" name="restartBot">Restart Bot</button>
         </form>
+        <br>
       </div>
     </div>
   </div>
@@ -140,6 +141,7 @@ if ($ModStatusOutput) {
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?>
+      <br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killBetaBot">Stop Beta Bot</button>
@@ -150,6 +152,7 @@ if ($ModStatusOutput) {
         <form action="" method="post">
           <button class="button is-warning" type="submit" name="restartBetaBot">Restart Beta Bot</button>
         </form>
+        <br>
       </div>
     </div>
   </div>
