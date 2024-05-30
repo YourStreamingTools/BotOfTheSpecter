@@ -198,7 +198,7 @@ $followerCount = $followersData['total'];
   <?php if ($showDisclaimer): ?>
   <!-- Disclaimer and Button -->
   <div class="content has-text-centered">
-    <p>Disclaimer: Due to the time it takes to pull followers from Twitch, if you'd like to view all your followers, please click the button below.</p>
+    <p>Note: Clicking the 'View Followers' button will begin retrieving your Twitch followers, which may take some time. Please be patient while the information loads.</p>
     <a href="?load=followers" class="button is-large is-primary">View Followers</a>
   </div>
   <?php endif; ?>
