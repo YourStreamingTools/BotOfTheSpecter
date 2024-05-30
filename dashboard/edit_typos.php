@@ -41,6 +41,7 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
+$status = '';
 
 // Fetch usernames from the user_typos table
 try {
