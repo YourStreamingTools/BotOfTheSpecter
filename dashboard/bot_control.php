@@ -50,6 +50,7 @@ if (isset($_POST['runBot'])) {
             $statusOutput = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
         } else {
             $botSystemStatus = False; // Set to False if failed to start the bot
+            $versionRunning = '';
             $statusOutput = "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>";
         }
     }
@@ -60,9 +61,11 @@ if (isset($_POST['killBot'])) {
     if ($pid > 0) {
         killBot($pid);
         $botSystemStatus = False; // Set to False when bot is stopped
+        $versionRunning = '';
         $statusOutput = "<div class='status-message'>Bot stopped successfully.</div>";
     } else {
         $botSystemStatus = False; // Set to False if bot is not running
+        $versionRunning = '';
         $statusOutput = "<div class='status-message error'>Bot is not running.</div>";
     }
 }
@@ -80,10 +83,12 @@ if (isset($_POST['restartBot'])) {
             $statusOutput = "<div class='status-message'>Bot restarted. PID $pid.</h5>";
         } else {
             $botSystemStatus = False; // Set to False if failed to restart the bot
+            $versionRunning = '';
             $statusOutput = "<div class='status-message error'>Failed to restart the bot.</div>";
         }
     } else {
         $botSystemStatus = False; // Set to False if bot is not running
+        $versionRunning = '';
         $statusOutput = "<div class='status-message error'>Bot is not running.</div>";
     }
 }
@@ -125,10 +130,12 @@ function checkBotRunning($statusScriptPath, $username, $logPath) {
             return True;
         } else {
             $botSystemStatus = False;
+            $versionRunning = '';
             return False;
         }
     } else {
         $botSystemStatus = False;
+        $versionRunning = '';
         return False;
     }
 }
@@ -158,6 +165,7 @@ function killBot($pid) {
         return False;
     }
     $botSystemStatus = False;
+    $versionRunning = '';
     return True;
 }
 
