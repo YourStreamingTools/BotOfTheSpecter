@@ -56,7 +56,7 @@ WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 OPENAI_KEY = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
-builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -118,6 +118,7 @@ chat_history_logger = setup_logger('chat_history', chat_history_log_file)
 translator = GoogleTranslator
 shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
+openai.api_key = OPENAI_KEY
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
@@ -658,21 +659,25 @@ class BotOfTheSpecter(commands.Bot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as | {self.nick}')
         channel = self.get_channel(self.channel_name)
-        await channel.send(f"/me is connected and ready! Running V{VERSION}B")
+        await setup_database()
         await check_stream_online()
         await update_version_control()
         await group_creation()
         await builtin_commands_creation()
         await known_users()
-        await setup_database()
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(timed_message())
+        await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
         sqldb = await get_mysql_connection()
         async with sqldb.cursor() as cursor:
             channel = message.channel
+            messageAuthor = None
+            messageAuthorID = None
+            messageContent = None
+            AuthorMessage = None
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
@@ -689,10 +694,10 @@ class BotOfTheSpecter(commands.Bot):
                 # Handle commands
                 await self.handle_commands(message)
 
-                messageContent = message.content.strip().lower()
-                messageAuthor = message.author.name
-                messageAuthorID = message.author.id
-                AuthorMessage = message.content
+                messageContent = message.content.strip().lower() if message.content else ""
+                messageAuthor = message.author.name if message.author else ""
+                messageAuthorID = message.author.id if message.author else ""
+                AuthorMessage = message.content if message.content else ""
 
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
@@ -934,7 +939,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in message_counting: {e}")
         finally:
             sqldb.close()
-            await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
+            #await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
             await self.user_grouping(messageAuthor, messageAuthorID)
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
@@ -944,7 +949,10 @@ class BotOfTheSpecter(commands.Bot):
             # Check if the user is the broadcaster
             if messageAuthor == CHANNEL_NAME:
                 return
-
+            # Check if there was a user passed
+            if messageAuthor == "None":
+                return
+            
             async with sqldb.cursor() as cursor:
                 # Check if the user is a moderator
                 if await is_user_mod(messageAuthor):
@@ -3740,11 +3748,10 @@ async def send_to_discord_stream_online(message, image):
         sqldb.close()
 
 # Function to conenct to the websocket server and push a notice
-async def websocket_notice(channel, event_type, message_author):
-    uri = "wss://localhost:8080"
-    message = f"channel_name:{channel},event_type:{event_type},message_author:{message_author}"
+async def websocket_notice(channel, event, user):
+    uri = f"wss://websocket.botofthespecter.com:8080/{channel}/{event}/{user}"
     async with websockets.connect(uri) as websocket_notice:
-        await websocket_notice.send(message)
+        await websocket_notice.send()
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
@@ -3779,29 +3786,28 @@ async def builtin_commands_creation():
     sqldb = await get_mysql_connection()
     try:
         all_commands = list(mod_commands) + list(builtin_commands)
-        try:
-            async with sqldb.cursor() as cursor:
-                # Create placeholders for each command
-                placeholders = ', '.join(['%s'] * len(all_commands))
-                # Construct the query string with the placeholders
-                query = f"SELECT command FROM builtin_commands WHERE command IN ({placeholders})"
-                # Execute the query with the tuple of all commands
-                await cursor.execute(query, tuple(all_commands))
-                # Fetch the existing commands from the database
-                existing_commands = [row[0] for row in await cursor.fetchall()]
-                # Filter out existing commands
-                new_commands = [command for command in all_commands if command not in existing_commands]
-                # Insert new commands
-                if new_commands:
-                    placeholders = ', '.join(['(%s, %s)'] * len(new_commands))
-                    values = [(command, 'Enabled') for command in new_commands]
-                    insert_query = "INSERT INTO builtin_commands (command, status) VALUES " + placeholders
-                    await cursor.executemany(insert_query, values)
-                    await sqldb.commit()
-                    for command in new_commands:
-                        bot_logger.info(f"Command '{command}' added to database successfully.")
-        except sqldb.connector.Error as e:
-            bot_logger.error(f"Error: {e}")
+        async with sqldb.cursor() as cursor:
+            # Create placeholders for the query
+            placeholders = ', '.join(['%s'] * len(all_commands))
+            # Construct the query string with the placeholders
+            query = f"SELECT command FROM builtin_commands WHERE command IN ({placeholders})"
+            # Execute the query with the tuple of all commands
+            await cursor.execute(query, tuple(all_commands))
+            # Fetch the existing commands from the database
+            existing_commands = [row[0] for row in await cursor.fetchall()]
+            # Filter out existing commands
+            new_commands = [command for command in all_commands if command not in existing_commands]
+            # Insert new commands
+            if new_commands:
+                values = [(command, 'Enabled') for command in new_commands]
+                # Insert query with placeholders for each command
+                insert_query = "INSERT INTO builtin_commands (command, status) VALUES (%s, %s)"
+                await cursor.executemany(insert_query, values)  # Use executemany here
+                await sqldb.commit()
+                for command in new_commands:
+                    bot_logger.info(f"Command '{command}' added to database successfully.")
+    except aiomysql.Error as e:
+        bot_logger.error(f"Error: {e}")
     finally:
         sqldb.close()
 
