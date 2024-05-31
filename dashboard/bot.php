@@ -46,7 +46,6 @@ $pid = '';
 $versionRunning = '';
 $betaVersionRunning = '';
 include 'bot_control.php';
-#include 'beta_bot_control.php';
 include 'sqlite.php';
 
 // Twitch API URL
