@@ -170,7 +170,7 @@ class BotOfTheSpecterWebsocketServer:
         # Handle generic events for SocketIO.
         self.logger.debug(f"Event {event}: {data}")
 
-    def run_app(self, host="127.0.0.1", port=8765):
+    def run_app(self, host="127.0.0.1", port=8080):
         # Run the web application.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
         self.logger.info(f"Host: {host} Port: {port}")
@@ -228,7 +228,7 @@ if __name__ == '__main__':
     )
 
     parser.add_argument("-H", "--host", default="127.0.0.1", help="Specify the listener host. Default is 127.0.0.1")
-    parser.add_argument("-p", "--port", default=8765, type=int, help="Specify the listener port number. Default is 8765")
+    parser.add_argument("-p", "--port", default=8080, type=int, help="Specify the listener port number. Default is 8080")
     parser.add_argument("-l", "--loglevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Specify the log level. INFO is the default.")
     parser.add_argument("-f", "--logfile", help="Specify log file location. Production location should be <WEBROOT>/log/noti_server.log")
 
