@@ -67,6 +67,11 @@ class BotOfTheSpecterWebsocketServer:
         # List the registered clients.
         return web.json_response(self.registered_clients)
 
+    async def list_clients_event(self, sid, data):
+        # Handle the LIST_CLIENTS event for SocketIO.
+        self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
+        await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
+
     async def static_file(self, request):
         # Serve static files.
         local_path = os.path.join(self.script_dir, request.rel_url.path[1:])
@@ -112,7 +117,7 @@ class BotOfTheSpecterWebsocketServer:
     async def connect(self, sid, environ, auth):
         # Handle the connect event for SocketIO.
         self.logger.info(f"Connect event: {sid}")
-        if environ["REMOTE_ADDR"] in ['127.0.0.1', self.ip]:
+        if environ["REMOTE_ADDR"] in ['0.0.0.0', self.ip]:
             self.logger.debug(f"Client [{sid}] is a local user with elevated access")
         self.logger.debug(environ)
         await self.sio.emit("WELCOME", {"message": "Please register your code"}, to=sid)
@@ -170,7 +175,7 @@ class BotOfTheSpecterWebsocketServer:
         # Handle generic events for SocketIO.
         self.logger.debug(f"Event {event}: {data}")
 
-    def run_app(self, host="127.0.0.1", port=8080):
+    def run_app(self, host="0.0.0.0", port=8080):
         # Run the web application.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
         self.logger.info(f"Host: {host} Port: {port}")
@@ -227,7 +232,7 @@ if __name__ == '__main__':
         description='A WebSocket server for handling notifications and real-time communication between the website and the bot itself.'
     )
 
-    parser.add_argument("-H", "--host", default="127.0.0.1", help="Specify the listener host. Default is 127.0.0.1")
+    parser.add_argument("-H", "--host", default="0.0.0.0", help="Specify the listener host. Default is 0.0.0.0")
     parser.add_argument("-p", "--port", default=8080, type=int, help="Specify the listener port number. Default is 8080")
     parser.add_argument("-l", "--loglevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Specify the log level. INFO is the default.")
     parser.add_argument("-f", "--logfile", help="Specify log file location. Production location should be <WEBROOT>/log/noti_server.log")
