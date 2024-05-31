@@ -49,10 +49,17 @@ class BotOfTheSpecterWebsocketServer:
             ("TWITCH_CHEER", self.twitch_cheer),
             ("TWITCH_RAID", self.twitch_raid),
             ("TWITCH_SUB", self.twitch_sub),
+            ("WALKON", self.walkon),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
             self.sio.on(event, handler)
+
+    async def walkon(self, sid, data):
+        # Handle the walkon event for SocketIO.
+        self.logger.info(f"Walkon event from SID [{sid}]: {data}")
+        # Broadcast the walkon event to all clients
+        await self.sio.emit("WALKON", data)
 
     async def index(self, request):
         # Handle the index route.
