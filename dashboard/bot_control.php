@@ -164,23 +164,27 @@ function killBot($pid) {
 }
 
 // Display running versions if bots are running
+$versionRunning = '';
+$betaVersionRunning = '';
+
 if ($botSystemStatus) {
-    displayBotVersion($versionFilePath, $newVersion);
+    $versionRunning = getRunningVersion($versionFilePath, $newVersion);
 }
 
 if ($betaBotSystemStatus) {
-    displayBotVersion($betaVersionFilePath, $betaNewVersion, 'beta');
+    $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
 
-function displayBotVersion($versionFilePath, $newVersion, $type = '') {
+function getRunningVersion($versionFilePath, $newVersion, $type = '') {
     if (file_exists($versionFilePath)) {
         $versionContent = file_get_contents($versionFilePath);
-        echo "<div class='status-message'>" . ucfirst($type) . " Running Version: $versionContent</div>";
+        $output = "<div class='status-message'>" . ucfirst($type) . " Running Version: $versionContent</div>";
         if ($versionContent !== $newVersion) {
-            echo "<div class='status-message'>Update (V$newVersion) is available.</div>";
+            $output .= "<div class='status-message'>Update (V$newVersion) is available.</div>";
         }
+        return $output;
     } else {
-        echo "<div class='status-message'>Version information not available.</div>";
+        return "<div class='status-message'>Version information not available.</div>";
     }
 }
 ?>
