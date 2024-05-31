@@ -9,6 +9,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/11.0.0/markdown-it.min.js"></script>
     <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
     <script src="/js/about.js"></script>
-    <script src="navbar.js" defer></script>
+    <script src="/js/navbar.js" defer></script>
     <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
     <!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $logPath"; ?> -->
