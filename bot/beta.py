@@ -25,6 +25,7 @@ import streamlink
 import pyowm
 import pytz
 from jokeapi import Jokes
+import openai
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -32,6 +33,7 @@ parser.add_argument("-channel", dest="target_channel", required=True, help="Targ
 parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch user ID")
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
 parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refresh Token for authentication")
+parser.add_argument("-apitoken", dest="api_token", required=False, help="API Token for Websocket Server")
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -39,6 +41,7 @@ CHANNEL_NAME = args.target_channel
 CHANNEL_ID = args.channel_id
 CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
+API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
 VERSION = "4.4"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
@@ -931,13 +934,8 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in message_counting: {e}")
         finally:
             sqldb.close()
-            await self.walkon_sound(CHANNEL_NAME, "walkon", messageAuthor)
+            await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
             await self.user_grouping(messageAuthor, messageAuthorID)
-
-    async def walkon_sound(self, channel, event_type, message_author):
-        async with websockets.connect("ws://localhost:8765") as websocket_notice:
-            message = f"channel_name:{channel},{event_type},{message_author}"
-            await websocket_notice.send(message)
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
         sqldb = await get_mysql_connection()
@@ -2659,6 +2657,136 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             sqldb.close()
 
+    @commands.command(name='slots')
+    async def slots_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("slots",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result[0]
+                    if status == 'Disabled':
+                        return
+                slots = ["🍒","🍋","🍊","🍉","🍇","🍓","⭐"]
+                result = [random.choice(slots) for _ in range(3)]
+                if result[0] == result[1] == result[2]:
+                    message = f"{ctx.author.name}, {"".join(result)}"
+                    message += f" You Win!"
+                else:
+                    message = f"{ctx.author.name}, {"".join(result)}"
+                    message += f" Better luck next time."
+                await ctx.send(message)
+        finally:
+            sqldb.close()
+
+    @commands.command(name="kill")
+    async def kill_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("kill",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result[0]
+                    if status == 'Disabled':
+                        return
+                response = requests.get("https://api.botofthespecter.com/killCommand.json")
+                data = response.json()
+                kill_message = data
+                if ctx.message.mentions:
+                    target = ctx.message.mentions[0].name
+                    message_key = [key for key in kill_message if "other" in key]
+                    message = random.choice([kill_message[key] for key in message_key])
+                    result = message.replace("$1", ctx.author.name).replace("$2", target)
+                else:
+                    message_key = [key for key in kill_message if "self" in key]
+                    message = random.choice([kill_message[key] for key in message_key])
+                    result = message.replace("$1", ctx.author.name)
+                message = result
+                await ctx.send(message)
+        finally:
+            sqldb.close()
+
+    @commands.command(name="roulette")
+    async def roulette_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("roulette",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result[0]
+                    if status == 'Disabled':
+                        return
+                outcomes = [
+                    f"and survives!"
+                    f"and gets shot!"
+                ]
+                result = random.choice(outcomes)
+                message = f"{ctx.author.name} pulls the trigger...{result}"
+                await ctx.send(message)
+        finally:
+            sqldb.close()
+
+    @commands.command(name="rps")
+    async def rps_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("rps",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result[0]
+                    if status == 'Disabled':
+                        return
+                    choices = ["Rock","Paper","Scissors"]
+                    bot_choice = random.choice(choices)
+                    user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
+                    if user_input not in choices:
+                        await ctx.send(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
+                        return
+                    user_choice = user_input
+                    if user_choice == bot_choice:
+                        result = f"It's a tie! We both chose {bot_choice}."
+                    elif (user_choice == 'rock' and bot_choice == 'Scissors') or \
+                         (user_choice == 'paper' and bot_choice == 'Rock') or \
+                         (user_choice == 'scissors' and bot_choice == 'Paper'):
+                        result = f"You Win! You chose {user_choice} and I chose {bot_choice}."
+                    else:
+                        result = f"You lose! You chose {user_choice} and I chose {bot_choice}"
+                    message = result
+                    await ctx.send(message)
+        finally:
+            sqldb.close()
+
+    @commands.command(name="story")
+    async def command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("rps",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result[0]
+                    if status == 'Disabled':
+                        return
+                    words = ctx.message.content.split(' ')[1:]
+                    if len(words) < 5:
+                        await ctx.send(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
+                        return
+                    template = f"Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
+                    story = template.format(*words)
+                    response = openai.Completion.create(
+                        engine="gpt-3.5-turbo",
+                        prompt=story,
+                        max_tokens=100
+                    )
+                    generated = response.choices[0].text.strip()
+                    await ctx.send(generated)
+        finally:
+            sqldb.close()
+
 # Functions for all the commands
 ##
 # Function  to check if the user is a real user on Twitch
@@ -3625,6 +3753,13 @@ async def send_to_discord_stream_online(message, image):
                 bot_logger.error("Discord URL not found.")
     finally:
         sqldb.close()
+
+# Function to conenct to the websocket server and push a notice
+async def websocket_notice(channel, event_type, message_author):
+    uri = "wss://localhost:8080"
+    message = f"channel_name:{channel},event_type:{event_type},message_author:{message_author}"
+    async with websockets.connect(uri) as websocket_notice:
+        await websocket_notice.send(message)
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
