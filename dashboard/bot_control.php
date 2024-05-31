@@ -52,58 +52,63 @@ if (($file = fopen($BetaLogPath, 'w')) === false) {
 }
 fclose($file);
 
+// Initialize status message variables
+$actionStatusMessage = '';
+$betaActionStatusMessage = '';
+
 // Handle standard bot actions
 if (isset($_POST['runBot'])) {
-    handleBotAction('run', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
+    $actionStatusMessage = handleBotAction('run', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
 }
 
 if (isset($_POST['killBot'])) {
-    handleBotAction('kill', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
+    $actionStatusMessage = handleBotAction('kill', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
 }
 
 if (isset($_POST['restartBot'])) {
-    handleBotAction('restart', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
+    $actionStatusMessage = handleBotAction('restart', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
 }
 
 // Handle beta bot actions
 if (isset($_POST['runBetaBot'])) {
-    handleBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
+    $betaActionStatusMessage = handleBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
 }
 
 if (isset($_POST['killBetaBot'])) {
-    handleBotAction('kill', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
+    $betaActionStatusMessage = handleBotAction('kill', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
 }
 
 if (isset($_POST['restartBetaBot'])) {
-    handleBotAction('restart', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
+    $betaActionStatusMessage = handleBotAction('restart', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
 }
 
 // Function to handle bot actions
 function handleBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath) {
     $statusOutput = shell_exec("python $statusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    $message = '';
 
     switch ($action) {
         case 'run':
             if ($pid > 0) {
-                echo "<div class='status-message'>Bot is already running. PID $pid.</div>";
+                $message = "Bot is already running. PID $pid.";
             } else {
                 startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
                 $statusOutput = shell_exec("python $statusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
-                    echo "<div class='status-message'>Bot started successfully. PID $pid.</div>";
+                    $message = "Bot started successfully. PID $pid.";
                 } else {
-                    echo "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>";
+                    $message = "Failed to start the bot. Please check the configuration or server status.";
                 }
             }
             break;
         case 'kill':
             if ($pid > 0) {
                 killBot($pid);
-                echo "<div class='status-message'>Bot stopped successfully.</div>";
+                $message = "Bot stopped successfully.";
             } else {
-                echo "<div class='status-message error'>Bot is not running.</div>";
+                $message = "Bot is not running.";
             }
             break;
         case 'restart':
@@ -113,15 +118,17 @@ function handleBotAction($action, $botScriptPath, $statusScriptPath, $username, 
                 $statusOutput = shell_exec("python $statusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
-                    echo "<div class='status-message'>Bot restarted. PID $pid.</h5>";
+                    $message = "Bot restarted. PID $pid.";
                 } else {
-                    echo "<div class='status-message error'>Failed to restart the bot.</div>";
+                    $message = "Failed to restart the bot.";
                 }
             } else {
-                echo "<div class='status-message error'>Bot is not running.</div>";
+                $message = "Bot is not running.";
             }
             break;
     }
+
+    return $message;
 }
 
 function isBotRunning($statusScriptPath, $username, $logPath) {
