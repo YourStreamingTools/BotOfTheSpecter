@@ -119,7 +119,6 @@ if ($ModStatusOutput) {
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?>
       <br>
-      <?php if (!empty($actionStatusMessage)) { echo "<div class='status-message'>$actionStatusMessage</div>"; } ?>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killBot">Stop Bot</button>
@@ -143,7 +142,6 @@ if ($ModStatusOutput) {
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?>
       <br>
-      <?php if (!empty($betaActionStatusMessage)) { echo "<div class='status-message'>$betaActionStatusMessage</div>"; } ?>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killBetaBot">Stop Beta Bot</button>
