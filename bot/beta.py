@@ -18,8 +18,7 @@ import aiohttp
 import requests
 import aiomysql
 from mysql.connector import errorcode
-from translate import Translator
-from googletrans import Translator, LANGUAGES
+from deep_translator import GoogleTranslator
 from twitchio.ext import commands
 import streamlink
 import pyowm
@@ -55,6 +54,7 @@ TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
+OPENAI_KEY = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "quote", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
@@ -115,7 +115,7 @@ chat_history_log_file = os.path.join(chat_history_folder, f"{get_today_date()}.t
 chat_history_logger = setup_logger('chat_history', chat_history_log_file)
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
-translator = Translator(service_urls=['translate.google.com'])
+translator = GoogleTranslator
 shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
 permitted_users = {}
@@ -1498,23 +1498,8 @@ class BotOfTheSpecter(commands.Bot):
                     if len(message.strip()) < 5:
                         await ctx.send("The provided message is too short for reliable translation.")
                         return
-                    # Debugging: Log the message content
-                    chat_logger.info(f"Message content: {message}")
-                    # Detect the language of the input text
-                    detected_lang = translator.detect(message)
-                    source_lang = detected_lang.lang if detected_lang else None
-                    # Debugging: Log detected language
-                    chat_logger.info(f"Detected language: {source_lang}")
-                    if source_lang:
-                        source_lang_name = LANGUAGES.get(source_lang, "Unknown")
-                        chat_logger.info(f"Translator Detected Language as: {source_lang_name}.")
-                        # Translate the message to English
-                        translated_message = translator.translate(message, src=source_lang, dest='en').text
-                        chat_logger.info(f'Translated from "{message}" to "{translated_message}"')
-                        # Send the translated message along with the source language
-                        await ctx.send(f"Detected Language: {source_lang_name}. Translation: {translated_message}")
-                    else:
-                        await ctx.send("Unable to detect the source language.")
+                    translate_message = GoogleTranslator(source='auto', target='en').translate(text=message)
+                    await ctx.send(f"Translation: {translate_message}")
                 except AttributeError as ae:
                     chat_logger.error(f"AttributeError: {ae}")
                     await ctx.send("An error occurred while detecting the language.")
