@@ -163,13 +163,13 @@ function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refresh
     $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $logPath 2>&1 &";
     $output = shell_exec($command);
     sleep(1);
-    return !(empty($output) && strpos($output, 'error') === false);
+    return !(empty($output) || strpos($output, 'error') !== false);
 }
 
 function killBot($pid) {
     $output = shell_exec("kill $pid > /dev/null 2>&1 &");
     sleep(3);
-    return (isset($output) && strpos($output, 'error') === false);
+    return (empty($output) || strpos($output, 'error') === false);
 }
 
 // Display running versions if bots are running
