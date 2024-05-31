@@ -2668,13 +2668,13 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                slots = ["🍒","🍋","🍊","🍉","🍇","🍓","⭐"]
+                slots = ["🍒", "🍋", "🍊", "🍉", "🍇", "🍓", "⭐"]
                 result = [random.choice(slots) for _ in range(3)]
                 if result[0] == result[1] == result[2]:
-                    message = f"{ctx.author.name}, {"".join(result)}"
+                    message = f"{ctx.author.name}, {''.join(result)}"
                     message += f" You Win!"
                 else:
-                    message = f"{ctx.author.name}, {"".join(result)}"
+                    message = f"{ctx.author.name}, {''.join(result)}"
                     message += f" Better luck next time."
                 await ctx.send(message)
         finally:
