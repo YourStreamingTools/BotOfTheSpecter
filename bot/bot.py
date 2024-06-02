@@ -3561,7 +3561,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                     await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
-            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months."))
+            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", event_months))
             await sqldb.commit()
             if subscriber_message.strip():
                 message = f"Thank you {user_name} for subscribing at {sub_plan}! Your message: '{subscriber_message}'"
