@@ -10,3 +10,5 @@ googletrans
 pytz
 mysql-connector-python
 jokeapi
+openai
+deep_translator
