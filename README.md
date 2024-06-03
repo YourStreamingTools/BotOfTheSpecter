@@ -33,21 +33,21 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 4.3 - BotOfTheSpecter
+### Version 4.4 - BotOfTheSpecter
 
-- Added MySQL table creation for `channel_point_rewards`:
-- Added MySQL table creation for `poll_results`:
-- Added EventSubs:
-    - `"channel.channel_points_automatic_reward_redemption.add"`
-    - `"channel.channel_points_custom_reward_redemption.add"`
-    - `"channel.poll.begin"`
-    - `"channel.poll.progress"`
-    - `"channel.poll.end"`
-- Added event handling for channel points automatic and custom reward redemptions, and poll events
-- Added a new version command
-- Fixed the MySQL query statement adding new users to the database and fixed the process followers function for the followed at time by changing the conversion of `followed_at_twitch` to `followed_at`
+- Added new commands: 'roulette', 'kill', 'slots'
+- Enhanced message counting and user level identification
+- Dynamic polling updates for ongoing and concluded polls
+- Welcome messages for new and returning users based on roles
+- Implemented token refresh mechanism
+- Integrated Twitch EventSub for various events
+- Added comprehensive logging for bot, chat, Twitch, API, and chat history
+- Fixed broadcaster user level identification and 'Session is closed' error in `known_users` function
+- Improved raid event processing, custom command handling, and URL blocking
+- Updated ad break messaging duration format and token refresh log messages
+- Optimized command handling and event message processing
 
-[View Full Changelog for Version 4.3](/bot/changelog/4.3.md)
+[View Full Changelog for Version 4.4](/bot/changelog/4.4.md)
 
 ### Version 2.0 - Application
 - Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
