@@ -86,8 +86,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-    <br>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
     <div class="box">
         <h4 class="title is-4">Bot Commands</h4>
         <p class="has-text-danger">Soon you'll be able to enable and disable the built in commands. If there's a command you don't use you can disable it from working.</p>
