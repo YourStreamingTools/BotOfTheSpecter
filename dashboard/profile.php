@@ -122,9 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <input class="input" type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>">
       </div>
     </div>
-    <div class="control">
-      <input type="submit" class="button is-primary" value="Submit">
-    </div>
+    <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
   </form>
   <br>
   <?php if (!empty($status)): ?>
