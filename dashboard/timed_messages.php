@@ -151,7 +151,7 @@ if ($displayMessageData) {
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName"; ?><img id="profile-image" class="round-image" src="<?php echo $twitch_profile_image_url; ?>" width="50px" height="50px" alt="<?php echo $twitchDisplayName; ?> Profile Image"></h1>
+    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <p class="has-text-danger">Please be advised that this function is currently undergoing heavy development and testing, and may not function properly at this time.</p>
     <br>
