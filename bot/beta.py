@@ -42,7 +42,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.4"
+VERSION = "4.5"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -939,7 +939,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in message_counting: {e}")
         finally:
             sqldb.close()
-            #await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
+            await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
             await self.user_grouping(messageAuthor, messageAuthorID)
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
@@ -3562,7 +3562,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                     await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
-            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months."))
+            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", event_months))
             await sqldb.commit()
             if subscriber_message.strip():
                 message = f"Thank you {user_name} for subscribing at {sub_plan}! Your message: '{subscriber_message}'"
@@ -3749,9 +3749,17 @@ async def send_to_discord_stream_online(message, image):
 
 # Function to conenct to the websocket server and push a notice
 async def websocket_notice(channel, event, user):
-    uri = f"wss://websocket.botofthespecter.com:8080/{channel}/{event}/{user}"
-    async with websockets.connect(uri) as websocket_notice:
-        await websocket_notice.send()
+    uri = f"wss://websocket.botofthespecter.com:8080/notify"
+    async with websockets.connect(uri) as websocket:
+        # Construct the message to be sent
+        message = json.dumps({
+            "channel": channel,
+            "event": event,
+            "user": user
+        })
+        await websocket.send(message)
+        response = await websocket.recv()
+        bot_logger.info(f"Received response: {response}")
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
