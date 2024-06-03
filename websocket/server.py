@@ -3,7 +3,6 @@ import pathlib
 import socket
 import signal
 import asyncio
-import json
 import logging
 import ssl
 import argparse
