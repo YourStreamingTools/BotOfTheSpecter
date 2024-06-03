@@ -129,7 +129,7 @@ $buildStatus = "";
           <input class="input" type="text" id="webhook" name="webhook" required>
         </div>
       </div>
-      <div class="control"><input class="button is-primary" type="submit" value="Submit"></div>
+      <div class="control"><button class="button is-primary" type="submit">Submit</button></div>
     </form>
     </div>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>Webhook URL added successfully</p>"; } ?>
