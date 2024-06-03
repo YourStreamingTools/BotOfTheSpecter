@@ -100,9 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
                 </div>
             </div>
         </div>
-        <div class="control">
-            <input type="submit" class="button is-danger" value="Remove Command">
-        </div>
+        <div class="control"><button type="submit" class="button is-danger">Remove Command</button></div>
     </form>
   <?php else: ?>
     <p>No commands to remove.</p>
