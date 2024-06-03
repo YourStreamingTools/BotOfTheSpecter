@@ -99,9 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['command_to_edit'], $_P
                 <input class="input" type="text" name="command_response" id="command_response" value="" required>
             </div>
         </div>
-        <div class="control">
-            <input type="submit" class="button is-primary" value="Update Command">
-        </div>
+        <div class="control"><button type="submit" class="button is-primary">Update Command</button></div>
     </form>
   <?php else: ?>
     <p>No commands available to edit.</p>
