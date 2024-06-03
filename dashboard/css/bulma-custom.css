@@ -58,6 +58,11 @@ h1, h2, h3, h4, h5, h6 {
     margin-right: 10px;
 }
 
+.button.is-primary, .button.is-success, .button.is-danger, .button.is-warning {
+    color: #000000;
+    font-weight: bold;
+}
+
 header {
     background-color: #1f1f1f;
     padding: 20px;
