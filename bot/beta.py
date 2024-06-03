@@ -3750,7 +3750,7 @@ async def send_to_discord_stream_online(message, image):
 
 # Function to conenct to the websocket server and push a notice
 async def websocket_notice(channel, event, user):
-    uri = "wss://websocket.botofthespecter.com:8080/"
+    uri = "wss://websocket.botofthespecter.com:8080/notify"
     async with websockets.connect(uri) as websocket:
         # Step 1: Register with the code
         registration_message = json.dumps({
