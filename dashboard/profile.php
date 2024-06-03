@@ -105,9 +105,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
   <button type="button" class="button is-primary" id="show-api-key">Show API Key</button>
   <button type="button" class="button is-primary" id="hide-api-key" style="display:none;">Hide API Key</button>
-  <br><br>
+  <br>
   <button type="button" class="button is-primary" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
-  <br><br><br>
+  <br>
   <h2 class="title is-4">Update Profile</h2>
   <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
     <div class="field">
