@@ -174,9 +174,7 @@ if ($displayMessageData) {
                         <span id="intervalError" class="help is-danger" style="display: none;">Please pick a time between 5 and 60 minutes</span>
                     </div>
                 </div>
-                <div class="control">
-                    <input type="submit" class="button is-primary" value="Add Message">
-                </div>
+                <div class="control"><button type="submit" class="button is-primary">Add Message</button></div>
             </form>
         </div>
         <?php if (!empty($timedMessagesData)): ?>
@@ -204,9 +202,7 @@ if ($displayMessageData) {
                     </div>
                     <div class="field">
                         <label class="label" for="edit_interval">New Interval:</label>
-                        <div class="control">
-                            <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required>
-                        </div>
+                        <div class="control"><button class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required></div>
                     </div>
                     <div class="field">
                         <label class="label" for="edit_message_content">New Message:</label>
@@ -214,9 +210,7 @@ if ($displayMessageData) {
                             <input class="input" type="text" name="edit_message_content" id="edit_message_content" required>
                         </div>
                     </div>
-                    <div class="control">
-                        <input type="submit" class="button is-primary" value="Edit Message">
-                    </div>
+                    <div class="control"><button type="submit" class="button is-primary">Edit Message</button></div>
                 </form>
             </div>
             <div class="column is-one-third">
@@ -234,9 +228,7 @@ if ($displayMessageData) {
                             </div>
                         </div>
                     </div>
-                    <div class="control">
-                        <input type="submit" class="button is-danger" value="Remove Message">
-                    </div>
+                    <div class="control"><button type="submit" class="button is-danger">Remove Message</button></div>
                 </form>
             </div>
         <?php endif; ?>
