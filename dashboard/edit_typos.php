@@ -158,9 +158,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
             <input class="input" type="number" id="typo_count" name="typo_count" required min="0">
           </div>
         </div>
-        <div class="control">
-          <input type="submit" class="button is-primary" value="Update Typo Count">
-        </div>
+        <div class="control"><button type="submit" class="button is-primary">Update Typo Count</button></div>
       </form>
       <?php echo "<p>$status</p>" ?>
     </div>
@@ -181,9 +179,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
             </div>
           </div>
         </div>
-        <div class="control">
-          <input type="submit" class="button is-danger" value="Remove Typo Record">
-        </div>
+        <div class="control"><button type="submit" class="button is-danger">Remove Typo Record</button></div>
       </form>
     </div>
   </div>
