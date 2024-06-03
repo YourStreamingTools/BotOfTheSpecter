@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 import logging
 import subprocess
 import websockets
+import socketio
 import json
 import time
 import random
@@ -3750,29 +3751,34 @@ async def send_to_discord_stream_online(message, image):
 
 # Function to conenct to the websocket server and push a notice
 async def websocket_notice(channel, event, user):
-    uri = "wss://websocket.botofthespecter.com:8080/notify"
-    async with websockets.connect(uri) as websocket:
-        # Step 1: Register with the code
-        registration_message = json.dumps({
-            "code": API_TOKEN
-        })
-        await websocket.send(registration_message)
-        
+    sio = socketio.AsyncClient()
+
+    @sio.event
+    async def connect():
+        # Register with the API Key
+        registration_message = {'code': API_TOKEN}
+        await sio.emit('REGISTER', registration_message)
         # Await confirmation of successful registration if necessary
-        registration_response = await websocket.recv()
+        registration_response = await sio.call('REGISTER', registration_message)
         bot_logger.info(f"Registration response: {registration_response}")
-        
-        # Step 2: Construct the event message to be sent
-        event_message = json.dumps({
+        # Construct and send the event message
+        event_message = {
             "channel": channel,
             "event": event,
             "user": user
-        })
-        await websocket.send(event_message)
-        
+        }
+        await sio.emit(event, event_message)
         # Await response from the server if necessary
-        event_response = await websocket.recv()
+        event_response = await sio.call(event, event_message)
         bot_logger.info(f"Event response: {event_response}")
+    @sio.event
+    async def connect_error(data):
+        bot_logger.error(f"The connection failed: {data}")
+    @sio.event
+    async def disconnect():
+        pass
+    await sio.connect('https://websocket.botofthespecter.com:8080', transports=['websocket'])
+    await sio.wait()
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
