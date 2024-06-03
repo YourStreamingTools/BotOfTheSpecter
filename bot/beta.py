@@ -880,6 +880,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status_enabled = user_data[3]
                     await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
                     await sqldb.commit()
+                    await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
                 else:
                     # Check if the user is the broadcaster
                     if messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -889,6 +890,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status_enabled = 'True'
                     await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
                     await sqldb.commit()
+                    await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
 
                 if user_status_enabled == 'True':
                     if is_vip:
@@ -939,7 +941,6 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.error(f"Error in message_counting: {e}")
         finally:
             sqldb.close()
-            await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
             await self.user_grouping(messageAuthor, messageAuthorID)
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
@@ -3749,17 +3750,29 @@ async def send_to_discord_stream_online(message, image):
 
 # Function to conenct to the websocket server and push a notice
 async def websocket_notice(channel, event, user):
-    uri = f"wss://websocket.botofthespecter.com:8080/notify"
+    uri = "wss://websocket.botofthespecter.com:8080/"
     async with websockets.connect(uri) as websocket:
-        # Construct the message to be sent
-        message = json.dumps({
+        # Step 1: Register with the code
+        registration_message = json.dumps({
+            "code": API_TOKEN
+        })
+        await websocket.send(registration_message)
+        
+        # Await confirmation of successful registration if necessary
+        registration_response = await websocket.recv()
+        bot_logger.info(f"Registration response: {registration_response}")
+        
+        # Step 2: Construct the event message to be sent
+        event_message = json.dumps({
             "channel": channel,
             "event": event,
             "user": user
         })
-        await websocket.send(message)
-        response = await websocket.recv()
-        bot_logger.info(f"Received response: {response}")
+        await websocket.send(event_message)
+        
+        # Await response from the server if necessary
+        event_response = await websocket.recv()
+        bot_logger.info(f"Event response: {event_response}")
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
