@@ -76,7 +76,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <table class="table is-fullwidth is-striped is-hoverable">
+  <table class="table is-fullwidth">
     <tr>
       <td>Your Username:</td>
       <td><?php echo $username; ?></td>
@@ -133,13 +133,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
   <?php endif; ?>
   </div>
-  
+
   <!-- Include the JavaScript files -->
   <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
   <script src="/js/profile.js"></script>
   <script src="/js/obsbutton.js" defer></script>
   <script src="/js/timezone.js"></script>
-  
+
   <!-- JavaScript code to convert and display the dates -->
   <script>
     // Function to convert UTC date to local date in the desired format
@@ -158,11 +158,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       const dateTimeFormatter = new Intl.DateTimeFormat('en-US', options);
       return dateTimeFormatter.format(localDate);
     }
-  
+
     // PHP variables holding the UTC date and time
     const signupDateUTC = "<?php echo $signup_date_utc; ?>";
     const lastLoginUTC = "<?php echo $last_login_utc; ?>";
-  
+
     // Display the dates in the user's local time zone
     document.getElementById('localSignupDate').innerText = convertUTCToLocalFormatted(signupDateUTC);
     document.getElementById('localLastLogin').innerText = convertUTCToLocalFormatted(lastLoginUTC);
