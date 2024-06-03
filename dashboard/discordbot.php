@@ -42,7 +42,6 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'sqlite.php';
 include 'bot_control.php';
-include 'beta_bot_control.php';
 
 // Check if the user is already linked with Discord
 $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
