@@ -146,9 +146,7 @@ $commandCountsJs = json_encode(array_column($commandData, 'count', 'command'));
           <input class="input" type="number" id="command_count" name="command_count" required min="0">
         </div>
       </div>
-      <div class="control">
-        <input type="submit" class="button is-primary" value="Update Command Count">
-      </div>
+      <div class="control"><button type="submit" class="button is-primary">Update Command Count</button></div>
     </form>
     <?php echo "<p>$status</p>" ?>
   </div>
