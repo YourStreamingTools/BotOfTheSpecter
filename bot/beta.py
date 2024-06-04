@@ -26,6 +26,7 @@ import pyowm
 import pytz
 from jokeapi import Jokes
 import openai
+import uuid
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -383,20 +384,24 @@ async def connect_to_tipping_services():
 
 async def connect_to_streamelements():
     global streamelements_token
-    uri = "wss://realtime.streamelements.com/socket.io/?EIO=3&transport=websocket"
+    uri = "wss://astro.streamelements.com"
     async with websockets.connect(uri) as websocket:
         # Send the authentication message
+        nonce = str(uuid.uuid4())
         await websocket.send(json.dumps({
-            'type': 'authenticate',
+            'type': 'subscribe',
+            'nonce': nonce,
             'data': {
-                'method': 'jwt',
-                'token': streamelements_token
+                'topic': 'channel.tip',
+                'token': streamelements_token,
+                'token_type': 'jwt'
             }
         }))
+        
         # Listen for messages
         while True:
             message = await websocket.recv()
-            await process_tipping_message(message, "StreamElements")
+            await process_message(message, "StreamElements")
 
 async def connect_to_streamlabs():
     global streamlabs_token
@@ -405,11 +410,32 @@ async def connect_to_streamlabs():
         # Listen for messages
         while True:
             message = await websocket.recv()
-            await process_tipping_message(message, "StreamLabs")
+            await process_message(message, "StreamLabs")
 
-async def process_tipping_message(message, source):
-    channel = bot.get_channel(CHANNEL_NAME)
+async def process_message(message, source):
     data = json.loads(message)
+    if source == "StreamElements" and data.get('type') == 'response':
+        # Handle the subscription response
+        if 'error' in data:
+            handle_streamelements_error(data['error'], data['data']['message'])
+        else:
+            bot_logger.info(f"StreamElements subscription success: {data['data']['message']}")
+    else:
+        await process_tipping_message(data, source)
+
+def handle_streamelements_error(error, message):
+    error_messages = {
+        "err_internal_error": "An internal error occurred.",
+        "err_bad_request": "The request was malformed or invalid.",
+        "err_unauthorized": "The request lacked valid authentication credentials.",
+        "rate_limit_exceeded": "The rate limit for the API has been exceeded.",
+        "invalid_message": "The message was invalid or could not be processed."
+    }
+    error_message = error_messages.get(error, "Unknown error occurred.")
+    bot_logger.error(f"StreamElements error: {error_message} - {message}")
+
+async def process_tipping_message(data, source):
+    channel = bot.get_channel(CHANNEL_NAME)
     send_message = None
 
     if source == "StreamElements" and data.get('type') == 'tip':
