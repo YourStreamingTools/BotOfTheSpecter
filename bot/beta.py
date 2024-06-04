@@ -355,6 +355,91 @@ async def receive_messages(websocket, keepalive_timeout):
             bot_logger.error(f"Error receiving message: {e}")
             break  # Exit the loop on critical error
 
+async def connect_to_tipping_services():
+    global streamelements_token, streamlabs_token
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT StreamElements, StreamLabs FROM tipping_settings LIMIT 1")
+            result = await cursor.fetchone()
+
+            streamelements_token = result['StreamElements']
+            streamlabs_token = result['StreamLabs']
+
+            tasks = []
+            if streamelements_token:
+                tasks.append(connect_to_streamelements())
+            if streamlabs_token:
+                tasks.append(connect_to_streamlabs())
+
+            if tasks:
+                await asyncio.gather(*tasks)
+            else:
+                bot_logger.error("No valid token found for either StreamElements or StreamLabs.")
+    except aiomysql.MySQLError as err:
+        bot_logger.error(f"Database error: {err}")
+    finally:
+        sqldb.close()
+
+async def connect_to_streamelements():
+    global streamelements_token
+    uri = "wss://realtime.streamelements.com/socket.io/?EIO=3&transport=websocket"
+    async with websockets.connect(uri) as websocket:
+        # Send the authentication message
+        await websocket.send(json.dumps({
+            'type': 'authenticate',
+            'data': {
+                'method': 'jwt',
+                'token': streamelements_token
+            }
+        }))
+        # Listen for messages
+        while True:
+            message = await websocket.recv()
+            await process_tipping_message(message, "StreamElements")
+
+async def connect_to_streamlabs():
+    global streamlabs_token
+    uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
+    async with websockets.connect(uri) as websocket:
+        # Listen for messages
+        while True:
+            message = await websocket.recv()
+            await process_tipping_message(message, "StreamLabs")
+
+async def process_tipping_message(message, source):
+    channel = bot.get_channel(CHANNEL_NAME)
+    data = json.loads(message)
+    send_message = None
+
+    if source == "StreamElements" and data.get('type') == 'tip':
+        user = data['data']['username']
+        amount = data['data']['amount']
+        tip_message = data['data']['message']
+        send_message = f"{user} just tipped {amount}! Message: {tip_message}"
+    elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
+        for donation in data['data']['donations']:
+            user = donation['name']
+            amount = donation['amount']
+            tip_message = donation['message']
+            send_message = f"{user} just tipped {amount}! Message: {tip_message}"
+    
+    if send_message:
+        await channel.send(send_message)
+        # Save tipping data directly in this function
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute(
+                    "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
+                    (user, amount, tip_message, source)
+                )
+                await sqldb.commit()
+        except aiomysql.MySQLError as err:
+            bot_logger.error(f"Database error: {err}")
+        finally:
+            sqldb.close()
+
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
@@ -4160,6 +4245,22 @@ async def setup_database():
                         channel_points_used INT,
                         started_at DATETIME,
                         ended_at DATETIME
+                    ) ENGINE=InnoDB
+                ''',
+                'tipping_settings': '''
+                    CREATE TABLE IF NOT EXISTS tipping_settings (
+                        StreamElements VARCHAR(255) DEFAULT NULL,
+                        StreamLabs VARCHAR(255) DEFAULT NULL
+                    ) ENGINE=InnoDB
+                ''',
+                'tipping': '''
+                    CREATE TABLE IF NOT EXISTS tipping (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        username VARCHAR(255),
+                        amount DECIMAL(10, 2),
+                        message TEXT,
+                        source VARCHAR(255),
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                     ) ENGINE=InnoDB
                 '''
             }
