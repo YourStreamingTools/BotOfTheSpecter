@@ -798,7 +798,7 @@ class BotOfTheSpecter(commands.Bot):
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
                             # User is permitted, skip URL blocking
                             return
-                        if is_mod_or_broadcaster(messageAuthor):
+                        if command_permissions(messageAuthor):
                             # User is a mod or is the broadcaster, they are by default permitted.
                             return
 
@@ -843,6 +843,9 @@ class BotOfTheSpecter(commands.Bot):
                 await self.message_counting(messageAuthor, messageAuthorID, message)
 
     async def message_counting(self, messageAuthor, messageAuthorID, message):
+        if messageAuthor is None:
+            chat_logger.error("messageAuthor is None")
+            return
         sqldb = await get_mysql_connection()
         channel = message.channel
         try:
@@ -1009,7 +1012,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
 
-                is_mod = await is_mod_or_broadcaster(ctx.author)
+                is_mod = await command_permissions(ctx.author)
                 if is_mod:
                     # If the user is a mod, include both custom_commands and builtin_commands
                     all_commands = list(mod_commands) + list(builtin_commands)
@@ -1253,7 +1256,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     permit_user = permit_user.lstrip('@')
                     if permit_user:
                         permitted_users[permit_user] = time.time() + 30
@@ -1277,7 +1280,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     if title is None:
                         await ctx.send("Stream titles cannot be blank. You must provide a title for the stream.")
                         return
@@ -1301,7 +1304,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     if game is None:
                         await ctx.send("You must provide a game for the stream.")
                         return
@@ -1840,7 +1843,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     if description:
                         marker_description = description
                     else:
@@ -2043,7 +2046,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     chat_logger.info("Edit Typos Command ran.")
                     try:
                         # Determine the target user: mentioned user or the command caller
@@ -2099,7 +2102,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     # Ensure a username is mentioned
                     if mentioned_username is None:
                         chat_logger.error("Command missing username parameter.")
@@ -2220,7 +2223,7 @@ class BotOfTheSpecter(commands.Bot):
                         return
                 else:
                     chat_logger.info("No status found for Death Add Command.")
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     global current_game
                     try:
                         chat_logger.info("Death Add Command ran by a mod or broadcaster.")
@@ -2270,7 +2273,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await is_mod_or_broadcaster(ctx.author):
+                if await command_permissions(ctx.author):
                     global current_game
                     try:
                         chat_logger.info("Death Remove Command Ran")
@@ -2481,7 +2484,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-            if is_mod_or_broadcaster(ctx.author):
+            if command_permissions(ctx.author):
                 REMOTE_VERSION_URL = "https://api.botofthespecter.com/version_control.txt"
                 async with aiohttp.ClientSession() as session:
                     async with session.get(REMOTE_VERSION_URL) as response:
@@ -2522,7 +2525,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-            if is_mod_or_broadcaster(ctx.author):
+            if command_permissions(ctx.author):
                 chat_logger.info(f"Shoutout command running from {ctx.author.name}")
                 if user_to_shoutout is None:
                     chat_logger.error(f"Shoutout command missing username parameter.")
@@ -2579,7 +2582,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             # Check if the user is a moderator or the broadcaster
-            if is_mod_or_broadcaster(ctx.author):
+            if command_permissions(ctx.author):
                 # Parse the command and response from the message
                 try:
                     command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
@@ -2610,7 +2613,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             # Check if the user is a moderator or the broadcaster
-            if is_mod_or_broadcaster(ctx.author):
+            if command_permissions(ctx.author):
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
@@ -2639,7 +2642,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             # Check if the user is a moderator or the broadcaster
-            if is_mod_or_broadcaster(ctx.author):
+            if command_permissions(ctx.author):
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
@@ -2832,7 +2835,7 @@ async def get_display_name(user_id):
                 return None
 
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
-def is_mod_or_broadcaster(user):
+async def command_permissions(user):
     # Check if the user is the bot owner
     if user.name == 'gfaundead':
         twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
@@ -2844,7 +2847,7 @@ def is_mod_or_broadcaster(user):
         return True
 
     # Check if the user is a moderator
-    elif is_user_mod(user.name):
+    elif await is_user_mod(user.name):
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
