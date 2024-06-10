@@ -42,7 +42,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.4"
+VERSION = "4.4.1"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -2229,7 +2229,8 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info("Death Add Command ran by a mod or broadcaster.")
                         # Ensure there is exactly one row in total_deaths
                         await cursor.execute("SELECT COUNT(*) FROM total_deaths")
-                        if await cursor.fetchone()[0] == 0:
+                        count_result = await cursor.fetchone()
+                        if count_result is not None and count_result[0] == 0:
                             await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
                             await sqldb.commit()
                             chat_logger.info("Initialized total_deaths table.")
@@ -3859,7 +3860,7 @@ async def check_stream_online():
                 stream_online = True
                 game = data['data'][0].get('game_name', None)
                 current_game = game
-                bot_logger.info(f"Bot Restarted, Stream is online.")
+                bot_logger.info(f"Bot Restarted, Stream is online. Game: {current_game}")
     return
 
 async def known_users():
