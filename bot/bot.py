@@ -1049,6 +1049,32 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
+    @commands.command(name='forceonline')
+    async def force_online_command(self, ctx):
+        global stream_online
+        global current_game
+        if await command_permissions(ctx.author):
+            sqldb = await get_mysql_connection()
+            try:
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("version",))
+                    result = await cursor.fetchone()
+                    if result:
+                        status = result[0]
+                        if status == 'Disabled':
+                            return
+                    chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
+                    stream_online = True
+                    await ctx.send("Stream status has been forcibly set to online.")
+            except Exception as e:
+                chat_logger.error(f"Error in force_online_command: {e}")
+                await ctx.send(f"An error occurred while executing the command. {e}")
+            finally:
+                await sqldb.ensure_closed()
+        else:
+            chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+
     @commands.command(name='version')
     async def version_command(self, ctx):
         sqldb = await get_mysql_connection()
