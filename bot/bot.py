@@ -2770,7 +2770,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                    choices = ["Rock","Paper","Scissors"]
+                    choices = ["rock","paper","scissors"]
                     bot_choice = random.choice(choices)
                     user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
                     if user_input not in choices:
@@ -2780,8 +2780,8 @@ class BotOfTheSpecter(commands.Bot):
                     if user_choice == bot_choice:
                         result = f"It's a tie! We both chose {bot_choice}."
                     elif (user_choice == 'rock' and bot_choice == 'Scissors') or \
-                         (user_choice == 'paper' and bot_choice == 'Rock') or \
-                         (user_choice == 'scissors' and bot_choice == 'Paper'):
+                        (user_choice == 'paper' and bot_choice == 'Rock') or \
+                        (user_choice == 'scissors' and bot_choice == 'Paper'):
                         result = f"You Win! You chose {user_choice} and I chose {bot_choice}."
                     else:
                         result = f"You lose! You chose {user_choice} and I chose {bot_choice}"
