@@ -135,7 +135,16 @@ current_game = None
 # Setup Token Refresh
 async def refresh_token_every_day():
     global REFRESH_TOKEN
+    # Initial sleep for 5 minutes before first token refresh
+    initial_sleep_time = 300  # 5 minutes
+    await asyncio.sleep(initial_sleep_time)
+
+    # Perform the first token refresh after the initial sleep
+    REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
+    
+    # Calculate the next refresh time to be 4 hours minus 5 minutes from now
     next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes for refresh
+
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
@@ -191,6 +200,7 @@ async def refresh_token(current_refresh_token):
     except Exception as e:
         # Log the error if token refresh fails
         twitch_logger.error(f"Token refresh failed: {e}")
+        return current_refresh_token, next_refresh_time
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
