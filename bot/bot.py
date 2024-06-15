@@ -741,8 +741,8 @@ class BotOfTheSpecter(commands.Bot):
 
                                 if '(count)' in response:
                                     try:
-                                        update_custom_count(command)
-                                        get_count = get_custom_count(command)
+                                        await update_custom_count(command)
+                                        get_count = await get_custom_count(command)
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
@@ -2992,9 +2992,14 @@ async def update_custom_count(command):
                 current_count = result[0]
                 new_count = current_count + 1
                 await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
+                chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
             else:
                 await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, 1))
+                chat_logger.info(f"Inserted new command '{command}' with count 1.")
         await sqldb.commit()
+    except Exception as e:
+        chat_logger.error(f"Error updating count for command '{command}': {e}")
+        await sqldb.rollback()
     finally:
         await sqldb.ensure_closed()
 
@@ -3005,9 +3010,15 @@ async def get_custom_count(command):
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
             result = await cursor.fetchone()
             if result:
-                return result[0]
+                count = result[0]
+                chat_logger.info(f"Retrieved count for command '{command}': {count}")
+                return count
             else:
+                chat_logger.info(f"No count found for command '{command}', returning 0.")
                 return 0
+    except Exception as e:
+        chat_logger.error(f"Error retrieving count for command '{command}': {e}")
+        return 0
     finally:
         await sqldb.ensure_closed()
 
