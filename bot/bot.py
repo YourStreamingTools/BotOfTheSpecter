@@ -42,7 +42,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.4.2"
+VERSION = "4.4.3"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -2019,12 +2019,13 @@ class BotOfTheSpecter(commands.Bot):
                 await sqldb.commit()
                 # Retrieve the updated count
                 await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                typo_count = await cursor.fetchone()[0]
+                result = await cursor.fetchone()
+                typo_count = result[0] if result else 0
                 # Send the message
                 chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
                 await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
         except Exception as e:
-            chat_logger.error(f"Error in typo_command: {e}")
+            chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await ctx.send(f"An error occurred while trying to add to your typo count.")
         finally:
             await sqldb.ensure_closed()
