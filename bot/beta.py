@@ -565,17 +565,7 @@ async def process_eventsub_message(message):
                     bot_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 elif event_type == 'channel.ad_break.begin':
                     duration_seconds = event_data["duration_seconds"]
-                    minutes = duration_seconds // 60
-                    seconds = duration_seconds % 60
-                    if minutes == 0:
-                        formatted_duration = f"{seconds} seconds"
-                    elif seconds == 0:
-                        formatted_duration = f"{minutes} minutes"
-                    else:
-                        formatted_duration = f"{minutes} minutes, {seconds} seconds"
-                    await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-                    await asyncio.sleep(duration_seconds)
-                    await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+                    asyncio.create_task(handle_ad_break(duration_seconds))
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["event"]["user_name"]
                     charity = event_data["event"]["charity_name"]
@@ -2107,12 +2097,13 @@ class BotOfTheSpecter(commands.Bot):
                 await sqldb.commit()
                 # Retrieve the updated count
                 await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                typo_count = await cursor.fetchone()[0]
+                result = await cursor.fetchone()
+                typo_count = result[0] if result else 0
                 # Send the message
                 chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
                 await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
         except Exception as e:
-            chat_logger.error(f"Error in typo_command: {e}")
+            chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await ctx.send(f"An error occurred while trying to add to your typo count.")
         finally:
             await sqldb.ensure_closed()
@@ -2862,14 +2853,14 @@ class BotOfTheSpecter(commands.Bot):
                     bot_choice = random.choice(choices)
                     user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
                     if user_input not in choices:
-                        await ctx.send(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
+                        await ctx.send(f'Please choose "rock", "paper" or "scissors". Usage: !rps <choice>')
                         return
                     user_choice = user_input
                     if user_choice == bot_choice:
                         result = f"It's a tie! We both chose {bot_choice}."
-                    elif (user_choice == 'rock' and bot_choice == 'Scissors') or \
-                        (user_choice == 'paper' and bot_choice == 'Rock') or \
-                        (user_choice == 'scissors' and bot_choice == 'Paper'):
+                    elif (user_choice == 'rock' and bot_choice == 'scissors') or \
+                        (user_choice == 'paper' and bot_choice == 'rock') or \
+                        (user_choice == 'scissors' and bot_choice == 'paper'):
                         result = f"You Win! You chose {user_choice} and I chose {bot_choice}."
                     else:
                         result = f"You lose! You chose {user_choice} and I chose {bot_choice}"
@@ -3595,6 +3586,21 @@ async def delete_recorded_files():
         api_logger.error(f"An error occurred while deleting recorded files: {e}")
 
 ## Functions for the EventSub
+# Function for AD BREAK
+async def handle_ad_break(duration_seconds):
+    channel = bot.get_channel(CHANNEL_NAME)
+    minutes = duration_seconds // 60
+    seconds = duration_seconds % 60
+    if minutes == 0:
+        formatted_duration = f"{seconds} seconds"
+    elif seconds == 0:
+        formatted_duration = f"{minutes} minutes"
+    else:
+        formatted_duration = f"{minutes} minutes, {seconds} seconds"
+    await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
+    await asyncio.sleep(duration_seconds)
+    await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     sqldb = await get_mysql_connection()
