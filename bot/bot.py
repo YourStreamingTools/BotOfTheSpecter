@@ -463,17 +463,7 @@ async def process_eventsub_message(message):
                     bot_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 elif event_type == 'channel.ad_break.begin':
                     duration_seconds = event_data["duration_seconds"]
-                    minutes = duration_seconds // 60
-                    seconds = duration_seconds % 60
-                    if minutes == 0:
-                        formatted_duration = f"{seconds} seconds"
-                    elif seconds == 0:
-                        formatted_duration = f"{minutes} minutes"
-                    else:
-                        formatted_duration = f"{minutes} minutes, {seconds} seconds"
-                    await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-                    asyncio.sleep(duration_seconds)
-                    await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+                    asyncio.create_task(handle_ad_break(duration_seconds))
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["event"]["user_name"]
                     charity = event_data["event"]["charity_name"]
@@ -3528,6 +3518,21 @@ async def delete_recorded_files():
         api_logger.error(f"An error occurred while deleting recorded files: {e}")
 
 ## Functions for the EventSub
+# Function for AD BREAK
+async def handle_ad_break(duration_seconds):
+    channel = bot.get_channel(CHANNEL_NAME)
+    minutes = duration_seconds // 60
+    seconds = duration_seconds % 60
+    if minutes == 0:
+        formatted_duration = f"{seconds} seconds"
+    elif seconds == 0:
+        formatted_duration = f"{minutes} minutes"
+    else:
+        formatted_duration = f"{minutes} minutes, {seconds} seconds"
+    await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
+    await asyncio.sleep(duration_seconds)
+    await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
     sqldb = await get_mysql_connection()
