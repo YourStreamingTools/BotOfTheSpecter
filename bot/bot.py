@@ -3707,11 +3707,11 @@ async def send_to_discord(message, title, image):
             time_format = f"{time_format_date} at {time_format_time}"
             payload = {
                 "username": "BotOfTheSpecter",
-                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
+                "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
                 "embeds": [{
                     "description": message,
                     "title": title,
-                    "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
+                    "thumbnail": {"url": f"https://botofthespecter.yourcdnonline.com/webhook/{image}"},
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
@@ -3747,11 +3747,11 @@ async def send_to_discord_mod(message, title, image):
             time_format = f"{time_format_date} at {time_format_time}"
             payload = {
                 "username": "BotOfTheSpecter",
-                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
+                "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
                 "embeds": [{
                     "description": message,
                     "title": title,
-                    "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
+                    "thumbnail": {"url": f"https://botofthespecter.yourcdnonline.com/webhook/{image}"},
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
@@ -3786,7 +3786,7 @@ async def send_to_discord_stream_online(message, image):
                 title = f"{CHANNEL_NAME} is now live on Twitch!"
                 payload = {
                     "username": "BotOfTheSpecter",
-                    "avatar_url": "https://cdn.botofthespecter.com/logo.png",
+                    "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
                     "content": "@everyone",
                     "embeds": [{
                         "description": message,
