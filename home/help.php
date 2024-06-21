@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - Help</title>
     <link rel="stylesheet" type="text/css" href="style.css">
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
+    <link rel="apple-touch-icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Tools4Streaming" />
     <meta name="twitter:title" content="BotOfTheSpecter" />
     <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
-    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+    <meta name="twitter:image" content="https://botofthespecter.yourcdnonline.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
     <header>
