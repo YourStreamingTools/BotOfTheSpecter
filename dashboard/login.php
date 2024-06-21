@@ -181,9 +181,9 @@ if (isset($_GET['code'])) {
 <html>
 <head>
     <title>BotOfTheSpecter - Twitch Login</title>
-    <link rel="icon" href="https://cdn.yourstreaming.tools/img/logo.jpeg" sizes="32x32" />
-    <link rel="icon" href="https://cdn.yourstreaming.tools/img/logo.jpeg" sizes="192x192" />
-    <link rel="apple-touch-icon" href="https://cdn.yourstreaming.tools/img/logo.jpeg" />
-    <meta name="msapplication-TileImage" content="https://cdn.yourstreaming.tools/img/logo.jpeg" />
+    <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png" sizes="32x32" />
+    <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="https://botofthespecter.yourcdnonline.com/logo.png" />
+    <meta name="msapplication-TileImage" content="https://botofthespecter.yourcdnonline.com/logo.png" />
 </head>
 <body><?php echo "<p>$info</p></body></html>";?>
