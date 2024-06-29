@@ -1847,7 +1847,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 try:
-                    user_id = str(ctx.author.id)
+                    user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await ctx.send(f"Streamer, you've been here all along!")
                         chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
@@ -1855,8 +1855,9 @@ class BotOfTheSpecter(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = result[0]
-                        elapsed_time = datetime.now() - start_time
+                        time_now = datetime.now()
+                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        elapsed_time = time_now - start_time
                         # Calculate the duration
                         days, seconds = divmod(elapsed_time.total_seconds(), 86400)
                         months, days = divmod(days, 30)
@@ -1874,7 +1875,7 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
                 except Exception as e:
-                    chat_logger.error(f"Error in unlurk_command: {e}")
+                    chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time}")
                     await ctx.send(f"Oops, something went wrong with the unlurk command.")
         finally:
             await sqldb.ensure_closed()
