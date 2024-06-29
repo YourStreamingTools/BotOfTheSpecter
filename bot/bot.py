@@ -2373,19 +2373,19 @@ class BotOfTheSpecter(commands.Bot):
                         if user_info:
                             mentioned_user_id = user_info[0].id
                             params = {
-                                'from_id': mentioned_user_id,
-                                'to_id': CHANNEL_ID
+                                'user_id': mentioned_user_id,
+                                'broadcaster_id': CHANNEL_ID
                             }
                         else:
-                            await ctx.send(f"User {target_user} not found.")
+                            await ctx.send(f"The user {target_user} is not a user on Twitch.")
                             return
                     else:
                         params = {
-                            'from_id': ctx.author.id,
-                            'to_id': CHANNEL_ID
+                            'user_id': ctx.author.id,
+                            'broadcaster_id': CHANNEL_ID
                         }
                     async with aiohttp.ClientSession() as session:
-                        async with session.get('https://api.twitch.tv/helix/users/follows', headers=headers, params=params) as response:
+                        async with session.get('https://api.twitch.tv/helix/channels/followers', headers=headers, params=params) as response:
                             if response.status == 200:
                                 data = await response.json()
                                 if data['total'] > 0:
