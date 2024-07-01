@@ -3,13 +3,12 @@
 $clientID = 'YOUR_CLIENT_ID'; # Fill this out to make it work
 $redirectURI = 'https://songlist.botofthespecter.com/login.php';
 $clientSecret = 'YOUR_CLIENT_SECRET'; # Fill this out to make it work
-$IDScope = 'openid user:read:email user:read:subscriptions';
-$info = "Please wait while we redirect you to Twitch for authorization.";
+$IDScope = 'openid user:read:email';
 
 // Start PHP session
 session_start();
 
-// If the user is already logged in, redirect them to the dashboard page
+// If the user is already logged in, redirect them to the index page
 if (isset($_SESSION['access_token'])) {
     header('Location: index.php');
     exit;
@@ -25,11 +24,11 @@ if (!isset($_SESSION['access_token']) && !isset($_GET['code'])) {
     exit;
 }
 
-// If an authorization code is present, exchange it for an access token and refresh token
+// If an authorization code is present, exchange it for an access token
 if (isset($_GET['code'])) {
     $code = $_GET['code'];
 
-    // Exchange the authorization code for an access token and refresh token
+    // Exchange the authorization code for an access token
     $tokenURL = 'https://id.twitch.tv/oauth2/token';
     $postData = array(
         'client_id' => $clientID,
@@ -60,14 +59,12 @@ if (isset($_GET['code'])) {
 
     curl_close($curl);
 
-    // Extract the access token and refresh token from the response
+    // Extract the access token from the response
     $responseData = json_decode($response, true);
     $accessToken = $responseData['access_token'];
-    $refreshToken = $responseData['refresh_token'];
 
-    // Store the access token and refresh token in the session
+    // Store the access token in the session
     $_SESSION['access_token'] = $accessToken;
-    $_SESSION['refresh_token'] = $refreshToken;
 
     // Fetch the user's Twitch username and profile image URL
     $userInfoURL = 'https://api.twitch.tv/helix/users';
@@ -100,26 +97,18 @@ if (isset($_GET['code'])) {
         $twitchUsername = $userInfo['data'][0]['login'];
         $twitchDisplayName = $userInfo['data'][0]['display_name'];
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
-        $twitchUserId = $userInfo['data'][0]['id'];
 
-        // Database connect
-        require_once "../songlistapi/database.php";
-
-        // Insert/update user data
-        $stmt = $conn->prepare("INSERT INTO users (username, access_token, refresh_token, profile_image, twitch_user_id, twitch_display_name)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), refresh_token = VALUES(refresh_token), profile_image = VALUES(profile_image), twitch_user_id = VALUES(twitch_user_id), twitch_display_name = VALUES(twitch_display_name)");
-        $stmt->execute([$twitchUsername, $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName]);
-
-        // Store the Twitch username in the session
+        // Store the Twitch username and profile image in the session
         $_SESSION['twitch_username'] = $twitchUsername;
+        $_SESSION['twitch_display_name'] = $twitchDisplayName;
+        $_SESSION['profile_image_url'] = $profileImageUrl;
 
-        // Redirect the user to the dashboard
+        // Redirect the user to the index page
         header('Location: index.php');
         exit;
     } else {
         // Failed to fetch user information from Twitch
-        $info = "Failed to fetch user information from Twitch.";
+        echo "Failed to fetch user information from Twitch.";
         exit;
     }
 }
@@ -130,6 +119,6 @@ if (isset($_GET['code'])) {
     <title>BotOfTheSpecter - Twitch Login</title>
 </head>
 <body>
-    <p><?php echo $info; ?></p>
+    <p>Please wait while we redirect you to Twitch for authorization.</p>
 </body>
 </html>
