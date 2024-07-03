@@ -1389,6 +1389,12 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
+                # Check if the user already has an active timer
+                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                active_timer = await cursor.fetchone()
+                if active_timer:
+                    await ctx.send(f"@{ctx.author.name}, you already have an active timer.")
+                    return
                 content = ctx.message.content.strip()
                 try:
                     _, minutes = content.split(' ')
@@ -1396,27 +1402,49 @@ class BotOfTheSpecter(commands.Bot):
                 except ValueError:
                     # Default to 5 minutes if the user didn't provide a valid value
                     minutes = 5
+                end_time = datetime.utcnow() + timedelta(minutes=minutes)
+                await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
+                await sqldb.commit()
                 await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
-                # Set a fixed interval of 30 seconds for countdown messages
-                interval = 30
-                # Wait for the first countdown message after the initial delay
-                await asyncio.sleep(interval)
-                for remaining_seconds in range((minutes * 60) - interval, 0, -interval):
-                    minutes_left = remaining_seconds // 60
-                    seconds_left = remaining_seconds % 60
-                    # Format the countdown message
-                    countdown_message = f"@{ctx.author.name}, timer has "
-                    if minutes_left > 0:
-                        countdown_message += f"{minutes_left} minute(s) "
-                    if seconds_left > 0:
-                        countdown_message += f"{seconds_left} second(s) left."
-                    else:
-                        countdown_message += "left."
-                    # Send countdown message
-                    await ctx.send(countdown_message)
-                    # Wait for the fixed interval of 30 seconds before sending the next message
-                    await asyncio.sleep(interval)
+                await asyncio.sleep(minutes * 60)
                 await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
+                # Remove the timer from the active_timers table
+                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                await sqldb.commit()
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.command(name='stoptimer')
+    async def stop_timer_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                active_timer = await cursor.fetchone()
+                if not active_timer:
+                    await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
+                    return
+                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                await sqldb.commit()
+                await ctx.send(f"Your timer has been stopped @{ctx.author.name}.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.command(name='checktimer')
+    async def check_timer_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                active_timer = await cursor.fetchone()
+                if not active_timer:
+                    await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
+                    return
+                end_time = active_timer[0]
+                remaining_time = end_time - datetime.utcnow()
+                minutes_left = remaining_time.total_seconds() // 60
+                seconds_left = remaining_time.total_seconds() % 60
+                await ctx.send(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
         finally:
             await sqldb.ensure_closed()
 
@@ -4179,6 +4207,13 @@ async def setup_database():
                         reward_cost VARCHAR(255),
                         custom_message TEXT,
                         PRIMARY KEY (reward_id)
+                    ) ENGINE=InnoDB
+                ''',
+                'active_timers': '''
+                    CREATE TABLE IF NOT EXISTS active_timers (
+                        user_id BIGINT NOT NULL,
+                        end_time DATETIME NOT NULL,
+                        PRIMARY KEY (user_id)
                     ) ENGINE=InnoDB
                 ''',
                 'poll_results': '''
