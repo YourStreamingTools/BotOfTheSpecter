@@ -42,7 +42,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.4.3"
+VERSION = "4.4.4"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -1449,6 +1449,9 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
                     await ctx.send("Usage: !hug @username")
+        except Exception as e:
+            chat_logger.error(f"Error in hug command: {e}")
+            await ctx.send("An error occurred while processing the command.")
         finally:
             await sqldb.ensure_closed()
 
