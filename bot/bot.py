@@ -401,7 +401,7 @@ async def process_eventsub_message(message):
                     }
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
-                    subscription_message = event_data.get("message", "")
+                    subscription_message = event_data.get("message", {}).get("text", "")
                     await process_subscription_message_event(
                         event_data["user_id"],
                         event_data["user_name"],
