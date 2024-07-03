@@ -1442,10 +1442,15 @@ class BotOfTheSpecter(commands.Bot):
                     await sqldb.commit()
                     # Retrieve the updated count
                     await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (target_user,))
-                    hug_count = await cursor.fetchone()[0]
-                    # Send the message
-                    chat_logger.info(f"{target_user} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
-                    await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+                    hug_count_result = await cursor.fetchone()
+                    if hug_count_result:
+                        hug_count = hug_count_result[0]
+                        # Send the message
+                        chat_logger.info(f"{target_user} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
+                        await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+                    else:
+                        chat_logger.error(f"No hug count found for user: {target_user}")
+                        await ctx.send(f"Could not retrieve hug count for @{target_user}.")
                 else:
                     chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
                     await ctx.send("Usage: !hug @username")
