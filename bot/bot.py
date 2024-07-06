@@ -42,7 +42,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.4.4"
+VERSION = "4.4.5"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -1513,7 +1513,7 @@ class BotOfTheSpecter(commands.Bot):
                     kiss_count = await cursor.fetchone()[0]
                     # Send the message
                     chat_logger.info(f"{target_user} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
-                    await ctx.send(f"@{target_user} has been kissed by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+                    await ctx.send(f"@{target_user} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
                 else:
                     chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
                     await ctx.send("Usage: !kiss @username")
@@ -1711,7 +1711,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 try:
-                    user_id = str(ctx.author.id)
+                    user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await ctx.send(f"Streamer, you're always present!")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time in their own channel.")
@@ -1719,7 +1719,7 @@ class BotOfTheSpecter(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = datetime.strftime(result[0], "%y-%m-%d %H:%M:%S")
+                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = datetime.now() - start_time
                         # Calculate the duration
                         days = elapsed_time.days
@@ -2746,7 +2746,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name="kill")
+    @commands.command(name='kill')
     async def kill_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
