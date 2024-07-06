@@ -38,7 +38,6 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'bot_control.php';
-include 'beta_bot_control.php';
 include 'sqlite.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($_POST['newCustomMessage'])) {
