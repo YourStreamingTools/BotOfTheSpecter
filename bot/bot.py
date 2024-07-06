@@ -1719,7 +1719,7 @@ class BotOfTheSpecter(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = result[0]
+                        start_time = datetime.strftime(result[0], "%y-%m-%d %H:%M:%S")
                         elapsed_time = datetime.now() - start_time
                         # Calculate the duration
                         days = elapsed_time.days
