@@ -137,7 +137,16 @@ current_game = None
 # Setup Token Refresh
 async def refresh_token_every_day():
     global REFRESH_TOKEN
+    # Initial sleep for 5 minutes before first token refresh
+    initial_sleep_time = 300  # 5 minutes
+    await asyncio.sleep(initial_sleep_time)
+
+    # Perform the first token refresh after the initial sleep
+    REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
+    
+    # Calculate the next refresh time to be 4 hours minus 5 minutes from now
     next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes for refresh
+
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
@@ -193,6 +202,7 @@ async def refresh_token(current_refresh_token):
     except Exception as e:
         # Log the error if token refresh fails
         twitch_logger.error(f"Token refresh failed: {e}")
+        return current_refresh_token, next_refresh_time
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -503,7 +513,7 @@ async def process_eventsub_message(message):
                     }
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
-                    subscription_message = event_data.get("message", "")
+                    subscription_message = event_data.get("message", {}).get("text", "")
                     await process_subscription_message_event(
                         event_data["user_id"],
                         event_data["user_name"],
@@ -833,8 +843,8 @@ class BotOfTheSpecter(commands.Bot):
 
                                 if '(count)' in response:
                                     try:
-                                        update_custom_count(command)
-                                        get_count = get_custom_count(command)
+                                        await update_custom_count(command)
+                                        get_count = await get_custom_count(command)
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
@@ -917,7 +927,7 @@ class BotOfTheSpecter(commands.Bot):
                         contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
                         # Check if the message content contains a Twitch clip link
                         contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
- 
+
                         if contains_blacklisted_link:
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
@@ -946,7 +956,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def message_counting(self, messageAuthor, messageAuthorID, message):
         if messageAuthor is None:
-            chat_logger.error("messageAuthor is None")
+            #chat_logger.error("messageAuthor is None")
             return
         sqldb = await get_mysql_connection()
         channel = message.channel
@@ -1152,6 +1162,32 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
         finally:
             await sqldb.ensure_closed()
+
+    @commands.command(name='forceonline')
+    async def force_online_command(self, ctx):
+        global stream_online
+        global current_game
+        if await command_permissions(ctx.author):
+            sqldb = await get_mysql_connection()
+            try:
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("version",))
+                    result = await cursor.fetchone()
+                    if result:
+                        status = result[0]
+                        if status == 'Disabled':
+                            return
+                    chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
+                    stream_online = True
+                    await ctx.send("Stream status has been forcibly set to online.")
+            except Exception as e:
+                chat_logger.error(f"Error in force_online_command: {e}")
+                await ctx.send(f"An error occurred while executing the command. {e}")
+            finally:
+                await sqldb.ensure_closed()
+        else:
+            chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='version')
     async def version_command(self, ctx):
@@ -1467,6 +1503,12 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
+                # Check if the user already has an active timer
+                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                active_timer = await cursor.fetchone()
+                if active_timer:
+                    await ctx.send(f"@{ctx.author.name}, you already have an active timer.")
+                    return
                 content = ctx.message.content.strip()
                 try:
                     _, minutes = content.split(' ')
@@ -1474,27 +1516,49 @@ class BotOfTheSpecter(commands.Bot):
                 except ValueError:
                     # Default to 5 minutes if the user didn't provide a valid value
                     minutes = 5
+                end_time = datetime.utcnow() + timedelta(minutes=minutes)
+                await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
+                await sqldb.commit()
                 await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
-                # Set a fixed interval of 30 seconds for countdown messages
-                interval = 30
-                # Wait for the first countdown message after the initial delay
-                await asyncio.sleep(interval)
-                for remaining_seconds in range((minutes * 60) - interval, 0, -interval):
-                    minutes_left = remaining_seconds // 60
-                    seconds_left = remaining_seconds % 60
-                    # Format the countdown message
-                    countdown_message = f"@{ctx.author.name}, timer has "
-                    if minutes_left > 0:
-                        countdown_message += f"{minutes_left} minute(s) "
-                    if seconds_left > 0:
-                        countdown_message += f"{seconds_left} second(s) left."
-                    else:
-                        countdown_message += "left."
-                    # Send countdown message
-                    await ctx.send(countdown_message)
-                    # Wait for the fixed interval of 30 seconds before sending the next message
-                    await asyncio.sleep(interval)
+                await asyncio.sleep(minutes * 60)
                 await ctx.send(f"The {minutes} minute timer has ended @{ctx.author.name}!")
+                # Remove the timer from the active_timers table
+                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                await sqldb.commit()
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.command(name='stoptimer')
+    async def stop_timer_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                active_timer = await cursor.fetchone()
+                if not active_timer:
+                    await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
+                    return
+                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                await sqldb.commit()
+                await ctx.send(f"Your timer has been stopped @{ctx.author.name}.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.command(name='checktimer')
+    async def check_timer_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
+                active_timer = await cursor.fetchone()
+                if not active_timer:
+                    await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
+                    return
+                end_time = active_timer[0]
+                remaining_time = end_time - datetime.utcnow()
+                minutes_left = remaining_time.total_seconds() // 60
+                seconds_left = remaining_time.total_seconds() % 60
+                await ctx.send(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1520,13 +1584,21 @@ class BotOfTheSpecter(commands.Bot):
                     await sqldb.commit()
                     # Retrieve the updated count
                     await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (target_user,))
-                    hug_count = await cursor.fetchone()[0]
-                    # Send the message
-                    chat_logger.info(f"{target_user} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
-                    await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+                    hug_count_result = await cursor.fetchone()
+                    if hug_count_result:
+                        hug_count = hug_count_result[0]
+                        # Send the message
+                        chat_logger.info(f"{target_user} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
+                        await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+                    else:
+                        chat_logger.error(f"No hug count found for user: {target_user}")
+                        await ctx.send(f"Could not retrieve hug count for @{target_user}.")
                 else:
                     chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
                     await ctx.send("Usage: !hug @username")
+        except Exception as e:
+            chat_logger.error(f"Error in hug command: {e}")
+            await ctx.send("An error occurred while processing the command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1555,7 +1627,7 @@ class BotOfTheSpecter(commands.Bot):
                     kiss_count = await cursor.fetchone()[0]
                     # Send the message
                     chat_logger.info(f"{target_user} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
-                    await ctx.send(f"@{target_user} has been kissed by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+                    await ctx.send(f"@{target_user} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
                 else:
                     chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
                     await ctx.send("Usage: !kiss @username")
@@ -1753,7 +1825,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 try:
-                    user_id = str(ctx.author.id)
+                    user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await ctx.send(f"Streamer, you're always present!")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time in their own channel.")
@@ -1761,9 +1833,7 @@ class BotOfTheSpecter(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = result[0]
-                        # Convert start_time from string to datetime
-                        start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = datetime.now() - start_time
                         # Calculate the duration
                         days = elapsed_time.days
@@ -2790,7 +2860,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name="kill")
+    @commands.command(name='kill')
     async def kill_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2854,14 +2924,14 @@ class BotOfTheSpecter(commands.Bot):
                     bot_choice = random.choice(choices)
                     user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
                     if user_input not in choices:
-                        await ctx.send(f'Please choose "rock", "paper" or "scissors". Usage: !rps <choice>')
+                        await ctx.send(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
                         return
                     user_choice = user_input
                     if user_choice == bot_choice:
                         result = f"It's a tie! We both chose {bot_choice}."
-                    elif (user_choice == 'rock' and bot_choice == 'scissors') or \
-                        (user_choice == 'paper' and bot_choice == 'rock') or \
-                        (user_choice == 'scissors' and bot_choice == 'paper'):
+                    elif (user_choice == 'rock' and bot_choice == 'Scissors') or \
+                        (user_choice == 'paper' and bot_choice == 'Rock') or \
+                        (user_choice == 'scissors' and bot_choice == 'Paper'):
                         result = f"You Win! You chose {user_choice} and I chose {bot_choice}."
                     else:
                         result = f"You lose! You chose {user_choice} and I chose {bot_choice}"
@@ -3062,9 +3132,14 @@ async def update_custom_count(command):
                 current_count = result[0]
                 new_count = current_count + 1
                 await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
+                chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
             else:
                 await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, 1))
+                chat_logger.info(f"Inserted new command '{command}' with count 1.")
         await sqldb.commit()
+    except Exception as e:
+        chat_logger.error(f"Error updating count for command '{command}': {e}")
+        await sqldb.rollback()
     finally:
         await sqldb.ensure_closed()
 
@@ -3075,9 +3150,15 @@ async def get_custom_count(command):
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
             result = await cursor.fetchone()
             if result:
-                return result[0]
+                count = result[0]
+                chat_logger.info(f"Retrieved count for command '{command}': {count}")
+                return count
             else:
+                chat_logger.info(f"No count found for command '{command}', returning 0.")
                 return 0
+    except Exception as e:
+        chat_logger.error(f"Error retrieving count for command '{command}': {e}")
+        return 0
     finally:
         await sqldb.ensure_closed()
 
@@ -4271,6 +4352,13 @@ async def setup_database():
                         reward_cost VARCHAR(255),
                         custom_message TEXT,
                         PRIMARY KEY (reward_id)
+                    ) ENGINE=InnoDB
+                ''',
+                'active_timers': '''
+                    CREATE TABLE IF NOT EXISTS active_timers (
+                        user_id BIGINT NOT NULL,
+                        end_time DATETIME NOT NULL,
+                        PRIMARY KEY (user_id)
                     ) ENGINE=InnoDB
                 ''',
                 'poll_results': '''
