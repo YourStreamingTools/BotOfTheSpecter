@@ -1205,13 +1205,19 @@ class BotOfTheSpecter(commands.Bot):
                 uptime_days = uptime.days
                 uptime_hours, remainder = divmod(uptime.seconds, 3600)
                 uptime_minutes, _ = divmod(remainder, 60)
-                message = f"The version that is currently running is V{VERSION}. "
-                message += f"Bot started at {botstarted.strftime('%Y-%m-%d %H:%M:%S')}, uptime is "
-                if uptime_days > 0:
+                # Build the message
+                message = f"The version that is currently running is V{VERSION}. Bot has been running for: "
+                if uptime_days == 1:
+                    message += f"1 day, "
+                elif uptime_days > 1:
                     message += f"{uptime_days} days, "
-                if uptime_hours > 0:
+                if uptime_hours == 1:
+                    message += f"1 hour, "
+                elif uptime_hours > 1:
                     message += f"{uptime_hours} hours, "
-                if uptime_minutes > 0 or (uptime_days == 0 and uptime_hours == 0):
+                if uptime_minutes == 1:
+                    message += f"1 minute, "
+                elif uptime_minutes > 1 or (uptime_days == 0 and uptime_hours == 0):
                     message += f"{uptime_minutes} minutes, "
                 await ctx.send(f"{message[:-2]}")
         finally:
