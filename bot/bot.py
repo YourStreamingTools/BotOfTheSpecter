@@ -916,7 +916,7 @@ class BotOfTheSpecter(commands.Bot):
                         await channel.send(f'Hello, {message.author.name}!')
                     else:
                         ai_response = await self.get_ai_response(user_message)
-                        await channel.send(ai_response)
+                        await channel.send(f"@{message.author.name} {ai_response}")
 
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                     # Fetch url_blocking option from the protection table in the user's database
@@ -1140,8 +1140,9 @@ class BotOfTheSpecter(commands.Bot):
             async with aiohttp.ClientSession() as session:
                 async with session.post('https://ai.botofthespecter.com/', json={"message": user_message}) as response:
                     response.raise_for_status()  # Notice bad responses
-                    ai_response = await response.json()
-                    return ai_response.get("text", "Sorry, I could not understand your request.")
+                    ai_response = await response.text()  # Read response as plain text
+                    bot_logger.info(f"AI response received: {ai_response}")
+                    return ai_response
         except aiohttp.ClientError as e:
             bot_logger.error(f"Error getting AI response: {e}")
             return "Sorry, I could not understand your request."
