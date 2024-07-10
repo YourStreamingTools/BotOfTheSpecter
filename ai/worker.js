@@ -59,8 +59,8 @@ export default {
             const truncatedResponse = truncateResponse(aiMessage);
             console.log('truncatedResponse:', truncatedResponse);
   
-            return new Response(JSON.stringify({ text: truncatedResponse }), {
-              headers: { 'content-type': 'application/json' },
+            return new Response(truncatedResponse, {
+              headers: { 'content-type': 'text/plain' },
             });
           } catch (error) {
             console.error('Error processing request:', error);
