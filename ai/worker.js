@@ -13,7 +13,20 @@ export default {
           },
           body: JSON.stringify(payload)
         });
+  
+        if (!response.ok) {
+          throw new Error('Error fetching AI response: ' + (await response.text()));
+        }
+  
         return await response.json();
+      }
+  
+      // Function to truncate the response to fit within the character limit
+      function truncateResponse(response, limit = 500) {
+        if (response.length <= limit) {
+          return response;
+        }
+        return response.substring(0, limit) + '...';
       }
   
       // Handle requests at the base path "/"
@@ -37,11 +50,18 @@ export default {
               { role: 'user', content: userMessage }
             ]
           };
-          const chatResponse = await runAI(chatPrompt);
   
-          return new Response(JSON.stringify(chatResponse), {
-            headers: { 'content-type': 'application/json' },
-          });
+          try {
+            const chatResponse = await runAI(chatPrompt);
+            const aiMessage = chatResponse.choices?.[0]?.text ?? 'Sorry, I could not understand your request.';
+            const truncatedResponse = truncateResponse(aiMessage);
+  
+            return new Response(JSON.stringify({ text: truncatedResponse }), {
+              headers: { 'content-type': 'application/json' },
+            });
+          } catch (error) {
+            return new Response('Error fetching AI response', { status: 500 });
+          }
         }
   
         return new Response('Method Not Allowed', { status: 405 });
@@ -50,4 +70,4 @@ export default {
       // Default response
       return new Response('Not found', { status: 404 });
     }
-  };  
+  };
