@@ -910,7 +910,7 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"{command} not found in the database.")
 
                 # Handle AI responses
-                if f'@{self.nick.lower()}' in messageContent:
+                if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.replace(f'@{self.nick}', '').strip()
                     if not user_message:
                         await channel.send(f'Hello, {message.author.name}!')
