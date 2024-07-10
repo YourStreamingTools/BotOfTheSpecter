@@ -44,7 +44,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.5"
+VERSION = "4.6"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -210,9 +210,9 @@ async def twitch_eventsub():
 
     while True:
         try:
-            async with websockets.connect(twitch_websocket_uri) as websocket:
+            async with websockets.connect(twitch_websocket_uri) as twitch_websocket:
                 # Receive and parse the welcome message
-                eventsub_welcome_message = await websocket.recv()
+                eventsub_welcome_message = await twitch_websocket.recv()
                 eventsub_welcome_data = json.loads(eventsub_welcome_message)
 
                 # Validate the message type
@@ -227,7 +227,7 @@ async def twitch_eventsub():
                     await subscribe_to_events(session_id)
 
                     # Manage keepalive and listen for messages concurrently
-                    await asyncio.gather(receive_messages(websocket, keepalive_timeout))
+                    await asyncio.gather(receive_messages(twitch_websocket, keepalive_timeout))
 
         except websockets.ConnectionClosedError as e:
             bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
@@ -395,32 +395,42 @@ async def connect_to_tipping_services():
 async def connect_to_streamelements():
     global streamelements_token
     uri = "wss://astro.streamelements.com"
-    async with websockets.connect(uri) as websocket:
-        # Send the authentication message
-        nonce = str(uuid.uuid4())
-        await websocket.send(json.dumps({
-            'type': 'subscribe',
-            'nonce': nonce,
-            'data': {
-                'topic': 'channel.tip',
-                'token': streamelements_token,
-                'token_type': 'jwt'
-            }
-        }))
-        
-        # Listen for messages
-        while True:
-            message = await websocket.recv()
-            await process_message(message, "StreamElements")
+    try:
+        async with websockets.connect(uri) as streamelements_websocket:
+            # Send the authentication message
+            nonce = str(uuid.uuid4())
+            await streamelements_websocket.send(json.dumps({
+                'type': 'subscribe',
+                'nonce': nonce,
+                'data': {
+                    'topic': 'channel.tip',
+                    'token': streamelements_token,
+                    'token_type': 'jwt'
+                }
+            }))
+            
+            # Listen for messages
+            while True:
+                message = await streamelements_websocket.recv()
+                await process_message(message, "StreamElements")
+    except websockets.ConnectionClosed as e:
+        bot_logger.error(f"StreamElements WebSocket connection closed: {e}")
+    except Exception as e:
+        bot_logger.error(f"StreamElements WebSocket error: {e}")
 
 async def connect_to_streamlabs():
     global streamlabs_token
     uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
-    async with websockets.connect(uri) as websocket:
-        # Listen for messages
-        while True:
-            message = await websocket.recv()
-            await process_message(message, "StreamLabs")
+    try:
+        async with websockets.connect(uri) as streamlabs_websocket:
+            # Listen for messages
+            while True:
+                message = await streamlabs_websocket.recv()
+                await process_message(message, "StreamLabs")
+    except websockets.ConnectionClosed as e:
+        bot_logger.error(f"StreamLabs WebSocket connection closed: {e}")
+    except Exception as e:
+        bot_logger.error(f"StreamLabs WebSocket error: {e}")
 
 async def process_message(message, source):
     data = json.loads(message)
