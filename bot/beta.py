@@ -433,15 +433,18 @@ async def connect_to_streamlabs():
         bot_logger.error(f"StreamLabs WebSocket error: {e}")
 
 async def process_message(message, source):
-    data = json.loads(message)
-    if source == "StreamElements" and data.get('type') == 'response':
-        # Handle the subscription response
-        if 'error' in data:
-            handle_streamelements_error(data['error'], data['data']['message'])
+    try:
+        data = json.loads(message)
+        if source == "StreamElements" and data.get('type') == 'response':
+            # Handle the subscription response
+            if 'error' in data:
+                handle_streamelements_error(data['error'], data['data']['message'])
+            else:
+                bot_logger.info(f"StreamElements subscription success: {data['data']['message']}")
         else:
-            bot_logger.info(f"StreamElements subscription success: {data['data']['message']}")
-    else:
-        await process_tipping_message(data, source)
+            await process_tipping_message(data, source)
+    except Exception as e:
+        bot_logger.error(f"Error processing message from {source}: {e}")
 
 def handle_streamelements_error(error, message):
     error_messages = {
@@ -455,36 +458,39 @@ def handle_streamelements_error(error, message):
     bot_logger.error(f"StreamElements error: {error_message} - {message}")
 
 async def process_tipping_message(data, source):
-    channel = bot.get_channel(CHANNEL_NAME)
-    send_message = None
+    try:
+        channel = bot.get_channel(CHANNEL_NAME)
+        send_message = None
 
-    if source == "StreamElements" and data.get('type') == 'tip':
-        user = data['data']['username']
-        amount = data['data']['amount']
-        tip_message = data['data']['message']
-        send_message = f"{user} just tipped {amount}! Message: {tip_message}"
-    elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
-        for donation in data['data']['donations']:
-            user = donation['name']
-            amount = donation['amount']
-            tip_message = donation['message']
+        if source == "StreamElements" and data.get('type') == 'tip':
+            user = data['data']['username']
+            amount = data['data']['amount']
+            tip_message = data['data']['message']
             send_message = f"{user} just tipped {amount}! Message: {tip_message}"
-    
-    if send_message:
-        await channel.send(send_message)
-        # Save tipping data directly in this function
-        sqldb = await get_mysql_connection()
-        try:
-            async with sqldb.cursor() as cursor:
-                await cursor.execute(
-                    "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
-                    (user, amount, tip_message, source)
-                )
-                await sqldb.commit()
-        except aiomysql.MySQLError as err:
-            bot_logger.error(f"Database error: {err}")
-        finally:
-            await sqldb.ensure_closed()
+        elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
+            for donation in data['data']['donations']:
+                user = donation['name']
+                amount = donation['amount']
+                tip_message = donation['message']
+                send_message = f"{user} just tipped {amount}! Message: {tip_message}"
+        
+        if send_message:
+            await channel.send(send_message)
+            # Save tipping data directly in this function
+            sqldb = await get_mysql_connection()
+            try:
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute(
+                        "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
+                        (user, amount, tip_message, source)
+                    )
+                    await sqldb.commit()
+            except aiomysql.MySQLError as err:
+                bot_logger.error(f"Database error: {err}")
+            finally:
+                await sqldb.ensure_closed()
+    except Exception as e:
+        bot_logger.error(f"Error processing tipping message: {e}")
 
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
