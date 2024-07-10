@@ -29,6 +29,14 @@ export default {
         return response.substring(0, limit);
       }
   
+      // Function to remove formatting from the text
+      function removeFormatting(text) {
+        return text
+          .replace(/\*\*|__/g, '') // Remove bold and italics markdown
+          .replace(/<[^>]+>/g, '') // Remove HTML tags
+          .replace(/\n/g, ' ');    // Replace line breaks with spaces
+      }
+  
       // Handle requests at the base path "/"
       if (path === '/') {
         if (request.method === 'GET') {
@@ -55,11 +63,12 @@ export default {
             const chatResponse = await runAI(chatPrompt);
             console.log('AI response:', chatResponse);
   
-            const aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
-            const truncatedResponse = truncateResponse(aiMessage);
-            console.log('truncatedResponse:', truncatedResponse);
+            let aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
+            aiMessage = truncateResponse(aiMessage);
+            aiMessage = removeFormatting(aiMessage);
+            console.log('Formatted response:', aiMessage);
   
-            return new Response(truncatedResponse, {
+            return new Response(aiMessage, {
               headers: { 'content-type': 'text/plain' },
             });
           } catch (error) {
