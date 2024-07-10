@@ -910,6 +910,15 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         chat_logger.info(f"{command} not found in the database.")
 
+                # Handle AI responses
+                if f'@{self.nick.lower()}' in message.content.lower():
+                    user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
+                    if not user_message:
+                        await channel.send(f'Hello, {message.author.name}!')
+                    else:
+                        ai_response = await self.get_ai_response(user_message)
+                        await channel.send(f"@{message.author.name} {ai_response}")
+
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
@@ -943,7 +952,6 @@ class BotOfTheSpecter(commands.Bot):
                         contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
                         # Check if the message content contains a Twitch clip link
                         contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
-
                         if contains_blacklisted_link:
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
@@ -1129,6 +1137,18 @@ class BotOfTheSpecter(commands.Bot):
             bot_logger.error(f"An error occurred in user_grouping: {e}")
         finally:
             await sqldb.ensure_closed()
+
+    async def get_ai_response(self, user_message):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post('https://ai.botofthespecter.com/', json={"message": user_message}) as response:
+                    response.raise_for_status()  # Notice bad responses
+                    ai_response = await response.text()  # Read response as plain text
+                    bot_logger.info(f"AI response received: {ai_response}")
+                    return ai_response
+        except aiohttp.ClientError as e:
+            bot_logger.error(f"Error getting AI response: {e}")
+            return "Sorry, I could not understand your request."
 
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
