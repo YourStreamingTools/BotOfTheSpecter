@@ -26,7 +26,7 @@ export default {
         if (response.length <= limit) {
           return response;
         }
-        return response.substring(0, limit) + '...';
+        return response.substring(0, limit);
       }
   
       // Handle requests at the base path "/"
