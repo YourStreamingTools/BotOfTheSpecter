@@ -21,20 +21,20 @@ export default {
         return await response.json();
       }
   
-      // Function to truncate the response to fit within the character limit
-      function truncateResponse(response, limit = 500) {
-        if (response.length <= limit) {
-          return response;
-        }
-        return response.substring(0, limit);
-      }
-  
       // Function to remove formatting from the text
       function removeFormatting(text) {
         return text
           .replace(/\*\*|__/g, '') // Remove bold and italics markdown
           .replace(/<[^>]+>/g, '') // Remove HTML tags
           .replace(/\n/g, ' ');    // Replace line breaks with spaces
+      }
+  
+      // Function to truncate the response to fit within the character limit
+      function truncateResponse(response, limit = 500) {
+        if (response.length <= limit) {
+          return response;
+        }
+        return response.substring(0, limit);
       }
   
       // Handle requests at the base path "/"
@@ -64,9 +64,9 @@ export default {
             console.log('AI response:', chatResponse);
   
             let aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
-            aiMessage = truncateResponse(aiMessage);
             aiMessage = removeFormatting(aiMessage);
-            console.log('Formatted response:', aiMessage);
+            aiMessage = truncateResponse(aiMessage);
+            console.log('Formatted and truncated response:', aiMessage);
   
             return new Response(aiMessage, {
               headers: { 'content-type': 'text/plain' },
