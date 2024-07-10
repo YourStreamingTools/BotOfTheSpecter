@@ -53,13 +53,17 @@ export default {
   
           try {
             const chatResponse = await runAI(chatPrompt);
-            const aiMessage = chatResponse.choices?.[0]?.text ?? 'Sorry, I could not understand your request.';
+            console.log('AI response:', chatResponse);
+  
+            const aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             const truncatedResponse = truncateResponse(aiMessage);
+            console.log('truncatedResponse:', truncatedResponse);
   
             return new Response(JSON.stringify({ text: truncatedResponse }), {
               headers: { 'content-type': 'application/json' },
             });
           } catch (error) {
+            console.error('Error processing request:', error);
             return new Response('Error fetching AI response', { status: 500 });
           }
         }
