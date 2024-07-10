@@ -25,6 +25,7 @@ import pyowm
 import pytz
 from jokeapi import Jokes
 import openai
+import uuid
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -42,7 +43,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.4.5"
+VERSION = "4.5"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
@@ -208,9 +209,9 @@ async def twitch_eventsub():
 
     while True:
         try:
-            async with websockets.connect(twitch_websocket_uri) as websocket:
+            async with websockets.connect(twitch_websocket_uri) as twitch_websocket:
                 # Receive and parse the welcome message
-                eventsub_welcome_message = await websocket.recv()
+                eventsub_welcome_message = await twitch_websocket.recv()
                 eventsub_welcome_data = json.loads(eventsub_welcome_message)
 
                 # Validate the message type
@@ -225,7 +226,7 @@ async def twitch_eventsub():
                     await subscribe_to_events(session_id)
 
                     # Manage keepalive and listen for messages concurrently
-                    await asyncio.gather(receive_messages(websocket, keepalive_timeout))
+                    await asyncio.gather(receive_messages(twitch_websocket, keepalive_timeout))
 
         except websockets.ConnectionClosedError as e:
             bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
@@ -333,10 +334,10 @@ async def subscribe_to_events(session_id):
                     bot_logger.info(f"WebSocket subscription successful for {v2topic}")
                     responses.append(await response.json())
 
-async def receive_messages(websocket, keepalive_timeout):
+async def receive_messages(twitch_websocket, keepalive_timeout):
     while True:
         try:
-            message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
+            message = await asyncio.wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
             # bot_logger.info(f"Received message: {message}")
 
@@ -353,7 +354,7 @@ async def receive_messages(websocket, keepalive_timeout):
 
         except asyncio.TimeoutError:
             bot_logger.error("Keepalive timeout exceeded, reconnecting...")
-            await websocket.close()
+            await twitch_websocket.close()
             break  # Exit the loop to allow reconnection logic
 
         except websockets.ConnectionClosedError as e:
@@ -363,6 +364,132 @@ async def receive_messages(websocket, keepalive_timeout):
         except Exception as e:
             bot_logger.error(f"Error receiving message: {e}")
             break  # Exit the loop on critical error
+
+async def connect_to_tipping_services():
+    global streamelements_token, streamlabs_token
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT StreamElements, StreamLabs FROM tipping_settings LIMIT 1")
+            result = await cursor.fetchone()
+
+            streamelements_token = result['StreamElements']
+            streamlabs_token = result['StreamLabs']
+
+            tasks = []
+            if streamelements_token:
+                tasks.append(connect_to_streamelements())
+            if streamlabs_token:
+                tasks.append(connect_to_streamlabs())
+
+            if tasks:
+                await asyncio.gather(*tasks)
+            else:
+                bot_logger.error("No valid token found for either StreamElements or StreamLabs.")
+    except aiomysql.MySQLError as err:
+        bot_logger.error(f"Database error: {err}")
+    finally:
+        await sqldb.ensure_closed()
+
+async def connect_to_streamelements():
+    global streamelements_token
+    uri = "wss://astro.streamelements.com"
+    try:
+        async with websockets.connect(uri) as streamelements_websocket:
+            # Send the authentication message
+            nonce = str(uuid.uuid4())
+            await streamelements_websocket.send(json.dumps({
+                'type': 'subscribe',
+                'nonce': nonce,
+                'data': {
+                    'topic': 'channel.tip',
+                    'token': streamelements_token,
+                    'token_type': 'jwt'
+                }
+            }))
+            
+            # Listen for messages
+            while True:
+                message = await streamelements_websocket.recv()
+                await process_message(message, "StreamElements")
+    except websockets.ConnectionClosed as e:
+        bot_logger.error(f"StreamElements WebSocket connection closed: {e}")
+    except Exception as e:
+        bot_logger.error(f"StreamElements WebSocket error: {e}")
+
+async def connect_to_streamlabs():
+    global streamlabs_token
+    uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
+    try:
+        async with websockets.connect(uri) as streamlabs_websocket:
+            # Listen for messages
+            while True:
+                message = await streamlabs_websocket.recv()
+                await process_message(message, "StreamLabs")
+    except websockets.ConnectionClosed as e:
+        bot_logger.error(f"StreamLabs WebSocket connection closed: {e}")
+    except Exception as e:
+        bot_logger.error(f"StreamLabs WebSocket error: {e}")
+
+async def process_message(message, source):
+    try:
+        data = json.loads(message)
+        if source == "StreamElements" and data.get('type') == 'response':
+            # Handle the subscription response
+            if 'error' in data:
+                handle_streamelements_error(data['error'], data['data']['message'])
+            else:
+                bot_logger.info(f"StreamElements subscription success: {data['data']['message']}")
+        else:
+            await process_tipping_message(data, source)
+    except Exception as e:
+        bot_logger.error(f"Error processing message from {source}: {e}")
+
+def handle_streamelements_error(error, message):
+    error_messages = {
+        "err_internal_error": "An internal error occurred.",
+        "err_bad_request": "The request was malformed or invalid.",
+        "err_unauthorized": "The request lacked valid authentication credentials.",
+        "rate_limit_exceeded": "The rate limit for the API has been exceeded.",
+        "invalid_message": "The message was invalid or could not be processed."
+    }
+    error_message = error_messages.get(error, "Unknown error occurred.")
+    bot_logger.error(f"StreamElements error: {error_message} - {message}")
+
+async def process_tipping_message(data, source):
+    try:
+        channel = bot.get_channel(CHANNEL_NAME)
+        send_message = None
+
+        if source == "StreamElements" and data.get('type') == 'tip':
+            user = data['data']['username']
+            amount = data['data']['amount']
+            tip_message = data['data']['message']
+            send_message = f"{user} just tipped {amount}! Message: {tip_message}"
+        elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
+            for donation in data['data']['donations']:
+                user = donation['name']
+                amount = donation['amount']
+                tip_message = donation['message']
+                send_message = f"{user} just tipped {amount}! Message: {tip_message}"
+        
+        if send_message:
+            await channel.send(send_message)
+            # Save tipping data directly in this function
+            sqldb = await get_mysql_connection()
+            try:
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute(
+                        "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
+                        (user, amount, tip_message, source)
+                    )
+                    await sqldb.commit()
+            except aiomysql.MySQLError as err:
+                bot_logger.error(f"Database error: {err}")
+            finally:
+                await sqldb.ensure_closed()
+    except Exception as e:
+        bot_logger.error(f"Error processing tipping message: {e}")
 
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
@@ -782,6 +909,15 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         chat_logger.info(f"{command} not found in the database.")
 
+                # Handle AI responses
+                if f'@{self.nick.lower()}' in messageContent:
+                    user_message = message.content.replace(f'@{self.nick}', '').strip()
+                    if not user_message:
+                        await channel.send(f'Hello, {message.author.name}!')
+                    else:
+                        ai_response = self.get_ai_response(user_message)
+                        await channel.send(ai_response)
+
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
@@ -815,7 +951,6 @@ class BotOfTheSpecter(commands.Bot):
                         contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
                         # Check if the message content contains a Twitch clip link
                         contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
- 
                         if contains_blacklisted_link:
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
@@ -999,6 +1134,16 @@ class BotOfTheSpecter(commands.Bot):
             bot_logger.error(f"An error occurred in user_grouping: {e}")
         finally:
             await sqldb.ensure_closed()
+
+    async def get_ai_response(self, user_message):
+        try:
+            response = requests.post('https://ai.botofthespecter.com/', json={"message": user_message})
+            response.raise_for_status()  # Notice bad responses
+            ai_response = response.json().get("text", "Sorry, I could not understand your request.")
+            return ai_response
+        except requests.RequestException as e:
+            bot_logger.error(f"Error getting AI response: {e}")
+            return "Sorry, I could not understand your request."
 
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
@@ -4240,6 +4385,22 @@ async def setup_database():
                         channel_points_used INT,
                         started_at DATETIME,
                         ended_at DATETIME
+                    ) ENGINE=InnoDB
+                ''',
+                'tipping_settings': '''
+                    CREATE TABLE IF NOT EXISTS tipping_settings (
+                        StreamElements VARCHAR(255) DEFAULT NULL,
+                        StreamLabs VARCHAR(255) DEFAULT NULL
+                    ) ENGINE=InnoDB
+                ''',
+                'tipping': '''
+                    CREATE TABLE IF NOT EXISTS tipping (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        username VARCHAR(255),
+                        amount DECIMAL(10, 2),
+                        message TEXT,
+                        source VARCHAR(255),
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                     ) ENGINE=InnoDB
                 '''
             }
