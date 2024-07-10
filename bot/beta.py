@@ -335,10 +335,10 @@ async def subscribe_to_events(session_id):
                     bot_logger.info(f"WebSocket subscription successful for {v2topic}")
                     responses.append(await response.json())
 
-async def receive_messages(websocket, keepalive_timeout):
+async def receive_messages(twitch_websocket, keepalive_timeout):
     while True:
         try:
-            message = await asyncio.wait_for(websocket.recv(), timeout=keepalive_timeout)
+            message = await asyncio.wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
             # bot_logger.info(f"Received message: {message}")
 
@@ -355,7 +355,7 @@ async def receive_messages(websocket, keepalive_timeout):
 
         except asyncio.TimeoutError:
             bot_logger.error("Keepalive timeout exceeded, reconnecting...")
-            await websocket.close()
+            await twitch_websocket.close()
             break  # Exit the loop to allow reconnection logic
 
         except websockets.ConnectionClosedError as e:
