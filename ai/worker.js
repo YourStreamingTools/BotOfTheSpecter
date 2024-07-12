@@ -49,8 +49,10 @@ export default {
     // Function to detect insults
     function detectInsult(message) {
       const insults = [
-        'stupid', 'dumb', 'idiot', 'fool', 'suck', 'hate', 'trash', 'useless',
-        'your momma', 'your mama', 'your daddy', 'nutted', 'bolted'
+        'stupid', 'dumb', 'idiot',
+        'fool', 'suck', 'hate',
+        'trash', 'useless', 'your momma',
+        'your mama'
       ];
       return insults.some(insult => message.includes(insult));
     }
