@@ -3062,13 +3062,13 @@ async def command_permissions(user):
         return True
 
     # Check if the user is a moderator
-    elif await is_user_mod(user.name):
+    is_mod = await is_user_mod(user.name)
+    if is_mod:
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
-    else:
-        twitch_logger.info(f"User {user.name} does not have required permissions.")
-        return False
+    twitch_logger.info(f"User {user.name} does not have required permissions.")
+    return False
 
 async def is_user_mod(username):
     sqldb = await get_mysql_connection()
