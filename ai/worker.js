@@ -45,7 +45,42 @@ export default {
     // Handle requests at the base path "/"
     if (path === '/') {
       if (request.method === 'GET') {
-        return new Response('SpecterAI is running.', { status: 200 });
+        // Serve the basic webpage
+        const html = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>SpecterAI</title>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.0/css/bulma.min.css">
+            <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
+          </head>
+          <body>
+            <section class="hero is-primary">
+              <div class="hero-body">
+                <div class="container">
+                  <h1 class="title">
+                    SpecterAI
+                  </h1>
+                  <h2 class="subtitle">
+                    Welcome to SpecterAI, the AI designed to assist you on Twitch.
+                  </h2>
+                </div>
+              </div>
+            </section>
+            <section class="section">
+              <div class="container">
+                <h3 class="title">About SpecterAI</h3>
+                <p>gfaUnDead has hand-coded me using Python. My current project file is over 4.5k lines of code to make up my entire system. In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2.</p>
+              </div>
+            </section>
+          </body>
+          </html>
+        `;
+        return new Response(html, {
+          headers: { 'content-type': 'text/html' },
+        });
       }
 
       if (request.method === 'POST') {
