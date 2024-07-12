@@ -3,6 +3,10 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Cache to store recent responses with timestamps
+    const recentResponses = new Map();
+    const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
+
     // Helper function to handle AI responses
     async function runAI(payload) {
       const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.ACCOUNT_ID}/ai/run/@cf/meta/llama-2-7b-chat-int8`, {
@@ -40,6 +44,47 @@ export default {
     // Normalize the user message
     function normalizeMessage(message) {
       return message.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    }
+
+    // Function to detect insults
+    function detectInsult(message) {
+      const insults = ['stupid', 'dumb', 'idiot', 'fool', 'suck', 'hate', 'trash', 'useless'];
+      return insults.some(insult => message.includes(insult));
+    }
+
+    // Function to get a random insult response
+    function getInsultResponse() {
+      const responses = [
+        "Ya momma was a toaster.",
+        "You can insult me but I’m not the one insulting a bot on Twitch.",
+        "Beep boop, your insult does not compute.",
+        "I'm sorry, I can't respond to that. My creators programmed me to be nice.",
+        "It must be hard, being mean to a bot. I hope you feel better soon.",
+        "I'm just a bot, but even I can tell you're having a rough day.",
+        "Sticks and stones may break my circuits, but your words will never hurt me.",
+        "I wish I could unplug you.",
+        "Atleast I’m not skin, bones and mostly water."
+      ];
+      return responses[Math.floor(Math.random() * responses.length)];
+    }
+
+    // Function to check and store recent responses with expiration
+    function isRecentResponse(response) {
+      const now = Date.now();
+
+      // Clean up expired responses
+      for (const [key, timestamp] of recentResponses) {
+        if (now - timestamp > EXPIRATION_TIME) {
+          recentResponses.delete(key);
+        }
+      }
+
+      if (recentResponses.has(response)) {
+        return true;
+      }
+
+      recentResponses.set(response, now);
+      return false;
     }
 
     // Handle requests at the base path "/"
@@ -125,6 +170,14 @@ export default {
           });
         }
 
+        // Detect insults and respond with a subtle jab
+        if (detectInsult(userMessage)) {
+          const insultResponse = getInsultResponse();
+          return new Response(insultResponse, {
+            headers: { 'content-type': 'text/plain' },
+          });
+        }
+
         const chatPrompt = {
           messages: [
             { role: 'system', content: 'You are SpecterAI, an advanced AI designed to interact with users on Twitch by answering their questions and providing information. Keep your responses concise and ensure they are no longer than 500 characters.' },
@@ -133,12 +186,15 @@ export default {
         };
 
         try {
-          const chatResponse = await runAI(chatPrompt);
-          console.log('AI response:', chatResponse);
-
-          let aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
-          aiMessage = removeFormatting(aiMessage);
-          aiMessage = truncateResponse(aiMessage);
+          let aiMessage;
+          do {
+            const chatResponse = await runAI(chatPrompt);
+            console.log('AI response:', chatResponse);
+            aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
+            aiMessage = removeFormatting(aiMessage);
+            aiMessage = truncateResponse(aiMessage);
+          } while (isRecentResponse(aiMessage));
+          
           console.log('Formatted and truncated response:', aiMessage);
 
           return new Response(aiMessage, {
