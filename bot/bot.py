@@ -3082,6 +3082,7 @@ async def is_user_mod(username):
                 twitch_logger.info(f"User {username} is a Moderator")
                 return True
             else:
+                twitch_logger.info(f"User {username} is not a mod")
                 return False
         except Exception as e:
             twitch_logger.error(f"An error occurred in is_user_mod: {e}")
