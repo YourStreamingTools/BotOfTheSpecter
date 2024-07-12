@@ -57,14 +57,23 @@ export default {
       return message.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
     }
 
+    // Function to query predefined responses from the database
+    async function getPredefinedResponse(question, env) {
+      const query = 'SELECT response FROM predefined_responses WHERE question = ?';
+      const result = await env.database.prepare(query).bind(question).first();
+      return result?.response || null;
+    }
+
+    // Function to query insults from the database
+    async function getInsults(env) {
+      const query = 'SELECT insult FROM insults';
+      const results = await env.database.prepare(query).all();
+      return results.results.map(row => row.insult);
+    }
+
     // Function to detect insults
-    function detectInsult(message) {
-      const insults = [
-        'stupid', 'dumb', 'idiot',
-        'fool', 'suck', 'hate',
-        'trash', 'useless', 'your momma',
-        'your mama'
-      ];
+    async function detectInsult(message, env) {
+      const insults = await getInsults(env);
       return insults.some(insult => message.includes(insult));
     }
 
@@ -135,6 +144,24 @@ export default {
       for (const question in funnyQuestions) {
         if (message.includes(question)) {
           return funnyQuestions[question];
+        }
+      }
+
+      return null;
+    }
+
+    // Function to handle "I'm not new" responses
+    function handleNotNewResponse(message) {
+      const notNewPhrases = [
+        "i'm not new",
+        "im not new",
+        "i am not new",
+        "not new here"
+      ];
+
+      for (const phrase of notNewPhrases) {
+        if (message.includes(phrase)) {
+          return "I'm so sorry, I thought you were new at first. I haven't seen you before. My apologies, and welcome back to the stream!";
         }
       }
 
@@ -212,20 +239,16 @@ export default {
 
         const userMessage = normalizeMessage(body.message);
 
-        // Custom responses for specific questions
-        const predefinedResponses = {
-          "who built you": "gfaUnDead has hand-coded me using Python. My current project file is over 4.5k lines of code to make up my entire system. In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2. I am a multilingual AI and ChatBot and can respond in different languages.",
-          // Add more predefined responses here
-        };
-
-        if (predefinedResponses[userMessage]) {
-          return new Response(predefinedResponses[userMessage], {
+        // Query predefined responses from the database
+        const predefinedResponse = await getPredefinedResponse(userMessage, env);
+        if (predefinedResponse) {
+          return new Response(predefinedResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
 
         // Detect insults and respond with a subtle jab
-        if (detectInsult(userMessage)) {
+        if (await detectInsult(userMessage, env)) {
           const insultResponse = getInsultResponse();
           return new Response(insultResponse, {
             headers: { 'content-type': 'text/plain' },
@@ -244,6 +267,14 @@ export default {
         const funnyResponse = handleFunnyResponses(userMessage);
         if (funnyResponse) {
           return new Response(funnyResponse, {
+            headers: { 'content-type': 'text/plain' },
+          });
+        }
+
+        // Handle "I'm not new" responses
+        const notNewResponse = handleNotNewResponse(userMessage);
+        if (notNewResponse) {
+          return new Response(notNewResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
