@@ -2741,9 +2741,9 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-            if command_permissions(ctx.author):
+            if await command_permissions(ctx.author):
                 chat_logger.info(f"Shoutout command running from {ctx.author.name}")
-                if user_to_shoutout is None:
+                if not user_to_shoutout:
                     chat_logger.error(f"Shoutout command missing username parameter.")
                     await ctx.send(f"Usage: !so @username")
                     return
@@ -2753,7 +2753,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_to_shoutout = user_to_shoutout.lstrip('@')
                     # Check if the user exists on Twitch
                     if not await is_valid_twitch_user(user_to_shoutout):
-                        chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout")
+                        chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout.")
                         await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
                         return
                     chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
@@ -2766,22 +2766,21 @@ class BotOfTheSpecter(commands.Bot):
                             f"You should go give them a follow over at "
                             f"https://www.twitch.tv/{user_to_shoutout}"
                         )
-                        chat_logger.info(shoutout_message)
-                        await ctx.send(shoutout_message)
                     else:
                         shoutout_message = (
                             f"Hey, huge shoutout to @{user_to_shoutout}! "
                             f"You should go give them a follow over at "
                             f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
                         )
-                        chat_logger.info(shoutout_message)
-                        await ctx.send(shoutout_message)
+                    chat_logger.info(shoutout_message)
+                    await ctx.send(shoutout_message)
                     # Trigger the Twitch shoutout
                     await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id)
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
+                    await ctx.send("An error occurred while processing the shoutout command.")
             else:
-                chat_logger.info(f"{ctx.author.name} tried to use the command, !shoutout, but couldn't as they are not a moderator.")
+                chat_logger.info(f"{ctx.author.name} tried to use the command, !shoutout, but lacks permissions.")
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
@@ -3073,8 +3072,8 @@ async def command_permissions(user):
 
 async def is_user_mod(username):
     sqldb = await get_mysql_connection()
-    async with sqldb.cursor() as cursor:
-        try:
+    try:
+        async with sqldb.cursor() as cursor:
             # Query the database to check if the user is a moderator
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
@@ -3084,11 +3083,11 @@ async def is_user_mod(username):
             else:
                 twitch_logger.info(f"User {username} is not a mod")
                 return False
-        except Exception as e:
-            twitch_logger.error(f"An error occurred in is_user_mod: {e}")
-            return False
-        finally:
-            await sqldb.ensure_closed()
+    except Exception as e:
+        twitch_logger.error(f"An error occurred in is_user_mod: {e}")
+        return False
+    finally:
+        await sqldb.ensure_closed()
 
 # Function to check if a user is a VIP of the channel using the Twitch API
 async def is_user_vip(username):
