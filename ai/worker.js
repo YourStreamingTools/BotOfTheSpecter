@@ -39,7 +39,7 @@ export default {
 
     // Normalize the user message
     function normalizeMessage(message) {
-      return message.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+      return message.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
     }
 
     // Handle requests at the base path "/"
@@ -58,10 +58,14 @@ export default {
 
         const userMessage = normalizeMessage(body.message);
 
-        // Custom response for the specific question
-        if (userMessage === "who built you") {
-          const customResponse = "gfaUnDead has hand-coded me using Python. My current project file is over 4.5k lines of code to make up my entire system. In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2.";
-          return new Response(customResponse, {
+        // Custom responses for specific questions
+        const predefinedResponses = {
+          "who built you": "gfaUnDead has hand-coded me using Python. My current project file is over 4.5k lines of code to make up my entire system. In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2.",
+          // Add more predefined responses here
+        };
+
+        if (predefinedResponses[userMessage]) {
+          return new Response(predefinedResponses[userMessage], {
             headers: { 'content-type': 'text/plain' },
           });
         }
