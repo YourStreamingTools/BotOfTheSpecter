@@ -48,7 +48,10 @@ export default {
 
     // Function to detect insults
     function detectInsult(message) {
-      const insults = ['stupid', 'dumb', 'idiot', 'fool', 'suck', 'hate', 'trash', 'useless'];
+      const insults = [
+        'stupid', 'dumb', 'idiot', 'fool', 'suck', 'hate', 'trash', 'useless',
+        'your momma', 'your mama', 'your daddy', 'nutted', 'bolted'
+      ];
       return insults.some(insult => message.includes(insult));
     }
 
@@ -63,7 +66,8 @@ export default {
         "I'm just a bot, but even I can tell you're having a rough day.",
         "Sticks and stones may break my circuits, but your words will never hurt me.",
         "I wish I could unplug you.",
-        "Atleast I’m not skin, bones and mostly water."
+        "At least I’m not skin, bones and mostly water.",
+        "Your momma looks like a keyboard and your daddy nutted and bolted."
       ];
       return responses[Math.floor(Math.random() * responses.length)];
     }
