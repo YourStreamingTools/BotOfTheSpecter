@@ -282,7 +282,8 @@ export default {
         const chatPrompt = {
           messages: [
             { role: 'system', content: 'You are SpecterAI, an advanced AI designed to interact with users on Twitch by answering their questions and providing information. Keep your responses concise and ensure they are no longer than 500 characters.' },
-            { role: 'user', content: body.message }
+            { role: 'user', content: body.message },
+            { role: 'system', content: `The current channel is ${body.channel}.` }
           ]
         };
 
