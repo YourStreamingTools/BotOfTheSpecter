@@ -7,22 +7,33 @@ export default {
     const recentResponses = new Map();
     const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
 
-    // Helper function to handle AI responses
-    async function runAI(payload) {
-      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.ACCOUNT_ID}/ai/run/@cf/meta/llama-2-7b-chat-int8`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.API_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+    // Helper function to handle AI responses with a timeout
+    async function runAI(payload, timeout = 5000) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      if (!response.ok) {
-        throw new Error('Error fetching AI response: ' + (await response.text()));
+      try {
+        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.ACCOUNT_ID}/ai/run/@cf/meta/llama-2-7b-chat-int8`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.API_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error('Error fetching AI response: ' + (await response.text()));
+        }
+
+        return await response.json();
+      } catch (error) {
+        console.error('Error in runAI:', error);
+        throw error;
       }
-
-      return await response.json();
     }
 
     // Function to remove formatting from the text
@@ -209,7 +220,10 @@ export default {
           });
         } catch (error) {
           console.error('Error processing request:', error);
-          return new Response('Error fetching AI response', { status: 500 });
+          return new Response('Sorry, I could not understand your request.', {
+            headers: { 'content-type': 'text/plain' },
+            status: 500
+          });
         }
       }
 
