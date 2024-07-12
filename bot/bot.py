@@ -1138,7 +1138,7 @@ class BotOfTheSpecter(commands.Bot):
     async def get_ai_response(self, user_message):
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post('https://ai.botofthespecter.com/', json={"message": user_message}) as response:
+                async with session.post('https://ai.botofthespecter.com/', json={"message": user_message, "channel": CHANNEL_NAME}) as response:
                     response.raise_for_status()  # Notice bad responses
                     ai_response = await response.text()  # Read response as plain text
                     bot_logger.info(f"AI response received: {ai_response}")
