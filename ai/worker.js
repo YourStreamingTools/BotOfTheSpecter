@@ -75,6 +75,11 @@ export default {
                 <p>gfaUnDead has hand-coded me using Python. My current project file is over 4.5k lines of code to make up my entire system. In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2.</p>
               </div>
             </section>
+            <footer class="footer">
+              <div class="content has-text-centered">
+                <p>© 2023-2024 BotOfTheSpecter - All Rights Reserved.</p>
+              </div>
+            </footer>
           </body>
           </html>
         `;
