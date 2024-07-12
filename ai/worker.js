@@ -119,6 +119,28 @@ export default {
       return sensitiveQuestions.some(question => message.includes(question));
     }
 
+    // Function to handle funny responses
+    function handleFunnyResponses(message) {
+      const funnyQuestions = {
+        'what is your favorite color': "My favorite color is a nice shade of binary green!",
+        'what is your favorite colour': "I love the color of well-indented code, which is green!",
+        'what is your favorite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
+        'what is your favorite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!",
+        'what is your favourite color': "My favourite colour is a nice shade of binary green!",
+        'what is your favourite colour': "I love the colour of well-indented code, which is green!",
+        'what is your favourite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
+        'what is your favourite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!"
+      };
+
+      for (const question in funnyQuestions) {
+        if (message.includes(question)) {
+          return funnyQuestions[question];
+        }
+      }
+
+      return null;
+    }
+
     // Handle requests at the base path "/"
     if (path === '/') {
       if (request.method === 'GET') {
@@ -214,6 +236,14 @@ export default {
         if (handleSensitiveQuestion(userMessage)) {
           const sensitiveResponse = "I'm designed to respect everyone's privacy and individuality, so I don't provide descriptions of people.";
           return new Response(sensitiveResponse, {
+            headers: { 'content-type': 'text/plain' },
+          });
+        }
+
+        // Handle funny responses for favorite questions
+        const funnyResponse = handleFunnyResponses(userMessage);
+        if (funnyResponse) {
+          return new Response(funnyResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
