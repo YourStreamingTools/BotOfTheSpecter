@@ -37,6 +37,11 @@ export default {
       return response.substring(0, limit);
     }
 
+    // Normalize the user message
+    function normalizeMessage(message) {
+      return message.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+    }
+
     // Handle requests at the base path "/"
     if (path === '/') {
       if (request.method === 'GET') {
@@ -51,7 +56,7 @@ export default {
           return new Response('Bad Request: Invalid JSON', { status: 400 });
         }
 
-        const userMessage = body.message.toLowerCase().trim();
+        const userMessage = normalizeMessage(body.message);
 
         // Custom response for the specific question
         if (userMessage === "who built you") {
@@ -64,7 +69,7 @@ export default {
         const chatPrompt = {
           messages: [
             { role: 'system', content: 'You are SpecterAI, an advanced AI designed to interact with users on Twitch by answering their questions and providing information. Keep your responses concise and ensure they are no longer than 500 characters.' },
-            { role: 'user', content: userMessage }
+            { role: 'user', content: body.message }
           ]
         };
 
