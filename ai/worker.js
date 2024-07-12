@@ -105,6 +105,20 @@ export default {
       return false;
     }
 
+    // Function to handle sensitive questions
+    function handleSensitiveQuestion(message) {
+      const sensitiveQuestions = [
+        'describe what a person look like',
+        'describe someone',
+        'tell me what someone looks like',
+        'what does a person look like',
+        'what does someone look like',
+        'how does a person look',
+        'how does someone look'
+      ];
+      return sensitiveQuestions.some(question => message.includes(question));
+    }
+
     // Handle requests at the base path "/"
     if (path === '/') {
       if (request.method === 'GET') {
@@ -192,6 +206,14 @@ export default {
         if (detectInsult(userMessage)) {
           const insultResponse = getInsultResponse();
           return new Response(insultResponse, {
+            headers: { 'content-type': 'text/plain' },
+          });
+        }
+
+        // Handle sensitive questions with a general, respectful response
+        if (handleSensitiveQuestion(userMessage)) {
+          const sensitiveResponse = "I'm designed to respect everyone's privacy and individuality, so I don't provide descriptions of people.";
+          return new Response(sensitiveResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
