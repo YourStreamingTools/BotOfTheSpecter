@@ -14,6 +14,7 @@ $profileImageUrl = $_SESSION['profile_image_url'];
 
 // Check for status messages
 $status = isset($_GET['status']) ? $_GET['status'] : null;
+$title = "Payments";
 ?>
 <!DOCTYPE html>
 <html lang="en">
