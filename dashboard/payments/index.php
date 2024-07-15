@@ -18,6 +18,7 @@ $title = "Payments";
 // Connect to database
 require_once "../db_connect.php";
 require_once "payment.php";
+require_once "stripe_customer.php";
 
 // Fetch the user's data from the database based on the access_token
 $access_token = $_SESSION['access_token'];
