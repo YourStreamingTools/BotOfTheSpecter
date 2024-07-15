@@ -17,6 +17,7 @@ $title = "Payments";
 
 // Connect to database
 require_once "../db_connect.php";
+require_once "payment.php";
 
 // Fetch the user's data from the database based on the access_token
 $access_token = $_SESSION['access_token'];
@@ -39,6 +40,21 @@ $refreshToken = $user['refresh_token'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+
+// Check if the user is already a Stripe customer
+if (empty($user['stripe_customer_id'])) {
+    $stripeCustomerId = createStripeCustomer($userEmail, $twitchDisplayName);
+    if ($stripeCustomerId) {
+        // Update the user's record with the new Stripe customer ID
+        $updateSTMT = $conn->prepare("UPDATE users SET stripe_customer_id = ? WHERE id = ?");
+        $updateSTMT->bind_param("si", $stripeCustomerId, $user_id);
+        $updateSTMT->execute();
+        $updateSTMT->close();
+    } else {
+        // Handle the case where the Stripe customer creation failed
+        die('Failed to create Stripe customer. Please try again later.');
+    }
+}
 
 // Check for status messages
 $status = isset($_GET['status']) ? $_GET['status'] : null;
