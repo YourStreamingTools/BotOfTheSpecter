@@ -1,0 +1,25 @@
+.card-container {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.card {
+    width: 300px;
+    background-color: #1F1F1F;
+    color: #FFFFFF;
+    border: 1px solid #444444;
+}
+.card .card-title {
+    color: #FFFFFF;
+}
+.card .card-subtitle {
+    color: #FFFFFF;
+}
+.card .button {
+    margin-top: 10px;
+}
+.card-content ul {
+    list-style-type: disc;
+    padding-left: 20px;
+}
