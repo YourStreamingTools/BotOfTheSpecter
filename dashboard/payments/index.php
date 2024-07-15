@@ -98,7 +98,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
         <div class="card">
             <div class="card-content">
                 <div class="content">
-                    <h2 class="title">Subscription Plan</h2>
+                    <h2 class="title">Subscription Plan<br>$5 USD</h2>
                     <ul>
                         <li>Access to all bot features</li>
                         <li>Priority support</li>
@@ -117,7 +117,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
         <div class="card" id="premium-card">
             <div class="card-content">
                 <div class="content">
-                    <h2 class="title">Premium Plan</h2>
+                    <h2 class="title">Premium Plan<br>$10 USD</h2>
                     <ul>
                         <li>All features of the Subscription Plan</li>
                         <li>Personalized support</li>
@@ -130,10 +130,10 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
             </div>
         </div>
 
-        <div class="card " id="ultimate-card">
+        <div class="card" id="ultimate-card">
             <div class="card-content">
                 <div class="content">
-                    <h2 class="title">Ultimate Plan</h2>
+                    <h2 class="title">Ultimate Plan<br>$15 USD</h2>
                     <ul>
                         <li>All features of the Premium Plan</li>
                         <li>Dedicated Bot Just For You</li>
