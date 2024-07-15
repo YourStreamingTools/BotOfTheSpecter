@@ -37,12 +37,14 @@ $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
+$stripeCustomerId = $user['stripe_customer_id'];
+$subscriptionId = $user['subscription_id'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
 // Check if the user is already a Stripe customer
-if (empty($user['stripe_customer_id'])) {
+if (empty($stripeCustomerId)) {
     $stripeCustomerId = createStripeCustomer($userEmail, $twitchDisplayName);
     if ($stripeCustomerId) {
         // Update the user's record with the new Stripe customer ID
@@ -84,10 +86,29 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
             Payment Canceled. If this was a mistake, you can try again.
         </div>
     <?php endif; ?>
+
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title">Premium Features</h1>
-    <div class="notification is-info">This page is coming soon!</div>
+
+    <div class="card">
+        <div class="card-content">
+            <div class="content">
+                <h2 class="title">Subscription Plan</h2>
+                <ul>
+                    <li>Access to all bot features</li>
+                    <li>Priority support</li>
+                    <li>Exclusive beta features</li>
+                    <li>More features coming soon...</li>
+                </ul><!--
+                <?php if (empty($subscriptionId)): ?>
+                    <button id="checkout-button" class="button is-primary">Subscribe Now</button>
+                <?php else: ?>
+                    <button id="cancel-subscription-button" class="button is-danger">Cancel Subscription</button>
+                <?php endif; ?>-->
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://js.stripe.com/v3/"></script>
