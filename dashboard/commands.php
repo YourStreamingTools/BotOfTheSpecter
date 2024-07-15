@@ -30,8 +30,6 @@ $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
-$webhookPort = $user['webhook_port'];
-$websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
