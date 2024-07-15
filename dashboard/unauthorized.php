@@ -1,10 +1,10 @@
 <?php
 // Initialize the session
 session_start();
- 
+
 // Unset all of the session variables
 $_SESSION = array();
- 
+
 // Destroy the session
 session_destroy();
 ?>
@@ -16,8 +16,8 @@ session_destroy();
     <title>BotOfTheSpecter - Unauthorized</title>
     <link rel="stylesheet" type="text/css" href="https://botofthespecter.com/style.css">
     <link rel="stylesheet" href="pagination.css">
-  	<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-  	<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <style>.bio { text-align: center; }</style>
 </head>
 <body>
