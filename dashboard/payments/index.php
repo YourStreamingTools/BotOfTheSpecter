@@ -68,8 +68,8 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
 <head>
     <!-- Header -->
     <?php include('../header.php'); ?>
+    <link rel="stylesheet" href="custom.css">
     <!-- /Header -->
-    <style>.card-container { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; } .card { width: 300px; }</style>
 </head>
 <body>
 <!-- Navigation -->
@@ -98,14 +98,14 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
         <div class="card">
             <div class="card-content">
                 <div class="content">
-                    <h2 class="title">Subscription Plan<br>$5 USD</h2>
+                    <h2 class="card-title">Standard Plan<br>$5 USD</h2>
                     <ul>
                         <li>Access to all bot features</li>
+                        <li>!song and !weather commands</li>
                         <li>Priority support</li>
                         <li>Exclusive beta features</li>
-                        <li>More features coming soon...</li>
                     </ul>
-                    <h2>Coming Soon</h2>
+                    <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
             </div>
         </div>
@@ -113,15 +113,14 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
         <div class="card" id="premium-card">
             <div class="card-content">
                 <div class="content">
-                    <h2 class="title">Premium Plan<br>$10 USD</h2>
+                    <h2 class="card-title">Premium Plan<br>$10 USD</h2>
                     <ul>
                         <li>All features of the Subscription Plan</li>
                         <li>Personalized support</li>
                         <li>Custom bot configurations</li>
-                        <li>More premium features coming soon...</li>
+                        <li>AI Features and Conversations</li>
                     </ul>
-                    <h2>Coming Soon</h2>
-                    <!--<button id="premium-checkout-button" class="button is-primary">Subscribe to Premium</button>-->
+                    <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
             </div>
         </div>
@@ -129,15 +128,14 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
         <div class="card" id="ultimate-card">
             <div class="card-content">
                 <div class="content">
-                    <h2 class="title">Ultimate Plan<br>$15 USD</h2>
+                    <h2 class="card-title">Ultimate Plan<br>$15 USD</h2>
                     <ul>
                         <li>All features of the Premium Plan</li>
                         <li>Dedicated Bot Just For You</li>
                         <li>All future features included</li>
                         <li>Custom integrations & More</li>
                     </ul>
-                    <h2>Coming Soon</h2>
-                    <!--<button id="ultimate-checkout-button" class="button is-primary">Subscribe to Ultimate</button>-->
+                    <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
             </div>
         </div>
