@@ -3,7 +3,8 @@ session_start();
 require_once('stripe-php/init.php');
 require_once "../db_connect.php";
 
-\Stripe\Stripe::setApiKey(''); // CHANGE TO MAKE THIS WORK
+$stripeSecretKey = ''; // CHANGE TO MAKE THIS WORK
+\Stripe\Stripe::setApiKey($stripeSecretKey);
 
 $customerId = $_SESSION['stripe_customer_id'];
 $product = ''; // CHANGE TO MAKE THIS WORK
