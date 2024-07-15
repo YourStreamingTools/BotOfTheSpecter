@@ -17,7 +17,6 @@ $title = "Payments";
 
 // Connect to database
 require_once "../db_connect.php";
-require_once "payment.php";
 require_once "stripe_customer.php";
 
 // Fetch the user's data from the database based on the access_token
@@ -88,8 +87,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title">Premium Features</h1>
-
-    <button id="checkout-button" class="button is-primary">Checkout</button>
+    <div class="notification is-info">This page is coming soon!</div>
 </div>
 
 <script src="https://js.stripe.com/v3/"></script>
