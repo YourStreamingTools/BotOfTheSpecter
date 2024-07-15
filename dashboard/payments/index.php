@@ -18,12 +18,15 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BotOfTheSpecter | Payments</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.0/css/bulma.min.css">
+    <!-- Header -->
+    <?php include('../header.php'); ?>
+    <!-- /Header -->
 </head>
 <body>
+<!-- Navigation -->
+<?php include('../navigation.php'); ?>
+<!-- /Navigation -->
+
     <section class="section">
         <div class="container">
             <h1 class="title">Pay for Bot Features</h1>
