@@ -42,6 +42,8 @@ $subscriptionId = $user['subscription_id'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+include '../bot_control.php';
+include '../sqlite.php';
 
 // Check if the user is already a Stripe customer
 if (empty($stripeCustomerId)) {
@@ -67,6 +69,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
     <!-- Header -->
     <?php include('../header.php'); ?>
     <!-- /Header -->
+    <style>.card-container { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; } .card { width: 300px; }</style>
 </head>
 <body>
 <!-- Navigation -->
@@ -91,21 +94,55 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
     <br>
     <h1 class="title">Premium Features</h1>
 
-    <div class="card">
-        <div class="card-content">
-            <div class="content">
-                <h2 class="title">Subscription Plan</h2>
-                <ul>
-                    <li>Access to all bot features</li>
-                    <li>Priority support</li>
-                    <li>Exclusive beta features</li>
-                    <li>More features coming soon...</li>
-                </ul>
-                <?php if (empty($subscriptionId)): ?>
-                    <button id="checkout-button" class="button is-primary">Subscribe Now</button>
-                <?php else: ?>
-                    <button id="cancel-subscription-button" class="button is-danger">Cancel Subscription</button>
-                <?php endif; ?>
+    <div class="card-container">
+        <div class="card">
+            <div class="card-content">
+                <div class="content">
+                    <h2 class="title">Subscription Plan</h2>
+                    <ul>
+                        <li>Access to all bot features</li>
+                        <li>Priority support</li>
+                        <li>Exclusive beta features</li>
+                        <li>More features coming soon...</li>
+                    </ul>
+                    <?php if (empty($subscriptionId)): ?>
+                        <button id="checkout-button" class="button is-primary">Subscribe Now</button>
+                    <?php else: ?>
+                        <button id="cancel-subscription-button" class="button is-danger">Cancel Subscription</button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="premium-card">
+            <div class="card-content">
+                <div class="content">
+                    <h2 class="title">Premium Plan</h2>
+                    <ul>
+                        <li>All features of the Subscription Plan</li>
+                        <li>Personalized support</li>
+                        <li>Custom bot configurations</li>
+                        <li>More premium features coming soon...</li>
+                    </ul>
+                    <h2>Coming Soon</h2>
+                    <!--<button id="premium-checkout-button" class="button is-primary">Subscribe to Premium</button>-->
+                </div>
+            </div>
+        </div>
+
+        <div class="card " id="ultimate-card">
+            <div class="card-content">
+                <div class="content">
+                    <h2 class="title">Ultimate Plan</h2>
+                    <ul>
+                        <li>All features of the Premium Plan</li>
+                        <li>Dedicated Bot Just For You</li>
+                        <li>All future features included</li>
+                        <li>Custom integrations & More</li>
+                    </ul>
+                    <h2>Coming Soon</h2>
+                    <!--<button id="ultimate-checkout-button" class="button is-primary">Subscribe to Ultimate</button>-->
+                </div>
             </div>
         </div>
     </div>
