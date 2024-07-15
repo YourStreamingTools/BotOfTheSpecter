@@ -55,31 +55,27 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
 <?php include('../navigation.php'); ?>
 <!-- /Navigation -->
 
-<section class="section">
-    <div class="container">
-        <h1 class="title">Pay for Bot Features</h1>
-        <p>Welcome, <?php echo htmlspecialchars($twitchDisplayName); ?>!</p>
-        <img src="<?php echo htmlspecialchars($profileImageUrl); ?>" alt="Profile Image" width="100">
-        <p>Email: <?php echo htmlspecialchars($userEmail); ?></p>
+<div class="container">
+    <!-- Notifications -->
+    <?php if ($status === 'success'): ?>
+        <div class="notification is-success">
+            <button class="delete"></button>
+            Payment Successful! Your paid features are now enabled.
+        </div>
+    <?php elseif ($status === 'cancel'): ?>
+        <div class="notification is-danger">
+            <button class="delete"></button>
+            Payment Canceled. If this was a mistake, you can try again.
+        </div>
+    <?php endif; ?>
+    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <br>
+    <h1 class="title">Premium Features</h1>
 
-        <!-- Notifications -->
-        <?php if ($status === 'success'): ?>
-            <div class="notification is-success">
-                <button class="delete"></button>
-                Payment Successful! Your paid features are now enabled.
-            </div>
-        <?php elseif ($status === 'cancel'): ?>
-            <div class="notification is-danger">
-                <button class="delete"></button>
-                Payment Canceled. If this was a mistake, you can try again.
-            </div>
-        <?php endif; ?>
-
-        <button id="checkout-button" class="button is-primary">Checkout</button>
-    </div>
-</section>
+    <button id="checkout-button" class="button is-primary">Checkout</button>
+</div>
 
 <script src="https://js.stripe.com/v3/"></script>
-<script src="scripts.js"></script>
+<script src="stripe.js"></script>
 </body>
 </html>
