@@ -105,11 +105,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                         <li>Exclusive beta features</li>
                         <li>More features coming soon...</li>
                     </ul>
-                    <?php if (empty($subscriptionId)): ?>
-                        <button id="checkout-button" class="button is-primary">Subscribe Now</button>
-                    <?php else: ?>
-                        <button id="cancel-subscription-button" class="button is-danger">Cancel Subscription</button>
-                    <?php endif; ?>
+                    <h2>Coming Soon</h2>
                 </div>
             </div>
         </div>
@@ -152,3 +148,11 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
 <script src="stripe.js"></script>
 </body>
 </html>
+
+<!--
+<?php if (empty($subscriptionId)): ?>
+    <button id="checkout-button" class="button is-primary">Subscribe Now</button>
+<?php else: ?>
+    <button id="cancel-subscription-button" class="button is-danger">Cancel Subscription</button>
+<?php endif; ?>
+-->
