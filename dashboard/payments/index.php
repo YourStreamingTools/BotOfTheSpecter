@@ -100,10 +100,10 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                 <div class="content">
                     <h2 class="card-title">Standard Plan<br>$5 USD</h2>
                     <ul>
-                        <li>!song and !weather commands</li>
-                        <li>Priority support</li>
-                        <li>Exclusive beta features</li>
-                        <li>Shared bot (BotOfTheSpecter)</li>
+                        <li>!song & !weather Commands</li>
+                        <li>Full Support</li>
+                        <li>Exclusive Beta Features</li>
+                        <li>Shared Bot (BotOfTheSpecter)</li>
                     </ul>
                     <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
@@ -115,10 +115,10 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                 <div class="content">
                     <h2 class="card-title">Premium Plan<br>$10 USD</h2>
                     <ul>
-                        <li>Everything from Standard Plan</li>
-                        <li>Personalized support</li>
-                        <li>AI Features and Conversations</li>
-                        <li>Shared bot (BotOfTheSpecter)</li>
+                        <li>Everything From Standard Plan</li>
+                        <li>Personalized Support</li>
+                        <li>AI Features & Conversations</li>
+                        <li>Shared Bot (BotOfTheSpecter)</li>
                     </ul>
                     <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
@@ -132,7 +132,6 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                     <ul>
                         <li>Everything from Premium Plan</li>
                         <li>Dedicated bot (custom bot name)</li>
-                        <li>Custom integrations & More</li>
                     </ul>
                     <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
