@@ -98,11 +98,23 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
         <div class="card">
             <div class="card-content">
                 <div class="content">
+                    <h2 class="card-title">Free Plan<br>$0 USD</h2>
+                    <ul>
+                        <li><a class="feature-link" data-modal="modal-feature-basic">Basic Commands</a></li>
+                        <li><a class="feature-link" data-modal="modal-feature-limited-support">Limited Support</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-content">
+                <div class="content">
                     <h2 class="card-title">Standard Plan<br>$5 USD</h2>
                     <ul>
-                        <li>!song & !weather Commands</li>
-                        <li>Full Support</li>
-                        <li>Exclusive Beta Features</li>
+                        <li><a class="feature-link" data-modal="modal-feature-song-weather">!song & !weather Commands</a></li>
+                        <li><a class="feature-link" data-modal="modal-feature-support">Full Support</a></li>
+                        <li><a class="feature-link" data-modal="modal-feature-beta">Exclusive Beta Features</a></li>
                         <li>Shared Bot (BotOfTheSpecter)</li>
                     </ul>
                     <h2 class="card-subtitle">Coming Soon</h2>
@@ -116,8 +128,8 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                     <h2 class="card-title">Premium Plan<br>$10 USD</h2>
                     <ul>
                         <li>Everything From Standard Plan</li>
-                        <li>Personalized Support</li>
-                        <li>AI Features & Conversations</li>
+                        <li><a class="feature-link" data-modal="modal-feature-personalized-support">Personalized Support</a></li>
+                        <li><a class="feature-link" data-modal="modal-feature-ai">AI Features & Conversations</a></li>
                         <li>Shared Bot (BotOfTheSpecter)</li>
                     </ul>
                     <h2 class="card-subtitle">Coming Soon</h2>
@@ -131,7 +143,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                     <h2 class="card-title">Ultimate Plan<br>$15 USD</h2>
                     <ul>
                         <li>Everything from Premium Plan</li>
-                        <li>Dedicated bot (custom bot name)</li>
+                        <li><a class="feature-link" data-modal="modal-feature-dedicated-bot">Dedicated bot (custom bot name)</a></li>
                     </ul>
                     <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
@@ -140,8 +152,97 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
     </div>
 </div>
 
+<div id="modal-feature-basic" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">Basic Commands</h2>
+            <p>Access basic bot commands that allow you to interact with the chat, manage simple tasks, and enhance viewer engagement.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
+<div id="modal-feature-limited-support" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">Limited Support</h2>
+            <p>Get access to limited support to help you with the basic setup and troubleshooting of your bot.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
+<div id="modal-feature-song-weather" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">!song & !weather Commands</h2>
+            <p>Use the !song command to display the current song playing, and the !weather command to get real-time weather updates for your location.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
+<div id="modal-feature-support" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">Full Support</h2>
+            <p>Receive full support for any issues or questions you have about using and configuring your bot. Our team is here to help you every step of the way.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
+<div id="modal-feature-beta" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">Exclusive Beta Features</h2>
+            <p>Gain access to beta features before they are released to the public. Help us test and improve new functionalities.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
+<div id="modal-feature-personalized-support" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">Personalized Support</h2>
+            <p>Receive personalized support tailored to your specific needs, including custom configurations and advanced troubleshooting.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
+<div id="modal-feature-ai" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">AI Features & Conversations</h2>
+            <p>Utilize advanced AI features for more interactive and engaging chat experiences. Includes AI-driven conversations and responses.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
+<div id="modal-feature-dedicated-bot" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="title">Dedicated Bot (Custom Bot Name)</h2>
+            <p>Have your own dedicated bot with a custom name that is unique to your channel. Enjoy all future features and custom integrations.</p>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
+
 <script src="https://js.stripe.com/v3/"></script>
 <script src="stripe.js"></script>
+<script src="modal.js"></script>
 </body>
 </html>
 
