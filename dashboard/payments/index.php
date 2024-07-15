@@ -100,12 +100,12 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                     <li>Priority support</li>
                     <li>Exclusive beta features</li>
                     <li>More features coming soon...</li>
-                </ul><!--
+                </ul>
                 <?php if (empty($subscriptionId)): ?>
                     <button id="checkout-button" class="button is-primary">Subscribe Now</button>
                 <?php else: ?>
                     <button id="cancel-subscription-button" class="button is-danger">Cancel Subscription</button>
-                <?php endif; ?>-->
+                <?php endif; ?>
             </div>
         </div>
     </div>
