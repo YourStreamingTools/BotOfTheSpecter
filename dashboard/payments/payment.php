@@ -17,7 +17,7 @@ require_once('stripe-php/init.php');
 header('Content-Type: application/json');
 
 try {
-    $DOMAIN = 'https://payments.botofthespecter.com';
+    $DOMAIN = 'https://dashboard.botofthespecter.com/payments';
     $checkout_session = \Stripe\Checkout\Session::create([
         'payment_method_types' => ['card'],
         'line_items' => [[
