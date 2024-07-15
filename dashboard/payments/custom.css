@@ -29,3 +29,9 @@
     list-style-type: disc;
     padding-left: 20px;
 }
+.modal {
+    display: none;
+}
+.modal.is-active {
+    display: flex;
+}
