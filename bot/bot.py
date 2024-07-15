@@ -43,20 +43,18 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.5"
+VERSION = "4.5.1"
 SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
 SQL_USER = ""  # CHANGE TO MAKE THIS WORK
 SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
-TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 OPENAI_KEY = ""  # CHANGE TO MAKE THIS WORK
-TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
@@ -239,7 +237,7 @@ async def subscribe_to_events(session_id):
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-Id": TWITCH_API_CLIENT_ID,
+        "Client-Id": CLIENT_ID,
         "Content-Type": "application/json"
     }
 
@@ -1138,7 +1136,11 @@ class BotOfTheSpecter(commands.Bot):
     async def get_ai_response(self, user_message):
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post('https://ai.botofthespecter.com/', json={"message": user_message, "channel": CHANNEL_NAME}) as response:
+                payload = {
+                    "message": user_message,
+                    "channel": CHANNEL_NAME
+                }
+                async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
                     response.raise_for_status()  # Notice bad responses
                     ai_response = await response.text()  # Read response as plain text
                     bot_logger.info(f"AI response received: {ai_response}")
@@ -2007,7 +2009,7 @@ class BotOfTheSpecter(commands.Bot):
                         return
                     # Headers & Params for TwitchAPI
                     headers = {
-                        "Client-ID": TWITCH_API_CLIENT_ID,
+                        "Client-ID": CLIENT_ID,
                         "Authorization": f"Bearer {CHANNEL_AUTH}"
                     }
                     params = {
@@ -2026,7 +2028,7 @@ class BotOfTheSpecter(commands.Bot):
                             "description": marker_description
                         }
                         marker_headers = {
-                            "Client-ID": TWITCH_API_CLIENT_ID,
+                            "Client-ID": CLIENT_ID,
                             "Authorization": f"Bearer {CHANNEL_AUTH}",
                             "Content-Type": "application/json"
                         }
@@ -2068,7 +2070,7 @@ class BotOfTheSpecter(commands.Bot):
                             "description": marker_description
                         }
                         marker_headers = {
-                            "Client-ID": TWITCH_API_CLIENT_ID,
+                            "Client-ID": CLIENT_ID,
                             "Authorization": f"Bearer {CHANNEL_AUTH}",
                             "Content-Type": "application/json"
                         }
@@ -2099,7 +2101,7 @@ class BotOfTheSpecter(commands.Bot):
                     # Headers & Params for Twitch API
                     user_id = ctx.author.id
                     headers = {
-                        "Client-ID": TWITCH_API_CLIENT_ID,
+                        "Client-ID": CLIENT_ID,
                         "Authorization": f"Bearer {CHANNEL_AUTH}"
                     }
                     params = {
@@ -2637,7 +2639,7 @@ class BotOfTheSpecter(commands.Bot):
                 }
                 params = {
                     'broadcaster_id': CHANNEL_ID,
-                    'first': '2'
+                    'first': '3'
                 }
                 try:
                     async with aiohttp.ClientSession() as session:
@@ -2661,12 +2663,23 @@ class BotOfTheSpecter(commands.Bot):
                                         await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
                                         return
                                 next_stream = None
+                                canceled_stream = None
                                 for segment in segments:
+                                    # Check if the segment is canceled
+                                    if segment.get('canceled_until'):
+                                        canceled_until = datetime.strptime(segment['canceled_until'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
+                                        start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
+                                        start_time = start_time_utc.astimezone(tz)
+                                        canceled_stream = (start_time, canceled_until)
+                                        continue
                                     start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
                                     start_time = start_time_utc.astimezone(tz)
                                     if start_time > current_time:
                                         next_stream = segment
                                         break  # Exit the loop after finding the first upcoming stream
+                                if canceled_stream:
+                                    canceled_time, canceled_until = canceled_stream
+                                    await ctx.send(f"The next stream scheduled for {canceled_time.strftime('%A, %d %B %Y')} ({canceled_time.strftime('%H:%M %Z')} UTC) has been canceled.")
                                 if next_stream:
                                     start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
                                     start_time_utc = datetime.strptime(next_stream['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
@@ -2680,7 +2693,7 @@ class BotOfTheSpecter(commands.Bot):
                                     time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
                                     await ctx.send(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} ({start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                                 else:
-                                    await ctx.send(f"There are no upcoming streams in the next two days.")
+                                    await ctx.send(f"There are no upcoming streams in the next three days.")
                             else:
                                 await ctx.send(f"Something went wrong while trying to get the schedule from Twitch.")
                 except Exception as e:
@@ -3014,7 +3027,7 @@ async def is_valid_twitch_user(user_to_shoutout):
 
     # Headers including the Twitch Client ID
     headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
 
@@ -3037,7 +3050,7 @@ async def get_display_name(user_id):
     # Replace with actual method to get display name from Twitch API
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
     headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
 
@@ -3113,7 +3126,7 @@ async def is_user_vip(username):
 # Function to check if a user is a subscriber of the channel
 def is_user_subscribed(user_id):
     headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
     params = {
@@ -3263,7 +3276,7 @@ async def trigger_twitch_title_update(new_title):
     url = "https://api.twitch.tv/helix/channels"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
     }
     params = {
         "broadcaster_id": CHANNEL_ID,
@@ -3280,7 +3293,7 @@ async def trigger_twitch_game_update(new_game_id):
     url = "https://api.twitch.tv/helix/channels"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
     }
     params = {
         "broadcaster_id": CHANNEL_ID,
@@ -3298,7 +3311,7 @@ async def get_game_id(game_name):
     url = "https://api.twitch.tv/helix/games/top"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
     }
     params = {
         "name": game_name
@@ -3354,7 +3367,7 @@ async def process_shoutouts(shoutout_queue):
         url = 'https://api.twitch.tv/helix/chat/shoutouts'
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-ID": TWITCH_API_CLIENT_ID,
+            "Client-ID": CLIENT_ID,
         }
         payload = {
             "from_broadcaster_id": CHANNEL_ID,
@@ -4109,7 +4122,7 @@ async def known_users():
     try:
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-Id": TWITCH_API_CLIENT_ID,
+            "Client-Id": CLIENT_ID,
             "Content-Type": "application/json"
         }
         async with aiohttp.ClientSession() as session:
