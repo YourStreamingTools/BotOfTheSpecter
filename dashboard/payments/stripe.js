@@ -1,7 +1,7 @@
 var stripe = Stripe(''); // CHANGE TO MAKE THIS WORK
 var checkoutButton = document.getElementById('checkout-button');
 checkoutButton.addEventListener('click', function () {
-    fetch('/payment.php', {
+    fetch('/payments/payment.php', {
         method: 'POST',
     })
     .then(function (response) {
