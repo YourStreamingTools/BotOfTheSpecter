@@ -32,8 +32,6 @@ $last_login = $user['last_login'];
 $api_key = $user['api_key'];
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
-$webhookPort = $user['webhook_port'];
-$websocketPort = $user['websocket_port'];
 $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
