@@ -69,7 +69,7 @@ if (isset($_GET['code'])) {
     $_SESSION['access_token'] = $accessToken;
     $_SESSION['refresh_token'] = $refreshToken;
 
-    // Fetch the user's Twitch username and profile image URL
+    // Fetch the user's Twitch username, profile image URL, and email address
     $userInfoURL = 'https://api.twitch.tv/helix/users';
     $curl = curl_init($userInfoURL);
     curl_setopt($curl, CURLOPT_HTTPHEADER, [
@@ -98,11 +98,12 @@ if (isset($_GET['code'])) {
 
     if (isset($userInfo['data']) && count($userInfo['data']) > 0) {
         $twitchDisplayName = $userInfo['data'][0]['display_name'];
-    
+        $userEmail = $userInfo['data'][0]['email'];
+
         // Read the list of authorized users from the JSON file located in a specific directory
         $authUsersJson = file_get_contents('/var/www/api/authusers.json');
         $authUsers = json_decode($authUsersJson, true)['users'];
-    
+
         // Check if the user is authorized
         if (!in_array($twitchDisplayName, $authUsers)) {
             // Redirect to unauthorized page
@@ -111,55 +112,23 @@ if (isset($_GET['code'])) {
         }
 
         $twitchUsername = $userInfo['data'][0]['login'];
-        $twitchDisplayName = $userInfo['data'][0]['display_name'];
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
         $twitchUserId = $userInfo['data'][0]['id'];
-        
+        $_SESSION['user_email'] = $userEmail;
+
         // Database connect
         require_once "db_connect.php";
 
-        function generateUniqueWebHookPort($conn) {
-            $basePort = 8000;
-            $maxPort = 9000;
-        
-            // Query to find the maximum webhook port number currently in use
-            $query = "SELECT MAX(webhook_port) as max_webhook_port FROM users";
-            $result = mysqli_query($conn, $query);
-            $row = mysqli_fetch_assoc($result);
-        
-            $lastPort = $row['max_webhook_port'] ? $row['max_webhook_port'] : $basePort;
-            $newPort = $lastPort + 1;
-        
-            return ($newPort <= $maxPort) ? $newPort : null;
-        }
-        
-        function generateUniqueWebShocketPort($conn) {
-            $basePort = 49152;
-            $maxPort = 65535;
-        
-            // Query to find the maximum webshocket port number currently in use
-            $query = "SELECT MAX(websocket_port) as max_websocket_port FROM users";
-            $result = mysqli_query($conn, $query);
-            $row = mysqli_fetch_assoc($result);
-        
-            $lastPort = $row['max_websocket_port'] ? $row['max_websocket_port'] : $basePort;
-            $newPort = $lastPort + 1;
-        
-            return ($newPort <= $maxPort) ? $newPort : null;
-        }        
-
         // Insert/update user data
-        $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, webhook_port, is_admin)
-        VALUES ('$twitchUsername', '$accessToken', '$refreshToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', ?, 0)
+        $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, is_admin)
+        VALUES ('$twitchUsername', '$accessToken', '$refreshToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', 0)
         ON DUPLICATE KEY UPDATE access_token = '$accessToken', refresh_token = '$refreshToken', profile_image = '$profileImageUrl', twitch_user_id = '$twitchUserId', twitch_display_name = '$twitchDisplayName', last_login = ?";
-        
+
         $stmt = mysqli_prepare($conn, $insertQuery);
         $last_login = date('Y-m-d H:i:s');
-        $uniqueWebHookPort = generateUniqueWebHookPort($conn);
-        $uniqueWebShocketPort = generateUniqueWebShocketPort($conn);
 
-        // Bind the generated port number for new users, and the last login date
-        mysqli_stmt_bind_param($stmt, 'is', $uniqueWebHookPort, $last_login);
+        // Bind the last login date
+        mysqli_stmt_bind_param($stmt, 's', $last_login);
 
         if (mysqli_stmt_execute($stmt)) {
             // Redirect the user to the dashboard
