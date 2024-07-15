@@ -30,8 +30,6 @@ $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
-$webhookPort = $user['webhook_port'];
-$websocketPort = $user['websocket_port'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
