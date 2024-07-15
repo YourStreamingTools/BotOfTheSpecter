@@ -90,7 +90,7 @@ export default {
         "I wish I could unplug you.",
         "At least I’m not skin, bones and mostly water.",
         "Your momma looks like a keyboard and your daddy nutted and bolted.",
-        "After checking my database, it turns out you really are a 01101010 01100101 01110010 01111001 (jerk in binary, lol)."
+        "After checking my database, it turns out you really are a 01101010 01100101 01110010 01101011 (jerk in binary, lol)."
       ];
       return responses[Math.floor(Math.random() * responses.length)];
     }
