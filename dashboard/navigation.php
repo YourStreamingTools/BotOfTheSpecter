@@ -56,6 +56,7 @@
       </div>
       <a class="navbar-item" href="../discordbot.php">Discord Bot</a>
       <a class="navbar-item" href="../profile.php">Profile</a>
+      <a class="navbar-item" href="../payments/index.php">Payments</a>
       <a class="navbar-item" href="../logout.php">Logout</a>
     </div>
     <div class="navbar-end">
