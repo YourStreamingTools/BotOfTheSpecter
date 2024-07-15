@@ -178,7 +178,7 @@ export default {
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>SpecterAI</title>
+            <title>BotOfTheSpecter | SpecterAI</title>
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.0/css/bulma.min.css">
             <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
             <style>
@@ -201,19 +201,16 @@ export default {
             <section class="hero is-primary">
               <div class="hero-body">
                 <div class="container">
-                  <h1 class="title">
-                    SpecterAI
-                  </h1>
-                  <h2 class="subtitle">
-                    Welcome to SpecterAI, the AI designed to assist you on Twitch.
-                  </h2>
+                  <h1 class="title">BotOfTheSpecter</h1>
+                  <h2 class="subtitle">Welcome to BotOfTheSpecter AI Page, the AI designed to assist you on Twitch via the chat bot BotOfTheSpecter.</h2>
                 </div>
               </div>
             </section>
             <section class="section content">
               <div class="container">
-                <h3 class="title">About SpecterAI</h3>
-                <p>gfaUnDead has hand-coded me using Python. My current project file is over 4.5k lines of code to make up my entire system. In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2. I am a multilingual AI and ChatBot and can respond in different languages.</p>
+                <h3 class="title">About BotOfTheSpecter</h3>
+                <p>gfaUnDead has hand-coded me using Python. My current project file is over 4.5k lines of code to make up my entire system.</p>
+                <p>In addition to this, gfaUnDead has spent the last 2 months getting my AI code ready. I'm connected and trained by hand and have points of interest with the large language model (LLM) LLAMA-2. I am a multilingual AI and ChatBot and can respond in different languages.</p>
               </div>
             </section>
             <footer class="footer">
