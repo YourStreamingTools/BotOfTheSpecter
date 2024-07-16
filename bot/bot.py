@@ -882,6 +882,10 @@ class BotOfTheSpecter(commands.Bot):
                                         user_name = messageAuthor
                                     response = response.replace('(user)', user_name)
 
+                                if '(author)' in response:
+                                    user_name = messageAuthor
+                                    response = response.replace('(author)', user_name)
+
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
                                     if command_match:
