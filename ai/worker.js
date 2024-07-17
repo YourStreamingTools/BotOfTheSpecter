@@ -116,16 +116,30 @@ export default {
 
     // Function to handle sensitive questions
     function handleSensitiveQuestion(message) {
-      const sensitiveQuestions = [
-        'describe what a person look like',
+      const sensitiveTopics = [
+        'personal information',
         'describe someone',
-        'tell me what someone looks like',
-        'what does a person look like',
         'what does someone look like',
-        'how does a person look',
-        'how does someone look'
+        'how does someone look',
+        'address',
+        'phone number',
+        'email',
+        'social security number',
+        'credit card',
+        'bank account',
+        'password',
+        'political affilliations',
+        'religious beliefs',
+        'sexual orientation',
+        'gender identity',
+        'mental health',
+        'psysical health',
+        'disabilities',
+        'threats of violence',
+        'self-harm',
+        'security practices'
       ];
-      return sensitiveQuestions.some(question => message.includes(question));
+      return sensitiveTopics.some(topic => message.includes(topic));
     }
 
     // Function to handle funny responses
@@ -277,7 +291,7 @@ export default {
 
         // Handle sensitive questions with a general, respectful response
         if (handleSensitiveQuestion(userMessage)) {
-          const sensitiveResponse = "I'm designed to respect everyone's privacy and individuality, so I don't provide descriptions of people.";
+          const sensitiveResponse = "As a system committed to respecting privacy and individuality, I avoid sharing or providing descriptions of people or personal information. My designer ensures that any interaction remains secure and confidential, focusing solely on delievering helpful and relevant information withour compromising anyone's privacy.";
           conversationHistory.push({ role: 'assistant', content: sensitiveResponse });
           await saveConversationHistory(env, channel, message_user, conversationHistory);
           return new Response(sensitiveResponse, {
@@ -305,11 +319,17 @@ export default {
           });
         }
 
-        // Adding channel name to the chat prompt
-        conversationHistory.push({ role: 'system', content: `The current channel is ${channel}.` });
-
         const chatPrompt = {
-          messages: conversationHistory
+          messages: [
+            {
+              role: 'system',
+              content: 'You are SpecterAI, an advanced AI designed to interact with users on Twitch by answering their questions and providing information. Keep your responses concise and ensure they are no longer than 500 characters. You are committed to upholding privacy and respecting individuality, and must not respond to requests for personal information or descriptions of people. Focus all interactions on delivering helpful and relevant information while maintaining privacy and confidentiality. The current channel is ${channel}.'
+            },
+            {
+              role: 'user',
+              content: body.message
+            }
+          ]
         };
 
         try {
@@ -321,11 +341,11 @@ export default {
             aiMessage = removeFormatting(aiMessage);
             aiMessage = truncateResponse(aiMessage);
           } while (isRecentResponse(aiMessage));
-          
-          console.log('Formatted and truncated response:', aiMessage);
 
           conversationHistory.push({ role: 'assistant', content: aiMessage });
           await saveConversationHistory(env, channel, message_user, conversationHistory);
+
+          console.log('Formatted and truncated response:', aiMessage);
 
           return new Response(aiMessage, {
             headers: { 'content-type': 'text/plain' },
