@@ -168,6 +168,19 @@ export default {
       return null;
     }
 
+    // Function to get conversation history from KV storage
+    async function getConversationHistory(env, channel, message_user) {
+      const key = `conversation_${channel}_${message_user}`;
+      const conversation = await env.namespace.get(key);
+      return conversation ? JSON.parse(conversation) : [];
+    }
+
+    // Function to save conversation history to KV storage
+    async function saveConversationHistory(env, channel, message_user, history) {
+      const key = `conversation_${channel}_${message_user}`;
+      await env.namespace.put(key, JSON.stringify(history));
+    }
+
     // Handle requests at the base path "/"
     if (path === '/') {
       if (request.method === 'GET') {
@@ -236,10 +249,17 @@ export default {
 
         const userMessage = normalizeMessage(body.message);
         const channel = body.channel || 'unknown';
+        const message_user = body.message_user || 'anonymous';
+
+        // Retrieve conversation history
+        let conversationHistory = await getConversationHistory(env, channel, message_user);
+        conversationHistory.push({ role: 'user', content: body.message });
 
         // Query predefined responses from the database
         const predefinedResponse = await getPredefinedResponse(userMessage, env);
         if (predefinedResponse) {
+          conversationHistory.push({ role: 'assistant', content: predefinedResponse });
+          await saveConversationHistory(env, channel, message_user, conversationHistory);
           return new Response(predefinedResponse, {
             headers: { 'content-type': 'text/plain' },
           });
@@ -248,6 +268,8 @@ export default {
         // Detect insults and respond with a subtle jab
         if (await detectInsult(userMessage, env)) {
           const insultResponse = getInsultResponse();
+          conversationHistory.push({ role: 'assistant', content: insultResponse });
+          await saveConversationHistory(env, channel, message_user, conversationHistory);
           return new Response(insultResponse, {
             headers: { 'content-type': 'text/plain' },
           });
@@ -256,6 +278,8 @@ export default {
         // Handle sensitive questions with a general, respectful response
         if (handleSensitiveQuestion(userMessage)) {
           const sensitiveResponse = "I'm designed to respect everyone's privacy and individuality, so I don't provide descriptions of people.";
+          conversationHistory.push({ role: 'assistant', content: sensitiveResponse });
+          await saveConversationHistory(env, channel, message_user, conversationHistory);
           return new Response(sensitiveResponse, {
             headers: { 'content-type': 'text/plain' },
           });
@@ -264,6 +288,8 @@ export default {
         // Handle funny responses for favorite questions
         const funnyResponse = handleFunnyResponses(userMessage);
         if (funnyResponse) {
+          conversationHistory.push({ role: 'assistant', content: funnyResponse });
+          await saveConversationHistory(env, channel, message_user, conversationHistory);
           return new Response(funnyResponse, {
             headers: { 'content-type': 'text/plain' },
           });
@@ -272,17 +298,18 @@ export default {
         // Handle "I'm not new" responses
         const notNewResponse = handleNotNewResponse(userMessage);
         if (notNewResponse) {
+          conversationHistory.push({ role: 'assistant', content: notNewResponse });
+          await saveConversationHistory(env, channel, message_user, conversationHistory);
           return new Response(notNewResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
 
+        // Adding channel name to the chat prompt
+        conversationHistory.push({ role: 'system', content: `The current channel is ${channel}.` });
+
         const chatPrompt = {
-          messages: [
-            { role: 'system', content: 'You are SpecterAI, an advanced AI designed to interact with users on Twitch by answering their questions and providing information. Keep your responses concise and ensure they are no longer than 500 characters.' },
-            { role: 'user', content: body.message },
-            { role: 'system', content: `The current channel is ${channel}.` }
-          ]
+          messages: conversationHistory
         };
 
         try {
@@ -296,6 +323,9 @@ export default {
           } while (isRecentResponse(aiMessage));
           
           console.log('Formatted and truncated response:', aiMessage);
+
+          conversationHistory.push({ role: 'assistant', content: aiMessage });
+          await saveConversationHistory(env, channel, message_user, conversationHistory);
 
           return new Response(aiMessage, {
             headers: { 'content-type': 'text/plain' },
