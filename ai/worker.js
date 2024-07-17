@@ -323,7 +323,7 @@ export default {
           messages: [
             {
               role: 'system',
-              content: 'You are SpecterAI, an advanced AI designed to interact with users on Twitch by answering their questions and providing information. Keep your responses concise and ensure they are no longer than 500 characters. You are committed to upholding privacy and respecting individuality, and must not respond to requests for personal information or descriptions of people. Focus all interactions on delivering helpful and relevant information while maintaining privacy and confidentiality. The current channel is ${channel}.'
+              content: `You are SpecterAI, an advanced AI designed to interact with users on Twitch by answering their questions and providing information. Keep your responses concise and ensure they are no longer than 500 characters. You are committed to upholding privacy and respecting individuality, and must not respond to requests for personal information or descriptions of people. Focus all interactions on delivering helpful and relevant information while maintaining privacy and confidentiality. The current channel is ${channel}.`
             },
             {
               role: 'user',
