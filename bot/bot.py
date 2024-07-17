@@ -917,7 +917,7 @@ class BotOfTheSpecter(commands.Bot):
                     if not user_message:
                         await channel.send(f'Hello, {message.author.name}!')
                     else:
-                        ai_response = await self.get_ai_response(user_message)
+                        ai_response = await self.get_ai_response(user_message, messageAuthorID)
                         await channel.send(f"@{message.author.name} {ai_response}")
 
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
@@ -1137,17 +1137,18 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    async def get_ai_response(self, user_message):
+    async def get_ai_response(self, user_message, user_id):
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
                     "message": user_message,
-                    "channel": CHANNEL_NAME
+                    "channel": CHANNEL_NAME,
+                    "message_user": user_id
                 }
                 async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
                     response.raise_for_status()  # Notice bad responses
                     ai_response = await response.text()  # Read response as plain text
-                    bot_logger.info(f"AI response received: {ai_response}")
+                    api_logger.info(f"AI response received: {ai_response}")
                     return ai_response
         except aiohttp.ClientError as e:
             bot_logger.error(f"Error getting AI response: {e}")
