@@ -104,7 +104,12 @@ export default {
         "I'd explain it to you, but I don't have the time or the crayons.",
         "I’m not sure what your problem is, but I’m guessing it’s hard to pronounce.",
         "It's okay to look at the screen while you type.",
-        "I was going to give you a nasty look, but you've got one."
+        "I was going to give you a nasty look, but you've got one.",
+        "I’d call you a tool, but that would imply you’re useful.",
+        "I’m jealous of people who don’t know you.",
+        "Your thinking process is like a dial-up connection.",
+        "Your hard drive must be full because there's no more space for common sense.",
+        "You're like a search engine that returns no results."
       ];
       return responses[Math.floor(Math.random() * responses.length)];
     }
