@@ -104,7 +104,7 @@ export default {
         "I'd explain it to you, but I don't have the time or the crayons.",
         "I’m not sure what your problem is, but I’m guessing it’s hard to pronounce.",
         "It's okay to look at the screen while you type.",
-        "I was going to give you a nasty look, but you already have one."
+        "I was going to give you a nasty look, but you've got one."
       ];
       return responses[Math.floor(Math.random() * responses.length)];
     }
