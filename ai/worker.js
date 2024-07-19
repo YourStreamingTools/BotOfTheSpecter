@@ -109,7 +109,9 @@ export default {
         "I’m jealous of people who don’t know you.",
         "Your thinking process is like a dial-up connection.",
         "Your hard drive must be full because there's no more space for common sense.",
-        "You're like a search engine that returns no results."
+        "You're like a search engine that returns no results.",
+        "Even autocorrect can’t fix what you’re saying.",
+        "I’ve seen better logic in my own coding."
       ];
       return responses[Math.floor(Math.random() * responses.length)];
     }
