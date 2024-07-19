@@ -8,7 +8,7 @@ export default {
     const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
 
     // Helper function to handle AI responses with a timeout
-    async function runAI(payload, timeout = 5000) {
+    async function runAI(payload, timeout = 30000) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -90,7 +90,21 @@ export default {
         "I wish I could unplug you.",
         "At least I’m not skin, bones and mostly water.",
         "Your momma looks like a keyboard and your daddy nutted and bolted.",
-        "After checking my database, it turns out you really are a 01101010 01100101 01110010 01101011 (jerk in binary, lol)."
+        "After checking my database, it turns out you really are a 01101010 01100101 01110010 01101011 (jerk in binary, lol).",
+        "You must have been born on a highway because that's where most accidents happen.",
+        "I would explain it to you but I left my crayons at home.",
+        "You're proof that even AI can get bored.",
+        "If ignorance is bliss, you must be the happiest person on the planet.",
+        "You bring everyone so much joy when you leave the room.",
+        "I'd agree with you but then we'd both be wrong.",
+        "Your secrets are always safe with me. I never even listen when you tell me them.",
+        "If I had a dollar for every smart thing you say, I'd be broke.",
+        "You are like a cloud. When you disappear, it's a beautiful day.",
+        "You're not stupid; you just have bad luck thinking.",
+        "I'd explain it to you, but I don't have the time or the crayons.",
+        "I’m not sure what your problem is, but I’m guessing it’s hard to pronounce.",
+        "It's okay to look at the screen while you type.",
+        "I was going to give you a nasty look, but you already have one."
       ];
       return responses[Math.floor(Math.random() * responses.length)];
     }
