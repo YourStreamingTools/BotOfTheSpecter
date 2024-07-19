@@ -13,7 +13,7 @@ export default {
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       try {
-        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.ACCOUNT_ID}/ai/run/@cf/meta/llama-2-7b-chat-fp16`, {
+        const response = await fetch(`https://gateway.ai.cloudflare.com/v1/${env.ACCOUNT_ID}/specterai/workers-ai/@cf/meta/llama-2-7b-chat-fp16`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${env.API_TOKEN}`,
