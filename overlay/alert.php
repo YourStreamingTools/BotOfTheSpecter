@@ -42,6 +42,31 @@
                 const audio = new Audio(data.audio_file);
                 audio.play();
             });
+
+            socket.on('TWITCH_FOLLOW', (data) => {
+                console.log('Twitch Follow:', data);
+                alert(`New follow: ${data}`);
+            });
+
+            socket.on('TWITCH_CHEER', (data) => {
+                console.log('Twitch Cheer:', data);
+                alert(`New cheer: ${data}`);
+            });
+
+            socket.on('TWITCH_RAID', (data) => {
+                console.log('Twitch Raid:', data);
+                alert(`New raid: ${data}`);
+            });
+
+            socket.on('TWITCH_SUB', (data) => {
+                console.log('Twitch Sub:', data);
+                alert(`New subscription: ${data}`);
+            });
+
+            socket.on('WALKON', (data) => {
+                console.log('Walkon:', data);
+                alert(`Walkon: ${data}`);
+            });
         });
     </script>
 </head>
