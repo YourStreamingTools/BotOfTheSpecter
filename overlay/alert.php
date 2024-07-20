@@ -7,7 +7,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const socket = io('wss://websocket.botofthespecter.com:8080');
-            // Extract the code from the URL parameters
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
@@ -17,7 +16,6 @@
 
             socket.on('connect', () => {
                 console.log('Connected to WebSocket server');
-                // Register the client with the extracted code
                 socket.emit('REGISTER', { code: code });
             });
 
