@@ -33,25 +33,24 @@
             });
 
             // Listen for TTS audio events
-            socket.on('TTS_AUDIO', (data) => {
+            socket.on('TTS', (data) => {
                 console.log('TTS Audio file path:', data.audio_file);
                 const audio = new Audio(data.audio_file);
                 audio.autoplay = true;
                 audio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
-                    audio.play().catch(error => {
-                        console.error('Error playing audio:', error);
-                        alert('Click to play audio');
-                    });
                 });
                 audio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
                 });
-                audio.play().catch(error => {
-                    console.error('Error playing audio immediately:', error);
-                    alert('Click to play audio');
-                });
+
+                setTimeout(() => {
+                    audio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                        alert('Click to play audio');
+                    });
+                }, 100); // 100ms delay
             });
 
             // Listen for TWITCH FOLLOW events
