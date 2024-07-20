@@ -19,6 +19,7 @@ class BotOfTheSpecterWebsocketServer:
         self.logger = logger
         self.ip = self.get_own_ip()
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
+        self.tts_dir = "/var/www/tts"
         self.registered_clients = {}
         self.sio = socketio.AsyncServer(logger=logger, engineio_logger=logger, cors_allowed_origins='*')
         self.app = web.Application()
@@ -40,7 +41,8 @@ class BotOfTheSpecterWebsocketServer:
             web.get("/notify", self.notify),
             web.get("/include/{tail:.*}", self.static_file),
             web.get("/heartbeat", self.heartbeat),
-            web.get("/clients", self.list_clients)
+            web.get("/clients", self.list_clients),
+            web.post("/delete_tts", self.delete_tts)
         ])
 
     def setup_event_handlers(self):
@@ -112,11 +114,11 @@ class BotOfTheSpecterWebsocketServer:
         event = event.upper().replace(" ", "_")
         if event == "TTS" and text:
             response = self.generate_speech(text)
-            audio_file = f'tts_output_{code}.mp3'
+            audio_file = os.path.join(self.tts_dir, f'tts_output_{code}.mp3')
             with open(audio_file, 'wb') as out:
                 out.write(response.audio_content)
                 self.logger.info(f'Audio content written to file "{audio_file}"')
-            data['audio_file'] = audio_file
+            data['audio_file'] = f"https://tts.botofthespecter.com/tts_output_{code}.mp3"
         count = 0
         for sid, registered_code in self.registered_clients.items():
             if registered_code == code:
@@ -125,6 +127,20 @@ class BotOfTheSpecterWebsocketServer:
                 self.logger.info(f"Emitted event '{event}' to client {sid}")
         self.logger.info(f"Broadcasted event to {count} clients")
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
+
+    async def delete_tts(self, request):
+        # Handle the delete_tts route.
+        data = await request.json()
+        audio_file = data.get("audio_file")
+        if audio_file:
+            try:
+                os.remove(os.path.join(self.tts_dir, os.path.basename(audio_file)))
+                self.logger.info(f"Deleted TTS audio file: {audio_file}")
+                return web.json_response({"success": 1, "msg": "File deleted"})
+            except Exception as e:
+                self.logger.error(f"Error deleting file {audio_file}: {e}")
+                return web.json_response({"success": 0, "msg": f"Error deleting file: {e}"})
+        return web.json_response({"success": 0, "msg": "No file specified"})
 
     def generate_speech(self, text):
         input_text = texttospeech.SynthesisInput(text=text)
@@ -206,13 +222,13 @@ class BotOfTheSpecterWebsocketServer:
         text = data.get("text")
         if text:
             response = self.generate_speech(text)
-            audio_file = f'tts_output_{sid}.mp3'
+            audio_file = os.path.join(self.tts_dir, f'tts_output_{sid}.mp3')
             with open(audio_file, 'wb') as out:
                 out.write(response.audio_content)
                 self.logger.info(f'Audio content written to file "{audio_file}"')
 
             # Send the audio file path to the requesting client
-            await self.sio.emit("TTS_AUDIO", {"audio_file": audio_file}, to=sid)
+            await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/tts_output_{sid}.mp3"}, to=sid)
 
     def generate_speech(self, text):
         input_text = texttospeech.SynthesisInput(text=text)
