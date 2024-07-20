@@ -31,14 +31,12 @@
 
             socket.on('NOTIFY', (data) => {
                 console.log('Notification:', data);
-                // Handle the notification (e.g., display it to the user)
                 alert(data.message);
             });
 
             // Listen for TTS audio events
             socket.on('TTS_AUDIO', (data) => {
                 console.log('TTS Audio file path:', data.audio_file);
-                // Play the audio file if needed
                 const audio = new Audio(data.audio_file);
                 audio.play();
             });
