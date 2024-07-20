@@ -8,6 +8,7 @@ import ssl
 import argparse
 import socketio
 from aiohttp import web
+from google.cloud import texttospeech
 
 class BotOfTheSpecterWebsocketServer:
     def __init__(self, logger):
@@ -25,6 +26,7 @@ class BotOfTheSpecterWebsocketServer:
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
+        self.tts_client = texttospeech.TextToSpeechClient()
 
     def setup_routes(self):
         # Set up the routes for the web application.
@@ -49,6 +51,7 @@ class BotOfTheSpecterWebsocketServer:
             ("TWITCH_RAID", self.twitch_raid),
             ("TWITCH_SUB", self.twitch_sub),
             ("WALKON", self.walkon),
+            ("TTS", self.tts),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -177,9 +180,31 @@ class BotOfTheSpecterWebsocketServer:
         # Broadcast the sub event to all clients
         await self.sio.emit("TWITCH_SUB", data)
 
-    async def event(self, event, sid, data):
-        # Handle generic events for SocketIO.
-        self.logger.debug(f"Event {event}: {data}")
+    async def tts(self, sid, data):
+        # Handle the TTS event for SocketIO.
+        self.logger.info(f"TTS event from SID [{sid}]: {data}")
+        text = data.get("text")
+        if text:
+            response = self.generate_speech(text)
+            audio_file = f'tts_output_{sid}.mp3'
+            with open(audio_file, 'wb') as out:
+                out.write(response.audio_content)
+                self.logger.info(f'Audio content written to file "{audio_file}"')
+
+            # Broadcast the TTS event with the audio file path
+            await self.sio.emit("TTS_AUDIO", {"audio_file": audio_file}, to=sid)
+
+    def generate_speech(self, text):
+        input_text = texttospeech.SynthesisInput(text=text)
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="en-US",
+            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+        )
+        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
+        response = self.tts_client.synthesize_speech(
+            input=input_text, voice=voice, audio_config=audio_config
+        )
+        return response
 
     def run_app(self, host="0.0.0.0", port=8080):
         # Run the web application.
