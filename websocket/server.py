@@ -22,7 +22,7 @@ class BotOfTheSpecterWebsocketServer:
         self.tts_dir = "/var/www/tts"
         self.registered_clients = {}
         self.sio = socketio.AsyncServer(logger=logger, engineio_logger=logger, cors_allowed_origins='*')
-        self.app = web.Application()
+        self.app = web.Application(middlewares=[self.ip_restriction_middleware])
         self.app.on_shutdown.append(self.on_shutdown)
         self.setup_routes()
         self.setup_event_handlers()
@@ -33,6 +33,9 @@ class BotOfTheSpecterWebsocketServer:
 
         # Initialize Google Text-to-Speech client
         self.tts_client = texttospeech.TextToSpeechClient()
+
+        # Allowed IPs for /clients route
+        self.allowed_ips = ['']
 
     def setup_routes(self):
         # Set up the routes for the web application.
@@ -62,6 +65,18 @@ class BotOfTheSpecterWebsocketServer:
         ]
         for event, handler in event_handlers:
             self.sio.on(event, handler)
+
+    async def ip_restriction_middleware(self, app, handler):
+        async def middleware_handler(request):
+            if request.path == '/clients':
+                peername = request.transport.get_extra_info('peername')
+                if peername is not None:
+                    ip = peername[0]
+                    if ip not in self.allowed_ips:
+                        self.logger.warning(f"Unauthorized access attempt from IP: {ip}")
+                        return web.HTTPForbidden(text="403 Forbidden: Access denied")
+            return await handler(request)
+        return middleware_handler
 
     async def walkon(self, sid, data):
         # Handle the walkon event for SocketIO.
