@@ -22,3 +22,4 @@ bot/sql/*
 bot/test_websocket.py
 cdn/Thumbs.db
 websocket/service-account-file.json
+tts/*.mp3
