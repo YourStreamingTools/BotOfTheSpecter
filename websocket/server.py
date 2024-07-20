@@ -104,30 +104,44 @@ class BotOfTheSpecterWebsocketServer:
         # Handle the notify route.
         code = request.query.get("code")
         event = request.query.get("event")
+        text = request.query.get("text")
+        self.logger.info(f"Received notify request with code: {code}, event: {event}, text: {text}")
         if not code or not event:
             raise web.HTTPBadRequest(text="400 Bad Request: code or event is missing")
-
         data = {k: v for k, v in request.query.items()}
         event = event.upper().replace(" ", "_")
+        if event == "TTS" and text:
+            response = self.generate_speech(text)
+            audio_file = f'tts_output_{code}.mp3'
+            with open(audio_file, 'wb') as out:
+                out.write(response.audio_content)
+                self.logger.info(f'Audio content written to file "{audio_file}"')
+            data['audio_file'] = audio_file
         count = 0
         for sid, registered_code in self.registered_clients.items():
             if registered_code == code:
                 count += 1
                 await self.sio.emit(event, data, sid)
-        
+                self.logger.info(f"Emitted event '{event}' to client {sid}")
+        self.logger.info(f"Broadcasted event to {count} clients")
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
 
-    async def on_shutdown(self, app):
-        # Handle the shutdown event for the web application.
-        self.logger.info("Received shutdown signal")
+    def generate_speech(self, text):
+        input_text = texttospeech.SynthesisInput(text=text)
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="en-US",
+            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+        )
+        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
+        response = self.tts_client.synthesize_speech(
+            input=input_text, voice=voice, audio_config=audio_config
+        )
+        return response
 
-    def sig_handler(self, signum, frame):
-        # Handle system signals for graceful shutdown.
-        signame = signal.Signals(signum).name
-        self.logger.info(f'Caught signal {signame} ({signum})')
-        self.stop()
-        self.logger.info("Server stopped")
-        
+    async def event(self, sid, event, data):
+        # Handle generic events for SocketIO.
+        self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
+
     async def connect(self, sid, environ, auth):
         # Handle the connect event for SocketIO.
         self.logger.info(f"Connect event: {sid}")
@@ -148,6 +162,7 @@ class BotOfTheSpecterWebsocketServer:
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
         code = data.get("code")
+        self.logger.info(f"Register event received from SID {sid} with code: {code}")
         if code:
             self.logger.info(f"Client [{sid}] registered with code: {code}")
             self.registered_clients[sid] = code
@@ -210,10 +225,6 @@ class BotOfTheSpecterWebsocketServer:
             input=input_text, voice=voice, audio_config=audio_config
         )
         return response
-
-    async def event(self, sid, event, data):
-        # Handle generic events for SocketIO.
-        self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
@@ -290,7 +301,7 @@ if __name__ == '__main__':
         filename=log_file,
         level=log_level,
         filemode="a",
-        format="%(asctime)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(levellevel)s - %(message)s"
     )
 
     logging.getLogger().addHandler(logging.StreamHandler())
