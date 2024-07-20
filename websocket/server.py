@@ -208,6 +208,10 @@ class BotOfTheSpecterWebsocketServer:
         )
         return response
 
+    async def event(self, sid, event, data):
+        # Handle generic events for SocketIO.
+        self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
+
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
         for sid in self.registered_clients.keys():
