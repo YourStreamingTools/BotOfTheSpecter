@@ -12,6 +12,9 @@ from google.cloud import texttospeech
 
 class BotOfTheSpecterWebsocketServer:
     def __init__(self, logger):
+        # Set up Google Cloud credentials
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/var/www/websocket/service-account-file.json"
+        
         # Initialize the WebSocket server.
         self.logger = logger
         self.ip = self.get_own_ip()
