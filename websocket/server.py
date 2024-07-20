@@ -41,8 +41,7 @@ class BotOfTheSpecterWebsocketServer:
             web.get("/notify", self.notify),
             web.get("/include/{tail:.*}", self.static_file),
             web.get("/heartbeat", self.heartbeat),
-            web.get("/clients", self.list_clients),
-            web.post("/delete_tts", self.delete_tts)
+            web.get("/clients", self.list_clients)
         ])
 
     def setup_event_handlers(self):
@@ -127,20 +126,6 @@ class BotOfTheSpecterWebsocketServer:
                 self.logger.info(f"Emitted event '{event}' to client {sid}")
         self.logger.info(f"Broadcasted event to {count} clients")
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
-
-    async def delete_tts(self, request):
-        # Handle the delete_tts route.
-        data = await request.json()
-        audio_file = data.get("audio_file")
-        if audio_file:
-            try:
-                os.remove(os.path.join(self.tts_dir, os.path.basename(audio_file)))
-                self.logger.info(f"Deleted TTS audio file: {audio_file}")
-                return web.json_response({"success": 1, "msg": "File deleted"})
-            except Exception as e:
-                self.logger.error(f"Error deleting file {audio_file}: {e}")
-                return web.json_response({"success": 0, "msg": f"Error deleting file: {e}"})
-        return web.json_response({"success": 0, "msg": "No file specified"})
 
     def generate_speech(self, text):
         input_text = texttospeech.SynthesisInput(text=text)
