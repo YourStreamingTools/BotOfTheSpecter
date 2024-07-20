@@ -26,6 +26,8 @@ class BotOfTheSpecterWebsocketServer:
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
+
+        # Initialize Google Text-to-Speech client
         self.tts_client = texttospeech.TextToSpeechClient()
 
     def setup_routes(self):
@@ -191,7 +193,7 @@ class BotOfTheSpecterWebsocketServer:
                 out.write(response.audio_content)
                 self.logger.info(f'Audio content written to file "{audio_file}"')
 
-            # Broadcast the TTS event with the audio file path
+            # Send the audio file path to the requesting client
             await self.sio.emit("TTS_AUDIO", {"audio_file": audio_file}, to=sid)
 
     def generate_speech(self, text):
@@ -205,6 +207,11 @@ class BotOfTheSpecterWebsocketServer:
             input=input_text, voice=voice, audio_config=audio_config
         )
         return response
+
+    async def send_notification(self, message):
+        # Broadcast a notification to all registered clients
+        for sid in self.registered_clients.keys():
+            await self.sio.emit("NOTIFY", {"message": message}, to=sid)
 
     def run_app(self, host="0.0.0.0", port=8080):
         # Run the web application.
