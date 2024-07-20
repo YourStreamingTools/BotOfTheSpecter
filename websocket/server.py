@@ -231,6 +231,10 @@ class BotOfTheSpecterWebsocketServer:
         for sid in self.registered_clients.keys():
             await self.sio.emit("NOTIFY", {"message": message}, to=sid)
 
+    async def on_shutdown(self, app):
+        # Handle the shutdown event for the web application.
+        self.logger.info("Received shutdown signal")
+
     def run_app(self, host="0.0.0.0", port=8080):
         # Run the web application.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
@@ -301,7 +305,7 @@ if __name__ == '__main__':
         filename=log_file,
         level=log_level,
         filemode="a",
-        format="%(asctime)s - %(levellevel)s - %(message)s"
+        format="%(asctime)s - %(levelname)s - %(message)s"
     )
 
     logging.getLogger().addHandler(logging.StreamHandler())
