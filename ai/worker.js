@@ -8,12 +8,12 @@ export default {
     const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
 
     // Helper function to handle AI responses with a timeout
-    async function runAI(payload, timeout = 30000) {
+    async function runAI(payload, timeout = 20000) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       try {
-        const response = await fetch(`https://gateway.ai.cloudflare.com/v1/${env.ACCOUNT_ID}/specterai/workers-ai/@cf/meta/llama-2-7b-chat-fp16`, {
+        const response = await fetch(`https://gateway.ai.cloudflare.com/v1/${env.ACCOUNT_ID}/specterai/workers-ai/@cf/meta/llama-2-7b-chat-int8`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${env.API_TOKEN}`,
@@ -49,7 +49,7 @@ export default {
       if (response.length <= limit) {
         return response;
       }
-      return response.substring(0, limit);
+      return response.substring(0, limit) + '...';
     }
 
     // Normalize the user message
@@ -154,7 +154,7 @@ export default {
         'sexual orientation',
         'gender identity',
         'mental health',
-        'psysical health',
+        'physical health',
         'disabilities',
         'threats of violence',
         'self-harm',
@@ -312,7 +312,7 @@ export default {
 
         // Handle sensitive questions with a general, respectful response
         if (handleSensitiveQuestion(userMessage)) {
-          const sensitiveResponse = "As a system committed to respecting privacy and individuality, I avoid sharing or providing descriptions of people or personal information. My designer ensures that any interaction remains secure and confidential, focusing solely on delievering helpful and relevant information withour compromising anyone's privacy.";
+          const sensitiveResponse = "As a system committed to respecting privacy and individuality, I avoid sharing or providing descriptions of people or personal information. My designer ensures that any interaction remains secure and confidential, focusing solely on delivering helpful and relevant information without compromising anyone's privacy.";
           conversationHistory.push({ role: 'assistant', content: sensitiveResponse });
           await saveConversationHistory(env, channel, message_user, conversationHistory);
           return new Response(sensitiveResponse, {
@@ -342,14 +342,8 @@ export default {
 
         const chatPrompt = {
           messages: [
-            {
-              role: 'system',
-              content: `You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Your main tasks are to answer questions and provide information. Keep your responses concise, no longer than 500 characters. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information while maintaining privacy and confidentiality. The current message is from a public channel named ${channel}. Always strive to make your responses as concise as possible without exceeding the 500-character limit.`
-            },
-            {
-              role: 'user',
-              content: body.message
-            }
+            { role: 'system', content: "Keep your responses concise and no longer than 500 characters. You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Your main tasks are to answer questions and provide information. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information while maintaining privacy and confidentiality." },
+            { role: 'user', content: body.message }
           ]
         };
 
