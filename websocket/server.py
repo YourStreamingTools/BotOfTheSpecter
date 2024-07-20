@@ -246,7 +246,7 @@ class BotOfTheSpecterWebsocketServer:
     def create_ssl_context(self):
         # Create the SSL context for secure connections.
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(certfile='fullchain.pem', keyfile='privkey.pem')
+        ssl_context.load_cert_chain(certfile='/etc/letsencrypt/live/botofthespecter.com-0001/fullchain.pem', keyfile='/etc/letsencrypt/live/botofthespecter.com-0001/privkey.pem')
         return ssl_context
 
     @staticmethod
