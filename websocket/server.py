@@ -235,6 +235,13 @@ class BotOfTheSpecterWebsocketServer:
         # Handle the shutdown event for the web application.
         self.logger.info("Received shutdown signal")
 
+    def sig_handler(self, signum, frame):
+        # Handle system signals for graceful shutdown.
+        signame = signal.Signals(signum).name
+        self.logger.info(f'Caught signal {signame} ({signum})')
+        self.stop()
+        self.logger.info("Server stopped")
+
     def run_app(self, host="0.0.0.0", port=8080):
         # Run the web application.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
