@@ -878,11 +878,9 @@ class BotOfTheSpecter(commands.Bot):
                                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
 
                                 if '(user)' in response:
-                                    user_mention = re.search(r'<@(\d+)>', messageContent)
+                                    user_mention = re.search(r'@(\w+)', messageContent)
                                     if user_mention:
-                                        mentioned_user_id = user_mention.group(1)
-                                        # Use mentioned user's name
-                                        user_name = await get_display_name(mentioned_user_id)
+                                        user_name = user_mention
                                     else:
                                         # Default to message author's name
                                         user_name = messageAuthor
