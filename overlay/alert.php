@@ -56,7 +56,23 @@
             // Listen for WALKON events
             socket.on('WALKON', (data) => {
                 console.log('Walkon:', data);
-                alert(`Walkon: ${data}`);
+                const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
+                const audio = new Audio(audioFile);
+                audio.autoplay = true;
+                audio.addEventListener('canplaythrough', () => {
+                    console.log('Walkon audio can play through without buffering');
+                });
+                audio.addEventListener('error', (e) => {
+                    console.error('Error occurred while loading the Walkon audio file:', e);
+                    alert('Failed to load Walkon audio file');
+                });
+
+                setTimeout(() => {
+                    audio.play().catch(error => {
+                        console.error('Error playing Walkon audio:', error);
+                        alert('Click to play Walkon audio');
+                    });
+                }, 100); // 100ms delay
             });
         });
     </script>
