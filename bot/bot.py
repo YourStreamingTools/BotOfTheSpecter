@@ -2758,7 +2758,7 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
-    
+
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
@@ -2808,7 +2808,9 @@ class BotOfTheSpecter(commands.Bot):
                     chat_logger.info(shoutout_message)
                     await ctx.send(shoutout_message)
                     # Trigger the Twitch shoutout
-                    await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id)
+                    if not await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
+                        chat_logger.error("Failed to trigger Twitch shoutout.")
+                        await ctx.send("An error occurred while triggering the Twitch shoutout.")
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
@@ -3346,12 +3348,16 @@ async def get_game_id(game_name):
 
 # Function to trigger a twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
-    # Add the shoutout request to the queue
-    await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
-
-    # Check if the queue is empty and no shoutout is currently being processed
-    if shoutout_queue.qsize() == 1:
-        await process_shoutouts(shoutout_queue)
+    try:
+        # Add the shoutout request to the queue
+        await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
+        # Check if the queue is empty and no shoutout is currently being processed
+        if shoutout_queue.qsize() == 1:
+            await process_shoutouts(shoutout_queue)
+        return True
+    except Exception as e:
+        twitch_logger.error(f"Error in trigger_twitch_shoutout: {e}")
+        return False
 
 async def process_shoutouts(shoutout_queue):
     while not shoutout_queue.empty():
