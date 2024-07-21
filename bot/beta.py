@@ -8,7 +8,6 @@ from datetime import datetime, timezone, timedelta
 import logging
 import subprocess
 import websockets
-import socketio
 import json
 import time
 import random
