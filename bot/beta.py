@@ -1032,7 +1032,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status_enabled = user_data[3]
                     await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
                     await sqldb.commit()
-                    await websocket_notice(event="WALKON", user=messageAuthor)
+                    await websocket_notice(event="WALKON", channel=CHANNEL_NAME, user=messageAuthor)
                 else:
                     # Check if the user is the broadcaster
                     if messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -1042,7 +1042,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status_enabled = 'True'
                     await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
                     await sqldb.commit()
-                    await websocket_notice(event="WALKON", user=messageAuthor)
+                    await websocket_notice(event="WALKON", channel=CHANNEL_NAME, user=messageAuthor)
 
                 if user_status_enabled == 'True':
                     if is_vip:
@@ -4052,18 +4052,26 @@ async def send_to_discord_stream_online(message, image):
     finally:
         await sqldb.ensure_closed()
 
-# Function to conenct to the websocket server and push a notice
-async def websocket_notice(event, user=None, text=None):
+# Function to connect to the websocket server and push a notice
+async def websocket_notice(event, channel=None, user=None, text=None):
     async with aiohttp.ClientSession() as session:
         params = {
             'code': API_TOKEN,
             'event': event
         }
-        if text:
+        if event == "TTS" and text:
             params['text'] = text
-        elif user:
-            params['user'] = user
-
+        elif event == "WALKON" and channel and user:
+            walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
+            if os.path.exists(walkon_file_path):
+                params['channel'] = channel
+                params['user'] = user
+            else:
+                bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
+                return
+        else:
+            bot_logger.error(f"Event '{event}' requires additional parameters")
+            return
         async with session.get('https://websocket.botofthespecter.com:8080/notify', params=params) as response:
             if response.status == 200:
                 bot_logger.info(f"Event '{event}' sent successfully with params: {params}")
