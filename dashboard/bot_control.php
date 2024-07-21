@@ -73,19 +73,19 @@ if (isset($_POST['restartBot'])) {
 
 // Handle beta bot actions
 if (isset($_POST['runBetaBot'])) {
-    $betaStatusOutput = handleBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
+    $betaStatusOutput = handleBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
 }
 
 if (isset($_POST['killBetaBot'])) {
-    $betaStatusOutput = handleBotAction('kill', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
+    $betaStatusOutput = handleBotAction('kill', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
 }
 
 if (isset($_POST['restartBetaBot'])) {
-    $betaStatusOutput = handleBotAction('restart', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $BetaLogPath);
+    $betaStatusOutput = handleBotAction('restart', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
 }
 
 // Function to handle bot actions
-function handleBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath) {
+function handleBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
     $statusOutput = shell_exec("python $statusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     $message = '';
@@ -95,7 +95,7 @@ function handleBotAction($action, $botScriptPath, $statusScriptPath, $username, 
             if ($pid > 0) {
                 $message = "<div class='status-message'>Bot is already running. PID $pid.</div>";
             } else {
-                startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
+                startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
                 $statusOutput = shell_exec("python $statusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
@@ -116,7 +116,7 @@ function handleBotAction($action, $botScriptPath, $statusScriptPath, $username, 
         case 'restart':
             if ($pid > 0) {
                 killBot($pid);
-                startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath);
+                startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $api_key, $logPath);
                 $statusOutput = shell_exec("python $statusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
@@ -159,8 +159,8 @@ function checkBotRunning($statusScriptPath, $username, $logPath) {
     return ($pid > 0);
 }
 
-function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $logPath) {
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $logPath 2>&1 &";
+function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key >> $logPath 2>&1 &";
     $output = shell_exec($command);
     sleep(1);
     return !(empty($output) || strpos($output, 'error') !== false);
