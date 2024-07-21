@@ -51,13 +51,11 @@ SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
 OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
 CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
-TWITCH_API_AUTH = ""  # CHANGE TO MAKE THIS WORK
 TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
 SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
 WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
 STEAM_API = ""  # CHANGE TO MAKE THIS WORK
 OPENAI_KEY = ""  # CHANGE TO MAKE THIS WORK
-TWITCH_API_CLIENT_ID = CLIENT_ID
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
@@ -240,7 +238,7 @@ async def subscribe_to_events(session_id):
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-Id": TWITCH_API_CLIENT_ID,
+        "Client-Id": CLIENT_ID,
         "Content-Type": "application/json"
     }
 
@@ -885,6 +883,10 @@ class BotOfTheSpecter(commands.Bot):
                                         user_name = messageAuthor
                                     response = response.replace('(user)', user_name)
 
+                                if '(author)' in response:
+                                    user_name = messageAuthor
+                                    response = response.replace('(author)', user_name)
+
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
                                     if command_match:
@@ -916,8 +918,7 @@ class BotOfTheSpecter(commands.Bot):
                     if not user_message:
                         await channel.send(f'Hello, {message.author.name}!')
                     else:
-                        ai_response = await self.get_ai_response(user_message)
-                        await channel.send(f"@{message.author.name} {ai_response}")
+                        await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
 
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                     # Fetch url_blocking option from the protection table in the user's database
@@ -1138,13 +1139,30 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    async def get_ai_response(self, user_message):
+    async def handle_ai_response(self, user_message, user_id, message_author_name):
+        ai_response = await self.get_ai_response(user_message, user_id)
+        # Split the response if it's longer than 500 characters
+        messages = [ai_response[i:i+500] for i in range(0, len(ai_response), 500)]
+        # Send each part of the response as a separate message
+        for part in messages:
+            await self.send_message_to_channel(f"@{message_author_name} {part}")
+
+    async def send_message_to_channel(self, message):
+        channel = bot.get_channel(CHANNEL_NAME)
+        await channel.send(message)
+
+    async def get_ai_response(self, user_message, user_id):
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post('https://ai.botofthespecter.com/', json={"message": user_message}) as response:
+                payload = {
+                    "message": user_message,
+                    "channel": CHANNEL_NAME,
+                    "message_user": user_id
+                }
+                async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
                     response.raise_for_status()  # Notice bad responses
                     ai_response = await response.text()  # Read response as plain text
-                    bot_logger.info(f"AI response received: {ai_response}")
+                    api_logger.info(f"AI response received: {ai_response}")
                     return ai_response
         except aiohttp.ClientError as e:
             bot_logger.error(f"Error getting AI response: {e}")
@@ -2010,7 +2028,7 @@ class BotOfTheSpecter(commands.Bot):
                         return
                     # Headers & Params for TwitchAPI
                     headers = {
-                        "Client-ID": TWITCH_API_CLIENT_ID,
+                        "Client-ID": CLIENT_ID,
                         "Authorization": f"Bearer {CHANNEL_AUTH}"
                     }
                     params = {
@@ -2029,7 +2047,7 @@ class BotOfTheSpecter(commands.Bot):
                             "description": marker_description
                         }
                         marker_headers = {
-                            "Client-ID": TWITCH_API_CLIENT_ID,
+                            "Client-ID": CLIENT_ID,
                             "Authorization": f"Bearer {CHANNEL_AUTH}",
                             "Content-Type": "application/json"
                         }
@@ -2071,7 +2089,7 @@ class BotOfTheSpecter(commands.Bot):
                             "description": marker_description
                         }
                         marker_headers = {
-                            "Client-ID": TWITCH_API_CLIENT_ID,
+                            "Client-ID": CLIENT_ID,
                             "Authorization": f"Bearer {CHANNEL_AUTH}",
                             "Content-Type": "application/json"
                         }
@@ -2102,7 +2120,7 @@ class BotOfTheSpecter(commands.Bot):
                     # Headers & Params for Twitch API
                     user_id = ctx.author.id
                     headers = {
-                        "Client-ID": TWITCH_API_CLIENT_ID,
+                        "Client-ID": CLIENT_ID,
                         "Authorization": f"Bearer {CHANNEL_AUTH}"
                     }
                     params = {
@@ -2640,7 +2658,7 @@ class BotOfTheSpecter(commands.Bot):
                 }
                 params = {
                     'broadcaster_id': CHANNEL_ID,
-                    'first': '2'
+                    'first': '3'
                 }
                 try:
                     async with aiohttp.ClientSession() as session:
@@ -2664,12 +2682,23 @@ class BotOfTheSpecter(commands.Bot):
                                         await ctx.send(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
                                         return
                                 next_stream = None
+                                canceled_stream = None
                                 for segment in segments:
+                                    # Check if the segment is canceled
+                                    if segment.get('canceled_until'):
+                                        canceled_until = datetime.strptime(segment['canceled_until'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
+                                        start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
+                                        start_time = start_time_utc.astimezone(tz)
+                                        canceled_stream = (start_time, canceled_until)
+                                        continue
                                     start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
                                     start_time = start_time_utc.astimezone(tz)
                                     if start_time > current_time:
                                         next_stream = segment
                                         break  # Exit the loop after finding the first upcoming stream
+                                if canceled_stream:
+                                    canceled_time, canceled_until = canceled_stream
+                                    await ctx.send(f"The next stream scheduled for {canceled_time.strftime('%A, %d %B %Y')} ({canceled_time.strftime('%H:%M %Z')} UTC) has been canceled.")
                                 if next_stream:
                                     start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
                                     start_time_utc = datetime.strptime(next_stream['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
@@ -2683,7 +2712,7 @@ class BotOfTheSpecter(commands.Bot):
                                     time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
                                     await ctx.send(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} ({start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                                 else:
-                                    await ctx.send(f"There are no upcoming streams in the next two days.")
+                                    await ctx.send(f"There are no upcoming streams in the next three days.")
                             else:
                                 await ctx.send(f"Something went wrong while trying to get the schedule from Twitch.")
                 except Exception as e:
@@ -2744,9 +2773,9 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-            if command_permissions(ctx.author):
+            if await command_permissions(ctx.author):
                 chat_logger.info(f"Shoutout command running from {ctx.author.name}")
-                if user_to_shoutout is None:
+                if not user_to_shoutout:
                     chat_logger.error(f"Shoutout command missing username parameter.")
                     await ctx.send(f"Usage: !so @username")
                     return
@@ -2755,12 +2784,16 @@ class BotOfTheSpecter(commands.Bot):
                     # Remove @ from the username if present
                     user_to_shoutout = user_to_shoutout.lstrip('@')
                     # Check if the user exists on Twitch
-                    if not await is_valid_twitch_user(user_to_shoutout):
-                        chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout")
+                    is_valid_user = await is_valid_twitch_user(user_to_shoutout)
+                    if not is_valid_user:
+                        chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout.")
                         await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
                         return
                     chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
                     user_info = await self.fetch_users(names=[user_to_shoutout])
+                    if not user_info:
+                        await ctx.send("Failed to fetch user information.")
+                        return
                     mentioned_user_id = user_info[0].id
                     game = await get_latest_stream_game(mentioned_user_id, user_to_shoutout)
                     if not game:
@@ -2769,22 +2802,21 @@ class BotOfTheSpecter(commands.Bot):
                             f"You should go give them a follow over at "
                             f"https://www.twitch.tv/{user_to_shoutout}"
                         )
-                        chat_logger.info(shoutout_message)
-                        await ctx.send(shoutout_message)
                     else:
                         shoutout_message = (
                             f"Hey, huge shoutout to @{user_to_shoutout}! "
                             f"You should go give them a follow over at "
                             f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
                         )
-                        chat_logger.info(shoutout_message)
-                        await ctx.send(shoutout_message)
+                    chat_logger.info(shoutout_message)
+                    await ctx.send(shoutout_message)
                     # Trigger the Twitch shoutout
                     await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id)
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
+                    await ctx.send("An error occurred while processing the shoutout command.")
             else:
-                chat_logger.info(f"{ctx.author.name} tried to use the command, !shoutout, but couldn't as they are not a moderator.")
+                chat_logger.info(f"{ctx.author.name} tried to use the command, !shoutout, but lacks permissions.")
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
@@ -3018,7 +3050,7 @@ async def is_valid_twitch_user(user_to_shoutout):
 
     # Headers including the Twitch Client ID
     headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
 
@@ -3041,7 +3073,7 @@ async def get_display_name(user_id):
     # Replace with actual method to get display name from Twitch API
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
     headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
 
@@ -3066,17 +3098,21 @@ async def command_permissions(user):
         return True
 
     # Check if the user is a moderator
-    elif await is_user_mod(user.name):
+    is_mod = await is_user_mod(user.name)
+    if is_mod:
         return True
 
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
-    else:
-        twitch_logger.info(f"User {user.name} does not have required permissions.")
-        return False
+    twitch_logger.info(f"User {user.name} does not have required permissions.")
+    return False
 
 async def is_user_mod(username):
     sqldb = await get_mysql_connection()
+    try:
     async with sqldb.cursor() as cursor:
+    async with sqldb.cursor() as cursor:
+        try:
+        async with sqldb.cursor() as cursor:
         try:
             # Query the database to check if the user is a moderator
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
@@ -3085,12 +3121,13 @@ async def is_user_mod(username):
                 twitch_logger.info(f"User {username} is a Moderator")
                 return True
             else:
+                twitch_logger.info(f"User {username} is not a mod")
                 return False
-        except Exception as e:
-            twitch_logger.error(f"An error occurred in is_user_mod: {e}")
-            return False
-        finally:
-            await sqldb.ensure_closed()
+    except Exception as e:
+        twitch_logger.error(f"An error occurred in is_user_mod: {e}")
+        return False
+    finally:
+        await sqldb.ensure_closed()
 
 # Function to check if a user is a VIP of the channel using the Twitch API
 async def is_user_vip(username):
@@ -3116,7 +3153,7 @@ async def is_user_vip(username):
 # Function to check if a user is a subscriber of the channel
 def is_user_subscribed(user_id):
     headers = {
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
     params = {
@@ -3266,7 +3303,7 @@ async def trigger_twitch_title_update(new_title):
     url = "https://api.twitch.tv/helix/channels"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
     }
     params = {
         "broadcaster_id": CHANNEL_ID,
@@ -3283,7 +3320,7 @@ async def trigger_twitch_game_update(new_game_id):
     url = "https://api.twitch.tv/helix/channels"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
     }
     params = {
         "broadcaster_id": CHANNEL_ID,
@@ -3301,7 +3338,7 @@ async def get_game_id(game_name):
     url = "https://api.twitch.tv/helix/games/top"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": TWITCH_API_CLIENT_ID,
+        "Client-ID": CLIENT_ID,
     }
     params = {
         "name": game_name
@@ -3322,6 +3359,41 @@ async def trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_us
     # Check if the queue is empty and no shoutout is currently being processed
     if shoutout_queue.qsize() == 1:
         await process_shoutouts(shoutout_queue)
+
+async def process_shoutouts(shoutout_queue):
+    while not shoutout_queue.empty():
+        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
+        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
+        url = 'https://api.twitch.tv/helix/chat/shoutouts'
+        headers = {
+            "Authorization": f"Bearer {CHANNEL_AUTH}",
+            "Client-ID": CLIENT_ID,
+        }
+        payload = {
+            "from_broadcaster_id": CHANNEL_ID,
+            "to_broadcaster_id": mentioned_user_id,
+            "moderator_id": CHANNEL_ID
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 429:
+                        # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
+                        retry_after = 180  # 3 minutes in seconds
+                        twitch_logger.error(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
+                        await asyncio.sleep(retry_after)
+                        continue  # Retry the request
+                    elif response.status in (200, 204):
+                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                        await asyncio.sleep(180)  # Wait for 3 minutes before processing the next shoutout
+                    else:
+                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                        # Retry the request (exponential backoff can be implemented here)
+                        await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+                        continue
+                    await shoutout_queue.task_done()
+        except aiohttp.ClientError as e:
+            twitch_logger.error(f"Error triggering shoutout: {e}")
 
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     headers = {
@@ -3349,42 +3421,6 @@ async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
             else:
                 api_logger.error(f"Failed to get game for {user_to_shoutout}. Status code: {response.status}")
                 return None
-
-async def process_shoutouts(shoutout_queue):
-    while not shoutout_queue.empty():
-        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
-        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
-        url = 'https://api.twitch.tv/helix/chat/shoutouts'
-        headers = {
-            "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-ID": TWITCH_API_CLIENT_ID,
-        }
-        payload = {
-            "from_broadcaster_id": CHANNEL_ID,
-            "to_broadcaster_id": mentioned_user_id,
-            "moderator_id": CHANNEL_ID
-        }
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status == 429:
-                        # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
-                        retry_after = 180  # 3 minutes in seconds
-                        twitch_logger.error(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
-                        await asyncio.sleep(retry_after)
-                        continue  # Retry the request
-                    elif response.status in (200, 204):
-                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
-                        await asyncio.sleep(180)  # Wait for 3 minutes before processing the next shoutout
-                    else:
-                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-                        # Retry the request (exponential backoff can be implemented here)
-                        await asyncio.sleep(5)  # Wait for 5 seconds before retrying
-                        continue
-                    await shoutout_queue.task_done()
-        except aiohttp.ClientError as e:
-            twitch_logger.error(f"Error triggering shoutout: {e}")
 
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
@@ -4143,7 +4179,7 @@ async def known_users():
     try:
         headers = {
             "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-Id": TWITCH_API_CLIENT_ID,
+            "Client-Id": CLIENT_ID,
             "Content-Type": "application/json"
         }
         async with aiohttp.ClientSession() as session:
