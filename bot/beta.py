@@ -2022,8 +2022,8 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
                 except Exception as e:
-                    chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time}")
-                    await ctx.send(f"Oops, something went wrong with the unlurk command.")
+                    chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
+                    await ctx.send("Oops, something went wrong with the unlurk command.")
         finally:
             await sqldb.ensure_closed()
 
