@@ -3109,11 +3109,7 @@ async def command_permissions(user):
 async def is_user_mod(username):
     sqldb = await get_mysql_connection()
     try:
-    async with sqldb.cursor() as cursor:
-    async with sqldb.cursor() as cursor:
-        try:
         async with sqldb.cursor() as cursor:
-        try:
             # Query the database to check if the user is a moderator
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
