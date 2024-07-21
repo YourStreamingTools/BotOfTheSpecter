@@ -3482,15 +3482,12 @@ async def process_stream_online():
     if image_data:
         image = image_data.replace("{width}", "1280").replace("{height}", "720")
     else:
-        image = None
+        image = ""
 
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_online_message(message)
-    if image:
-        await send_to_discord_stream_online(message, image)
-    else:
-        await send_to_discord_stream_online(message, "")
+    await send_to_discord_stream_online(message, image)
 
 async def process_stream_offline():
     global stream_online
@@ -4007,7 +4004,7 @@ async def send_to_discord_mod(message, title, image):
     finally:
         await sqldb.ensure_closed()
 
-# Function to build the Discord Notice for Stream Online
+# Function to send a message to Discord when the stream is online
 async def send_to_discord_stream_online(message, image):
     sqldb = await get_mysql_connection()
     try:
@@ -4042,13 +4039,17 @@ async def send_to_discord_stream_online(message, image):
                         "height": 720,
                         "width": 1280
                     }
+                else:
+                    bot_logger.warning("No image URL provided; sending message without image.")
                 response = requests.post(discord_url, json=payload)
                 if response.status_code in (200, 204):
                     bot_logger.info(f"Message sent to Discord successfully - Status Code: {response.status_code}")
                 else:
-                    bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
+                    bot_logger.error(f"Failed to send to Discord - Status Code: {response.status_code}, Response: {response.text}")
             else:
                 bot_logger.error("Discord URL not found.")
+    except Exception as e:
+        bot_logger.error(f"An error occurred while sending a message to Discord: {e}")
     finally:
         await sqldb.ensure_closed()
 
