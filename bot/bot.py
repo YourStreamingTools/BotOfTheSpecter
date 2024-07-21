@@ -3113,10 +3113,10 @@ async def is_user_mod(username):
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
             if result and result[0] == 'MOD':
-                twitch_logger.info(f"User {username} is a Moderator")
+                #twitch_logger.info(f"User {username} is a Moderator")
                 return True
             else:
-                twitch_logger.info(f"User {username} is not a mod")
+                #twitch_logger.info(f"User {username} is not a mod")
                 return False
     except Exception as e:
         twitch_logger.error(f"An error occurred in is_user_mod: {e}")
@@ -3133,10 +3133,10 @@ async def is_user_vip(username):
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
             if result and result[0] == 'VIP':
-                twitch_logger.info(f"User ID {username} is a VIP Member")
+                #twitch_logger.info(f"User ID {username} is a VIP Member")
                 return True
             else:
-                twitch_logger.info(f"User ID {username} is not a VIP Member")
+                #twitch_logger.info(f"User ID {username} is not a VIP Member")
                 return False
         except Exception as e:
             twitch_logger.error(f"An error occurred in is_user_vip: {e}")
