@@ -4035,33 +4035,39 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to conenct to the websocket server and push a notice
-async def websocket_notice(channel, event, user):
+async def websocket_notice(event, user=None, text=None):
     sio = socketio.AsyncClient()
 
     @sio.event
     async def connect():
+        bot_logger.info("Connected to WebSocket server")
         # Register with the API Key
         registration_message = {'code': API_TOKEN}
         await sio.emit('REGISTER', registration_message)
-        # Await confirmation of successful registration if necessary
-        registration_response = await sio.call('REGISTER', registration_message)
-        bot_logger.info(f"Registration response: {registration_response}")
-        # Construct and send the event message
-        event_message = {
-            "channel": channel,
-            "event": event,
-            "user": user
-        }
+        bot_logger.info(f"Registration message sent: {registration_message}")
+        
+        # Construct and send the event message based on the type of event
+        if text:
+            event_message = {
+                "event": event,
+                "text": text
+            }
+        else:
+            event_message = {
+                "event": event,
+                "user": user
+            }
         await sio.emit(event, event_message)
-        # Await response from the server if necessary
-        event_response = await sio.call(event, event_message)
-        bot_logger.info(f"Event response: {event_response}")
+        bot_logger.info(f"Event message sent: {event_message}")
+
     @sio.event
     async def connect_error(data):
         bot_logger.error(f"The connection failed: {data}")
+
     @sio.event
     async def disconnect():
-        pass
+        bot_logger.info("Disconnected from WebSocket server")
+
     await sio.connect('https://websocket.botofthespecter.com:8080', transports=['websocket'])
     await sio.wait()
 
