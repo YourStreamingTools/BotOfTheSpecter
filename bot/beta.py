@@ -4139,7 +4139,7 @@ async def update_version_control():
         if not os.path.exists(directory):
             os.makedirs(directory)
         # Define the file path with the channel name
-        file_path = os.path.join(directory, f"{CHANNEL_NAME}_version_control.txt")
+        file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
         # Delete the file if it exists
         if os.path.exists(file_path):
             os.remove(file_path)
