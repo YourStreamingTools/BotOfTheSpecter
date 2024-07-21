@@ -11,4 +11,4 @@
     <script src="../js/about.js"></script>
     <script src="../js/navbar.js" defer></script>
     <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
-    <!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken >> $logPath"; ?> -->
+    <!-- <?php echo "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key >> $logPath"; ?> -->
