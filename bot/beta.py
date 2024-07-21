@@ -848,7 +848,7 @@ class BotOfTheSpecter(commands.Bot):
                     if result:
                         if result[1] == 'Enabled':
                             response = result[0]
-                            switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', '(command.']
+                            switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', '(command.', '(call.']
                             responses_to_send = []
 
                             while any(switch in response for switch in switches):
@@ -901,6 +901,14 @@ class BotOfTheSpecter(commands.Bot):
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
                                             await channel.send(f"The command {sub_command} is no longer available.")
+
+                                if '(call.' in response:
+                                    calling_match = re.search(r'\(call\.(\w+)\)', response)
+                                    if calling_match:
+                                        match_call = calling_match.group(1)
+                                        await self.call_command(match_call, message)
+                                    else:
+                                        pass
 
                             # Send the individual responses
                             if len(responses_to_send) > 1:
@@ -1141,6 +1149,13 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
+    async def call_command(self, command_name, ctx):
+        command_method = getattr(self, f"{command_name}_command", None)
+        if command_method:
+            await command_method(ctx)
+        else:
+            await ctx.send(f"Command '{command_name}' not found.")
+
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id)
         # Split the response if it's longer than 500 characters
@@ -1220,7 +1235,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='forceonline')
-    async def force_online_command(self, ctx):
+    async def forceonline_command(self, ctx):
         global stream_online
         global current_game
         if await command_permissions(ctx.author):
@@ -1411,7 +1426,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='quoteadd')
-    async def quote_add_command(self, ctx, *, quote):
+    async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1428,7 +1443,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removequote')
-    async def quote_remove_command(self, ctx, number: int = None):
+    async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1472,7 +1487,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='settitle')
-    async def set_title_command(self, ctx, *, title: str = None) -> None:
+    async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1496,7 +1511,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='setgame')
-    async def set_game_command(self, ctx, *, game: str = None) -> None:
+    async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1529,7 +1544,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='song')
-    async def get_current_song_command(self, ctx):
+    async def song_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1555,7 +1570,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='timer')
-    async def start_timer_command(self, ctx):
+    async def timer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1591,7 +1606,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='stoptimer')
-    async def stop_timer_command(self, ctx):
+    async def stoptimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1607,7 +1622,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='checktimer')
-    async def check_timer_command(self, ctx):
+    async def checktimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2274,7 +2289,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='edittypos', aliases=('edittypo',))
-    async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
+    async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2330,7 +2345,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removetypos', aliases=('removetypo',))
-    async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
+    async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2724,7 +2739,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='checkupdate')
-    async def check_update_command(self, ctx):
+    async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2826,7 +2841,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='addcommand')
-    async def add_command_command(self, ctx):
+    async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2857,7 +2872,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removecommand')
-    async def remove_command_command(self, ctx):
+    async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2886,7 +2901,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='disablecommand')
-    async def disable_command_command(self, ctx):
+    async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -3019,7 +3034,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name="story")
-    async def command(self, ctx):
+    async def story_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -3035,13 +3050,8 @@ class BotOfTheSpecter(commands.Bot):
                         return
                     template = f"Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
                     story = template.format(*words)
-                    response = openai.Completion.create(
-                        engine="gpt-3.5-turbo",
-                        prompt=story,
-                        max_tokens=100
-                    )
-                    generated = response.choices[0].text.strip()
-                    await ctx.send(generated)
+                    response = await self.handle_ai_response(story, ctx.user.id, ctx.user.name)
+                    await ctx.send(response)
         finally:
             await sqldb.ensure_closed()
 
