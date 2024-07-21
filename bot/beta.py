@@ -654,6 +654,11 @@ async def process_eventsub_message(message):
                         reward_id = event_data["reward"].get("id")
                         reward_title = event_data["reward"].get("title")
                         reward_cost = event_data["reward"].get("cost")
+                        if "tts" in reward_title.lower():
+                            tts_message = event_data["user_input"]
+                            await websocket_notice(event="TTS", text=tts_message)
+                            bot_logger.info(f"TTS message sent: {tts_message}")
+                            return
                         await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
                         result = await cursor.fetchone()
                         if result is not None and len(result) == 2:
@@ -1022,7 +1027,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status_enabled = user_data[3]
                     await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
                     await sqldb.commit()
-                    await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
+                    await websocket_notice(event="WALKON", user=messageAuthor)
                 else:
                     # Check if the user is the broadcaster
                     if messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -1032,7 +1037,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status_enabled = 'True'
                     await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
                     await sqldb.commit()
-                    await websocket_notice(CHANNEL_NAME, "walkon", messageAuthor)
+                    await websocket_notice(event="WALKON", user=messageAuthor)
 
                 if user_status_enabled == 'True':
                     if is_vip:
@@ -4036,40 +4041,21 @@ async def send_to_discord_stream_online(message, image):
 
 # Function to conenct to the websocket server and push a notice
 async def websocket_notice(event, user=None, text=None):
-    sio = socketio.AsyncClient()
-
-    @sio.event
-    async def connect():
-        bot_logger.info("Connected to WebSocket server")
-        # Register with the API Key
-        registration_message = {'code': API_TOKEN}
-        await sio.emit('REGISTER', registration_message)
-        bot_logger.info(f"Registration message sent: {registration_message}")
-        
-        # Construct and send the event message based on the type of event
+    async with aiohttp.ClientSession() as session:
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
         if text:
-            event_message = {
-                "event": event,
-                "text": text
-            }
-        else:
-            event_message = {
-                "event": event,
-                "user": user
-            }
-        await sio.emit(event, event_message)
-        bot_logger.info(f"Event message sent: {event_message}")
+            params['text'] = text
+        elif user:
+            params['user'] = user
 
-    @sio.event
-    async def connect_error(data):
-        bot_logger.error(f"The connection failed: {data}")
-
-    @sio.event
-    async def disconnect():
-        bot_logger.info("Disconnected from WebSocket server")
-
-    await sio.connect('https://websocket.botofthespecter.com:8080', transports=['websocket'])
-    await sio.wait()
+        async with session.get('https://websocket.botofthespecter.com:8080/notify', params=params) as response:
+            if response.status == 200:
+                bot_logger.info(f"Event '{event}' sent successfully with params: {params}")
+            else:
+                bot_logger.error(f"Failed to send event '{event}'. Status: {response.status}")
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
