@@ -2816,7 +2816,9 @@ class BotOfTheSpecter(commands.Bot):
                     chat_logger.info(shoutout_message)
                     await ctx.send(shoutout_message)
                     # Trigger the Twitch shoutout
-                    await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id)
+                    if not await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
+                        chat_logger.error("Failed to trigger Twitch shoutout.")
+                        await ctx.send("An error occurred while triggering the Twitch shoutout.")
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
@@ -3119,10 +3121,10 @@ async def is_user_mod(username):
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
             if result and result[0] == 'MOD':
-                twitch_logger.info(f"User {username} is a Moderator")
+                #twitch_logger.info(f"User {username} is a Moderator")
                 return True
             else:
-                twitch_logger.info(f"User {username} is not a mod")
+                #twitch_logger.info(f"User {username} is not a mod")
                 return False
     except Exception as e:
         twitch_logger.error(f"An error occurred in is_user_mod: {e}")
@@ -3139,10 +3141,10 @@ async def is_user_vip(username):
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
             if result and result[0] == 'VIP':
-                twitch_logger.info(f"User ID {username} is a VIP Member")
+                #twitch_logger.info(f"User ID {username} is a VIP Member")
                 return True
             else:
-                twitch_logger.info(f"User ID {username} is not a VIP Member")
+                #twitch_logger.info(f"User ID {username} is not a VIP Member")
                 return False
         except Exception as e:
             twitch_logger.error(f"An error occurred in is_user_vip: {e}")
@@ -3354,12 +3356,16 @@ async def get_game_id(game_name):
 
 # Function to trigger a twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
-    # Add the shoutout request to the queue
-    await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
-
-    # Check if the queue is empty and no shoutout is currently being processed
-    if shoutout_queue.qsize() == 1:
-        await process_shoutouts(shoutout_queue)
+    try:
+        # Add the shoutout request to the queue
+        await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
+        # Check if the queue is empty and no shoutout is currently being processed
+        if shoutout_queue.qsize() == 1:
+            await process_shoutouts(shoutout_queue)
+        return True
+    except Exception as e:
+        twitch_logger.error(f"Error in trigger_twitch_shoutout: {e}")
+        return False
 
 async def process_shoutouts(shoutout_queue):
     while not shoutout_queue.empty():
