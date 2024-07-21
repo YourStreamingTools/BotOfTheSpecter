@@ -81,8 +81,17 @@ class BotOfTheSpecterWebsocketServer:
     async def walkon(self, sid, data):
         # Handle the walkon event for SocketIO.
         self.logger.info(f"Walkon event from SID [{sid}]: {data}")
+        channel = data.get('channel')
+        user = data.get('user')
+        if not channel or not user:
+            self.logger.error('Missing channel or user information for WALKON event')
+            return
+        walkon_data = {
+            'channel': channel,
+            'user': user
+        }
         # Broadcast the walkon event to all clients
-        await self.sio.emit("WALKON", data)
+        await self.sio.emit("WALKON", walkon_data)
 
     async def index(self, request):
         # Handle the index route.
