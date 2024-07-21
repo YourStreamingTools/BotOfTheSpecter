@@ -53,30 +53,6 @@
                 }, 100); // 100ms delay
             });
 
-            // Listen for TWITCH FOLLOW events
-            socket.on('TWITCH_FOLLOW', (data) => {
-                console.log('Twitch Follow:', data);
-                alert(`New follow: ${data}`);
-            });
-
-            // Listen for TWITCH CHEER events
-            socket.on('TWITCH_CHEER', (data) => {
-                console.log('Twitch Cheer:', data);
-                alert(`New cheer: ${data}`);
-            });
-
-            //Listen for TWITCH RAID events
-            socket.on('TWITCH_RAID', (data) => {
-                console.log('Twitch Raid:', data);
-                alert(`New raid: ${data}`);
-            });
-
-            //Listen for TWITCH SUB events
-            socket.on('TWITCH_SUB', (data) => {
-                console.log('Twitch Sub:', data);
-                alert(`New subscription: ${data}`);
-            });
-
             // Listen for WALKON events
             socket.on('WALKON', (data) => {
                 console.log('Walkon:', data);
