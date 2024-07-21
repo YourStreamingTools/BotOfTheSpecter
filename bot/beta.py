@@ -795,7 +795,7 @@ class BotOfTheSpecter(commands.Bot):
         await known_users()
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(timed_message())
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -1260,7 +1260,7 @@ class BotOfTheSpecter(commands.Bot):
                 uptime_hours, remainder = divmod(uptime.seconds, 3600)
                 uptime_minutes, _ = divmod(remainder, 60)
                 # Build the message
-                message = f"The version that is currently running is V{VERSION}. Bot has been running for: "
+                message = f"The version that is currently running is V{VERSION}B. Bot has been running for: "
                 if uptime_days == 1:
                     message += f"1 day, "
                 elif uptime_days > 1:
@@ -2733,7 +2733,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             if command_permissions(ctx.author):
-                REMOTE_VERSION_URL = "https://api.botofthespecter.com/version_control.txt"
+                REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
                 async with aiohttp.ClientSession() as session:
                     async with session.get(REMOTE_VERSION_URL) as response:
                         if response.status == 200:
@@ -2745,15 +2745,15 @@ class BotOfTheSpecter(commands.Bot):
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}B."
                                 elif remote_patch > local_patch:
-                                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}B."
                                 else:
-                                    message = f"There is no update pending. You are currently running V{VERSION}."
+                                    message = f"There is no update pending. You are currently running V{VERSION}B."
                                 bot_logger.info(f"Bot update available. (V{remote_version})")
                                 await ctx.send(message)
                             else:
-                                message = f"There is no update pending. You are currently running V{VERSION}."
+                                message = f"There is no update pending. You are currently running V{VERSION}B."
                                 bot_logger.info(f"{message}")
                                 await ctx.send(message)
             else:
