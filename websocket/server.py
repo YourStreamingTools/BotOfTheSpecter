@@ -9,6 +9,7 @@ import argparse
 import socketio
 from aiohttp import web
 from google.cloud import texttospeech
+import ipaddress
 
 class BotOfTheSpecterWebsocketServer:
     def __init__(self, logger):
@@ -39,12 +40,23 @@ class BotOfTheSpecterWebsocketServer:
         self.allowed_ips = self.load_ips(ips_file)
 
     def load_ips(self, ips_file):
+        allowed_ips = []
         try:
             with open(ips_file, 'r') as file:
-                return [line.strip() for line in file if line.stripe()]
+                for line in file:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        allowed_ips.append(ipaddress.ip_network(line))
         except FileNotFoundError:
-            self.logger.error(f"IPs files not found.")
-            return []
+            self.logger.error(f"IPs file not found.")
+        return allowed_ips
+
+    def is_ip_allowed(self, ip):
+        ip_address = ipaddress.ip_address(ip)
+        for allowed_ip in self.allowed_ips:
+            if ip_address in allowed_ip:
+                return True
+        return False
 
     def setup_routes(self):
         # Set up the routes for the web application.
@@ -80,7 +92,7 @@ class BotOfTheSpecterWebsocketServer:
                 peername = request.transport.get_extra_info('peername')
                 if peername is not None:
                     ip = peername[0]
-                    if ip not in self.allowed_ips:
+                    if not self.is_ip_allowed(ip):
                         self.logger.warning(f"Unauthorized access attempt from IP: {ip}")
                         return web.HTTPForbidden(text="403 Forbidden: Access denied")
             return await handler(request)
@@ -232,18 +244,6 @@ class BotOfTheSpecterWebsocketServer:
 
             # Send the audio file path to the requesting client
             await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/tts_output_{sid}.mp3"}, to=sid)
-
-    def generate_speech(self, text):
-        input_text = texttospeech.SynthesisInput(text=text)
-        voice = texttospeech.VoiceSelectionParams(
-            language_code="en-US",
-            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
-        )
-        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
-        response = self.tts_client.synthesize_speech(
-            input=input_text, voice=voice, audio_config=audio_config
-        )
-        return response
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
