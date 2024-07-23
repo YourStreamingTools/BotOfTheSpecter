@@ -27,6 +27,25 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 20px;
 }
 
+.bot-box{
+    width: 550px;
+    background-color: #1F1F1F;
+    color: #FFFFFF;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.bot-container {
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
 .button.is-light.is-outlined {
     border-color: #e0e0e0;
 }
@@ -160,7 +179,7 @@ footer {
 }
 
 .tabs a {
-  color: #ffffff;
+    color: #ffffff;
 }
 
 .toggle-checkbox {
