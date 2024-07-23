@@ -6,7 +6,7 @@
     <style>
         @keyframes swingIn {
             0% {
-                transform: translateX(-100%) rotate(-30deg);
+                transform: translateX(-100%) rotate(0);
                 opacity: 0;
             }
             50% {
@@ -21,7 +21,7 @@
                 opacity: 1;
             }
             100% {
-                transform: translateX(-100%) rotate(-30deg);
+                transform: translateX(100%) rotate(0);
                 opacity: 0;
             }
         }
@@ -33,7 +33,7 @@
             background-color: rgba(0, 0, 0, 0.8);
             color: #FFFFFF;
             padding: 20px;
-            font-size: 18px;
+            font-size: 40px;
             border-radius: 10px;
             display: none;
             animation-duration: 1s;
