@@ -1,0 +1,58 @@
+@keyframes slideIn {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+}
+
+#deathOverlay {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #FFFFFF;
+    padding: 20px;
+    font-size: 24px;
+    border-radius: 10px;
+    display: none;
+    animation-duration: 1s;
+}
+
+#deathOverlay.show {
+    display: block;
+    animation-name: slideIn;
+}
+
+#deathOverlay.hide {
+    animation-name: slideOut;
+}
+
+.overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.overlay-content div {
+    margin: 5px 0;
+}
+
+.overlay-title {
+    font-weight: bold;
+    text-align: center;
+}
