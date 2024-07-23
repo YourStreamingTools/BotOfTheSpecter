@@ -110,9 +110,8 @@ if ($ModStatusOutput) {
   <br>
   <?php echo $BotModMessage; ?>
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
-  <div>
-    <!-- Bot Status -->
-    <div class="box" id="bot-status">
+  <div class="box-container">
+    <div class="bot-box" id="bot-status">
       <h4 class="title is-4">Stable Bot:</h4>
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?>
@@ -130,12 +129,8 @@ if ($ModStatusOutput) {
         <br>
       </div>
     </div>
-  </div>
-  <?php if ($betaAccess) { ?>
-    <br>
-  <div>
-    <!-- Beta Bot Status -->
-    <div class="box" id="beta-bot-status">
+    <?php if ($betaAccess) { ?>
+    <div class="bot-box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?>
@@ -153,8 +148,8 @@ if ($ModStatusOutput) {
         <br>
       </div>
     </div>
+    <?php } ?>
   </div>
-  <?php } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
