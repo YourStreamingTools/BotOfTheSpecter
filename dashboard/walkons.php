@@ -89,6 +89,7 @@ function formatFileName($fileName) {
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title is-4">Upload Walkons</h1>
+    <p class='has-text-danger'>Walkons are only enabled in the Beta Bot, however, you can still upload the files here if you don't have the Beta Bot.</p>
     <div class="upload-container">
         <?php if (!empty($status)) : ?>
             <div class="message"><?php echo $status; ?></div>
