@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
@@ -43,42 +43,38 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 $walkon_path = "/var/www/walkons/" . $username;
-$status = "";
+$status = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_dir($walkon_path)) {
         if (!mkdir($walkon_path, 0755, true)) {
-            exit;
+            exit("Failed to create directory.");
         }
     }
 
-    $targetFile = $walkon_path . basename($_FILES["fileToUpload"]["name"]);
-    $uploadOK = 1;
-    $fileType = strtolower(pathinfo($walkon_path, PATHINFO_EXTENSION));
+    foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
+        $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
+        $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
 
-    if ($fileType != "mp3") {
-        $uploadOK = 0;
-        $status = "Failed to upload, only mp3 files are allowed.";
-    }
+        if ($fileType != "mp3") {
+            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
+            continue;
+        }
 
-    if ($uploadOK == 0) {
-        exit;
-    } else {
-        if (move_uploaded_file($_FILES["fileToUpload"]["tmp_name"], $walkon_path)) {
-            $status = "File Uploaded.";
+        if (move_uploaded_file($tmp_name, $targetFile)) {
+            $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
         } else {
-            $status = "For some unknown reason, the file failed to upload.";
+            $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
         }
     }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
+<head>
+    <!-- Header -->
+    <?php include('header.php'); ?>
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
@@ -89,54 +85,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <br>
     <h1 class="title is-4">Upload Walkons</h1>
     <div class="upload-container">
-        <div class="drag-area" id="drag-area">
-            Drag & Drop files here or
-            <label for="filesToUpload">Browse Files</label>
-            <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
-        </div>
-        <form action="" method="POST" enctype="multipart/form-data">
-        <input type="submit" value="Upload MP3" name="submit">
+        <?php if (!empty($status)) : ?>
+            <div class="message"><?php echo $status; ?></div>
+        <?php endif; ?>
+        <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+            <div class="drag-area" id="drag-area">
+                Drag & Drop files here or
+                <label for="filesToUpload">Browse Files</label>
+                <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
+            </div>
+            <input type="submit" value="Upload MP3 Files" name="submit">
         </form>
     </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
-    $(document).ready(function() {
-        let dropArea = $('#drag-area');
-        let fileInput = $('#filesToUpload')
+$(document).ready(function() {
+    let dropArea = $('#drag-area');
+    let fileInput = $('#filesToUpload');
 
-        dropArea.on('dragover', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            dropArea.addClass('dragging');
-        });
-
-        dropArea.on('dragleave', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            dropArea.removeClass('dragging');
-        });
-
-        dropArea.on('drop', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            dropArea.removeClass('dragging');
-
-            let files = e.originalEvent.dataTransfer.files;
-            files.prop('file', files);
-
-            $('#uploadForm').submit();
-        });
-
-        dropArea.on('click', function() {
-            fileInput.click();
-        });
-
-        dropArea.on('change', function() {
-            $('#uploadForm').submit();
-        });
+    dropArea.on('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.addClass('dragging');
     });
+
+    dropArea.on('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.removeClass('dragging');
+    });
+
+    dropArea.on('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.removeClass('dragging');
+
+        let files = e.originalEvent.dataTransfer.files;
+        fileInput.prop('files', files);
+
+        $('#uploadForm').submit();
+    });
+
+    dropArea.on('click', function() {
+        fileInput.click();
+    });
+
+    fileInput.on('change', function() {
+        $('#uploadForm').submit();
+    });
+});
 </script>
 </body>
 </html>
