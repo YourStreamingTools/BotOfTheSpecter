@@ -30,28 +30,19 @@
         </div>
       </div>
       <div class="navbar-item has-dropdown is-hoverable">
-        <a class="navbar-link">Bot Messages</a>
+        <a class="navbar-link">Bot Functions</a>
         <div class="navbar-dropdown">
           <a class="navbar-item" href="../known_users.php">Welcome Messages</a>
           <a class="navbar-item" href="../timed_messages.php">Timed Messages</a>
-        </div>
-      </div>
-      <div class="navbar-item has-dropdown is-hoverable">
-        <a class="navbar-link">Bot Counting</a>
-        <div class="navbar-dropdown">
           <a class="navbar-item" href="../counters.php">Counters</a>
           <a class="navbar-item" href="../edit_typos.php">Edit Typos</a>
           <a class="navbar-item" href="../edit_custom_counts.php">Edit Custom Counters</a>
-        </div>
-      </div>
-      <div class="navbar-item has-dropdown is-hoverable">
-        <a class="navbar-link">Bot Commands</a>
-        <div class="navbar-dropdown">
           <a class="navbar-item" href="../builtin.php">View Built-in Commands</a>
           <a class="navbar-item" href="../commands.php">View Custom Commands</a>
           <a class="navbar-item" href="../add-commands.php">Add Custom Command</a>
           <a class="navbar-item" href="../remove-commands.php">Remove Custom Command</a>
           <a class="navbar-item" href="../edit-commands.php">Edit Custom Command</a>
+          <a class="navbar-item" href="../walkons.php">Walkon Audio</a>
         </div>
       </div>
       <a class="navbar-item" href="../discordbot.php">Discord Bot</a>
