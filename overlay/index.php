@@ -88,16 +88,16 @@
                 `;
                 deathOverlay.classList.remove('hide');
                 deathOverlay.classList.add('show');
+                deathOverlay.style.display = 'block';
 
                 setTimeout(() => {
                     deathOverlay.classList.remove('show');
                     deathOverlay.classList.add('hide');
-                }, 10000); // Display for 10 seconds
+                }, 10000);
 
                 setTimeout(() => {
-                    deathOverlay.classList.remove('hide');
                     deathOverlay.style.display = 'none';
-                }, 11000); // Allow animation to complete
+                }, 11000);
             });
         });
     </script>
