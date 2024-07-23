@@ -4068,39 +4068,6 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to connect to the websocket server and push a notice
-async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None):
-    try:
-        await sio.connect('wss://websocket.botofthespecter.com:8080')
-        params = {
-            'code': API_TOKEN,
-            'event': event
-        }
-        if event == "TTS" and text:
-            params['text'] = text
-        elif event == "WALKON" and channel and user:
-            walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
-            if os.path.exists(walkon_file_path):
-                params['channel'] = channel
-                params['user'] = user
-            else:
-                bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
-                await sio.disconnect()
-                return
-        elif event == "DEATHS" and death is not None and game is not None:
-            params['death-text'] = death
-            params['game'] = game
-        else:
-            bot_logger.error(f"Event '{event}' requires additional parameters")
-            await sio.disconnect()
-            return
-        bot_logger.info(f"WWS: Sending event '{event}' with params: {params}")
-        await sio.emit('NOTIFY', params)
-    except Exception as e:
-        bot_logger.error(f"Error during WebSocket communication: {e}")
-        await send_http_notice(event, channel, user, text, death, game)
-    finally:
-        await sio.disconnect()
-
 async def send_http_notice(event, channel=None, user=None, text=None, death=None, game=None):
     async with ClientSession() as session:
         params = {
@@ -4123,12 +4090,10 @@ async def send_http_notice(event, channel=None, user=None, text=None, death=None
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters")
             return
-
         # URL-encode the parameters
         encoded_params = urlencode(params)
         url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
         bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
-
         async with session.get(url) as response:
             if response.status == 200:
                 bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
