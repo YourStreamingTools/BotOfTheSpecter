@@ -138,18 +138,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!-- Bulma Modal -->
 <div class="modal" id="obsModal">
   <div class="modal-background"></div>
-  <div class="modal-content" style="max-width: 800px;">
+  <div class="modal-content">
     <div class="box" style="font-size: 18px; line-height: 1.6;">
       <p>This website is fully compatible with any streaming software:</p>
       <ul>
-        <li>OBS, SLOBS, xSplit, Wirecast, etc.</li>
+        <li>OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream, and many more</li>
       </ul>
       <br>
-      <p>All you have to do is add the following links followed by your API key on the profile page into a browser source and it works:</p>
+      <p>All you have to do is add one or all of the following links followed by your API key on the profile page into a browser source and it works:</p>
       <br>
       <ul>
-        <li>TTS & Walkons: https://overlay.botofthespecter.com/alert.php?code=APIKEYHERE</li>
-        <li>Death Overlay: https://overlay.botofthespecter.com/deaths.php?code=APIKEYHERE</li>
+        <li>Every Overlay: https://overlay.botofthespecter.com/?code=APIKEYHERE</li><br>
+        <li>TTS & Walkons: https://overlay.botofthespecter.com/alert.php?code=APIKEYHERE</li><br>
+        <li>Death Overlay: https://overlay.botofthespecter.com/deaths.php?code=APIKEYHERE</li><br>
         <li>Stream End Credits: https://overlay.botofthespecter.com/credits.php?code=APIKEYHERE (Coming Soon)</li>
       </ul>
     </div>
