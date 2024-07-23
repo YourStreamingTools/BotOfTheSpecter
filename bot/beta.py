@@ -2454,12 +2454,13 @@ class BotOfTheSpecter(commands.Bot):
                         return
                 try:
                     global current_game
+                    if current_game is None:
+                        await ctx.send("Current game is not set. Can't see death count.")
+                        return
                     chat_logger.info("Deaths command ran.")
-                    # Retrieve the game-specific death count
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
                     game_death_count = game_death_count_result[0] if game_death_count_result else 0
-                    # Retrieve the total death count
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
                     total_death_count = total_death_count_result[0] if total_death_count_result else 0
@@ -2490,23 +2491,23 @@ class BotOfTheSpecter(commands.Bot):
                     chat_logger.info("No status found for Death Add Command.")
                 if await command_permissions(ctx.author):
                     global current_game
+                    if current_game is None:
+                        await ctx.send("Current game is not set. Can not add death to nothing.")
+                        return
                     try:
                         chat_logger.info("Death Add Command ran by a mod or broadcaster.")
-                        # Ensure there is exactly one row in total_deaths
                         await cursor.execute("SELECT COUNT(*) FROM total_deaths")
                         count_result = await cursor.fetchone()
                         if count_result is not None and count_result[0] == 0:
                             await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
                             await sqldb.commit()
                             chat_logger.info("Initialized total_deaths table.")
-                        # Increment game-specific death count & total death count
                         await cursor.execute(
                             'INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
                             (current_game,))
                         await cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
                         await sqldb.commit()
                         chat_logger.info("Updated death counts in game_deaths and total_deaths tables.")
-                        # Retrieve updated counts
                         await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                         game_death_count_result = await cursor.fetchone()
                         game_death_count = game_death_count_result[0] if game_death_count_result else 0
@@ -2542,20 +2543,20 @@ class BotOfTheSpecter(commands.Bot):
                         return
                 if await command_permissions(ctx.author):
                     global current_game
+                    if current_game is None:
+                        await ctx.send("Current game is not set. Can't remove from nothing.")
+                        return
                     try:
                         chat_logger.info("Death Remove Command Ran")
-                        # Decrement game-specific death count & total death count (ensure it doesn't go below 0)
                         await cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s', (current_game,))
                         await cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
                         await sqldb.commit()
-                        # Retrieve updated counts
                         await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                         game_death_count_result = await cursor.fetchone()
                         game_death_count = game_death_count_result[0] if game_death_count_result else 0
                         await cursor.execute('SELECT death_count FROM total_deaths')
                         total_death_count_result = await cursor.fetchone()
                         total_death_count = total_death_count_result[0] if total_death_count_result else 0
-                        # Send the message
                         chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                         chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
                         await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
@@ -4084,9 +4085,13 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             else:
                 bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
                 return
-        elif event == "DEATHS" and death is not None and game is not None:
-            params['death-text'] = death
-            params['game'] = game
+        elif event == "DEATHS":
+            if death is not None and game is not None:
+                params['death-text'] = death
+                params['game'] = game
+            else:
+                bot_logger.error(f"Event '{event}' requires both 'death' and 'game' parameters")
+                return
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters")
             return
