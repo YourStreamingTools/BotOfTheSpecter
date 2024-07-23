@@ -2456,6 +2456,8 @@ class BotOfTheSpecter(commands.Bot):
                     total_death_count = total_death_count_result[0] if total_death_count_result else 0
                     chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                    if await command_permissions(ctx.author):
+                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deaths_command: {e}")
@@ -2504,6 +2506,7 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                         chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
                         await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                     except Exception as e:
                         await ctx.send(f"An error occurred while executing the command. {e}")
                         chat_logger.error(f"Error in deathadd_command: {e}")
@@ -2546,6 +2549,7 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                         chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
                         await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                     except Exception as e:
                         await ctx.send(f"An error occurred while executing the command. {e}")
                         chat_logger.error(f"Error in deaths_command: {e}")
@@ -4054,7 +4058,7 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to connect to the websocket server and push a notice
-async def websocket_notice(event, channel=None, user=None, text=None):
+async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None):
     async with aiohttp.ClientSession() as session:
         params = {
             'code': API_TOKEN,
@@ -4070,6 +4074,9 @@ async def websocket_notice(event, channel=None, user=None, text=None):
             else:
                 bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
                 return
+        elif event == "DEATHS" and death and game:
+            params['death-text'] = death
+            params['game'] = game
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters")
             return
