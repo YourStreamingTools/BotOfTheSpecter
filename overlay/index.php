@@ -4,14 +4,48 @@
     <meta charset="UTF-8">
     <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
     <style>
+        @keyframes swingIn {
+            0% {
+                transform: translateX(-100%) rotate(-30deg);
+                opacity: 0;
+            }
+            50% {
+                transform: translateX(0) rotate(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes swingOut {
+            0% {
+                transform: translateX(0) rotate(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(-100%) rotate(-30deg);
+                opacity: 0;
+            }
+        }
+
         #deathOverlay {
             position: fixed;
             bottom: 0;
             left: 0;
             background-color: rgba(0, 0, 0, 0.8);
             color: #FFFFFF;
-            padding: 10px;
+            padding: 20px;
+            font-size: 18px;
+            border-radius: 10px;
             display: none;
+            animation-duration: 1s;
+        }
+
+        #deathOverlay.show {
+            display: block;
+            animation-name: swingIn;
+        }
+
+        #deathOverlay.hide {
+            animation-name: swingOut;
         }
     </style>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
@@ -43,7 +77,6 @@
                 alert(data.message);
             });
 
-            // Listen for TTS audio events
             socket.on('TTS', (data) => {
                 console.log('TTS Audio file path:', data.audio_file);
                 const audio = new Audio(data.audio_file);
@@ -62,10 +95,9 @@
                         console.error('Error playing audio:', error);
                         alert('Click to play audio');
                     });
-                }, 100); // 100ms delay
+                }, 100);
             });
 
-            // Listen for WALKON events
             socket.on('WALKON', (data) => {
                 console.log('Walkon:', data);
                 const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
@@ -85,19 +117,24 @@
                         console.error('Error playing Walkon audio:', error);
                         alert('Click to play Walkon audio');
                     });
-                }, 100); // 100ms delay
+                }, 100);
             });
 
-            // Listen for DEATHS events
             socket.on('DEATHS', (data) => {
                 console.log('Death:', data);
                 const deathOverlay = document.getElementById('deathOverlay');
                 deathOverlay.innerText = `Current Deaths in ${data.game}: ${data['death-text']}`;
-                deathOverlay.style.display = "block";
+                deathOverlay.classList.add('show');
 
                 setTimeout(() => {
+                    deathOverlay.classList.remove('show');
+                    deathOverlay.classList.add('hide');
+                }, 10000); // Display for 10 seconds
+
+                setTimeout(() => {
+                    deathOverlay.classList.remove('hide');
                     deathOverlay.style.display = 'none';
-                }, 5000); // Display for 5 seconds
+                }, 11000); // Allow animation to complete
             });
         });
     </script>
