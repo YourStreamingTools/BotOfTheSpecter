@@ -68,6 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+$walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
+function formatFileName($fileName) {
+    return basename($fileName, '.mp3');
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -96,6 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <input type="submit" value="Upload MP3 Files" name="submit">
         </form>
+    </div>
+    <div class="container">
+        <h1 class="title is-4">Users with Walkons</h1>
+        <?php foreach ($walkon_files as $file): ?><li><?php echo htmlspecialchars(formatFileName($file)); ?></li><?php endforeach; ?>
     </div>
 </div>
 
