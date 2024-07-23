@@ -96,7 +96,7 @@
                 setTimeout(() => {
                     deathOverlay.classList.remove('hide');
                     deathOverlay.style.display = 'none';
-                }, 11000); // Allow animation to complete
+                }, 10000); // Allow animation to complete
             });
         });
     </script>
