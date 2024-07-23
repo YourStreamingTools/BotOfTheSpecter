@@ -12,9 +12,15 @@ import json
 import time
 import random
 import base64
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Third-party imports
 import aiohttp
+from aiohttp import ClientSession
+import socketio
 import requests
 import aiomysql
 from mysql.connector import errorcode
@@ -26,6 +32,7 @@ import pytz
 from jokeapi import Jokes
 import openai
 import uuid
+from urllib.parse import urlencode
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -44,17 +51,18 @@ REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
 VERSION = "4.6"
-SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
-SQL_USER = ""  # CHANGE TO MAKE THIS WORK
-SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
-OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
-CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
-CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
-TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
-SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
-WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
-STEAM_API = ""  # CHANGE TO MAKE THIS WORK
-OPENAI_KEY = ""  # CHANGE TO MAKE THIS WORK
+SQL_HOST = os.getenv('SQL_HOST')
+SQL_USER = os.getenv('SQL_USER')
+SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+TWITCH_API_AUTH = os.getenv('TWITCH_API_AUTH')
+TWITCH_GQL = os.getenv('TWITCH_GQL')
+SHAZAM_API = os.getenv('SHAZAM_API')
+WEATHER_API = os.getenv('WEATHER_API')
+STEAM_API = os.getenv('STEAM_API')
+OPENAI_KEY = os.getenv('OPENAI_KEY')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
@@ -117,6 +125,7 @@ chat_history_logger = setup_logger('chat_history', chat_history_log_file)
 translator = GoogleTranslator
 shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
+sio = socketio.AsyncClient()
 openai.api_key = OPENAI_KEY
 permitted_users = {}
 bot_logger.info("Bot script started.")
@@ -2457,6 +2466,7 @@ class BotOfTheSpecter(commands.Bot):
                     chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
                     if await command_permissions(ctx.author):
+                        chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {game_death_count}")
                         await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
@@ -4059,7 +4069,40 @@ async def send_to_discord_stream_online(message, image):
 
 # Function to connect to the websocket server and push a notice
 async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None):
-    async with aiohttp.ClientSession() as session:
+    try:
+        await sio.connect('wss://websocket.botofthespecter.com:8080')
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
+        if event == "TTS" and text:
+            params['text'] = text
+        elif event == "WALKON" and channel and user:
+            walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
+            if os.path.exists(walkon_file_path):
+                params['channel'] = channel
+                params['user'] = user
+            else:
+                bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
+                await sio.disconnect()
+                return
+        elif event == "DEATHS" and death is not None and game is not None:
+            params['death-text'] = death
+            params['game'] = game
+        else:
+            bot_logger.error(f"Event '{event}' requires additional parameters")
+            await sio.disconnect()
+            return
+        bot_logger.info(f"Sending event '{event}' with params: {params}")
+        await sio.emit('NOTIFY', params)
+    except Exception as e:
+        bot_logger.error(f"Error during WebSocket communication: {e}")
+        await send_http_notice(event, channel, user, text, death, game)
+    finally:
+        await sio.disconnect()
+
+async def send_http_notice(event, channel=None, user=None, text=None, death=None, game=None):
+    async with ClientSession() as session:
         params = {
             'code': API_TOKEN,
             'event': event
@@ -4074,17 +4117,23 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             else:
                 bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
                 return
-        elif event == "DEATHS" and death and game:
+        elif event == "DEATHS" and death is not None and game is not None:
             params['death-text'] = death
             params['game'] = game
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters")
             return
-        async with session.get('https://websocket.botofthespecter.com:8080/notify', params=params) as response:
+
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+
+        async with session.get(url) as response:
             if response.status == 200:
-                bot_logger.info(f"Event '{event}' sent successfully with params: {params}")
+                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
             else:
-                bot_logger.error(f"Failed to send event '{event}'. Status: {response.status}")
+                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
