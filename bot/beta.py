@@ -4093,7 +4093,7 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             bot_logger.error(f"Event '{event}' requires additional parameters")
             await sio.disconnect()
             return
-        bot_logger.info(f"Sending event '{event}' with params: {params}")
+        bot_logger.info(f"WWS: Sending event '{event}' with params: {params}")
         await sio.emit('NOTIFY', params)
     except Exception as e:
         bot_logger.error(f"Error during WebSocket communication: {e}")
