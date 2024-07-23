@@ -12,6 +12,10 @@ import json
 import time
 import random
 import base64
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Third-party imports
 import aiohttp
@@ -44,17 +48,18 @@ REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
 VERSION = "4.5.2"
-SQL_HOST = ""  # CHANGE TO MAKE THIS WORK
-SQL_USER = ""  # CHANGE TO MAKE THIS WORK
-SQL_PASSWORD = ""  # CHANGE TO MAKE THIS WORK
-OAUTH_TOKEN = ""  # CHANGE TO MAKE THIS WORK
-CLIENT_ID = ""  # CHANGE TO MAKE THIS WORK
-CLIENT_SECRET = ""  # CHANGE TO MAKE THIS WORK
-TWITCH_GQL = ""  # CHANGE TO MAKE THIS WORK
-SHAZAM_API = ""  # CHANGE TO MAKE THIS WORK
-WEATHER_API = ""  # CHANGE TO MAKE THIS WORK
-STEAM_API = ""  # CHANGE TO MAKE THIS WORK
-OPENAI_KEY = ""  # CHANGE TO MAKE THIS WORK
+SQL_HOST = os.getenv('SQL_HOST')
+SQL_USER = os.getenv('SQL_USER')
+SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+TWITCH_API_AUTH = os.getenv('TWITCH_API_AUTH')
+TWITCH_GQL = os.getenv('TWITCH_GQL')
+SHAZAM_API = os.getenv('SHAZAM_API')
+WEATHER_API = os.getenv('WEATHER_API')
+STEAM_API = os.getenv('STEAM_API')
+OPENAI_KEY = os.getenv('OPENAI_KEY')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
