@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WebSocket Notifications & Overlay System for BotOftheSpecter</title>
+    <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
     <style>
         #deathOverlay {
             position: fixed;
@@ -91,8 +91,8 @@
             // Listen for DEATHS events
             socket.on('DEATHS', (data) => {
                 console.log('Death:', data);
-                const deathOverlay = document.createElement('div');
-                deathOverlay.innerText = "Current Deaths in ${data.game}: ${data.death_text}";
+                const deathOverlay = document.getElementById('deathOverlay');
+                deathOverlay.innerText = `Current Deaths in ${data.game}: ${data['death-text']}`;
                 deathOverlay.style.display = "block";
 
                 setTimeout(() => {
@@ -103,6 +103,6 @@
     </script>
 </head>
 <body>
-<div id="deathOverlay"></div>
+    <div id="deathOverlay"></div>
 </body>
 </html>
