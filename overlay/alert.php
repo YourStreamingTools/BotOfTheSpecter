@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WebSocket Notifications</title>
+    <title>WebSocket Audio Notifications</title>
+    <link rel="stylesheet" href="index.css">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -36,7 +37,7 @@
             socket.on('TTS', (data) => {
                 console.log('TTS Audio file path:', data.audio_file);
                 const audio = new Audio(data.audio_file);
-                audio.volume = 0.8
+                audio.volume = 0.8;
                 audio.autoplay = true;
                 audio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
@@ -59,7 +60,7 @@
                 console.log('Walkon:', data);
                 const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
                 const audio = new Audio(audioFile);
-                audio.volume = 0.8
+                audio.volume = 0.8;
                 audio.autoplay = true;
                 audio.addEventListener('canplaythrough', () => {
                     console.log('Walkon audio can play through without buffering');
