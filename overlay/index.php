@@ -86,6 +86,7 @@
                         <div>${data['death-text']}</div>
                     </div>
                 `;
+                deathOverlay.classList.remove('hide');
                 deathOverlay.classList.add('show');
 
                 setTimeout(() => {
@@ -96,7 +97,7 @@
                 setTimeout(() => {
                     deathOverlay.classList.remove('hide');
                     deathOverlay.style.display = 'none';
-                }, 10000); // Allow animation to complete
+                }, 11000); // Allow animation to complete
             });
         });
     </script>
