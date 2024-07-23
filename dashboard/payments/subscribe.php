@@ -7,8 +7,37 @@ $stripeSecretKey = ''; // CHANGE TO MAKE THIS WORK
 \Stripe\Stripe::setApiKey($stripeSecretKey);
 
 $customerId = $_SESSION['stripe_customer_id'];
-$product = ''; // CHANGE TO MAKE THIS WORK
-$priceId = ''; // CHANGE TO MAKE THIS WORK
+
+// Define your product and price IDs for each plan
+$plans = [
+    'free' => [
+        'product' => '', // CHANGE TO MAKE THIS WORK
+        'priceId' => '', // CHANGE TO MAKE THIS WORK
+    ],
+    'standard' => [
+        'product' => '', // CHANGE TO MAKE THIS WORK
+        'priceId' => '', // CHANGE TO MAKE THIS WORK
+    ],
+    'premium' => [
+        'product' => '', // CHANGE TO MAKE THIS WORK
+        'priceId' => '', // CHANGE TO MAKE THIS WORK
+    ],
+    'ultimate' => [
+        'product' => '', // CHANGE TO MAKE THIS WORK
+        'priceId' => '', // CHANGE TO MAKE THIS WORK
+    ]
+];
+
+// Assume that the plan type is being sent as a POST request
+$selectedPlan = $_POST['plan'] ?? 'free'; // Default to free plan if no plan is selected
+
+if (!array_key_exists($selectedPlan, $plans)) {
+    echo json_encode(['error' => 'Invalid plan selected']);
+    exit;
+}
+
+$product = $plans[$selectedPlan]['product'];
+$priceId = $plans[$selectedPlan]['priceId'];
 
 try {
     $checkout_session = \Stripe\Checkout\Session::create([
