@@ -93,12 +93,14 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title">Premium Features</h1>
-    <h2 class="subtitle">
-        <img src="https://cdn.botofthespecter.com/StripeClimate/StripeClimate-Small.png" width="128" height="128" alt="Stripe Climate"> 
-        At YourStreamingTools, we believe businesses have a critically important role in combating climate change. 
-        As the team behind BotOfTheSpecter, we're dedicated to making a positive impact on the environment. 
-        We’re proud to fund next-generation carbon removal efforts. To support this cause, we're contributing 1% of our revenue to carbon removal. 
-        <a href="https://climate.stripe.com/tPEkBr" target="_blank">Learn more</a>
+    <h2 class="subtitle" style="display: flex; align-items: center;">
+        <img src="https://cdn.botofthespecter.com/StripeClimate/StripeClimate-Small.png" width="64" height="64" alt="Stripe Climate" style="margin-right: 10px;">
+        <span>
+            At YourStreamingTools, we believe businesses have a critically important role in combating climate change. 
+            As the team behind BotOfTheSpecter, we're dedicated to making a positive impact on the environment. 
+            We’re proud to fund next-generation carbon removal efforts. To support this cause, we're contributing 1% of our revenue to carbon removal. 
+            <a href="https://climate.stripe.com/tPEkBr" target="_blank">Learn more</a>
+        </span>
     </h2>
 
     <div class="card-container">
