@@ -202,10 +202,18 @@ class BotOfTheSpecterWebsocketServer:
             self.logger.info("Code not provided")
 
     async def deaths(self, sid, data):
-        # Handle the deaths event for SocketIO.
-        self.logger.info(f"deaths event from SID [{sid}]: {data}")
-        # Broadcast the deaths event to all clients
-        await self.sio.emit("DEATHS", data)
+        self.logger.info(f"Death event from SID [{sid}]: {data}")
+        death_text = data.get('death-text')
+        game = data.get('game')
+        if not death_text or not game:
+            self.logger.error('Missing death-text or game information for DEATHS event')
+            return
+        death_data = {
+            'death-text': death_text,
+            'game': game
+        }
+        # Broadcast the death event to all clients
+        await self.sio.emit("DEATHS", death_data)
 
     async def twitch_follow(self, sid, data):
         # Handle the Twitch follow event for SocketIO.
