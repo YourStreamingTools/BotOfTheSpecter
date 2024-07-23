@@ -1,68 +1,63 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
-<?php
-$status = "";
-
-// Check if auth parameter is provided and not empty
-if (isset($_GET['auth']) && !empty($_GET['auth'])) {
-    $api_key = $_GET['auth'];
-    require_once "db_connect.php";
-    // Prepare the SQL statement to prevent SQL injection
-    if ($stmt = $conn->prepare("SELECT username, access_token FROM users WHERE api_key = ?")) {
-        $stmt->bind_param("s", $api_key);
-        $stmt->execute();
-
-        $result = $stmt->get_result();
-        if ($result->num_rows > 0) {
-            $user = $result->fetch_assoc();
-            $username = $user['username'];
-            $authToken = $user['access_token'];
-            if ($username && $authToken) {
-                $db = new PDO("sqlite:/var/www/bot/commands/{$username}.db");
-                $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                // Fetch game-specific deaths
-                $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths");
-                $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
-
-                $decApiUrl = "https://decapi.me/twitch/game/" . urlencode($username);
-                $currentGame = trim(file_get_contents($decApiUrl));
-                $currentGameDeathCount = 0;
-                foreach ($gameDeaths as $gameDeath) {
-                    if (strcasecmp($gameDeath['game_name'], $currentGame) == 0) {
-                        $currentGameDeathCount = $gameDeath['death_count'];
-                        break;
-                    }
-                }
-                if ($currentGameDeathCount > 0) {
-                    $status = "Current Game Death Count for " . htmlspecialchars($currentGame) . ": " . htmlspecialchars($currentGameDeathCount) . "";
-                } else {
-                    $status = "Current Game: " . htmlspecialchars($currentGame) . " has no recorded deaths.";
-                }
-            } else {
-                $status = "I'm sorry, there was a problem accessing your data. Please try again later.";
-            }
-        } else {
-            $status = "I'm sorry, we couldn't find your data in our system. Please make sure you're using the correct API key.";
-        }
-        $stmt->close();
-    } else {
-        $status = "I'm sorry, there was an issue connecting to our system. Please try again later.";
-    }
-} else {
-    $status = "I'm sorry, we can't display your data without your API key. You can find your API Key on your <a href='https://dashboard.botofthespecter.com/profile.php'>profile page</a>.";
-}
-$buildStatus = "<h2>" . $status . "</h2>";
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Overlay</title>
-<link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-<meta http-equiv='refresh' content='10'>
+    <meta charset="UTF-8">
+    <title>WebSocket Deaths Notifications</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        #deathOverlay {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #FFFFFF;
+            padding: 10px;
+            display: none;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io('wss://websocket.botofthespecter.com:8080');
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            if (!code) {
+                alert('No code provided in the URL');
+                return;
+            }
+
+            socket.on('connect', () => {
+                console.log('Connected to WebSocket server');
+                socket.emit('REGISTER', { code: code });
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from WebSocket server');
+            });
+
+            socket.on('WELCOME', (data) => {
+                console.log('Server says:', data.message);
+            });
+
+            socket.on('NOTIFY', (data) => {
+                console.log('Notification:', data);
+                alert(data.message);
+            });
+
+            // Listen for TTS audio events
+            socket.on('DEATHS', (data) => {
+                console.log('Death:', data);
+                const deathOverlay = document.createElement('div');
+                deathOverlay.innerText = "Current Deaths in ${data.game}: ${data.death_text}";
+                deathOverlay.style.display = "block";
+
+                setTimeout(() => {
+                    deathOverlay.style.display = 'none';
+                }, 5000); // Display for 5 seconds
+            });
+        });
+    </script>
 </head>
 <body>
-<?php echo $buildStatus; ?>
-
+    <div id="deathOverlay"></div>
 </body>
 </html>
