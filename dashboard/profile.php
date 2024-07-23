@@ -106,7 +106,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       <button type="button" class="button is-primary" id="show-api-key">Show API Key</button>
       <button type="button" class="button is-primary" id="hide-api-key" style="display:none;">Hide API Key</button>
       <br>
-      <button type="button" class="button is-primary" onclick="showOBSInfo()">HOW TO USE THE OVERLAY</button>
+      <button type="button" class="button is-primary" id="show-obs-info">HOW TO USE THE OVERLAY</button>
     </div>
     <div class="column is-one-third">
       <h2 class="title is-4">Update Profile</h2>
@@ -135,38 +135,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   </div>
 </div>
 
-  <!-- Include the JavaScript files -->
-  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-  <script src="/js/profile.js"></script>
-  <script src="/js/obsbutton.js" defer></script>
-  <script src="/js/timezone.js"></script>
+<!-- Bulma Modal -->
+<div class="modal" id="obsModal">
+  <div class="modal-background"></div>
+  <div class="modal-content">
+    <div class="box">
+      <p>This website is fully compatible with any streaming software:</p>
+      <ul>
+        <li>OBS, SLOBS, xSplit, Wirecast, etc.</li>
+      </ul>
+      <br>
+      <p>All you have to do is add the following links followed by your API key on the profile page into a browser source and it works:</p><br>
+      <ul>
+        <li>TTS & Walkons: https://overlay.botofthespecter.com/alert.php?code=APIKEYHERE</li>
+        <li>Death Overlay: https://overlay.botofthespecter.com/deaths.php?code=APIKEYHERE</li>
+        <li>Stream End Credits: https://overlay.botofthespecter.com/credits.php?code=APIKEYHERE (Coming Soon)</li>
+      </ul>
+    </div>
+  </div>
+  <button class="modal-close is-large" aria-label="close"></button>
+</div>
 
-  <!-- JavaScript code to convert and display the dates -->
-  <script>
-    // Function to convert UTC date to local date in the desired format
-    function convertUTCToLocalFormatted(utcDateStr) {
-      const options = {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true,
-        timeZoneName: 'short'
-      };
-      const utcDate = new Date(utcDateStr + ' UTC');
-      const localDate = new Date(utcDate.toLocaleString('en-US', { timeZone: '<?php echo $timezone; ?>' }));
-      const dateTimeFormatter = new Intl.DateTimeFormat('en-US', options);
-      return dateTimeFormatter.format(localDate);
-    }
+<!-- Include the JavaScript files -->
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="/js/profile.js"></script>
+<script src="/js/obsbutton.js" defer></script>
+<script src="/js/timezone.js"></script>
 
-    // PHP variables holding the UTC date and time
-    const signupDateUTC = "<?php echo $signup_date_utc; ?>";
-    const lastLoginUTC = "<?php echo $last_login_utc; ?>";
+<!-- JavaScript code to convert and display the dates -->
+<script>
+  // Function to convert UTC date to local date in the desired format
+  function convertUTCToLocalFormatted(utcDateStr) {
+    const options = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+      timeZoneName: 'short'
+    };
+    const utcDate = new Date(utcDateStr + ' UTC');
+    const localDate = new Date(utcDate.toLocaleString('en-US', { timeZone: '<?php echo $timezone; ?>' }));
+    const dateTimeFormatter = new Intl.DateTimeFormat('en-US', options);
+    return dateTimeFormatter.format(localDate);
+  }
 
-    // Display the dates in the user's local time zone
-    document.getElementById('localSignupDate').innerText = convertUTCToLocalFormatted(signupDateUTC);
-    document.getElementById('localLastLogin').innerText = convertUTCToLocalFormatted(lastLoginUTC);
-  </script>
+  // PHP variables holding the UTC date and time
+  const signupDateUTC = "<?php echo $signup_date_utc; ?>";
+  const lastLoginUTC = "<?php echo $last_login_utc; ?>";
+
+  // Display the dates in the user's local time zone
+  document.getElementById('localSignupDate').innerText = convertUTCToLocalFormatted(signupDateUTC);
+  document.getElementById('localLastLogin').innerText = convertUTCToLocalFormatted(lastLoginUTC);
+</script>
 </body>
 </html>
