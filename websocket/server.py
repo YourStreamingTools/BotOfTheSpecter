@@ -34,15 +34,23 @@ class BotOfTheSpecterWebsocketServer:
         # Initialize Google Text-to-Speech client
         self.tts_client = texttospeech.TextToSpeechClient()
 
-        # Allowed IPs for /clients route
-        self.allowed_ips = ['']
+        # Allowed IPs for /clients and /notify routes
+        ips_file = "/var/www/websocket/ips.txt"
+        self.allowed_ips = self.load_ips(ips_file)
+
+    def load_ips(self, ips_file):
+        try:
+            with open(ips_file, 'r') as file:
+                return [line.strip() for line in file if line.stripe()]
+        except FileNotFoundError:
+            self.logger.error(f"IPs files not found.")
+            return []
 
     def setup_routes(self):
         # Set up the routes for the web application.
         self.app.add_routes([
             web.get("/", self.index),
             web.get("/notify", self.notify),
-            web.get("/include/{tail:.*}", self.static_file),
             web.get("/heartbeat", self.heartbeat),
             web.get("/clients", self.list_clients)
         ])
@@ -68,7 +76,7 @@ class BotOfTheSpecterWebsocketServer:
 
     async def ip_restriction_middleware(self, app, handler):
         async def middleware_handler(request):
-            if request.path == '/clients':
+            if request.path in ['/clients', '/notify']:
                 peername = request.transport.get_extra_info('peername')
                 if peername is not None:
                     ip = peername[0]
@@ -95,7 +103,7 @@ class BotOfTheSpecterWebsocketServer:
 
     async def index(self, request):
         # Handle the index route.
-        with open(os.path.join(self.script_dir, 'static', 'test.html'), "r", encoding="utf8") as f:
+        with open(os.path.join(self.script_dir, 'static', 'index.html'), "r", encoding="utf8") as f:
             return web.Response(text=f.read(), content_type='text/html')
     
     async def heartbeat(self, request):
@@ -110,20 +118,6 @@ class BotOfTheSpecterWebsocketServer:
         # Handle the LIST_CLIENTS event for SocketIO.
         self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
         await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
-
-    async def static_file(self, request):
-        # Serve static files.
-        local_path = os.path.join(self.script_dir, request.rel_url.path[1:])
-        if os.path.isfile(local_path):
-            ext = pathlib.Path(local_path).suffix
-            content_type = self.ext_to_content_type(ext)
-            try:
-                with open(local_path, "rb" if "text" not in content_type else "r", encoding=None if "text" not in content_type else "utf8") as f:
-                    return web.Response(body=f.read() if "text" not in content_type else None, text=f.read() if "text" in content_type else None, content_type=content_type)
-            except UnicodeDecodeError as e:
-                self.logger.error(f"Unicode Decode error reading file {local_path}: {e}")
-                raise web.HTTPServerError()
-        raise web.HTTPNotFound()
 
     async def notify(self, request):
         # Handle the notify route.
