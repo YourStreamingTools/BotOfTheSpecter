@@ -4068,7 +4068,7 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to connect to the websocket server and push a notice
-async def send_http_notice(event, channel=None, user=None, text=None, death=None, game=None):
+async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None):
     async with ClientSession() as session:
         params = {
             'code': API_TOKEN,
