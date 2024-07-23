@@ -35,7 +35,7 @@ class BotOfTheSpecterWebsocketServer:
         # Initialize Google Text-to-Speech client
         self.tts_client = texttospeech.TextToSpeechClient()
 
-        # Allowed IPs for /clients and /notify routes
+        # Allowed IPs for secure routes
         ips_file = "/var/www/websocket/ips.txt"
         self.allowed_ips = self.load_ips(ips_file)
 
@@ -62,7 +62,7 @@ class BotOfTheSpecterWebsocketServer:
         # Set up the routes for the web application.
         self.app.add_routes([
             web.get("/", self.index),
-            web.get("/notify", self.notify),
+            web.get("/notify", self.notify_http),
             web.get("/heartbeat", self.heartbeat),
             web.get("/clients", self.list_clients)
         ])
@@ -81,6 +81,7 @@ class BotOfTheSpecterWebsocketServer:
             ("TWITCH_SUB", self.twitch_sub),
             ("WALKON", self.walkon),
             ("TTS", self.tts),
+            ("NOTIFY", self.notify),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -131,16 +132,24 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
         await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
 
-    async def notify(self, request):
-        # Handle the notify route.
+    async def notify_http(self, request):
         code = request.query.get("code")
         event = request.query.get("event")
         text = request.query.get("text")
-        self.logger.info(f"Received notify request with code: {code}, event: {event}, text: {text}")
+        channel = request.query.get("channel")
+        user = request.query.get("user")
+        death = request.query.get("death-text")
+        game = request.query.get("game")
+
+        self.logger.info(f"Received notify request with code: {code}, event: {event}, text: {text}, channel: {channel}, user: {user}, death: {death}, game: {game}")
+
         if not code or not event:
             raise web.HTTPBadRequest(text="400 Bad Request: code or event is missing")
+        
         data = {k: v for k, v in request.query.items()}
+        self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
+
         if event == "TTS" and text:
             response = self.generate_speech(text)
             audio_file = os.path.join(self.tts_dir, f'tts_output_{code}.mp3')
@@ -148,14 +157,25 @@ class BotOfTheSpecterWebsocketServer:
                 out.write(response.audio_content)
                 self.logger.info(f'Audio content written to file "{audio_file}"')
             data['audio_file'] = f"https://tts.botofthespecter.com/tts_output_{code}.mp3"
+
         count = 0
         for sid, registered_code in self.registered_clients.items():
             if registered_code == code:
                 count += 1
                 await self.sio.emit(event, data, sid)
                 self.logger.info(f"Emitted event '{event}' to client {sid}")
+        
         self.logger.info(f"Broadcasted event to {count} clients")
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
+
+    async def notify(self, sid, data):
+        self.logger.info(f"Notify event from SID [{sid}]: {data}")
+        event = data.get('event')
+        if not event:
+            self.logger.error('Missing event information for NOTIFY event')
+            return
+        # Broadcast the event to all clients
+        await self.sio.emit(event, data)
 
     def generate_speech(self, text):
         input_text = texttospeech.SynthesisInput(text=text)
@@ -212,8 +232,22 @@ class BotOfTheSpecterWebsocketServer:
             'death-text': death_text,
             'game': game
         }
+        self.logger.info(f"Broadcasting DEATHS event with data: {death_data}")
         # Broadcast the death event to all clients
         await self.sio.emit("DEATHS", death_data)
+
+    async def tts(self, sid, data):
+        self.logger.info(f"TTS event from SID [{sid}]: {data}")
+        text = data.get("text")
+        if text:
+            response = self.generate_speech(text)
+            audio_file = os.path.join(self.tts_dir, f'tts_output_{sid}.mp3')
+            with open(audio_file, 'wb') as out:
+                out.write(response.audio_content)
+                self.logger.info(f'Audio content written to file "{audio_file}"')
+
+            # Send the audio file path to the requesting client
+            await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/tts_output_{sid}.mp3"}, to=sid)
 
     async def twitch_follow(self, sid, data):
         # Handle the Twitch follow event for SocketIO.
@@ -238,20 +272,6 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"Twitch sub event from SID [{sid}]: {data}")
         # Broadcast the sub event to all clients
         await self.sio.emit("TWITCH_SUB", data)
-
-    async def tts(self, sid, data):
-        # Handle the TTS event for SocketIO.
-        self.logger.info(f"TTS event from SID [{sid}]: {data}")
-        text = data.get("text")
-        if text:
-            response = self.generate_speech(text)
-            audio_file = os.path.join(self.tts_dir, f'tts_output_{sid}.mp3')
-            with open(audio_file, 'wb') as out:
-                out.write(response.audio_content)
-                self.logger.info(f'Audio content written to file "{audio_file}"')
-
-            # Send the audio file path to the requesting client
-            await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/tts_output_{sid}.mp3"}, to=sid)
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
