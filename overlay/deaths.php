@@ -3,18 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>WebSocket Deaths Notifications</title>
+    <link rel="stylesheet" href="index.css">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <style>
-        #deathOverlay {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            background-color: rgba(0, 0, 0, 0.8);
-            color: #FFFFFF;
-            padding: 10px;
-            display: none;
-        }
-    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const socket = io('wss://websocket.botofthespecter.com:8080');
@@ -38,21 +28,28 @@
                 console.log('Server says:', data.message);
             });
 
-            socket.on('NOTIFY', (data) => {
-                console.log('Notification:', data);
-                alert(data.message);
-            });
-
-            // Listen for TTS audio events
             socket.on('DEATHS', (data) => {
                 console.log('Death:', data);
-                const deathOverlay = document.createElement('div');
-                deathOverlay.innerText = "Current Deaths in ${data.game}: ${data.death_text}";
-                deathOverlay.style.display = "block";
+                const deathOverlay = document.getElementById('deathOverlay');
+                deathOverlay.innerHTML = `
+                    <div class="overlay-content">
+                        <div class="overlay-title">Current Deaths</div>
+                        <div>${data.game}</div>
+                        <div>${data['death-text']}</div>
+                    </div>
+                `;
+                deathOverlay.classList.remove('hide');
+                deathOverlay.classList.add('show');
+                deathOverlay.style.display = 'block';
+
+                setTimeout(() => {
+                    deathOverlay.classList.remove('show');
+                    deathOverlay.classList.add('hide');
+                }, 10000);
 
                 setTimeout(() => {
                     deathOverlay.style.display = 'none';
-                }, 5000); // Display for 5 seconds
+                }, 11000);
             });
         });
     </script>
