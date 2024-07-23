@@ -74,7 +74,7 @@ class BotOfTheSpecterWebsocketServer:
             ("disconnect", self.disconnect),
             ("REGISTER", self.register),
             ("LIST_CLIENTS", self.list_clients_event),
-            ("DEATH", self.death),
+            ("DEATHS", self.deaths),
             ("TWITCH_FOLLOW", self.twitch_follow),
             ("TWITCH_CHEER", self.twitch_cheer),
             ("TWITCH_RAID", self.twitch_raid),
@@ -201,11 +201,11 @@ class BotOfTheSpecterWebsocketServer:
         else:
             self.logger.info("Code not provided")
 
-    async def death(self, sid, data):
-        # Handle the death event for SocketIO.
-        self.logger.info(f"Death event from SID [{sid}]: {data}")
-        # Broadcast the death event to all clients
-        await self.sio.emit("DEATH", data)
+    async def deaths(self, sid, data):
+        # Handle the deaths event for SocketIO.
+        self.logger.info(f"deaths event from SID [{sid}]: {data}")
+        # Broadcast the deaths event to all clients
+        await self.sio.emit("DEATHS", data)
 
     async def twitch_follow(self, sid, data):
         # Handle the Twitch follow event for SocketIO.
