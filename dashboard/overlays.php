@@ -58,7 +58,7 @@ include 'sqlite.php';
     <h4 class="title is-4">To integrate with your streaming setup, simply add one or more of the following links to a browser source in your streaming software, appending your API key from the profile page:</h4>
     <br>
     <div class="columns is-desktop is-multiline">
-        <div class="column is-one-third">
+        <div class="column is-half">
             <div class="box">
                 <h4 class="title is-4">All Overlays:</h4>
                 <p><em>This URL includes any and all overlays we offer, automatically added and updated.
@@ -66,7 +66,7 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
-        <div class="column is-one-third">
+        <div class="column is-half">
             <div class="box">
                 <h4 class="title is-4">Death Overlay:</h4>
                 <p><em>Display only the death overlay when the death commands are triggered in chat:
@@ -75,7 +75,7 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
             </div>
         </div>
-        <div class="column is-one-third">
+        <div class="column is-half">
             <div class="box">
                 <h4 class="title is-4">Stream End Credits:</h4>
                 <p><em>As it sounds, displays a scrolling list of all the people that have attended and supported the stream.
@@ -83,7 +83,7 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
             </div>
         </div>
-        <div class="column is-one-third">
+        <div class="column is-half">
             <div class="box">
                 <h4 class="title is-4">All Audio:</h4>
                 <p><em>This URL includes any and all audio alerts we offer, automatically added and updated.
@@ -91,14 +91,14 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
             </div>
         </div>
-        <div class="column is-one-third">
+        <div class="column is-half">
             <div class="box">
                 <h4 class="title is-4">TTS Only:</h4>
                 <p><em>Only hear the Text To Speech audio.</em></p>
                 <code>https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE</code>
             </div>
         </div>
-        <div class="column is-one-third">
+        <div class="column is-half">
             <div class="box">
                 <h4 class="title is-4">Walkons Only:</h4>
                 <p><em>Only hear the Walkon audio that you've set for each user.</em></p>
