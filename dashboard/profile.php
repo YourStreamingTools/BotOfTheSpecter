@@ -140,18 +140,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <div class="modal-background"></div>
   <div class="modal-content">
     <div class="box" style="font-size: 18px; line-height: 1.6;">
-      <p>This website is fully compatible with any streaming software:</p>
+      <p>This website is fully compatible with popular streaming software, including:</p>
       <ul>
-        <li>OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream, and many more</li>
+        <li>OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream and many more</li>
       </ul>
       <br>
-      <p>All you have to do is add one or all of the following links followed by your API key on the profile page into a browser source and it works:</p>
+      <p>To integrate with your streaming setup, simply add one or more of the following links to a browser source in your streaming software, appending your API key from the profile page:</p>
       <br>
       <ul>
-        <li>Every Overlay: https://overlay.botofthespecter.com/?code=APIKEYHERE</li><br>
-        <li>TTS & Walkons: https://overlay.botofthespecter.com/alert.php?code=APIKEYHERE</li><br>
-        <li>Death Overlay: https://overlay.botofthespecter.com/deaths.php?code=APIKEYHERE</li><br>
-        <li>Stream End Credits: https://overlay.botofthespecter.com/credits.php?code=APIKEYHERE (Coming Soon)</li>
+        <li>All Overlays:<br>
+          <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
+        </li>
+        <br>
+        <li>Death Overlay:<br>
+          <em>For best results, set Width to 450 and Height to 350:</em><br>
+          <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
+        </li>
+        <br>
+        <li>Stream End Credits:<br>
+          <em>(Coming Soon)</em><br>
+          <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
+        </li>
+        <br>
+        <li>All Audio:<br>
+          <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
+        </li>
+        <br>
+        <li>TTS Only:<br>
+          <code>https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE</code>
+        </li>
+        <br>
+        <li>Walkons Only:<br>
+          <code>https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE</code>
+        </li>
       </ul>
     </div>
   </div>
