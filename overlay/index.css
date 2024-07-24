@@ -2,12 +2,10 @@
     0% {
         transform: translateX(-100%);
         opacity: 0;
-        box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
     }
     100% {
         transform: translateX(0);
         opacity: 1;
-        box-shadow: 0 0 20px 10px rgba(0, 0, 0, 0.5);
     }
 }
 
@@ -15,12 +13,22 @@
     0% {
         transform: translateX(0);
         opacity: 1;
-        box-shadow: 0 0 20px 10px rgba(0, 0, 0, 0.5);
     }
     100% {
         transform: translateX(-100%);
         opacity: 0;
-        box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
+    }
+}
+
+@keyframes glow {
+    0% {
+        box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.8), 0 0 30px 20px rgba(255, 0, 0, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 30px 15px rgba(255, 0, 0, 1), 0 0 40px 30px rgba(255, 0, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.8), 0 0 30px 20px rgba(255, 0, 0, 0.6);
     }
 }
 
@@ -34,20 +42,20 @@
     font-size: 24px;
     border-radius: 10px;
     display: none;
-    animation-duration: 1s;
     width: 300px;
     height: 200px;
     box-sizing: border-box;
-    box-shadow: 0 0 20px 10px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.8);
+    animation: glow 2s infinite alternate;
 }
 
 #deathOverlay.show {
     display: block;
-    animation-name: slideIn;
+    animation: slideIn 1s forwards, glow 2s infinite alternate;
 }
 
 #deathOverlay.hide {
-    animation-name: slideOut;
+    animation: slideOut 1s forwards, glow 2s infinite alternate;
     display: block;
 }
 
