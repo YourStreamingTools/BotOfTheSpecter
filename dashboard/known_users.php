@@ -85,7 +85,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
   <br>
   <h2 class="title is-4">Known Users & Welcome Messages</h2>
   <p class="has-text-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</p>
-  <table class="table is-fullwidth">
+  
+  <!-- Search Bar -->
+  <input type="text" id="searchInput" class="input" placeholder="Search users..." onkeyup="searchFunction()">
+  <br><br>
+  
+  <table class="table is-fullwidth" id="commandsTable">
     <thead>
       <tr>
         <th>Username</th>
@@ -95,7 +100,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
         <th>Edit</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody id="user-table">
       <?php foreach ($seenUsersData as $userData): ?>
         <tr>
           <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?></td>
@@ -179,5 +184,6 @@ function updateWelcomeMessage(userId, newWelcomeMessage) {
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="/js/search.js"></script>
 </body>
 </html>
