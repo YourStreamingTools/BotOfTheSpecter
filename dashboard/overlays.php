@@ -59,7 +59,7 @@ include 'sqlite.php';
     <br>
     <div class="columns is-desktop is-multiline">
         <div class="column is-half">
-            <div class="box">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
                 <p><em>This URL includes any and all overlays we offer, automatically added and updated.
                     <br>You only need to add this link once, and any new overlays will be included automatically:</em></p>
@@ -67,7 +67,7 @@ include 'sqlite.php';
             </div>
         </div>
         <div class="column is-half">
-            <div class="box">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Death Overlay:</h4>
                 <p><em>Display only the death overlay when the death commands are triggered in chat:
                     <br>"!deaths", "!deathadd", and "!deathremove".
@@ -76,7 +76,7 @@ include 'sqlite.php';
             </div>
         </div>
         <div class="column is-half">
-            <div class="box">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Stream End Credits:</h4>
                 <p><em>As it sounds, displays a scrolling list of all the people that have attended and supported the stream.
                     <br>(Coming Soon)</em></p>
@@ -84,7 +84,7 @@ include 'sqlite.php';
             </div>
         </div>
         <div class="column is-half">
-            <div class="box">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Audio:</h4>
                 <p><em>This URL includes any and all audio alerts we offer, automatically added and updated.
                     <br>You only need to add this link once, and any new audio alerts will be included automatically:</em></p>
@@ -92,20 +92,21 @@ include 'sqlite.php';
             </div>
         </div>
         <div class="column is-half">
-            <div class="box">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">TTS Only:</h4>
                 <p><em>Only hear the Text To Speech audio.</em></p>
                 <code>https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE</code>
             </div>
         </div>
         <div class="column is-half">
-            <div class="box">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Walkons Only:</h4>
                 <p><em>Only hear the Walkon audio that you've set for each user.</em></p>
                 <code>https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE</code>
             </div>
         </div>
     </div>
+    <br>
 </div>
 
 <!-- Include the JavaScript files -->
