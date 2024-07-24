@@ -32,7 +32,7 @@
     display: none;
     animation-duration: 1s;
     width: 300px;
-    height: 150px;
+    height: 200px;
     box-sizing: border-box;
 }
 
@@ -44,6 +44,13 @@
 #deathOverlay.hide {
     animation-name: slideOut;
     display: block;
+}
+
+.overlay-title {
+    font-weight: bold;
+    text-align: center;
+    word-wrap: break-word;
+    line-height: 1.2;
 }
 
 .overlay-content {
@@ -58,12 +65,8 @@
 .overlay-content div {
     margin: 5px 0;
     width: 100%;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.overlay-title {
-    font-weight: bold;
-    text-align: center;
+    word-wrap: break-word;
+    line-height: 1.2;
 }
