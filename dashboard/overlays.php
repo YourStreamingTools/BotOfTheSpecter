@@ -59,7 +59,8 @@ include 'sqlite.php';
     <br>
     <div class="box">
         <h4 class="title is-4">All Overlays:</h4>
-        <p><em>This URL includes any and all overlays we offer, automatically added and updated.<br>You only need to add this link once, and any new overlays will be included automatically:</em></p>
+        <p><em>This URL includes any and all overlays we offer, automatically added and updated.
+            <br>You only need to add this link once, and any new overlays will be included automatically:</em></p>
         <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
     </div>
     <div class="box">
@@ -74,6 +75,8 @@ include 'sqlite.php';
     </div>
     <div class="box">
         <h4 class="title is-4">All Audio:</h4>
+        <p><em>This URL includes any and all audio alerts we offer, automatically added and updated.
+            <br>You only need to add this link once, and any new audio alerts will be included automatically:</em></p>
         <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
     </div>
     <div class="box">
