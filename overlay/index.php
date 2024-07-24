@@ -81,8 +81,10 @@
                 const deathOverlay = document.getElementById('deathOverlay');
                 deathOverlay.innerHTML = `
                     <div class="overlay-content">
-                        <div class="overlay-emote"></div>
-                        <div class="overlay-title">Current Deaths</div>
+                        <div class="overlay-title">
+                            <span class="overlay-emote"></span>
+                            <span>Current Deaths</span>
+                        </div>
                         <div>${data.game}</div>
                         <div>${data['death-text']}</div>
                     </div>
