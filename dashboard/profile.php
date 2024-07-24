@@ -105,8 +105,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       <p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
       <button type="button" class="button is-primary" id="show-api-key">Show API Key</button>
       <button type="button" class="button is-primary" id="hide-api-key" style="display:none;">Hide API Key</button>
-      <br>
-      <button type="button" class="button is-primary" id="show-obs-info">HOW TO USE THE OVERLAY</button>
     </div>
     <div class="column is-one-third">
       <h2 class="title is-4">Update Profile</h2>
@@ -135,54 +133,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   </div>
 </div>
 
-<!-- Bulma Modal -->
-<div class="modal" id="obsModal">
-  <div class="modal-background"></div>
-  <div class="modal-content">
-    <div class="box" style="font-size: 18px; line-height: 1.6;">
-      <p>This website is fully compatible with popular streaming software, including:</p>
-      <ul>
-        <li>OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream and many more</li>
-      </ul>
-      <br>
-      <p>To integrate with your streaming setup, simply add one or more of the following links to a browser source in your streaming software, appending your API key from the profile page:</p>
-      <br>
-      <ul>
-        <li>All Overlays:<br>
-          <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
-        </li>
-        <br>
-        <li>Death Overlay:<br>
-          <em>For best results, set Width to 450 and Height to 350:</em><br>
-          <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
-        </li>
-        <br>
-        <li>Stream End Credits:<br>
-          <em>(Coming Soon)</em><br>
-          <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
-        </li>
-        <br>
-        <li>All Audio:<br>
-          <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
-        </li>
-        <br>
-        <li>TTS Only:<br>
-          <code>https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE</code>
-        </li>
-        <br>
-        <li>Walkons Only:<br>
-          <code>https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE</code>
-        </li>
-      </ul>
-    </div>
-  </div>
-  <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
 <!-- Include the JavaScript files -->
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/profile.js"></script>
-<script src="/js/obsbutton.js" defer></script>
 <script src="/js/timezone.js"></script>
 
 <!-- JavaScript code to convert and display the dates -->
