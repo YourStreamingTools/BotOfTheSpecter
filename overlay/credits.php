@@ -16,6 +16,39 @@ $sqlpassword = ''; // CHANGE TO MAKE THIS WORK
 $dbhost = 'sql.botofthespecter.com';
 $maindb = 'website';
 
+function build_event_section($user_db, $event, $section_name) {
+    $section_html = "<h2 class='subtitle has-text-white'>$section_name</h2><ul class='content has-text-white'>";
+    if ($stmt = $user_db->prepare("SELECT username, event, data FROM stream_credits WHERE event = ?")) {
+        $stmt->bind_param("s", $event);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $section_html .= "<li>" . sanitize_input($row['username']) . " - " . sanitize_input($row['data']) . "</li>";
+            }
+        }
+        $stmt->close();
+    }
+    $section_html .= "</ul>";
+    return $section_html;
+}
+
+function build_chatters_section($user_db) {
+    $section_html = "<h2 class='subtitle has-text-white'>Chatters</h2><ul class='content has-text-white'>";
+    if ($stmt = $user_db->prepare("SELECT username FROM seen_today")) {
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $section_html .= "<li>" . sanitize_input($row['username']) . "</li>";
+            }
+        }
+        $stmt->close();
+    }
+    $section_html .= "</ul>";
+    return $section_html;
+}
+
 // Check if code parameter is provided and not empty
 if (isset($_GET['code']) && !empty($_GET['code'])) {
     $api_key = sanitize_input($_GET['code']);
@@ -40,35 +73,26 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 if ($user_db->connect_error) {
                     die("Connection failed: " . $user_db->connect_error);
                 }
-                if ($stmtt = $user_db->prepare("SELECT * FROM stream_credits")) {
-                    $stmtt->execute();
-                    // Fetch results and build the credits list
-                    $credits_result = $stmtt->get_result();
-                    $credits_list = "<section class='section'>";
-                    $credits_list .= "<div class='container'>";
-                    $credits_list .= "<h1 class='title has-text-white'>Stream Ending</h1>";
-                    $credits_list .= "<h2 class='subtitle has-text-white'>Thank you for your support!</h2>";
-                    $credits_list .= "<h2 class='subtitle has-text-white'>Special Thanks To:</h2>";
-                    $credits_list .= "<ul class='content has-text-white'>";
+                $credits_list = "<section class='section'>";
+                $credits_list .= "<div class='container'>";
+                $credits_list .= "<h1 class='title has-text-white'>Stream Ending</h1>";
+                $credits_list .= "<h2 class='subtitle has-text-white'>Thank you for your support!</h2>";
+                $credits_list .= "<h2 class='subtitle has-text-white'>Special Thanks To:</h2>";
+                $credits_list .= "<ul class='content has-text-white'>";
+                $credits_list .= "<li>All the lurkers!</li>";
+                $credits_list .= "</ul>";
+                $credits_list .= "</div>";
+                $credits_list .= "</section>";
 
-                    if ($credits_result->num_rows > 0) {
-                        while ($row = $credits_result->fetch_assoc()) {
-                            $credits_list .= "<li>" . sanitize_input($row['username']) . " - " . sanitize_input($row['event']) . " - " . sanitize_input($row['data']) . "</li>";
-                        }
-                    }
+                $credits_list .= "<section class='scrolling-credits'>";
+                $credits_list .= build_event_section($user_db, 'raid', 'Raiders');
+                $credits_list .= build_event_section($user_db, 'bits', 'Cheers');
+                $credits_list .= build_event_section($user_db, 'subscriptions', 'Subscriptions');
+                $credits_list .= build_event_section($user_db, 'follow', 'Followers');
+                $credits_list .= build_chatters_section($user_db);
+                $credits_list .= "</section>";
+                $status = $credits_list;
 
-                    // Always thank the lurkers
-                    $credits_list .= "<li>Thank you to all the lurkers!</li>";
-
-                    $credits_list .= "</ul>";
-                    $credits_list .= "</div>";
-                    $credits_list .= "</section>";
-                    $status = $credits_list;
-
-                    $stmtt->close();
-                } else {
-                    $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>Error preparing statement to retrieve stream credits.</h2></div></section>";
-                }
                 $user_db->close();
             } else {
                 $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>I'm sorry, there was a problem accessing your data. Please try again later.</h2></div></section>";
@@ -98,6 +122,32 @@ $buildStatus = $status;
 body {
     background-color: transparent;
     color: white;
+}
+.scrolling-credits {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+.scrolling-credits ul {
+    list-style-type: none;
+    padding: 0;
+}
+.scrolling-credits li {
+    font-size: 1.5em;
+    margin: 5px 0;
+}
+@keyframes scroll {
+    0% {
+        transform: translateY(100%);
+    }
+    100% {
+        transform: translateY(-100%);
+    }
+}
+.scrolling-credits {
+    animation: scroll 20s linear infinite;
 }
 </style>
 </head>
