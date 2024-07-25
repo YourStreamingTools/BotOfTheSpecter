@@ -1039,7 +1039,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status = True
                     welcome_message = user_data[2]
                     user_status_enabled = user_data[3]
-                    await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
+                    await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                     await sqldb.commit()
                     await websocket_notice(event="WALKON", channel=CHANNEL_NAME, user=messageAuthor)
                 else:
@@ -1049,7 +1049,7 @@ class BotOfTheSpecter(commands.Bot):
                     user_status = False
                     welcome_message = None
                     user_status_enabled = 'True'
-                    await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
+                    await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                     await sqldb.commit()
                     await websocket_notice(event="WALKON", channel=CHANNEL_NAME, user=messageAuthor)
 
@@ -4405,6 +4405,7 @@ async def setup_database():
                 'seen_today': '''
                     CREATE TABLE IF NOT EXISTS seen_today (
                         user_id VARCHAR(255),
+                        username VARCHAR(255),
                         PRIMARY KEY (user_id)
                     ) ENGINE=InnoDB
                 ''',
