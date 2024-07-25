@@ -16,7 +16,7 @@ $sqlpassword = ''; // CHANGE TO MAKE THIS WORK
 $dbhost = 'sql.botofthespecter.com';
 $maindb = 'website';
 
-function build_event_section($user_db, $event, $section_name) {
+function build_event_section($user_db, $event, $section_name, $clean_data = false) {
     $section_html = "<h2 class='subtitle has-text-white'>$section_name</h2><ul class='content has-text-white'>";
     if ($stmt = $user_db->prepare("SELECT username, event, data FROM stream_credits WHERE event = ?")) {
         $stmt->bind_param("s", $event);
@@ -24,7 +24,12 @@ function build_event_section($user_db, $event, $section_name) {
         $result = $stmt->get_result();
         if ($result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
-                $section_html .= "<li>" . sanitize_input($row['username']) . " - " . sanitize_input($row['data']) . "</li>";
+                $data = sanitize_input($row['data']);
+                if ($clean_data) {
+                    $section_html .= "<li>" . sanitize_input($row['username']) . "</li>";
+                } else {
+                    $section_html .= "<li>" . sanitize_input($row['username']) . " - " . $data . "</li>";
+                }
             }
         }
         $stmt->close();
@@ -88,7 +93,7 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 $credits_list .= build_event_section($user_db, 'raid', 'Raiders');
                 $credits_list .= build_event_section($user_db, 'bits', 'Cheers');
                 $credits_list .= build_event_section($user_db, 'subscriptions', 'Subscriptions');
-                $credits_list .= build_event_section($user_db, 'follow', 'Followers');
+                $credits_list .= build_event_section($user_db, 'follow', 'Followers', true);
                 $credits_list .= build_chatters_section($user_db);
                 $credits_list .= "</section>";
                 $status = $credits_list;
@@ -129,10 +134,14 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 .scrolling-credits ul {
     list-style-type: none;
     padding: 0;
+    margin: 0;
 }
 .scrolling-credits li {
     font-size: 1.5em;
@@ -146,7 +155,7 @@ body {
         transform: translateY(-100%);
     }
 }
-.scrolling-credits {
+.scrolling-credits ul {
     animation: scroll 20s linear infinite;
 }
 </style>
