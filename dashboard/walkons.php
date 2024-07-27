@@ -163,14 +163,12 @@ function formatFileName($fileName) {
                     <tr>
                         <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
                         <td><?php echo htmlspecialchars(formatFileName($file)); ?></td>
-                        <td>
-                            <button type="button" class="delete-single button is-danger is-small" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
-                        </td>
+                        <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
-            <input type="submit" value="Delete Selected" class="button is-danger is-small" name="submit_delete">
+            <input class="button is-danger" type="submit" value="Delete Selected" name="submit_delete">
         </form>
     </div>
     <?php endif; ?>
