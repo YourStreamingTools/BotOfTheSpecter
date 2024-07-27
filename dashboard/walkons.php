@@ -44,7 +44,7 @@ include 'sqlite.php';
 
 $walkon_path = "/var/www/walkons/" . $username;
 $status = '';
-$max_storage_size = 50 * 1024 * 1024; // 50MB in bytes
+$max_storage_size = 5 * 1024 * 1024; // 5MB in bytes
 
 // Calculate total storage used by the user
 function calculateStorageUsed($directory) {
@@ -56,6 +56,7 @@ function calculateStorageUsed($directory) {
 }
 
 $current_storage_used = calculateStorageUsed($walkon_path);
+$storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_dir($walkon_path)) {
@@ -86,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
         }
     }
+    $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
 }
 
 $walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
@@ -122,6 +124,8 @@ function formatFileName($fileName) {
             </div>
             <input type="submit" value="Upload MP3 Files" name="submit">
         </form>
+        <div class="progress-bar-container"><div class="progress-bar" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div></div>
+        <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 5MB used</p>
     </div>
     <div class="container">
         <h1 class="title is-4">Users with Walkons</h1>
