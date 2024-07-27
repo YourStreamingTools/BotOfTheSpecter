@@ -1304,9 +1304,6 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 if location:
-                    if ' ' in location:
-                        await ctx.send("Please provide the location in the format: City,CountryCode (e.g. Sydney,AU)")
-                        return
                     weather_info = await get_weather(location)
                 else:
                     location = await get_streamer_weather()
