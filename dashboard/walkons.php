@@ -46,6 +46,13 @@ $walkon_path = "/var/www/walkons/" . $username;
 $status = '';
 $max_storage_size = 2 * 1024 * 1024; // 2MB in bytes
 
+// Create the user's directory if it doesn't exist
+if (!is_dir($walkon_path)) {
+    if (!mkdir($walkon_path, 0755, true)) {
+        exit("Failed to create directory.");
+    }
+}
+
 // Calculate total storage used by the user
 function calculateStorageUsed($directory) {
     $size = 0;
@@ -59,12 +66,6 @@ $current_storage_used = calculateStorageUsed($walkon_path);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!is_dir($walkon_path)) {
-        if (!mkdir($walkon_path, 0755, true)) {
-            exit("Failed to create directory.");
-        }
-    }
-
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
@@ -130,6 +131,7 @@ function formatFileName($fileName) {
         </div>
         <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
     </div>
+    <?php if (!empty($walkon_files)) : ?>
     <div class="container">
         <h1 class="title is-4">Users with Walkons</h1>
         <ul>
@@ -138,6 +140,7 @@ function formatFileName($fileName) {
             <?php endforeach; ?>
         </ul>
     </div>
+    <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
