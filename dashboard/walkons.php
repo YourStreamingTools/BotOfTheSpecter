@@ -126,7 +126,7 @@ function formatFileName($fileName) {
     <br>
     <h1 class="title is-4">Upload Walkons</h1>
     <p class='has-text-danger'>Walkons are only enabled in the Beta Bot, however, you can still upload the files here if you don't have the Beta Bot.</p>
-    <div class="upload-container">
+    <div class="upload-container" style="width: 100%; max-width: 500px;">
         <?php if (!empty($status)) : ?>
             <div class="message"><?php echo $status; ?></div>
         <?php endif; ?>
@@ -149,7 +149,7 @@ function formatFileName($fileName) {
     <div class="container">
         <h1 class="title is-4">Users with Walkons</h1>
         <form action="" method="POST" id="deleteForm">
-            <table class="table is-striped" style="width: 100%; max-width: 600px; text-align: center;">
+            <table class="table is-striped" style="width: 100%; max-width: 500px; text-align: center;">
                 <thead>
                     <tr>
                         <th style="text-align: center;">Select</th>
