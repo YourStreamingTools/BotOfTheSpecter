@@ -1293,7 +1293,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='weather')
-    async def weather_command(self, ctx, location: str = None) -> None:
+    async def weather_command(self, ctx, *, location: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
