@@ -65,7 +65,8 @@ function calculateStorageUsed($directory) {
 $current_storage_used = calculateStorageUsed($walkon_path);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Handle file upload
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
@@ -89,6 +90,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
+}
+
+// Handle file deletion
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_file'])) {
+    $file_to_delete = $walkon_path . '/' . basename($_POST['delete_file']);
+    if (is_file($file_to_delete) && unlink($file_to_delete)) {
+        $status .= "The file " . htmlspecialchars(basename($_POST['delete_file'])) . " has been deleted.<br>";
+        $current_storage_used = calculateStorageUsed($walkon_path); // Recalculate storage after deletion
+        $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after deletion
+    } else {
+        $status .= "Failed to delete " . htmlspecialchars(basename($_POST['delete_file'])) . ".<br>";
+    }
 }
 
 $walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
@@ -136,7 +149,13 @@ function formatFileName($fileName) {
         <h1 class="title is-4">Users with Walkons</h1>
         <ul>
             <?php foreach ($walkon_files as $file): ?>
-                <li><?php echo htmlspecialchars(formatFileName($file)); ?></li>
+                <li>
+                    <?php echo htmlspecialchars(formatFileName($file)); ?>
+                    <form action="" method="POST" style="display:inline;">
+                        <input type="hidden" name="delete_file" value="<?php echo htmlspecialchars($file); ?>">
+                        <button type="submit">Delete</button>
+                    </form>
+                </li>
             <?php endforeach; ?>
         </ul>
     </div>
