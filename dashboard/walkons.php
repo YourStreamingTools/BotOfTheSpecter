@@ -124,7 +124,10 @@ function formatFileName($fileName) {
             </div>
             <input type="submit" value="Upload MP3 Files" name="submit">
         </form>
-        <div class="progress-bar-container"><div class="progress-bar" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div></div>
+        <br>
+        <div class="progress-bar-container">
+            <div class="progress-bar" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+        </div>
         <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 5MB used</p>
     </div>
     <div class="container">
