@@ -136,6 +136,7 @@ function formatFileName($fileName) {
                 <label for="filesToUpload">Browse Files</label>
                 <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
             </div>
+            <br>
             <input type="submit" value="Upload MP3 Files" name="submit">
         </form>
         <br>
