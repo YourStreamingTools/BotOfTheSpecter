@@ -126,7 +126,7 @@ function formatFileName($fileName) {
     <br>
     <h1 class="title is-4">Upload Walkons</h1>
     <p class='has-text-danger'>Walkons are only enabled in the Beta Bot, however, you can still upload the files here if you don't have the Beta Bot.</p>
-    <div class="upload-container" style="max-width: 600px;">
+    <div class="upload-container">
         <?php if (!empty($status)) : ?>
             <div class="message"><?php echo $status; ?></div>
         <?php endif; ?>
@@ -146,30 +146,30 @@ function formatFileName($fileName) {
         <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
     </div>
     <?php if (!empty($walkon_files)) : ?>
-    <div class="container" style="max-width: 600px; margin-top: 20px;">
+    <div class="container">
         <h1 class="title is-4">Users with Walkons</h1>
         <form action="" method="POST" id="deleteForm">
-            <table class="table is-striped" style="width: 100%; text-align: center;">
+            <table class="table is-striped" style="width: 100%; max-width: 600px; text-align: center;">
                 <thead>
                     <tr>
-                        <th>Select</th>
-                        <th>File Name</th>
-                        <th>Action</th>
+                        <th style="text-align: center;">Select</th>
+                        <th style="text-align: center;">File Name</th>
+                        <th style="text-align: center;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($walkon_files as $file): ?>
                     <tr>
-                        <td style="vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                        <td style="vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
-                        <td style="vertical-align: middle;">
+                        <td style="text-align: center; vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                        <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                        <td style="text-align: center; vertical-align: middle;">
                             <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
-            <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete">
+            <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
         </form>
     </div>
     <?php endif; ?>
