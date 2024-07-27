@@ -147,6 +147,23 @@ input[type="submit"]:hover {
     background-color: #45a049;;
 }
 
+.progress-bar-container {
+    width: 100%;
+    max-width: 500px;
+    background-color: #f3f3f3;
+    border-radius: 25px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.progress-bar {
+    height: 20px;
+    background-color: #4caf50;
+    text-align: center;
+    line-height: 20px;
+    color: white;
+}
+
 /* Dark mode table styles */
 .table {
     width: 100%;
