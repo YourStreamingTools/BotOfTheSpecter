@@ -131,11 +131,11 @@ function formatFileName($fileName) {
             <div class="message"><?php echo $status; ?></div>
         <?php endif; ?>
         <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
-            <div class="drag-area" id="drag-area">
-                Drag & Drop files here or
-                <label for="filesToUpload">Browse Files</label>
+            <label for="filesToUpload" class="drag-area" id="drag-area">
+                <span>Drag & Drop files here or</span>
+                <span>Browse Files</span>
                 <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
-            </div>
+            </label>
             <br>
             <input type="submit" value="Upload MP3 Files" name="submit">
         </form>
