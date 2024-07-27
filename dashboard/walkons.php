@@ -44,7 +44,7 @@ include 'sqlite.php';
 
 $walkon_path = "/var/www/walkons/" . $username;
 $status = '';
-$max_storage_size = 5 * 1024 * 1024; // 5MB in bytes
+$max_storage_size = 2 * 1024 * 1024; // 2MB in bytes
 
 // Calculate total storage used by the user
 function calculateStorageUsed($directory) {
@@ -128,7 +128,7 @@ function formatFileName($fileName) {
         <div class="progress-bar-container">
             <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
         </div>
-        <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 5MB used</p>
+        <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
     </div>
     <div class="container">
         <h1 class="title is-4">Users with Walkons</h1>
