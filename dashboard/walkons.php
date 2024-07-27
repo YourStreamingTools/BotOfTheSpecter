@@ -44,6 +44,18 @@ include 'sqlite.php';
 
 $walkon_path = "/var/www/walkons/" . $username;
 $status = '';
+$max_storage_size = 50 * 1024 * 1024; // 50MB in bytes
+
+// Calculate total storage used by the user
+function calculateStorageUsed($directory) {
+    $size = 0;
+    foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
+        $size += is_file($file) ? filesize($file) : calculateStorageUsed($file);
+    }
+    return $size;
+}
+
+$current_storage_used = calculateStorageUsed($walkon_path);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_dir($walkon_path)) {
@@ -53,6 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
+        $fileSize = $_FILES["filesToUpload"]["size"][$key];
+        if ($current_storage_used + $fileSize > $max_storage_size) {
+            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
+            continue;
+        }
+
         $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
 
@@ -62,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (move_uploaded_file($tmp_name, $targetFile)) {
+            $current_storage_used += $fileSize;
             $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
         } else {
             $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
@@ -70,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
+
 function formatFileName($fileName) {
     return basename($fileName, '.mp3');
 }
@@ -105,7 +125,11 @@ function formatFileName($fileName) {
     </div>
     <div class="container">
         <h1 class="title is-4">Users with Walkons</h1>
-        <?php foreach ($walkon_files as $file): ?><li><?php echo htmlspecialchars(formatFileName($file)); ?></li><?php endforeach; ?>
+        <ul>
+            <?php foreach ($walkon_files as $file): ?>
+                <li><?php echo htmlspecialchars(formatFileName($file)); ?></li>
+            <?php endforeach; ?>
+        </ul>
     </div>
 </div>
 
