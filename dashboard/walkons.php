@@ -126,7 +126,7 @@ function formatFileName($fileName) {
         </form>
         <br>
         <div class="progress-bar-container">
-            <div class="progress-bar" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+            <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
         </div>
         <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 5MB used</p>
     </div>
