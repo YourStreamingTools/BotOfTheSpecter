@@ -130,8 +130,30 @@ footer {
     max-width: 500px;
 }
 
-input[type="file"] {
+.drag-area {
+    border: 2px dashed #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+.drag-area.dragging {
+    background-color: #333;
+    border-color: #4caf50;
+    color: #4caf50;
+}
+
+.drag-area label {
     display: block;
+    margin-top: 10px;
+    color: #e0e0e0;
+    cursor: pointer;
+}
+
+input[type="file"] {
+    display: none;
     margin: 20px 0;
     padding: 10px;
 }
