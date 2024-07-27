@@ -115,6 +115,7 @@ function formatFileName($fileName) {
 <head>
     <!-- Header -->
     <?php include('header.php'); ?>
+    <!-- /Header -->
 </head>
 <body>
 <!-- Navigation -->
@@ -162,9 +163,7 @@ function formatFileName($fileName) {
                     <tr>
                         <td style="text-align: center; vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
                         <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
-                        <td style="text-align: center; vertical-align: middle;">
-                            <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
-                        </td>
+                        <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
