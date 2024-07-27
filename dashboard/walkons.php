@@ -146,19 +146,31 @@ function formatFileName($fileName) {
         <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
     </div>
     <?php if (!empty($walkon_files)) : ?>
-    <div class="container">
+    <div class="container table-container">
         <h1 class="title is-4">Users with Walkons</h1>
-        <ul>
-            <?php foreach ($walkon_files as $file): ?>
-                <li>
-                    <?php echo htmlspecialchars(formatFileName($file)); ?>
-                    <form action="" method="POST" style="display:inline;">
-                        <input type="hidden" name="delete_file" value="<?php echo htmlspecialchars($file); ?>">
-                        <button type="submit">Delete</button>
-                    </form>
-                </li>
-            <?php endforeach; ?>
-        </ul>
+        <form action="" method="POST" id="deleteForm">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Select</th>
+                        <th>File Name</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($walkon_files as $file): ?>
+                    <tr>
+                        <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                        <td><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                        <td>
+                            <button type="button" class="delete-single" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <input type="submit" value="Delete Selected" name="submit_delete">
+        </form>
     </div>
     <?php endif; ?>
 </div>
@@ -198,6 +210,16 @@ $(document).ready(function() {
 
     fileInput.on('change', function() {
         $('#uploadForm').submit();
+    });
+
+    $('.delete-single').on('click', function() {
+        let fileName = $(this).data('file');
+        $('<input>').attr({
+            type: 'hidden',
+            name: 'delete_files[]',
+            value: fileName
+        }).appendTo('#deleteForm');
+        $('#deleteForm').submit();
     });
 });
 </script>
