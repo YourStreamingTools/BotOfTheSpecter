@@ -187,6 +187,11 @@ input[type="submit"]:hover {
     color: white;
 }
 
+.delete-single, #deleteForm input[type="submit"] {
+    padding: 5px 10px;
+    font-size: 14px;
+}
+
 /* Dark mode table styles */
 .table {
     width: 100%;
