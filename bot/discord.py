@@ -45,12 +45,12 @@ async def get_mysql_connection():
         db='website'
     )
 
-# Fetch admin user ID from the database
-async def fetch_admin_user_id(username):
+# Fetch admin user ID and live channel ID from the database
+async def fetch_discord_details(username):
     connection = await get_mysql_connection()
     async with connection.cursor() as cursor:
         await cursor.execute("""
-            SELECT du.discord_id
+            SELECT du.discord_id, du.live_channel_id
             FROM discord_users du
             JOIN users u ON du.user_id = u.id
             WHERE u.username = %s
@@ -58,8 +58,8 @@ async def fetch_admin_user_id(username):
         result = await cursor.fetchone()
         await connection.close()
         if result:
-            return result[0]
-        return None
+            return result[0], result[1]
+        return None, None
 
 # Fetch API token from the database
 async def fetch_api_token(username):
@@ -180,10 +180,9 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.bot.loop.create_task(self.sio.disconnect())
 
 class DiscordBotRunner:
-    def __init__(self, discord_token, live_channel_id, channel_name, discord_logger):
+    def __init__(self, discord_token, channel_name, discord_logger):
         self.logger = discord_logger
         self.discord_token = discord_token
-        self.live_channel_id = live_channel_id
         self.channel_name = channel_name
         self.bot = None
         self.loop = None
@@ -210,20 +209,19 @@ class DiscordBotRunner:
 
     async def initialize_bot(self):
         api_token = await fetch_api_token(self.channel_name)
-        admin_user_id = await fetch_admin_user_id(self.channel_name)
-        self.bot = BotOfTheSpecter(self.discord_token, self.live_channel_id, self.channel_name, api_token, self.logger, admin_user_id=admin_user_id)
+        admin_user_id, live_channel_id = await fetch_discord_details(self.channel_name)
+        self.bot = BotOfTheSpecter(self.discord_token, live_channel_id, self.channel_name, api_token, self.logger, admin_user_id=admin_user_id)
         await self.bot.start(self.discord_token)
 
 def main():
     parser = argparse.ArgumentParser(description="BotOfTheSpecter Discord Bot")
-    parser.add_argument("-live_channel_id", dest="live_channel_id", required=True, help="Discord live channel ID")
     parser.add_argument("-channel", dest="channel_name", required=True, help="Target Twitch channel name")
     args = parser.parse_args()
 
     bot_log_file = os.path.join(webroot, discord_logs, f"{args.channel_name}.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.ERROR)
     discord_token = os.getenv("DISCORD_TOKEN")
-    bot_runner = DiscordBotRunner(discord_token, int(args.live_channel_id), args.channel_name, discord_logger)
+    bot_runner = DiscordBotRunner(discord_token, args.channel_name, discord_logger)
     bot_runner.run()
 
 if __name__ == "__main__":
