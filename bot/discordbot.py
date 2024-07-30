@@ -59,16 +59,16 @@ async def get_mysql_connection(logger):
         logger.error(f"Error connecting to MySQL: {e}")
         return None
 
-# Fetch admin user ID and live channel ID from the database
+# Fetch admin user ID, live channel ID, and guild ID from the database
 async def fetch_discord_details(username, logger):
     connection = await get_mysql_connection(logger)
     if connection is None:
-        return None, None
+        return None, None, None
 
     try:
         async with connection.cursor() as cursor:
             await cursor.execute("""
-                SELECT du.discord_id, du.live_channel_id
+                SELECT du.discord_id, du.live_channel_id, du.guild_id
                 FROM discord_users du
                 JOIN users u ON du.user_id = u.id
                 WHERE u.username = %s
@@ -76,12 +76,12 @@ async def fetch_discord_details(username, logger):
             result = await cursor.fetchone()
         await connection.ensure_closed()
         if result:
-            return result[0], result[1]
+            return result[0], result[1], result[2]
         logger.error("No results found for discord details")
-        return None, None
+        return None, None, None
     except Exception as e:
         logger.error(f"Error fetching discord details: {e}")
-        return None, None
+        return None, None, None
 
 # Fetch API token from the database
 async def fetch_api_token(username, logger):
@@ -126,12 +126,13 @@ class ChannelType(Enum):
         return value in cls._value2member_map_
 
 class BotOfTheSpecter(commands.Bot):
-    def __init__(self, discord_token, live_channel_id, channel_name, api_token, discord_logger, **kwargs):
+    def __init__(self, discord_token, live_channel_id, guild_id, channel_name, api_token, discord_logger, **kwargs):
         intents = discord.Intents.default()
         intents.message_content = True
         super().__init__("!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.live_channel = live_channel_id
+        self.guild_id = guild_id
         self.admin_user_id = kwargs.get("admin_user_id", 0)
         self.channel_name = channel_name
         self.api_token = api_token
@@ -141,6 +142,7 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         await self.add_cog(WebSocketCog(self, self.api_token, self.logger))
+        self.logger.info(f'Setting channel {self.live_channel} to offline status on bot start.')
         await self.update_channel_status(self.live_channel, "offline")
 
     async def on_message(self, message: discord.Message) -> None:
@@ -158,8 +160,14 @@ class BotOfTheSpecter(commands.Bot):
         return await super().on_message(message)
     
     async def update_channel_status(self, channel_id: int, status: str):
-        channel = self.get_channel(channel_id)
+        self.logger.info(f'Updating channel {channel_id} to {status} status.')
+        guild = self.get_guild(self.guild_id)
+        if not guild:
+            self.logger.error(f'Guild with ID {self.guild_id} not found.')
+            return
+        channel = guild.get_channel(channel_id)
         if not channel:
+            self.logger.error(f'Channel with ID {channel_id} not found.')
             return
         if status == "offline":
             await self.set_channel_name(channel, f"🔴 {self.channel_name} isn't live")
@@ -168,6 +176,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def set_channel_name(self, channel: discord.VoiceChannel, name: str):
         if channel:
+            self.logger.info(f'Setting channel name to {name}')
             await channel.edit(name=name)
 
 class WebSocketCog(commands.Cog, name='WebSocket'):
@@ -252,11 +261,11 @@ class DiscordBotRunner:
         if api_token is None:
             self.logger.error("API token is None. Exiting.")
             return
-        admin_user_id, live_channel_id = await fetch_discord_details(self.channel_name, self.logger)
-        if admin_user_id is None or live_channel_id is None:
-            self.logger.error("Admin user ID or live channel ID is None. Exiting.")
+        admin_user_id, live_channel_id, guild_id = await fetch_discord_details(self.channel_name, self.logger)
+        if admin_user_id is None or live_channel_id is None or guild_id is None:
+            self.logger.error("Admin user ID, live channel ID, or guild ID is None. Exiting.")
             return
-        self.bot = BotOfTheSpecter(self.discord_token, live_channel_id, self.channel_name, api_token, self.logger, admin_user_id=admin_user_id)
+        self.bot = BotOfTheSpecter(self.discord_token, live_channel_id, guild_id, self.channel_name, api_token, self.logger, admin_user_id=admin_user_id)
         await self.bot.start(self.discord_token)
 
 def main():
