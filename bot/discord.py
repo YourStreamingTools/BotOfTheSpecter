@@ -109,6 +109,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
+        self.logger.info("BotOfTheSpecter Discord Bot has started.")
         await self.add_cog(WebSocketCog(self, self.api_token, self.logger))
 
     async def on_message(self, message: discord.Message) -> None:
@@ -195,6 +196,7 @@ class DiscordBotRunner:
 
     def stop(self):
         if self.bot is not None:
+            self.logger.info("Stopping BotOfTheSpecter Discord Bot")
             future = asyncio.run_coroutine_threadsafe(self.bot.close(), self.loop)
             try:
                 future.result(5)
