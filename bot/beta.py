@@ -21,7 +21,7 @@ import requests
 import aiomysql
 from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
-from twitchio.ext import commands
+from twitchio.ext import commands as twitch_commands
 import streamlink
 import pyowm
 import pytz
@@ -791,7 +791,7 @@ async def process_eventsub_message(message):
     finally:
         await sqldb.ensure_closed()
 
-class BotOfTheSpecter(commands.Bot):
+class BotOfTheSpecter(twitch_commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
         super().__init__(token=token, prefix=prefix, initial_channels=[channel_name])
@@ -1194,7 +1194,7 @@ class BotOfTheSpecter(commands.Bot):
             bot_logger.error(f"Error getting AI response: {e}")
             return "Sorry, I could not understand your request."
 
-    @commands.command(name='commands', aliases=['cmds'])
+    @twitch_commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1227,7 +1227,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='bot')
+    @twitch_commands.command(name='bot')
     async def bot_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1243,7 +1243,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='forceonline')
+    @twitch_commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
         global stream_online
         global current_game
@@ -1269,7 +1269,7 @@ class BotOfTheSpecter(commands.Bot):
             chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
-    @commands.command(name='version')
+    @twitch_commands.command(name='version')
     async def version_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1303,7 +1303,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='roadmap')
+    @twitch_commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1318,7 +1318,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='weather')
+    @twitch_commands.command(name='weather')
     async def weather_command(self, ctx, *, location: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1341,7 +1341,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='time')
+    @twitch_commands.command(name='time')
     async def time_command(self, ctx, timezone: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1379,7 +1379,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='joke')
+    @twitch_commands.command(name='joke')
     async def joke_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1403,7 +1403,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='quote')
+    @twitch_commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1431,7 +1431,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='quoteadd')
+    @twitch_commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
         try:
@@ -1448,7 +1448,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='removequote')
+    @twitch_commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1468,7 +1468,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='permit')
+    @twitch_commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1492,7 +1492,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='settitle')
+    @twitch_commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1516,7 +1516,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='setgame')
+    @twitch_commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1549,7 +1549,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='song')
+    @twitch_commands.command(name='song')
     async def song_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1575,7 +1575,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='timer')
+    @twitch_commands.command(name='timer')
     async def timer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1611,7 +1611,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='stoptimer')
+    @twitch_commands.command(name='stoptimer')
     async def stoptimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1627,7 +1627,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='checktimer')
+    @twitch_commands.command(name='checktimer')
     async def checktimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1645,7 +1645,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='hug')
+    @twitch_commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1685,7 +1685,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='kiss')
+    @twitch_commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1717,7 +1717,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='ping')
+    @twitch_commands.command(name='ping')
     async def ping_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1743,7 +1743,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='translate')
+    @twitch_commands.command(name='translate')
     async def translate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1776,7 +1776,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='cheerleader')
+    @twitch_commands.command(name='cheerleader')
     async def cheerleader_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1810,7 +1810,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='mybits')
+    @twitch_commands.command(name='mybits')
     async def mybits_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1845,7 +1845,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='lurk')
+    @twitch_commands.command(name='lurk')
     async def lurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1896,7 +1896,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='lurking')
+    @twitch_commands.command(name='lurking')
     async def lurking_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1939,7 +1939,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='lurklead')
+    @twitch_commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1988,7 +1988,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='unlurk', aliases=('back',))
+    @twitch_commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2033,7 +2033,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='clip')
+    @twitch_commands.command(name='clip')
     async def clip_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2090,7 +2090,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='marker')
+    @twitch_commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
         sqldb = await get_mysql_connection()
         try:
@@ -2128,7 +2128,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='subscription', aliases=['mysub'])
+    @twitch_commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2184,7 +2184,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='uptime')
+    @twitch_commands.command(name='uptime')
     async def uptime_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2228,7 +2228,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @commands.command(name='typo')
+    @twitch_commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2262,7 +2262,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @commands.command(name='typos', aliases=('typocount',))
+    @twitch_commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2294,7 +2294,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='edittypos', aliases=('edittypo',))
+    @twitch_commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2350,7 +2350,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='removetypos', aliases=('removetypo',))
+    @twitch_commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         try:
@@ -2395,7 +2395,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='steam')
+    @twitch_commands.command(name='steam')
     async def steam_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2438,7 +2438,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='deaths')
+    @twitch_commands.command(name='deaths')
     async def deaths_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2472,7 +2472,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='deathadd', aliases=['death+'])
+    @twitch_commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2527,7 +2527,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='deathremove', aliases=['death-',])
+    @twitch_commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2567,7 +2567,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @commands.command(name='game')
+    @twitch_commands.command(name='game')
     async def game_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2589,7 +2589,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='followage')
+    @twitch_commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2662,7 +2662,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='schedule')
+    @twitch_commands.command(name='schedule')
     async def schedule_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2750,7 +2750,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='checkupdate')
+    @twitch_commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2791,7 +2791,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @commands.command(name='shoutout', aliases=('so',))
+    @twitch_commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2852,7 +2852,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='addcommand')
+    @twitch_commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2883,7 +2883,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='removecommand')
+    @twitch_commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2912,7 +2912,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='disablecommand')
+    @twitch_commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2942,7 +2942,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='slots')
+    @twitch_commands.command(name='slots')
     async def slots_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2965,7 +2965,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='kill')
+    @twitch_commands.command(name='kill')
     async def kill_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2993,7 +2993,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name="roulette")
+    @twitch_commands.command(name="roulette")
     async def roulette_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3014,7 +3014,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name="rps")
+    @twitch_commands.command(name="rps")
     async def rps_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3045,7 +3045,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name="story")
+    @twitch_commands.command(name="story")
     async def story_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
