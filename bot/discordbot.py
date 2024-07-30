@@ -148,24 +148,26 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {self.guild_id}.')
         try:
             guild = await self.fetch_guild(self.guild_id)
+            self.logger.info(f'Fetched guild: {guild}')
             if guild is None:
                 self.logger.error(f'Guild with ID {self.guild_id} not found.')
                 return
             channel = guild.get_channel(channel_id)
+            self.logger.info(f'Fetched channel from cache: {channel}')
             if channel is None:
                 self.logger.error(f'Channel with ID {channel_id} not found. Fetching from API.')
                 try:
                     channel = await guild.fetch_channel(channel_id)
+                    self.logger.info(f'Fetched channel from API: {channel}')
                 except discord.HTTPException as e:
                     self.logger.error(f'Error fetching channel from API: {e}')
                     return
+            if status == "offline":
+                await self.set_channel_name(channel, f"🔴 {self.channel_name} isn't live")
+            elif status == "online":
+                await self.set_channel_name(channel, f"🟢 {self.channel_name} is live!")
         except discord.HTTPException as e:
             self.logger.error(f'Error fetching guild with ID {self.guild_id}: {e}')
-            return
-        if status == "offline":
-            await self.set_channel_name(channel, f"🔴 {self.channel_name} isn't live")
-        elif status == "online":
-            await self.set_channel_name(channel, f"🟢 {self.channel_name} is live!")
 
     async def fetch_channel(self):
         self.logger.info("Fetching channels in the guild.")
