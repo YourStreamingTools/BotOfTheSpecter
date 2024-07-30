@@ -15,18 +15,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Define logging directory
-webroot = "/var/www/"
-logs_directory = "logs"
+logs_directory = "/var/www/logs"
 discord_logs = os.path.join(logs_directory, "discord")
 
 # Ensure directory exists
 for directory in [logs_directory, discord_logs]:
-    directory_path = os.path.join(webroot, directory)
-    if not os.path.exists(directory_path):
-        os.makedirs(directory_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 # Function to setup logger
 def setup_logger(name, log_file, level=logging.INFO):
+    log_dir = os.path.dirname(log_file)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
     handler = logging.FileHandler(log_file)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
