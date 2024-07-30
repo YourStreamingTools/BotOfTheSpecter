@@ -141,6 +141,7 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         await self.add_cog(WebSocketCog(self, self.api_token, self.logger))
+        await self.update_channel_status(self.live_channel, "offline")
 
     async def on_message(self, message: discord.Message) -> None:
         if message.author == self.user:
@@ -232,12 +233,19 @@ class DiscordBotRunner:
                 future.result(5)
             except TimeoutError:
                 self.logger.error("Timeout error - Bot didn't respond. Forcing close.")
+            except asyncio.CancelledError:
+                self.logger.error("Bot task was cancelled. Forcing close.")
 
     def run(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.logger.info("Starting BotOfTheSpecter Discord Bot")
-        self.loop.run_until_complete(self.initialize_bot())
+        try:
+            self.loop.run_until_complete(self.initialize_bot())
+        except asyncio.CancelledError:
+            self.logger.error("BotRunner task was cancelled.")
+        finally:
+            self.loop.close()
 
     async def initialize_bot(self):
         api_token = await fetch_api_token(self.channel_name, self.logger)
