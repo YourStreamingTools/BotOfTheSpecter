@@ -75,6 +75,7 @@ async def fetch_discord_details(username, logger):
             result = await cursor.fetchone()
         await connection.ensure_closed()
         if result:
+            logger.info(f"Fetched details from DB: discord_id={result[0]}, live_channel_id={result[1]}, guild_id={result[2]}")
             return result[0], result[1], result[2]
         logger.error("No results found for discord details")
         return None, None, None
@@ -139,12 +140,12 @@ class BotOfTheSpecter(commands.Bot):
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
-        await self.add_cog(WebSocketCog(self, self.api_token, self.logger))
         self.logger.info(f'Setting channel {self.live_channel} to offline status on bot start.')
+        await self.add_cog(WebSocketCog(self, self.api_token, self.logger))
         await self.update_channel_status(self.live_channel, "offline")
 
     async def update_channel_status(self, channel_id: int, status: str):
-        self.logger.info(f'Updating channel {channel_id} to {status} status.')
+        self.logger.info(f'Updating channel {channel_id} to {status} status in guild {self.guild_id}.')
         guild = self.get_guild(self.guild_id)
         if not guild:
             self.logger.error(f'Guild with ID {self.guild_id} not found.')
