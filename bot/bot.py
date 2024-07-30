@@ -7,15 +7,10 @@ import datetime
 from datetime import datetime, timezone, timedelta
 import logging
 import subprocess
-import websockets
 import json
 import time
 import random
 import base64
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Third-party imports
 import aiohttp
@@ -30,6 +25,11 @@ import pytz
 from jokeapi import Jokes
 import openai
 import uuid
+import websockets
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
