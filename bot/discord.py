@@ -101,8 +101,7 @@ class BotOfTheSpecter(commands.Bot):
         intents.message_content = True
         super().__init__("!", intents=intents, **kwargs)
         self.discord_token = discord_token
-        self.live_channel_id = live_channel_id
-        self.live_channel = None
+        self.live_channel = live_channel_id
         self.admin_user_id = kwargs.get("admin_user_id", 0)
         self.channel_name = channel_name
         self.api_token = api_token
@@ -110,7 +109,6 @@ class BotOfTheSpecter(commands.Bot):
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
-        self.live_channel = self.get_channel(self.live_channel_id)
         await self.add_cog(WebSocketCog(self, self.api_token, self.logger))
 
     async def on_message(self, message: discord.Message) -> None:
@@ -127,7 +125,8 @@ class BotOfTheSpecter(commands.Bot):
                 await message.reply("I'm not sure what you want.")
         return await super().on_message(message)
     
-    async def update_channel_status(self, channel: discord.VoiceChannel, status: str):
+    async def update_channel_status(self, channel_id: int, status: str):
+        channel = self.get_channel(channel_id)
         if not channel:
             return
         if status == "offline":
