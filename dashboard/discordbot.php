@@ -132,7 +132,9 @@ $existingGuildId = $discordData['guild_id'] ?? "";
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if (!$is_linked) { ?>
-    <h3 class="subtitle is-5">Linking your discord account to Specter will allow you to do some really cool stuff.</h3>
+    <h3 class="subtitle is-5">Linking your discord account to Specter will allow you to do some really cool stuff.<br>
+      Including, gettings alerts from Specter in your discord server via a webhook and our new feature, updating a voice channel when you go live.
+    </h3>
     <br>
     <button class="button is-link" onclick="linkDiscord()">Link Discord</button>
   <?php } else { ?>
