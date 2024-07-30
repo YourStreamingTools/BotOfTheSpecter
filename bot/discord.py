@@ -9,6 +9,7 @@ from threading import Thread
 from enum import Enum
 import argparse
 from dotenv import load_dotenv
+import aiomysql
 import socketio
 
 # Load environment variables from .env file
@@ -34,6 +35,46 @@ def setup_logger(name, log_file, level=logging.ERROR):
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger
+
+# MySQL connection
+async def get_mysql_connection():
+    return await aiomysql.connect(
+        host=os.getenv('SQL_HOST'),
+        user=os.getenv('SQL_USER'),
+        password=os.getenv('SQL_PASSWORD'),
+        db='website'
+    )
+
+# Fetch admin user ID from the database
+async def fetch_admin_user_id(username):
+    connection = await get_mysql_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute("""
+            SELECT du.discord_id
+            FROM discord_users du
+            JOIN users u ON du.user_id = u.id
+            WHERE u.username = %s
+        """, (username,))
+        result = await cursor.fetchone()
+        await connection.close()
+        if result:
+            return result[0]
+        return None
+
+# Fetch API token from the database
+async def fetch_api_token(username):
+    connection = await get_mysql_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute("""
+            SELECT api_key
+            FROM users
+            WHERE username = %s
+        """, (username,))
+        result = await cursor.fetchone()
+        await connection.close()
+        if result:
+            return result[0]
+        return None
 
 class ChannelType(Enum):
     GUILD_TEXT = 0
@@ -139,13 +180,11 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.bot.loop.create_task(self.sio.disconnect())
 
 class DiscordBotRunner:
-    def __init__(self, discord_token, live_channel_id, admin_user_id, channel_name, api_token, discord_logger):
+    def __init__(self, discord_token, live_channel_id, channel_name, discord_logger):
         self.logger = discord_logger
         self.discord_token = discord_token
         self.live_channel_id = live_channel_id
-        self.admin_user_id = admin_user_id
         self.channel_name = channel_name
-        self.api_token = api_token
         self.bot = None
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
@@ -167,25 +206,24 @@ class DiscordBotRunner:
     def run(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.bot = BotOfTheSpecter(self.discord_token, self.live_channel_id, self.channel_name, self.api_token, self.logger, admin_user_id=self.admin_user_id)
-        self.loop.run_until_complete(self.bot.start(self.discord_token))
+        self.loop.run_until_complete(self.initialize_bot())
+
+    async def initialize_bot(self):
+        api_token = await fetch_api_token(self.channel_name)
+        admin_user_id = await fetch_admin_user_id(self.channel_name)
+        self.bot = BotOfTheSpecter(self.discord_token, self.live_channel_id, self.channel_name, api_token, self.logger, admin_user_id=admin_user_id)
+        await self.bot.start(self.discord_token)
 
 def main():
     parser = argparse.ArgumentParser(description="BotOfTheSpecter Discord Bot")
     parser.add_argument("-live_channel_id", dest="live_channel_id", required=True, help="Discord live channel ID")
-    parser.add_argument("-admin_user_id", dest="admin_user_id", required=True, help="Discord admin user ID")
     parser.add_argument("-channel", dest="channel_name", required=True, help="Target Twitch channel name")
-    parser.add_argument("-apitoken", dest="api_token", required=True, help="API Token for WebSocket Server")
-    parser.add_argument("-L", "--loglevel", default="ERROR", help="Sets the log level [INFO, ERROR, WARNING, DEBUG]")
     args = parser.parse_args()
 
-    numeric_level = getattr(logging, args.loglevel.upper(), None)
-    if not isinstance(numeric_level, int):
-        numeric_level = logging.ERROR
     bot_log_file = os.path.join(webroot, discord_logs, f"{args.channel_name}.txt")
-    discord_logger = setup_logger('discord', bot_log_file, level=numeric_level)
+    discord_logger = setup_logger('discord', bot_log_file, level=logging.ERROR)
     discord_token = os.getenv("DISCORD_TOKEN")
-    bot_runner = DiscordBotRunner(discord_token, int(args.live_channel_id), int(args.admin_user_id), args.channel_name, args.api_token, discord_logger)
+    bot_runner = DiscordBotRunner(discord_token, int(args.live_channel_id), args.channel_name, discord_logger)
     bot_runner.run()
 
 if __name__ == "__main__":
