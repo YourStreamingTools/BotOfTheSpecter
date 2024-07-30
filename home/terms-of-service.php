@@ -38,7 +38,7 @@
         </div>
     </div>
     <footer>
-        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved. | Server 1
+        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </footer>
 </body>
 </html>
