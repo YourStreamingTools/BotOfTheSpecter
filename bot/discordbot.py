@@ -7,9 +7,9 @@ from discord.ext import commands
 from threading import Thread
 from enum import Enum
 import argparse
-from dotenv import load_dotenv
 import aiomysql
 import socketio
+from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,7 +26,7 @@ for directory in [logs_directory, discord_logs]:
         os.makedirs(directory_path)
 
 # Function to setup logger
-def setup_logger(name, log_file, level=logging.ERROR):
+def setup_logger(name, log_file, level=logging.INFO):
     handler = logging.FileHandler(log_file)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
@@ -36,43 +36,72 @@ def setup_logger(name, log_file, level=logging.ERROR):
     return logger
 
 # MySQL connection
-async def get_mysql_connection():
-    return await aiomysql.connect(
-        host=os.getenv('SQL_HOST'),
-        user=os.getenv('SQL_USER'),
-        password=os.getenv('SQL_PASSWORD'),
-        db='website'
-    )
+async def get_mysql_connection(logger):
+    sql_host = os.getenv('SQL_HOST')
+    sql_user = os.getenv('SQL_USER')
+    sql_password = os.getenv('SQL_PASSWORD')
+
+    if not sql_host or not sql_user or not sql_password:
+        logger.error("Missing SQL connection parameters. Please check the .env file.")
+        return None
+
+    try:
+        conn = await aiomysql.connect(
+            host=sql_host,
+            user=sql_user,
+            password=sql_password,
+            db='website'
+        )
+        return conn
+    except Exception as e:
+        logger.error(f"Error connecting to MySQL: {e}")
+        return None
 
 # Fetch admin user ID and live channel ID from the database
-async def fetch_discord_details(username):
-    connection = await get_mysql_connection()
-    async with connection.cursor() as cursor:
-        await cursor.execute("""
-            SELECT du.discord_id, du.live_channel_id
-            FROM discord_users du
-            JOIN users u ON du.user_id = u.id
-            WHERE u.username = %s
-        """, (username,))
-        result = await cursor.fetchone()
-        await connection.close()
+async def fetch_discord_details(username, logger):
+    connection = await get_mysql_connection(logger)
+    if connection is None:
+        return None, None
+
+    try:
+        async with connection.cursor() as cursor:
+            await cursor.execute("""
+                SELECT du.discord_id, du.live_channel_id
+                FROM discord_users du
+                JOIN users u ON du.user_id = u.id
+                WHERE u.username = %s
+            """, (username,))
+            result = await cursor.fetchone()
+        await connection.ensure_closed()
         if result:
             return result[0], result[1]
+        logger.error("No results found for discord details")
+        return None, None
+    except Exception as e:
+        logger.error(f"Error fetching discord details: {e}")
         return None, None
 
 # Fetch API token from the database
-async def fetch_api_token(username):
-    connection = await get_mysql_connection()
-    async with connection.cursor() as cursor:
-        await cursor.execute("""
-            SELECT api_key
-            FROM users
-            WHERE username = %s
-        """, (username,))
-        result = await cursor.fetchone()
-        await connection.close()
+async def fetch_api_token(username, logger):
+    connection = await get_mysql_connection(logger)
+    if connection is None:
+        return None
+
+    try:
+        async with connection.cursor() as cursor:
+            await cursor.execute("""
+                SELECT api_key
+                FROM users
+                WHERE username = %s
+            """, (username,))
+            result = await cursor.fetchone()
+        await connection.ensure_closed()
         if result:
             return result[0]
+        logger.error("No results found for API token")
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching API token: {e}")
         return None
 
 class ChannelType(Enum):
@@ -205,11 +234,18 @@ class DiscordBotRunner:
     def run(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+        self.logger.info("Starting BotOfTheSpecter Discord Bot")
         self.loop.run_until_complete(self.initialize_bot())
 
     async def initialize_bot(self):
-        api_token = await fetch_api_token(self.channel_name)
-        admin_user_id, live_channel_id = await fetch_discord_details(self.channel_name)
+        api_token = await fetch_api_token(self.channel_name, self.logger)
+        if api_token is None:
+            self.logger.error("API token is None. Exiting.")
+            return
+        admin_user_id, live_channel_id = await fetch_discord_details(self.channel_name, self.logger)
+        if admin_user_id is None or live_channel_id is None:
+            self.logger.error("Admin user ID or live channel ID is None. Exiting.")
+            return
         self.bot = BotOfTheSpecter(self.discord_token, live_channel_id, self.channel_name, api_token, self.logger, admin_user_id=admin_user_id)
         await self.bot.start(self.discord_token)
 
@@ -218,8 +254,8 @@ def main():
     parser.add_argument("-channel", dest="channel_name", required=True, help="Target Twitch channel name")
     args = parser.parse_args()
 
-    bot_log_file = os.path.join(webroot, discord_logs, f"{args.channel_name}.txt")
-    discord_logger = setup_logger('discord', bot_log_file, level=logging.ERROR)
+    bot_log_file = os.path.join(discord_logs, f"{args.channel_name}.txt")
+    discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
     discord_token = os.getenv("DISCORD_TOKEN")
     bot_runner = DiscordBotRunner(discord_token, args.channel_name, discord_logger)
     bot_runner.run()
