@@ -4,7 +4,6 @@ import os
 import signal
 import discord
 from discord.ext import commands
-from threading import Thread
 from enum import Enum
 import argparse
 import aiomysql
@@ -133,7 +132,6 @@ class BotOfTheSpecter(commands.Bot):
         self.discord_token = discord_token
         self.live_channel = live_channel_id
         self.guild_id = guild_id
-        self.admin_user_id = kwargs.get("admin_user_id", 0)
         self.channel_name = channel_name
         self.api_token = api_token
         self.logger = discord_logger
@@ -145,20 +143,6 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Setting channel {self.live_channel} to offline status on bot start.')
         await self.update_channel_status(self.live_channel, "offline")
 
-    async def on_message(self, message: discord.Message) -> None:
-        if message.author == self.user:
-            return
-        if message.channel.type == discord.ChannelType.private and message.author.id == self.admin_user_id:
-            if message.content == "!offline":
-                await message.reply("Marking the channel as offline.")
-                await self.update_channel_status(self.live_channel, "offline")
-            elif message.content == "!online":
-                await message.reply("Marking the channel as live.")
-                await self.update_channel_status(self.live_channel, "online")
-            else:
-                await message.reply("I'm not sure what you want.")
-        return await super().on_message(message)
-    
     async def update_channel_status(self, channel_id: int, status: str):
         self.logger.info(f'Updating channel {channel_id} to {status} status.')
         guild = self.get_guild(self.guild_id)
