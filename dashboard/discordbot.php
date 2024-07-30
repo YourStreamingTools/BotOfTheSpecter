@@ -168,15 +168,6 @@ $existingGuildId = $discordData['guild_id'] ?? "";
         </form>
       </div>
     </div>
-    <!-- Display Existing Webhook URLs -->
-    <h2 class="title is-4">Existing Discord Webhook URLs</h2>
-    <div class="columns">
-      <div class="column is-half">
-        <p>Discord Alert (For Twitch Logs): <code><?php echo htmlspecialchars($existingWebhooks['discord_alert'] ?? ''); ?></code></p>
-        <p>Discord Mod Alert (For Mod logs from Twitch): <code><?php echo htmlspecialchars($existingWebhooks['discord_mod'] ?? ''); ?></code></p>
-        <p>Discord Alert Online (For posting in discord when the stream is online): <code><?php echo htmlspecialchars($existingWebhooks['discord_alert_online'] ?? ''); ?></code></p>
-      </div>
-    </div>
     <!-- Live Channel ID and Guild ID Form -->
     <h2 class="title is-4">Set Live Channel ID and Guild ID</h2>
     <div class="columns">
@@ -184,12 +175,14 @@ $existingGuildId = $discordData['guild_id'] ?? "";
         <form action="" method="post">
           <div class="field">
             <label class="label" for="live_channel_id">Live Channel ID:</label>
+            <p>This is the Channel ID of the voice channel you wish to update with the live status.</p>
             <div class="control">
               <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>" required>
             </div>
           </div>
           <div class="field">
             <label class="label" for="guild_id">Guild ID:</label>
+            <p>This is your discord Server/Guild ID</p>
             <div class="control">
               <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required>
             </div>
@@ -205,8 +198,18 @@ $existingGuildId = $discordData['guild_id'] ?? "";
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<?php if (!$is_linked) {
-  echo '<script>function linkDiscord() { window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscord_auth.php&scope=identify+openid+guilds"; } </script>';
-  } else { echo '<script>function discordBotInvite() { window.open("https://discord.com/oauth2/authorize?client_id=1170683250797187132&scope=applications.commands%20bot&permissions=8", "_blank"); } </script>'; } ?>
+<?php if (!$is_linked) { ?>
+    <script>
+        function linkDiscord() {
+            window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscord_auth.php&scope=identify+openid+guilds";
+        }
+    </script>
+<?php } else { ?>
+    <script>
+        function discordBotInvite() {
+            window.open("https://discord.com/oauth2/authorize?client_id=1170683250797187132&scope=applications.commands%20bot&permissions=8", "_blank");
+        }
+    </script>
+<?php } ?>
 </body>
 </html>
