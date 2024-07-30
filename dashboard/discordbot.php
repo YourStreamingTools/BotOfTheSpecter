@@ -139,6 +139,7 @@ $existingGuildId = $discordData['guild_id'] ?? "";
     <h4 class="subtitle is-5">Thank you for linking your account. While the Discord integration is not yet active, you are welcome to add the bot to your server by clicking the button below.</h4>
     <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
     <br><br><br>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>$buildStatus</p>"; } ?>
     <!-- Webhook URL Form -->
     <h2 class="title is-4">Add Discord Webhook URLs</h2>
     <div class="columns">
@@ -193,11 +194,19 @@ $existingGuildId = $discordData['guild_id'] ?? "";
         </form>
       </div>
     </div>
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>$buildStatus</p>"; } ?>
   <?php } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script>
+  $(document).ready(function() {
+    var webhooks = <?php echo json_encode($existingWebhooks); ?>;
+    $('#option').change(function() {
+      var selectedOption = $(this).val();
+      $('#webhook').val(webhooks[selectedOption] || '');
+    });
+  });
+</script>
 <?php if (!$is_linked) { ?>
     <script>
         function linkDiscord() {
