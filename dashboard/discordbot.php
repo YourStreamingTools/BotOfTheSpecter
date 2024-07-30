@@ -132,13 +132,14 @@ $existingGuildId = $discordData['guild_id'] ?? "";
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if (!$is_linked) { ?>
-    <h3 class="subtitle is-5">Linking your discord account to Specter will allow you to do some really cool stuff.<br>
-      Including, gettings alerts from Specter in your discord server via a webhook and our new feature, updating a voice channel when you go live.
+    <h3 class="subtitle is-5">By linking your Discord account to Specter, you'll unlock some exciting features.<br>
+      You'll receive alerts from Specter directly in your Discord server via a webhook, and our new feature will update a voice channel when you go live.
     </h3>
     <br>
     <button class="button is-link" onclick="linkDiscord()">Link Discord</button>
   <?php } else { ?>
-    <h4 class="subtitle is-5">Thank you for linking your account. While the Discord integration is not yet active, you are welcome to add the bot to your server by clicking the button below.</h4>
+    <h4 class="subtitle is-5">Thank you for linking your account.<br>
+      We're constantly adding new Specter features to the Discord Bot, so keep an eye on the Discord server for updates.</h4>
     <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
     <br><br><br>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>$buildStatus</p>"; } ?>
@@ -203,6 +204,8 @@ $existingGuildId = $discordData['guild_id'] ?? "";
 <script>
   $(document).ready(function() {
     var webhooks = <?php echo json_encode($existingWebhooks); ?>;
+    var initialWebhook = webhooks['discord_alert'] || '';
+    $('#webhook').val(initialWebhook);
     $('#option').change(function() {
       var selectedOption = $(this).val();
       $('#webhook').val(webhooks[selectedOption] || '');
