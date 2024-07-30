@@ -148,25 +148,43 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {self.guild_id}.')
         try:
             guild = await self.fetch_guild(self.guild_id)
+            if guild is None:
+                self.logger.error(f'Guild with ID {self.guild_id} not found.')
+                return
+            channel = guild.get_channel(channel_id)
+            if channel is None:
+                self.logger.error(f'Channel with ID {channel_id} not found. Fetching from API.')
+                try:
+                    channel = await guild.fetch_channel(channel_id)
+                except discord.HTTPException as e:
+                    self.logger.error(f'Error fetching channel from API: {e}')
+                    return
         except discord.HTTPException as e:
             self.logger.error(f'Error fetching guild with ID {self.guild_id}: {e}')
-            return
-        if not guild:
-            self.logger.error(f'Guild with ID {self.guild_id} not found.')
-            return
-        channel = guild.get_channel(channel_id)
-        if not channel:
-            self.logger.error(f'Channel with ID {channel_id} not found.')
             return
         if status == "offline":
             await self.set_channel_name(channel, f"🔴 {self.channel_name} isn't live")
         elif status == "online":
             await self.set_channel_name(channel, f"🟢 {self.channel_name} is live!")
 
+    async def fetch_channel(self):
+        self.logger.info("Fetching channels in the guild.")
+        guild = await self.fetch_guild(self.guild_id)
+        if guild:
+            channels = guild.channels
+            for channel in channels:
+                self.logger.info(f'Channel found: {channel.name} (ID: {channel.id})')
+        else:
+            self.logger.error(f'Guild with ID {self.guild_id} not found.')
+
     async def set_channel_name(self, channel: discord.VoiceChannel, name: str):
         if channel:
             self.logger.info(f'Setting channel name to {name}')
-            await channel.edit(name=name)
+            try:
+                await channel.edit(name=name)
+                self.logger.info(f'Channel name set to {name}')
+            except discord.HTTPException as e:
+                self.logger.error(f'Error setting channel name: {e}')
 
 class WebSocketCog(commands.Cog, name='WebSocket'):
     def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
