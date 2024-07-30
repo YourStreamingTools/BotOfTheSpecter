@@ -172,9 +172,9 @@ $existingGuildId = $discordData['guild_id'] ?? "";
     <h2 class="title is-4">Existing Discord Webhook URLs</h2>
     <div class="columns">
       <div class="column is-half">
-        <p><strong>Discord Alert (For Twitch Logs):</strong> <?php echo htmlspecialchars($existingWebhooks['discord_alert']); ?></p>
-        <p><strong>Discord Mod Alert (For Mod logs from Twitch):</strong> <?php echo htmlspecialchars($existingWebhooks['discord_mod']); ?></p>
-        <p><strong>Discord Alert Online (For posting in discord when the stream is online):</strong> <?php echo htmlspecialchars($existingWebhooks['discord_alert_online']); ?></p>
+        <p>Discord Alert (For Twitch Logs): <code><?php echo htmlspecialchars($existingWebhooks['discord_alert'] ?? ''); ?></code></p>
+        <p>Discord Mod Alert (For Mod logs from Twitch): <code><?php echo htmlspecialchars($existingWebhooks['discord_mod'] ?? ''); ?></code></p>
+        <p>Discord Alert Online (For posting in discord when the stream is online): <code><?php echo htmlspecialchars($existingWebhooks['discord_alert_online'] ?? ''); ?></code></p>
       </div>
     </div>
     <!-- Live Channel ID and Guild ID Form -->
