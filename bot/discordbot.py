@@ -146,7 +146,11 @@ class BotOfTheSpecter(commands.Bot):
 
     async def update_channel_status(self, channel_id: int, status: str):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {self.guild_id}.')
-        guild = self.get_guild(self.guild_id)
+        try:
+            guild = await self.fetch_guild(self.guild_id)
+        except discord.HTTPException as e:
+            self.logger.error(f'Error fetching guild with ID {self.guild_id}: {e}')
+            return
         if not guild:
             self.logger.error(f'Guild with ID {self.guild_id} not found.')
             return
