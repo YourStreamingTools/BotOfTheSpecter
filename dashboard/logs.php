@@ -3,7 +3,7 @@
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
@@ -37,7 +37,6 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 $logContent = '';
-$logTypeDisplay = '';
 $logType = '';
 if(isset($_GET['logType'])) {
   $logType = $_GET['logType'];
@@ -70,76 +69,63 @@ if(isset($_GET['logType'])) {
     <?php include('header.php'); ?>
     <!-- /Header -->
   </head>
-<body>
+<body class="logs-body">
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
-
-<div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <br>
-  <div class="tabs is-boxed is-centered">
-    <ul>
-      <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="?logType=bot#bot">Bot Logs</a></li>
-      <li class="<?php echo $logType === 'discord' ? 'is-active' : ''; ?>"><a href="?logType=discord#discord">Discord Bot Logs</a></li>
-      <li class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="?logType=chat#chat">Chat Logs</a></li>
-      <li class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="?logType=twitch#twitch">Twitch Logs</a></li>
-      <li class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="?logType=api#api">API Logs</a></li>
-    </ul>
+<div class="logs-container">
+  <div class="logs-sidebar">
+    <h2 class="logs-title">Logs</h2>
+    <div>
+      <label for="logType">Select a log to view:</label>
+      <select id="logs-logType" class="logs-select" onchange="changeLogType(this.value)">
+        <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
+        <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
+        <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
+        <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>>Twitch Log</option>
+        <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>>API Log</option>
+      </select>
+    </div>
+    <div class="logs-options">
+      <input type="checkbox" id="logs-autoUpdate" checked> Auto Update 10 secs<br>
+      <input type="checkbox" id="logs-scrollBottom" checked> Scroll To Bottom<br>
+      Times are in GMT+10
+    </div>
   </div>
-  <div id="bot" class="log-content <?php echo $logType === 'bot' ? 'is-active' : ''; ?>">
-    <h3 class="title is-5">Bot Logs</h3>
-    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
-  </div>
-  <div id="discord" class="log-content <?php echo $logType === 'discord' ? 'is-active' : ''; ?>">
-    <h3 class="title is-5">Discord Bot Logs</h3>
-    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'discord' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
-  </div>
-  <div id="chat" class="log-content <?php echo $logType === 'chat' ? 'is-active' : ''; ?>">
-    <h3 class="title is-5">Chat Logs</h3>
-    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'chat' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
-  </div>
-  <div id="twitch" class="log-content <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>">
-    <h3 class="title is-5">Twitch Logs</h3>
-    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
-  </div>
-  <div id="api" class="log-content <?php echo $logType === 'api' ? 'is-active' : ''; ?>">
-    <h3 class="title is-5">API Logs</h3>
-    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
+  <div class="logs-log-area">
+    <div id="logs-logDisplay" class="logs-log-content">
+      <h3 class="logs-title"><?php echo ucfirst($logType); ?> Logs</h3>
+      <textarea readonly><?php echo htmlspecialchars($logContent); ?></textarea>
+    </div>
   </div>
 </div>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const tabs = document.querySelectorAll('.tabs li');
-    const logContents = document.querySelectorAll('.log-content');
-    function activateTab(tab) {
-      tabs.forEach(item => item.classList.remove('is-active'));
-      tab.classList.add('is-active');
-      const target = tab.querySelector('a').getAttribute('href').substring(1);
-      logContents.forEach(content => {
-        content.classList.remove('is-active');
-        if (content.id === target) {
-          content.classList.add('is-active');
-        }
-      });
+    const logType = "<?php echo $logType; ?>";
+    const logContentArea = document.querySelector('.logs-log-content textarea');
+    function updateLogContent() {
+      if (document.getElementById('logs-autoUpdate').checked) {
+        fetch(`?logType=${logType}`)
+          .then(response => response.text())
+          .then(data => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(data, 'text/html');
+            const newLogContent = htmlDoc.querySelector('.logs-log-content textarea').value;
+            logContentArea.value = newLogContent;
+            if (document.getElementById('logs-scrollBottom').checked) {
+              logContentArea.scrollTop = logContentArea.scrollHeight;
+            }
+          });
+      }
     }
-    tabs.forEach(tab => {
-      tab.addEventListener('click', (event) => {
-        event.preventDefault();
-        const target = tab.querySelector('a').getAttribute('href');
-        window.location.href = target;
-      });
+    setInterval(updateLogContent, 10000);
+    document.getElementById('logs-logType').addEventListener('change', (event) => {
+        changeLogType(event.target.value);
     });
-    // Activate the tab based on the URL hash
-    if (window.location.hash) {
-      const hash = window.location.hash.substring(1);
-      const initialTab = document.querySelector(`.tabs li a[href="#${hash}"]`).parentElement;
-      activateTab(initialTab);
-    } else {
-      // Default to the first tab
-      activateTab(tabs[0]);
-    }
   });
+  function changeLogType(logType) {
+    window.location.href = `?logType=${logType}`;
+  }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
