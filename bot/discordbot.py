@@ -190,9 +190,9 @@ class BotOfTheSpecter(commands.Bot):
                     self.logger.error(f'Error fetching channel from API: {e}')
                     return
             if status == "offline":
-                await self.set_channel_name(channel, f"🔴 {self.channel_name} isn't live")
+                await self.set_channel_name(channel, f"🔴 I'm not live")
             elif status == "online":
-                await self.set_channel_name(channel, f"🟢 {self.channel_name} is live!")
+                await self.set_channel_name(channel, f"🟢 I'm live!")
         except discord.HTTPException as e:
             self.logger.error(f'Error fetching guild with ID {config.guild_id}: {e}')
 
