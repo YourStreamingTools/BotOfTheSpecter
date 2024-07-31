@@ -47,6 +47,15 @@ $betaVersionRunning = '';
 include 'bot_control.php';
 include 'sqlite.php';
 
+// Fetch Discord user data
+$discordUserSTMT = $conn->prepare("SELECT guild_id, live_channel_id FROM discord_users WHERE user_id = ?");
+$discordUserSTMT->bind_param("i", $user_id);
+$discordUserSTMT->execute();
+$discordUserResult = $discordUserSTMT->get_result();
+$discordUser = $discordUserResult->fetch_assoc();
+$guild_id = $discordUser['guild_id'] ?? null;
+$live_channel_id = $discordUser['live_channel_id'] ?? null;
+
 // Twitch API URL
 $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
 $addMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}&user_id=971436498";
@@ -149,6 +158,7 @@ if ($ModStatusOutput) {
       </div>
     </div>
     <?php } ?>
+    <?php if ($guild_id && $live_channel_id) { ?>
     <div class="bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?>
@@ -167,6 +177,7 @@ if ($ModStatusOutput) {
         <br>
       </div>
     </div>
+    <?php } ?>
   </div>
 </div>
 
