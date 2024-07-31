@@ -178,8 +178,6 @@ if (isset($_GET['log'])) {
         </select>
       </div>
       <div class="logs-options">
-        <input type="checkbox" id="logs-autoUpdate" checked> Auto Update 10 secs<br>
-        <input type="checkbox" id="logs-scrollBottom" checked> Scroll To Bottom<br>
         Times are in GMT+10
       </div>
     </div>
@@ -194,24 +192,11 @@ if (isset($_GET['log'])) {
 
 <script>
 var last_line = 0;
-function textareaScroll(){
-    let logtext = document.getElementById("logs-log-textarea");
-    const tail = document.getElementById("logs-scrollBottom");
-    const bottom = logtext.scrollHeight - logtext.offsetHeight + 4;
-    // If scroll is at the bottom, recheck tail checkbox
-    if(logtext.scrollTop == bottom){
-        tail.checked = true;
-    }else{
-        tail.checked = false;
-    }
-}
 
 async function autoupdateLog(){
-    const check = document.getElementById("logs-autoUpdate");
-    const tail = document.getElementById("logs-scrollBottom");
     let logtext = document.getElementById("logs-log-textarea");
     const logselect = document.getElementById("logs-select");
-    if(check.checked && logselect.selectedIndex >= 0){
+    if(logselect.selectedIndex >= 0){
         const logname = logselect.value;
         // Fetch Log Data
         let response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
@@ -222,9 +207,7 @@ async function autoupdateLog(){
         }else{
             logtext.innerHTML = logtext.innerHTML + json["data"];
         }
-        if(tail.checked){
-            logtext.scrollTop = logtext.scrollHeight;
-        }
+        logtext.scrollTop = logtext.scrollHeight;
     }
 }
 
