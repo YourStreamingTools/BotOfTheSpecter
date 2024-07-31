@@ -16,10 +16,10 @@ if (!isset($_SESSION['access_token'])) {
 $response = ['success' => false, 'message' => '', 'output' => ''];
 
 try {
-    // Get the event type from the request
-    if (isset($_POST['event'])) {
+    // Get the event type and api_key from the request
+    if (isset($_POST['event']) && isset($_POST['api_key'])) {
         $event = $_POST['event'];
-        $api_key = $_SESSION['api_key'];
+        $api_key = $_POST['api_key'];
         // Execute the shell command
         $command = "curl -X GET https://websocket.botofthespecter.com:8080/notify?code={$api_key}&event={$event}";
         $output = shell_exec($command);
@@ -32,7 +32,7 @@ try {
             $response['output'] = $output;
         }
     } else {
-        $response['message'] = 'No event specified.';
+        $response['message'] = 'No event or api_key specified.';
     }
 } catch (Exception $e) {
     $response['message'] = 'Exception: ' . $e->getMessage();
