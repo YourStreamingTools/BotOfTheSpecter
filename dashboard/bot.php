@@ -119,8 +119,8 @@ if ($ModStatusOutput) {
   <br>
   <?php echo $BotModMessage; ?>
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
-  <div class="box-container">
-    <div class="bot-box" id="bot-status">
+  <div class="columns is-desktop is-multiline box-container">
+    <div class="column is-two-fifths bot-box" id="bot-status">
       <h4 class="title is-4">Stable Bot:</h4>
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?>
@@ -139,7 +139,7 @@ if ($ModStatusOutput) {
       </div>
     </div>
     <?php if ($betaAccess) { ?>
-    <div class="bot-box" id="beta-bot-status">
+    <div class="column is-two-fifths bot-box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?>
@@ -159,7 +159,7 @@ if ($ModStatusOutput) {
     </div>
     <?php } ?>
     <?php if ($guild_id && $live_channel_id) { ?>
-    <div class="bot-box" id="discord-bot-status">
+    <div class="column is-two-fifths bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?>
       <?php echo $discordVersionRunning; ?>
@@ -177,15 +177,31 @@ if ($ModStatusOutput) {
         <br>
       </div>
     </div>
+    <div class="column is-two-fifths bot-box">
+      <h4 class="title is-4">Stream Online/Offline:</h4>
+      <button class="button is-primary" onclick="sendStreamOnlineEvent()">Online</button>
+      <br>
+      <button class="button is-danger" onclick="sendStreamOfflineEvent()">Offline</button>
+    </div>
     <?php } ?>
   </div>
 </div>
 
 <script>
-  window.addEventListener('error', function(event) {
-    console.error('Error message:', event.message);
-    console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
-  });
+window.addEventListener('error', function(event) {
+  console.error('Error message:', event.message);
+  console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
+});
+
+function sendStreamOnlineEvent() {
+  shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_ONLINE");
+  console.log('STREAM_ONLINE event sent successfully.');
+}
+
+function sendStreamOfflineEvent() {
+  shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_OFFLINE");
+  console.log('STREAM_OFFLINE event sent successfully.');
+}
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
