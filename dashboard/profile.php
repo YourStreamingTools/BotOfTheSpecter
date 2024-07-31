@@ -12,6 +12,9 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Profile";
 $status = "";
+$timezone = "";
+$weather = "";
+
 // Connect to database
 require_once "db_connect.php";
 
@@ -39,6 +42,7 @@ foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
   $weather = $profile['weather_location'];
 }
+
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
 date_default_timezone_set($timezone);
 $signup_date_utc = date_create_from_format('Y-m-d H:i:s', $signup_date)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A');
@@ -57,6 +61,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   } else {
     $status = "Error: Please provide both timezone and weather location.";
   }
+}
+
+// Function to get all PHP timezones
+function get_timezones() {
+    $timezones = DateTimeZone::listIdentifiers();
+    $timezone_offsets = [];
+    foreach($timezones as $timezone) {
+        $datetime = new DateTime(null, new DateTimeZone($timezone));
+        $offset = $datetime->getOffset();
+        $timezone_offsets[$timezone] = $offset;
+    }
+    // Sort timezones by offset
+    asort($timezone_offsets);
+    return $timezone_offsets;
 }
 ?>
 <!DOCTYPE html>
@@ -112,7 +130,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="field">
           <label class="label" for="timezone">Timezone:</label>
           <div class="control">
-            <input class="input" type="text" id="timezone" name="timezone" value="<?php echo $timezone; ?>">
+            <div class="select">
+              <select id="timezone" name="timezone">
+                <?php
+                $timezones = get_timezones();
+                foreach ($timezones as $tz => $offset) {
+                    $offset_prefix = $offset < 0 ? '-' : '+';
+                    $offset_hours = gmdate('H:i', abs($offset));
+                    $selected = ($tz == $timezone) ? 'selected' : '';
+                    echo "<option value=\"$tz\" $selected>(UTC $offset_prefix$offset_hours) $tz</option>";
+                }
+                ?>
+              </select>
+            </div>
           </div>
         </div>
         <div class="field">
