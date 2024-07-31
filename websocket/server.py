@@ -142,16 +142,12 @@ class BotOfTheSpecterWebsocketServer:
         user = request.query.get("user")
         death = request.query.get("death-text")
         game = request.query.get("game")
-
         self.logger.info(f"Received notify request with code: {code}, event: {event}, text: {text}, channel: {channel}, user: {user}, death: {death}, game: {game}")
-
         if not code or not event:
             raise web.HTTPBadRequest(text="400 Bad Request: code or event is missing")
-        
         data = {k: v for k, v in request.query.items()}
         self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
-
         if event == "TTS" and text:
             response = self.generate_speech(text)
             audio_file = os.path.join(self.tts_dir, f'tts_output_{code}.mp3')
@@ -159,14 +155,12 @@ class BotOfTheSpecterWebsocketServer:
                 out.write(response.audio_content)
                 self.logger.info(f'Audio content written to file "{audio_file}"')
             data['audio_file'] = f"https://tts.botofthespecter.com/tts_output_{code}.mp3"
-
         count = 0
         for sid, registered_code in self.registered_clients.items():
             if registered_code == code:
                 count += 1
                 await self.sio.emit(event, data, sid)
                 self.logger.info(f"Emitted event '{event}' to client {sid}")
-        
         self.logger.info(f"Broadcasted event to {count} clients")
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
 
@@ -247,7 +241,6 @@ class BotOfTheSpecterWebsocketServer:
             with open(audio_file, 'wb') as out:
                 out.write(response.audio_content)
                 self.logger.info(f'Audio content written to file "{audio_file}"')
-
             # Send the audio file path to the requesting client
             await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/tts_output_{sid}.mp3"}, to=sid)
 
@@ -308,13 +301,7 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
         self.logger.info(f"Host: {host} Port: {port}")
         self.loop = asyncio.new_event_loop()
-        web.run_app(self.app, 
-                    loop=self.loop, 
-                    host=host, 
-                    port=port, 
-                    ssl_context=self.create_ssl_context(), 
-                    handle_signals=True, 
-                    shutdown_timeout=10)
+        web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=self.create_ssl_context(), handle_signals=True, shutdown_timeout=10)
     
     def stop(self):
         # Stop the SocketIO server.
@@ -354,29 +341,15 @@ class BotOfTheSpecterWebsocketServer:
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
-
-    parser = argparse.ArgumentParser(
-        prog='BotOfTheSpecter Websocket Server',
-        description='A WebSocket server for handling notifications and real-time communication between the website and the bot itself.'
-    )
-
+    parser = argparse.ArgumentParser(prog='BotOfTheSpecter Websocket Server', description='A WebSocket server for handling notifications and real-time communication between the website and the bot itself.')
     parser.add_argument("-H", "--host", default="0.0.0.0", help="Specify the listener host. Default is 0.0.0.0")
     parser.add_argument("-p", "--port", default=8080, type=int, help="Specify the listener port number. Default is 8080")
     parser.add_argument("-l", "--loglevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Specify the log level. INFO is the default.")
     parser.add_argument("-f", "--logfile", help="Specify log file location. Production location should be <WEBROOT>/log/noti_server.log")
-
     args = parser.parse_args()
     log_level = logging.getLevelName(args.loglevel)
     log_file = args.logfile if args.logfile else os.path.join(SCRIPT_DIR, "noti_server.log")
-
-    logging.basicConfig(
-        filename=log_file,
-        level=log_level,
-        filemode="a",
-        format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-
+    logging.basicConfig(filename=log_file, level=log_level, filemode="a", format="%(asctime)s - %(levelname)s - %(message)s")
     logging.getLogger().addHandler(logging.StreamHandler())
-
     server = BotOfTheSpecterWebsocketServer(logging)
     server.run_app(host=args.host, port=args.port)
