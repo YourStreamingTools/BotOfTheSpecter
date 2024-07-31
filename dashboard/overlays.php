@@ -62,7 +62,8 @@ include 'sqlite.php';
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
                 <p><em>This URL includes any and all overlays we offer, automatically added and updated.
-                    <br>You only need to add this link once, and any new overlays will be included automatically:</em></p>
+                    <br>The only exception is the Stream Ending Credits, which must be added separately.
+                    <br>Simply add this link once, and any new overlays will be included automatically:</em></p>
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -77,8 +78,9 @@ include 'sqlite.php';
         </div>
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Stream End Credits:</h4>
-                <p><em>As it sounds, displays a scrolling list of all the people that have attended and supported the stream.
+                <h4 class="title is-4">Stream Ending Credits:</h4>
+                <p><em>The Stream Ending Credits display a scrolling list of all the viewers who attended and supported the stream.
+                    <br>This includes followers, subscribers, donors, and cheerers, providing a special thank you to everyone who contributed.
                     <br>(Coming Soon)</em></p>
                 <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
             </div>
@@ -93,7 +95,7 @@ include 'sqlite.php';
         </div>
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">TTS Only:</h4>
+                <h4 class="title is-4">Text To Speech (TTS) Only:</h4>
                 <p><em>Only hear the Text To Speech audio.</em></p>
                 <code>https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE</code>
             </div>
