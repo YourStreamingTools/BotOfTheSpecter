@@ -73,7 +73,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $stmt = $db->prepare("UPDATE profile SET $profile_key = :webhook");
         $stmt->bindParam(':webhook', $webhook);
-        $stmt->bindParam(':user_id', $user_id);
         if ($stmt->execute()) {
             $buildStatus = "Webhook URL updated successfully";
         } else {
