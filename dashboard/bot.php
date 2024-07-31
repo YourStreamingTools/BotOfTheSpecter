@@ -124,8 +124,7 @@ if ($ModStatusOutput) {
     <div class="column is-two-fifths bot-box" id="bot-status">
       <h4 class="title is-4">Stable Bot:</h4>
       <?php echo $statusOutput; ?>
-      <?php echo $versionRunning; ?>
-      <br>
+      <?php echo $versionRunning; ?><br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killBot">Stop Bot</button>
@@ -143,8 +142,7 @@ if ($ModStatusOutput) {
     <div class="column is-two-fifths bot-box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
-      <?php echo $betaVersionRunning; ?>
-      <br>
+      <?php echo $betaVersionRunning; ?><br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killBetaBot">Stop Beta Bot</button>
@@ -163,8 +161,7 @@ if ($ModStatusOutput) {
     <div class="column is-two-fifths bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?>
-      <?php echo $discordVersionRunning; ?>
-      <br>
+      <?php echo $discordVersionRunning; ?><br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killDiscordBot">Stop Discord Bot</button>
@@ -179,10 +176,12 @@ if ($ModStatusOutput) {
       </div>
     </div>
     <div class="column is-two-fifths bot-box">
-      <h4 class="title is-4">Stream Online/Offline:</h4>
-      <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
+      <h4 class="title is-4">Stream Online/Offline:</h4><br>
+      <div class="buttons">
+        <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
+        <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
+      </div>
       <br>
-      <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
     </div>
     <?php } ?>
   </div>
