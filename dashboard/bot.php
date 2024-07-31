@@ -193,6 +193,14 @@ window.addEventListener('error', function(event) {
   console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
 });
 
+function sendStreamOnlineEvent() {
+  sendStreamEvent('STREAM_ONLINE');
+}
+
+function sendStreamOfflineEvent() {
+  sendStreamEvent('STREAM_OFFLINE');
+}
+
 function sendStreamEvent(eventType) {
   const xhr = new XMLHttpRequest();
   const url = 'notify_event.php';
