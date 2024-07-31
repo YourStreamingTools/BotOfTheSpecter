@@ -201,11 +201,16 @@ function sendStreamEvent(eventType) {
   xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
   xhr.onreadystatechange = function () {
     if (xhr.readyState === 4 && xhr.status === 200) {
-      const response = JSON.parse(xhr.responseText);
-      if (response.success) {
-        console.log(`${eventType} event sent successfully.`);
-      } else {
-        console.error(`Error sending ${eventType} event: ${response.message}`);
+      try {
+        const response = JSON.parse(xhr.responseText);
+        if (response.success) {
+          console.log(`${eventType} event sent successfully.`);
+        } else {
+          console.error(`Error sending ${eventType} event: ${response.message}`);
+        }
+      } catch (e) {
+        console.error('Error parsing JSON response:', e);
+        console.error('Response:', xhr.responseText);
       }
     } else if (xhr.readyState === 4) {
       console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
