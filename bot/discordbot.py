@@ -213,7 +213,6 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         async def STREAM_OFFLINE(data):
             self.logger.info(f"Received STREAM_OFFLINE event: {data}")
             await self.bot.update_channel_status(self.bot.live_channel, "offline")
-
         self.bot.loop.create_task(self.start_websocket())
 
     async def start_websocket(self):
