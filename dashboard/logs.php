@@ -40,38 +40,36 @@ $logContent = '';
 $logTypeDisplay = '';
 $logType = '';
 if(isset($_GET['logType'])) {
-    $logType = $_GET['logType'];
-    $logPath = "/var/www/logs/$logType/$username.txt";
-    if(file_exists($logPath)) {
-        // Read the file in reverse
-        $file = new SplFileObject($logPath);
-        $file->seek(PHP_INT_MAX); // Move to the end of the file
-        $linesTotal = $file->key(); // Get the total number of lines
-        $startLine = max(0, $linesTotal - 200); // Calculate the starting line number
-
-        $logLines = [];
-        $file->seek($startLine);
-        while (!$file->eof()) {
-            $logLines[] = $file->fgets();
-        }
-        $logContent = implode("", array_reverse($logLines));
-
-        // Check if the log content is empty
-        if (trim($logContent) === '') {
-            $logContent = "Nothing has been logged yet.";
-        }
-    } else {
-        $logContent = "Error getting that log file, it doesn't look like it exists.";
+  $logType = $_GET['logType'];
+  $logPath = "/var/www/logs/$logType/$username.txt";
+  if(file_exists($logPath)) {
+    // Read the file in reverse
+    $file = new SplFileObject($logPath);
+    $file->seek(PHP_INT_MAX); // Move to the end of the file
+    $linesTotal = $file->key(); // Get the total number of lines
+    $startLine = max(0, $linesTotal - 200); // Calculate the starting line number
+    $logLines = [];
+    $file->seek($startLine);
+    while (!$file->eof()) {
+      $logLines[] = $file->fgets();
     }
+    $logContent = implode("", array_reverse($logLines));
+    // Check if the log content is empty
+    if (trim($logContent) === '') {
+      $logContent = "Nothing has been logged yet.";
+    }
+  } else {
+    $logContent = "Error getting that log file, it doesn't look like it exists.";
+  }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <!-- Header -->
-  <?php include('header.php'); ?>
-  <!-- /Header -->
-</head>
+  <head>
+    <!-- Header -->
+    <?php include('header.php'); ?>
+    <!-- /Header -->
+  </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
@@ -83,7 +81,7 @@ if(isset($_GET['logType'])) {
   <div class="tabs is-boxed is-centered">
     <ul>
       <li class="<?php echo $logType === 'bot' ? 'is-active' : ''; ?>"><a href="?logType=bot#bot">Bot Logs</a></li>
-      <li class="<?php echo $logType === 'script' ? 'is-active' : ''; ?>"><a href="?logType=script#script">Script Logs</a></li>
+      <li class="<?php echo $logType === 'discord' ? 'is-active' : ''; ?>"><a href="?logType=discord#discord">Discord Bot Logs</a></li>
       <li class="<?php echo $logType === 'chat' ? 'is-active' : ''; ?>"><a href="?logType=chat#chat">Chat Logs</a></li>
       <li class="<?php echo $logType === 'twitch' ? 'is-active' : ''; ?>"><a href="?logType=twitch#twitch">Twitch Logs</a></li>
       <li class="<?php echo $logType === 'api' ? 'is-active' : ''; ?>"><a href="?logType=api#api">API Logs</a></li>
@@ -93,9 +91,9 @@ if(isset($_GET['logType'])) {
     <h3 class="title is-5">Bot Logs</h3>
     <pre><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
   </div>
-  <div id="script" class="log-content <?php echo $logType === 'script' ? 'is-active' : ''; ?>">
-    <h3 class="title is-5">Script Logs</h3>
-    <pre><?php echo $logType === 'script' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+  <div id="discord" class="log-content <?php echo $logType === 'discord' ? 'is-active' : ''; ?>">
+    <h3 class="title is-5">Discord Bot Logs</h3>
+    <pre><?php echo $logType === 'discord' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
   </div>
   <div id="chat" class="log-content <?php echo $logType === 'chat' ? 'is-active' : ''; ?>">
     <h3 class="title is-5">Chat Logs</h3>
