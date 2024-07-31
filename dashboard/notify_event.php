@@ -20,17 +20,31 @@ try {
     if (isset($_POST['event']) && isset($_POST['api_key'])) {
         $event = $_POST['event'];
         $api_key = $_POST['api_key'];
-        // Execute the shell command
-        $command = "curl -X GET https://websocket.botofthespecter.com:8080/notify?code={$api_key}&event={$event}";
-        $output = shell_exec($command);
-        // Check if the command executed successfully
-        if ($output === null) {
-            $response['message'] = 'Failed to execute the command.';
+
+        // Initialize curl
+        $ch = curl_init();
+
+        // Set the URL
+        $url = "https://websocket.botofthespecter.com:8080/notify?code=$api_key&event=$event";
+        curl_setopt($ch, CURLOPT_URL, $url);
+
+        // Return the transfer as a string
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+        // Execute the curl session
+        $output = curl_exec($ch);
+
+        // Check for curl errors
+        if ($output === false) {
+            $response['message'] = 'Curl error: ' . curl_error($ch);
         } else {
             $response['success'] = true;
             $response['message'] = 'Event sent successfully.';
             $response['output'] = $output;
         }
+
+        // Close the curl session
+        curl_close($ch);
     } else {
         $response['message'] = 'No event or api_key specified.';
     }
