@@ -82,6 +82,8 @@ class BotOfTheSpecterWebsocketServer:
             ("WALKON", self.walkon),
             ("TTS", self.tts),
             ("NOTIFY", self.notify),
+            ("STREAM_ONLINE", self.stream_online),
+            ("STREAM_OFFLINE", self.stream_offline),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -272,6 +274,18 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"Twitch sub event from SID [{sid}]: {data}")
         # Broadcast the sub event to all clients
         await self.sio.emit("TWITCH_SUB", data)
+
+    async def stream_online(self, sid, data):
+        # Handle the STREAM_ONLINE event for SocketIO.
+        self.logger.info(f"Stream online event from SID [{sid}]: {data}")
+        # Broadcast the stream online event to all clients
+        await self.sio.emit("STREAM_ONLINE", data)
+
+    async def stream_offline(self, sid, data):
+        # Handle the STREAM_OFFLINE event for SocketIO.
+        self.logger.info(f"Stream offline event from SID [{sid}]: {data}")
+        # Broadcast the stream offline event to all clients
+        await self.sio.emit("STREAM_OFFLINE", data)
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
