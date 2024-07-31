@@ -3280,23 +3280,44 @@ async def get_streamer_weather():
         await sqldb.ensure_closed()
 
 async def get_weather(location):
-    owm = pyowm.OWM(WEATHER_API)
     try:
-        observation = owm.weather_manager().weather_at_place(location)
-        weather = observation.weather
-        status = weather.detailed_status
-        temperature = weather.temperature('celsius')['temp']
+        # Get the latitude and longitude
+        lat, lon = await get_lat_lon(location)
+        if lat is None or lon is None:
+            return f"Location '{location}' not found."
+        # Get the weather data
+        weather_data = await fetch_weather_data(lat, lon)
+        if weather_data is None:
+            return f"An error occurred while fetching the weather data for '{location}'."
+        # Extract weather information
+        current_weather = weather_data['current']
+        status = current_weather['weather'][0]['description']
+        temperature = current_weather['temp']
         temperature_f = round(temperature * 9 / 5 + 32, 1)
-        wind_speed = round(weather.wind()['speed'])
+        wind_speed = round(current_weather['wind_speed'])
         wind_speed_mph = round(wind_speed / 1.6, 2)
-        humidity = weather.humidity
-        wind_direction = await getWindDirection(weather.wind()['deg'])
-
+        humidity = current_weather['humidity']
+        wind_direction = await getWindDirection(current_weather['wind_deg'])
         return f"The weather in {location} is {status} with a temperature of {temperature}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at {wind_speed}kph ({wind_speed_mph}mph) and the humidity is {humidity}%."
-    except pyowm.exceptions.NotFoundError:
-        return f"Location '{location}' not found."
-    except AttributeError:
-        return f"An error occurred while processing the weather data for '{location}'."
+    except Exception as e:
+        return f"An error occurred while processing the weather data for '{location}': {str(e)}"
+
+async def get_lat_lon(location):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
+            data = await response.json()
+            if len(data) > 0:
+                lat = data[0]['lat']
+                lon = data[0]['lon']
+                return lat, lon
+            else:
+                return None, None
+
+async def fetch_weather_data(lat, lon):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,daily,alerts&units=metric&appid={WEATHER_API}") as response:
+            data = await response.json()
+            return data
 
 async def getWindDirection(deg):
     cardinalDirections = {
