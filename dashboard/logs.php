@@ -1,5 +1,8 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
@@ -37,8 +40,8 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 
-$logContent = '';
-$logType = '';
+$logContent = 'Loading Please Wait';
+$logType = 'bot';  // Default log type
 if(isset($_GET['logType'])) {
   $logType = $_GET['logType'];
   $logPath = "/var/www/logs/$logType/$username.txt";
@@ -62,66 +65,100 @@ if(isset($_GET['logType'])) {
     $logContent = "Error getting that log file, it doesn't look like it exists.";
   }
 }
+
+// Check if it's an AJAX request
+if (isset($_GET['log'])) {
+  header('Content-Type: application/json');
+
+  $logType = $_GET['log'];
+  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
+
+  $logPath = "/var/www/logs/$logType/$username.txt";
+
+  if (!file_exists($logPath)) {
+      echo json_encode(['error' => 'Log file does not exist']);
+      exit();
+  }
+
+  $file = new SplFileObject($logPath);
+  $file->seek(PHP_INT_MAX);
+  $linesTotal = $file->key();
+  $startLine = max(0, $linesTotal - 200);
+
+  if ($since > 0) {
+      $startLine = $since;
+  }
+
+  $logLines = [];
+  $file->seek($startLine);
+  while (!$file->eof()) {
+      $logLines[] = $file->fgets();
+  }
+
+  $logContent = implode("", array_reverse($logLines));
+  echo json_encode(['last_line' => $linesTotal, 'data' => htmlspecialchars($logContent)]);
+  exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <style>
-      .logs-container {
-        display: flex;
-        flex-direction: row;
-        padding: 20px;
-        height: 800px;
-      }
-      .logs-sidebar {
-        width: 300px;
-        padding-right: 20px;
-      }
-      .logs-log-area {
-        flex-grow: 1;
-        background-color: #333;
-        padding: 20px;
-        border-radius: 8px;
-        display: flex;
-        flex-direction: column;
-      }
-      .logs-log-content {
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-      }
-      .logs-log-content textarea {
-        width: 100%;
-        flex-grow: 1;
-        resize: none;
-        background-color: #1e1e1e;
-        color: #c0c0c0;
-        border: none;
-        padding: 10px;
-        font-family: monospace;
-      }
-      .logs-title {
-        color: #485fc7;
-        text-align: center;
-        font-size: 34px;
-      }
-      .logs-options {
-        margin-bottom: 20px;
-      }
-      .logs-select {
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 10px;
-        background-color: #333;
-        color: #c0c0c0;
-        border: none;
-      }
-    </style>
-    <!-- /Header -->
-  </head>
-<body class="logs-body">
+<head>
+  <!-- Header -->
+  <?php include('header.php'); ?>
+  <style>
+    .logs-container {
+      display: flex;
+      flex-direction: row;
+      padding: 20px;
+      height: 800px;
+    }
+    .logs-sidebar {
+      width: 300px;
+      padding-right: 20px;
+    }
+    .logs-log-area {
+      flex-grow: 1;
+      background-color: #333;
+      padding: 20px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+    }
+    .logs-log-content {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .logs-log-content textarea {
+      width: 100%;
+      flex-grow: 1;
+      resize: none;
+      background-color: #1e1e1e;
+      color: #c0c0c0;
+      border: none;
+      padding: 10px;
+      font-family: monospace;
+    }
+    .logs-title {
+      color: #485fc7;
+      text-align: center;
+      font-size: 34px;
+    }
+    .logs-options {
+      margin-bottom: 20px;
+    }
+    .logs-select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      background-color: #333;
+      color: #c0c0c0;
+      border: none;
+    }
+  </style>
+  <!-- /Header -->
+</head>
+<body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
@@ -132,7 +169,7 @@ if(isset($_GET['logType'])) {
       <h2 class="logs-title">Logs</h2>
       <div>
         <label for="logs-select">Select a log to view:</label>
-        <select id="logs-select" class="logs-select" onchange="changeLogType(this.value)">
+        <select id="logs-select" class="logs-select" onchange="updateLog(this.value)">
           <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
           <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
           <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
@@ -191,25 +228,27 @@ async function autoupdateLog(){
     }
 }
 
-async function updateLog(event){
-    const logname = event.target.value;
+async function updateLog(logname){
+    console.log('Changing log type to:', logname);
     last_line = 0;
     var logtext = document.getElementById("logs-log-textarea");
     var logtitle = document.getElementById("logs-log-name");
-    logtitle.innerHTML = event.target.options[event.target.selectedIndex].text;
+    logtitle.innerHTML = logname.charAt(0).toUpperCase() + logname.slice(1) + ' Logs';
     // Fetch Log Data
     let response = await fetch(`logs.php?log=${logname}`);
     let json = await response.json();
     if(json["data"].length == 0){
-        text = "(log is empty)";
+        logtext.innerHTML = "(log is empty)";
+    } else {
+        last_line = json["last_line"];
+        logtext.innerHTML = json["data"];
     }
-    last_line = json["last_line"];
-    logtext.innerHTML = json["data"];
     logtext.scrollTop = logtext.scrollHeight;
 }
 
-const logselect = document.getElementById("logs-select");
-logselect.addEventListener('change', e => updateLog(e));
+document.getElementById("logs-select").addEventListener('change', (event) => {
+    updateLog(event.target.value);
+});
 
 // Every 10 secs see if we need to fetch more log file
 setInterval(autoupdateLog, 10000);
