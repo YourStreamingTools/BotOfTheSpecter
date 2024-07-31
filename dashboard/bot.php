@@ -119,6 +119,7 @@ if ($ModStatusOutput) {
   <br>
   <?php echo $BotModMessage; ?>
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
+  <br>
   <div class="columns is-desktop is-multiline box-container">
     <div class="column is-two-fifths bot-box" id="bot-status">
       <h4 class="title is-4">Stable Bot:</h4>
