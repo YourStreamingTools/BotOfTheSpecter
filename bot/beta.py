@@ -1244,6 +1244,30 @@ class BotOfTheSpecter(twitch_commands.Bot):
 
     @twitch_commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
+        if await command_permissions(ctx.author):
+            sqldb = await get_mysql_connection()
+            try:
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("version",))
+                    result = await cursor.fetchone()
+                    if result:
+                        status = result[0]
+                        if status == 'Disabled':
+                            return
+                    chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
+                    await ctx.send("Stream status has been forcibly set to online.")
+                    await process_stream_online()
+            except Exception as e:
+                chat_logger.error(f"Error in forceonline_command: {e}")
+                await ctx.send(f"An error occurred while executing the command. {e}")
+            finally:
+                await sqldb.ensure_closed()
+        else:
+            chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+
+    @twitch_commands.command(name='forceoffline')
+    async def forceoffline_command(self, ctx):
         global stream_online
         global current_game
         if await command_permissions(ctx.author):
@@ -1256,16 +1280,16 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         status = result[0]
                         if status == 'Disabled':
                             return
-                    chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
-                    stream_online = True
-                    await ctx.send("Stream status has been forcibly set to online.")
+                    chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
+                    await ctx.send("Stream status has been forcibly set to offline.")
+                    await process_stream_offline()
             except Exception as e:
-                chat_logger.error(f"Error in force_online_command: {e}")
+                chat_logger.error(f"Error in forceoffline_command: {e}")
                 await ctx.send(f"An error occurred while executing the command. {e}")
             finally:
                 await sqldb.ensure_closed()
         else:
-            chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
+            chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @twitch_commands.command(name='version')
@@ -3489,7 +3513,6 @@ async def process_stream_online():
     stream_online = True
     bot_logger.info(f"Stream is now online!")
     asyncio.get_event_loop().create_task(timed_message())
-
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
         headers = {
@@ -3502,7 +3525,6 @@ async def process_stream_online():
         }
         async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
             data = await response.json()
-
     # Extract necessary data from the API response
     if data.get('data'):
         current_game = data['data'][0].get('game_name', None)
@@ -3510,12 +3532,10 @@ async def process_stream_online():
     else:
         current_game = None
         image_data = None
-
     if image_data:
         image = image_data.replace("{width}", "1280").replace("{height}", "720")
     else:
         image = ""
-
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_online_message(message)
