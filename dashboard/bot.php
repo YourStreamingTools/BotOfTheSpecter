@@ -179,29 +179,40 @@ if ($ModStatusOutput) {
     </div>
     <div class="column is-two-fifths bot-box">
       <h4 class="title is-4">Stream Online/Offline:</h4>
-      <button class="button is-primary" onclick="sendStreamOnlineEvent()">Online</button>
+      <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
       <br>
-      <button class="button is-danger" onclick="sendStreamOfflineEvent()">Offline</button>
+      <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
     </div>
     <?php } ?>
   </div>
 </div>
 
 <script>
-  window.addEventListener('error', function(event) {
-    console.error('Error message:', event.message);
-    console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
-  });
+window.addEventListener('error', function(event) {
+  console.error('Error message:', event.message);
+  console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
+});
 
-  function sendStreamOnlineEvent() {
-    shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_ONLINE");
-    console.log('STREAM_ONLINE event sent successfully.');
-  }
-
-  function sendStreamOfflineEvent() {
-    shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_OFFLINE");
-    console.log('STREAM_OFFLINE event sent successfully.');
-  }
+function sendStreamEvent(eventType) {
+  const xhr = new XMLHttpRequest();
+  const url = 'notify_event.php';
+  const params = `event=${eventType}`;
+  xhr.open("POST", url, true);
+  xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4 && xhr.status === 200) {
+      const response = JSON.parse(xhr.responseText);
+      if (response.success) {
+        console.log(`${eventType} event sent successfully.`);
+      } else {
+        console.error(`Error sending ${eventType} event: ${response.message}`);
+      }
+    } else if (xhr.readyState === 4) {
+      console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
+    }
+  };
+  xhr.send(params);
+}
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
