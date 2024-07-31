@@ -98,7 +98,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
         <span>
             At YourStreamingTools, we believe businesses have a critically important role in combating climate change. 
             As the team behind BotOfTheSpecter, we're dedicated to making a positive impact on the environment. 
-            We’re proud to fund next-generation carbon removal efforts. To support this cause, we're contributing 1% of our revenue to carbon removal. 
+            We're proud to fund next-generation carbon removal efforts. To support this cause, we're contributing 1% of our revenue to carbon removal. 
             <a href="https://climate.stripe.com/tPEkBr" target="_blank">Learn more</a>
         </span>
     </h2>
