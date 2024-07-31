@@ -102,6 +102,11 @@
                     deathOverlay.style.display = 'none';
                 }, 11000);
             });
+
+            // Log all events
+            socket.onAny((event, ...args) => {
+                console.log(`Event: ${event}`, args);
+            });
         });
     </script>
 </head>
