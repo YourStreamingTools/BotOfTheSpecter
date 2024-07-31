@@ -188,20 +188,20 @@ if ($ModStatusOutput) {
 </div>
 
 <script>
-window.addEventListener('error', function(event) {
-  console.error('Error message:', event.message);
-  console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
-});
+  window.addEventListener('error', function(event) {
+    console.error('Error message:', event.message);
+    console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
+  });
 
-function sendStreamOnlineEvent() {
-  shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_ONLINE");
-  console.log('STREAM_ONLINE event sent successfully.');
-}
+  function sendStreamOnlineEvent() {
+    shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_ONLINE");
+    console.log('STREAM_ONLINE event sent successfully.');
+  }
 
-function sendStreamOfflineEvent() {
-  shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_OFFLINE");
-  console.log('STREAM_OFFLINE event sent successfully.');
-}
+  function sendStreamOfflineEvent() {
+    shell_exec("curl -X GET https://websocket.botofthespecter.com:8080/notify?code=<?php echo $api_key;?>&event=STREAM_OFFLINE");
+    console.log('STREAM_OFFLINE event sent successfully.');
+  }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
