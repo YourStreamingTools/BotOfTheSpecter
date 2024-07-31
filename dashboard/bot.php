@@ -149,9 +149,33 @@ if ($ModStatusOutput) {
       </div>
     </div>
     <?php } ?>
+    <div class="bot-box" id="discord-bot-status">
+      <h4 class="title is-4">Discord Bot:</h4>
+      <?php echo $discordStatusOutput; ?>
+      <?php echo $discordVersionRunning; ?>
+      <br>
+      <div class="buttons">
+        <form action="" method="post">
+          <button class="button is-danger" type="submit" name="killDiscordBot">Stop Discord Bot</button>
+        </form>
+        <form action="" method="post">
+          <button class="button is-success" type="submit" name="runDiscordBot">Run Discord Bot</button>
+        </form>
+        <form action="" method="post">
+          <button class="button is-warning" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
+        </form>
+        <br>
+      </div>
+    </div>
   </div>
 </div>
 
+<script>
+  window.addEventListener('error', function(event) {
+    console.error('Error message:', event.message);
+    console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
+  });
+</script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
 </html>
