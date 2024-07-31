@@ -196,7 +196,7 @@ window.addEventListener('error', function(event) {
 function sendStreamEvent(eventType) {
   const xhr = new XMLHttpRequest();
   const url = 'notify_event.php';
-  const params = `event=${eventType}`;
+  const params = `event=${eventType}&api_key=<?php echo $api_key; ?>`;
   xhr.open("POST", url, true);
   xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
   xhr.onreadystatechange = function () {
