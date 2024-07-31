@@ -176,11 +176,10 @@ if ($ModStatusOutput) {
       </div>
     </div>
     <div class="column is-two-fifths bot-box">
-      <h4 class="title is-4">Stream Online/Offline:</h4><br>
-      <div class="buttons">
-        <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
-        <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
-      </div>
+      <h4 class="title is-4">Mark Stream as Online:</h4>
+      <div class="buttons"><button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button></div>
+      <h4 class="title is-4">Mark Stream as Offline:</h4>
+      <div class="buttons"><button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button></div>
       <br>
     </div>
     <?php } ?>
