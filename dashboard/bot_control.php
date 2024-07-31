@@ -36,38 +36,38 @@ $discordDirectory = dirname($discordLogPath);
 // Check if directories exist, if not, create them
 if (!file_exists($directory)) {
     if (!mkdir($directory, 0777, true)) {
-        echo "Failed to create directory: $directory";
+        echo "<script>console.error('Failed to create directory: $directory');</script>";
         exit;
     }
 }
 if (!file_exists($betaDirectory)) {
     if (!mkdir($betaDirectory, 0777, true)) {
-        echo "Failed to create directory: $betaDirectory";
+        echo "<script>console.error('Failed to create directory: $betaDirectory');</script>";
         exit;
     }
 }
 if (!file_exists($discordDirectory)) {
     if (!mkdir($discordDirectory, 0777, true)) {
-        echo "Failed to create directory: $discordDirectory";
+        echo "<script>console.error('Failed to create directory: $discordDirectory');</script>";
         exit;
     }
 }
 
 // Open and close the log files to ensure they exist
 if (($file = fopen($logPath, 'w')) === false) {
-    echo "Failed to create/open the file: $logPath";
+    echo "<script>console.error('Failed to create/open the file: $logPath');</script>";
     exit;
 }
 fclose($file);
 
 if (($file = fopen($BetaLogPath, 'w')) === false) {
-    echo "Failed to create/open the file: $BetaLogPath";
+    echo "<script>console.error('Failed to create/open the file: $BetaLogPath');</script>";
     exit;
 }
 fclose($file);
 
 if (($file = fopen($discordLogPath, 'w')) === false) {
-    echo "Failed to create/open the file: $discordLogPath";
+    echo "<script>console.error('Failed to create/open the file: $discordLogPath');</script>";
     exit;
 }
 fclose($file);
