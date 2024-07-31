@@ -162,7 +162,7 @@ class BotOfTheSpecter(commands.Bot):
         self.discord_token = discord_token
         self.channel_name = channel_name
         self.logger = discord_logger
-        self.http._HTTPClient__session = LoggingClientSession(logger=self.logger)
+        self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
