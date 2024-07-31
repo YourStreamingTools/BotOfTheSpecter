@@ -89,23 +89,23 @@ if(isset($_GET['logType'])) {
   </div>
   <div id="bot" class="log-content <?php echo $logType === 'bot' ? 'is-active' : ''; ?>">
     <h3 class="title is-5">Bot Logs</h3>
-    <pre><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'bot' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
   </div>
   <div id="discord" class="log-content <?php echo $logType === 'discord' ? 'is-active' : ''; ?>">
     <h3 class="title is-5">Discord Bot Logs</h3>
-    <pre><?php echo $logType === 'discord' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'discord' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
   </div>
   <div id="chat" class="log-content <?php echo $logType === 'chat' ? 'is-active' : ''; ?>">
     <h3 class="title is-5">Chat Logs</h3>
-    <pre><?php echo $logType === 'chat' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'chat' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
   </div>
   <div id="twitch" class="log-content <?php echo $logType === 'twitch' ? 'is-active' : ''; ?>">
     <h3 class="title is-5">Twitch Logs</h3>
-    <pre><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'twitch' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
   </div>
   <div id="api" class="log-content <?php echo $logType === 'api' ? 'is-active' : ''; ?>">
     <h3 class="title is-5">API Logs</h3>
-    <pre><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></pre>
+    <textarea onscroll="textareaScroll();" readonly><?php echo $logType === 'api' ? htmlspecialchars($logContent) : 'Loading. Please wait.'; ?></textarea>
   </div>
 </div>
 <script>
