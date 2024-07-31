@@ -266,7 +266,7 @@ function killBot($pid) {
 // Display running versions if bots are running
 $versionRunning = '';
 $betaVersionRunning = '';
-$discordVersionRunning = '';
+$discordRunning = '';
 
 if ($botSystemStatus) {
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
@@ -277,9 +277,9 @@ if ($betaBotSystemStatus) {
 }
 
 if ($discordBotSystemStatus) {
-    $discordVersionRunning = "<div class='status-message'>Discord bot is running.</div>";
+    $discordRunning = "<div class='status-message'>Discord bot is running.</div>";
 } else {
-    $discordVersionRunning = "<div class='status-message error'>Discord bot is NOT RUNNING.</div>";
+    $discordRunning = "<div class='status-message error'>Discord bot is NOT RUNNING.</div>";
 }
 
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
