@@ -28,6 +28,7 @@ $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
+$api_key = $user['api_key'];
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
 $timezone = 'Australia/Sydney';
@@ -67,65 +68,146 @@ if(isset($_GET['logType'])) {
   <head>
     <!-- Header -->
     <?php include('header.php'); ?>
+    <style>
+      .logs-container {
+        display: flex;
+        flex-direction: row;
+        padding: 20px;
+        height: 100%;
+      }
+      .logs-sidebar {
+        width: 300px;
+        padding-right: 20px;
+      }
+      .logs-log-area {
+        flex-grow: 1;
+        background-color: #333;
+        padding: 20px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+      }
+      .logs-log-content textarea {
+        width: 100%;
+        flex-grow: 1;
+        resize: none;
+        background-color: #1e1e1e;
+        color: #c0c0c0;
+        border: none;
+        padding: 10px;
+        font-family: monospace;
+      }
+      .logs-title {
+        color: #485fc7;
+        text-align: center;
+        font-size: 34px;
+      }
+      .logs-options {
+        margin-bottom: 20px;
+      }
+      .logs-select {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        background-color: #333;
+        color: #c0c0c0;
+        border: none;
+      }
+    </style>
     <!-- /Header -->
   </head>
 <body class="logs-body">
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
-<div class="logs-container">
-  <div class="logs-sidebar">
-    <h2 class="logs-title">Logs</h2>
-    <div>
-      <label for="logType">Select a log to view:</label>
-      <select id="logs-logType" class="logs-select" onchange="changeLogType(this.value)">
-        <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
-        <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
-        <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
-        <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>>Twitch Log</option>
-        <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>>API Log</option>
-      </select>
+
+<div class="container">
+  <div class="logs-container">
+    <div class="logs-sidebar">
+      <h2 class="logs-title">Logs</h2>
+      <div>
+        <label for="logs-select">Select a log to view:</label>
+        <select id="logs-select" class="logs-select" onchange="changeLogType(this.value)">
+          <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
+          <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
+          <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
+          <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>>Twitch Log</option>
+          <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>>API Log</option>
+        </select>
+      </div>
+      <div class="logs-options">
+        <input type="checkbox" id="logs-autoUpdate" checked> Auto Update 10 secs<br>
+        <input type="checkbox" id="logs-scrollBottom" checked> Scroll To Bottom<br>
+        Times are in GMT+10
+      </div>
     </div>
-    <div class="logs-options">
-      <input type="checkbox" id="logs-autoUpdate" checked> Auto Update 10 secs<br>
-      <input type="checkbox" id="logs-scrollBottom" checked> Scroll To Bottom<br>
-      Times are in GMT+10
-    </div>
-  </div>
-  <div class="logs-log-area">
-    <div id="logs-logDisplay" class="logs-log-content">
-      <h3 class="logs-title"><?php echo ucfirst($logType); ?> Logs</h3>
-      <textarea readonly><?php echo htmlspecialchars($logContent); ?></textarea>
+    <div class="logs-log-area">
+      <div id="logs-logDisplay" class="logs-log-content">
+        <h3 class="logs-title" id="logs-log-name"><?php echo ucfirst($logType); ?> Logs</h3>
+        <textarea id="logs-log-textarea" onscroll="textareaScroll();" readonly><?php echo htmlspecialchars($logContent); ?></textarea>
+      </div>
     </div>
   </div>
 </div>
+
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const logType = "<?php echo $logType; ?>";
-    const logContentArea = document.querySelector('.logs-log-content textarea');
-    function updateLogContent() {
-      if (document.getElementById('logs-autoUpdate').checked) {
-        fetch(`?logType=${logType}`)
-          .then(response => response.text())
-          .then(data => {
-            const parser = new DOMParser();
-            const htmlDoc = parser.parseFromString(data, 'text/html');
-            const newLogContent = htmlDoc.querySelector('.logs-log-content textarea').value;
-            logContentArea.value = newLogContent;
-            if (document.getElementById('logs-scrollBottom').checked) {
-              logContentArea.scrollTop = logContentArea.scrollHeight;
-            }
-          });
-      }
+var last_line = 0;
+function textareaScroll(){
+    let logtext = document.getElementById("logs-log-textarea");
+    const tail = document.getElementById("logs-scrollBottom");
+    const bottom = logtext.scrollHeight - logtext.offsetHeight + 4;
+    // If scroll is at the bottom, recheck tail checkbox
+    if(logtext.scrollTop == bottom){
+        tail.checked = true;
+    }else{
+        tail.checked = false;
     }
-    setInterval(updateLogContent, 10000);
-    document.getElementById('logs-logType').addEventListener('change', (event) => {
-        changeLogType(event.target.value);
-    });
-  });
-  function changeLogType(logType) {
-    window.location.href = `?logType=${logType}`;
-  }
+}
+
+async function autoupdateLog(){
+    const check = document.getElementById("logs-autoUpdate");
+    const tail = document.getElementById("logs-scrollBottom");
+    let logtext = document.getElementById("logs-log-textarea");
+    const logselect = document.getElementById("logs-select");
+    if(check.checked && logselect.selectedIndex >= 0){
+        const logname = logselect.value;
+        // Fetch Log Data
+        let response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
+        let json = await response.json();
+        last_line = json["last_line"];
+        if(last_line == 0){
+            logtext.innerHTML = json["data"];
+        }else{
+            logtext.innerHTML = logtext.innerHTML + json["data"];
+        }
+        if(tail.checked){
+            logtext.scrollTop = logtext.scrollHeight;
+        }
+    }
+}
+
+async function updateLog(event){
+    const logname = event.target.value;
+    last_line = 0;
+    var logtext = document.getElementById("logs-log-textarea");
+    var logtitle = document.getElementById("logs-log-name");
+    logtitle.innerHTML = event.target.options[event.target.selectedIndex].text;
+    // Fetch Log Data
+    let response = await fetch(`logs.php?log=${logname}`);
+    let json = await response.json();
+    if(json["data"].length == 0){
+        text = "(log is empty)";
+    }
+    last_line = json["last_line"];
+    logtext.innerHTML = json["data"];
+    logtext.scrollTop = logtext.scrollHeight;
+}
+
+const logselect = document.getElementById("logs-select");
+logselect.addEventListener('change', e => updateLog(e));
+
+// Every 10 secs see if we need to fetch more log file
+setInterval(autoupdateLog, 10000);
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
