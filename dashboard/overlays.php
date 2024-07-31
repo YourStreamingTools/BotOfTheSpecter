@@ -68,7 +68,7 @@ include 'sqlite.php';
         </div>
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Death Overlay:</h4>
+                <h4 class="title is-4">Death Overlay Only:</h4>
                 <p><em>Display only the death overlay when the death commands are triggered in chat:
                     <br>"!deaths", "!deathadd", and "!deathremove".
                     <br>For best results, set Width to 450 and Height to 350:</em></p>
