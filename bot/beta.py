@@ -3519,6 +3519,7 @@ async def process_stream_online():
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_online_message(message)
+    await websocket_notice(event="STREAM_ONLINE")
     await send_to_discord_stream_online(message, image)
 
 async def process_stream_offline():
@@ -3526,6 +3527,7 @@ async def process_stream_offline():
     stream_online = False  # Update the stream status
     await clear_seen_today()
     await clear_credits_data()
+    await websocket_notice(event="STREAM_OFFLINE")
     bot_logger.info(f"Stream is now offline.")
 
 # Function to send the online message to channel
