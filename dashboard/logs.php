@@ -73,7 +73,7 @@ if(isset($_GET['logType'])) {
         display: flex;
         flex-direction: row;
         padding: 20px;
-        height: 100%;
+        height: 800px;
       }
       .logs-sidebar {
         width: 300px;
@@ -84,6 +84,11 @@ if(isset($_GET['logType'])) {
         background-color: #333;
         padding: 20px;
         border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+      }
+      .logs-log-content {
+        flex-grow: 1;
         display: flex;
         flex-direction: column;
       }
