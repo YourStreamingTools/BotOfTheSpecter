@@ -161,7 +161,7 @@ if ($ModStatusOutput) {
     <div class="column is-two-fifths bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?>
-      <?php echo $discordVersionRunning; ?><br>
+      <?php echo $discordRunning; ?><br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killDiscordBot">Stop Discord Bot</button>
