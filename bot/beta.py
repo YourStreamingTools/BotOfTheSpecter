@@ -23,7 +23,6 @@ from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands as twitch_commands
 import streamlink
-import pyowm
 import pytz
 from jokeapi import Jokes
 import openai
