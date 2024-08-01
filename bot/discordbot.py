@@ -44,6 +44,8 @@ class Config:
         self.live_channel_id = None
         self.guild_id = None
         self.api_token = None
+        self.online_text = None
+        self.offline_text = None
 
 config = Config()
 
