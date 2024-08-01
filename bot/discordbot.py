@@ -69,7 +69,7 @@ async def get_mysql_connection(logger):
         logger.error(f"Error connecting to MySQL: {e}")
         return None
 
-# Fetch admin user ID, live channel ID, and guild ID from the database
+# Fetch admin user ID, live channel ID, guild ID, online text, and offline text from the database
 async def fetch_discord_details(username, logger):
     connection = await get_mysql_connection(logger)
     if connection is None:
@@ -78,7 +78,7 @@ async def fetch_discord_details(username, logger):
     try:
         async with connection.cursor() as cursor:
             await cursor.execute("""
-                SELECT du.discord_id, du.live_channel_id, du.guild_id
+                SELECT du.discord_id, du.live_channel_id, du.guild_id, du.online_text, du.offline_text
                 FROM discord_users du
                 JOIN users u ON du.user_id = u.id
                 WHERE u.username = %s
@@ -86,10 +86,12 @@ async def fetch_discord_details(username, logger):
             result = await cursor.fetchone()
         await connection.ensure_closed()
         if result:
-            logger.info(f"Fetched details from DB: discord_id={result[0]}, live_channel_id={result[1]}, guild_id={result[2]}")
+            logger.info(f"Fetched details from DB: discord_id={result[0]}, live_channel_id={result[1]}, guild_id={result[2]}, online_text={result[3]}, offline_text={result[4]}")
             config.admin_user_id = result[0]
             config.live_channel_id = result[1]
             config.guild_id = result[2]
+            config.online_text = result[3]
+            config.offline_text = result[4]
         else:
             logger.error("No results found for discord details")
     except Exception as e:
@@ -174,6 +176,7 @@ class BotOfTheSpecter(commands.Bot):
     async def update_channel_status(self, channel_id: int, status: str):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {config.guild_id}.')
         try:
+            await fetch_discord_details(self.channel_name, self.logger) 
             guild = await self.fetch_guild(config.guild_id)
             self.logger.info(f'Fetched guild: {guild}')
             if guild is None:
@@ -190,9 +193,9 @@ class BotOfTheSpecter(commands.Bot):
                     self.logger.error(f'Error fetching channel from API: {e}')
                     return
             if status == "offline":
-                await self.set_channel_name(channel, f"🔴 I'm not live")
+                await self.set_channel_name(channel, f"🔴 {config.offline_text}")
             elif status == "online":
-                await self.set_channel_name(channel, f"🟢 I'm live!")
+                await self.set_channel_name(channel, f"🟢 {config.online_text}")
         except discord.HTTPException as e:
             self.logger.error(f'Error fetching guild with ID {config.guild_id}: {e}')
 
