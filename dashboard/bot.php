@@ -177,9 +177,15 @@ if ($ModStatusOutput) {
     </div>
     <div class="column is-two-fifths bot-box">
       <h4 class="title is-4">Mark Stream as Online:</h4>
-      <div class="buttons"><button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button></div>
+      <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
+        <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
+        <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
+      </div>
       <h4 class="title is-4">Mark Stream as Offline:</h4>
-      <div class="buttons"><button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button></div>
+      <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
+        <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
+        <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
+      </div>
       <br>
     </div>
     <?php } ?>
@@ -212,6 +218,7 @@ function sendStreamEvent(eventType) {
         const response = JSON.parse(xhr.responseText);
         if (response.success) {
           console.log(`${eventType} event sent successfully.`);
+          showTooltip(eventType);
         } else {
           console.error(`Error sending ${eventType} event: ${response.message}`);
         }
@@ -224,6 +231,17 @@ function sendStreamEvent(eventType) {
     }
   };
   xhr.send(params);
+}
+
+function showTooltip(eventType) {
+  const tooltipId = eventType === 'STREAM_ONLINE' ? 'onlineTooltip' : 'offlineTooltip';
+  const tooltip = document.getElementById(tooltipId);
+  tooltip.style.visibility = 'visible';
+  tooltip.style.opacity = '1';
+  setTimeout(() => {
+    tooltip.style.visibility = 'hidden';
+    tooltip.style.opacity = '0';
+  }, 2000);
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
