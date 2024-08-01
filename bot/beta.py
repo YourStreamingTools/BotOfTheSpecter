@@ -122,7 +122,6 @@ chat_history_logger = setup_logger('chat_history', chat_history_log_file)
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
 translator = GoogleTranslator
-shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
 sio = socketio.AsyncClient()
 openai.api_key = OPENAI_KEY
@@ -134,8 +133,8 @@ last_poll_progress_update = 0
 global stream_online
 global current_game
 global stream_title
-global botstarted
-botstarted = datetime.now()
+global bot_started
+bot_started = datetime.now()
 stream_online = False
 current_game = None
 
@@ -1303,8 +1302,8 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                global botstarted
-                uptime = datetime.now() - botstarted
+                global bot_started
+                uptime = datetime.now() - bot_started
                 uptime_days = uptime.days
                 uptime_hours, remainder = divmod(uptime.seconds, 3600)
                 uptime_minutes, _ = divmod(remainder, 60)
@@ -2863,9 +2862,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     chat_logger.info(shoutout_message)
                     await ctx.send(shoutout_message)
                     # Trigger the Twitch shoutout
-                    if not await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
-                        chat_logger.error("Failed to trigger Twitch shoutout.")
-                        await ctx.send("An error occurred while triggering the Twitch shoutout.")
+                    asyncio.create_task(trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id))
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
@@ -3417,53 +3414,34 @@ async def get_game_id(game_name):
     twitch_logger.error(f"Game '{game_name}' not found.")
     raise GameNotFoundException(f"Game '{game_name}' not found.")
 
-# Function to trigger a twitch shoutout via Twitch API
-async def trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
+# Function to trigger a Twitch shoutout via Twitch API
+async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
+    url = 'https://api.twitch.tv/helix/chat/shoutouts'
+    headers = {
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Client-ID": CLIENT_ID,
+    }
+    payload = {
+        "from_broadcaster_id": CHANNEL_ID,
+        "to_broadcaster_id": mentioned_user_id,
+        "moderator_id": CHANNEL_ID
+    }
     try:
-        # Add the shoutout request to the queue
-        await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
-        # Check if the queue is empty and no shoutout is currently being processed
-        if shoutout_queue.qsize() == 1:
-            await process_shoutouts(shoutout_queue)
-        return True
-    except Exception as e:
-        twitch_logger.error(f"Error in trigger_twitch_shoutout: {e}")
-        return False
-
-async def process_shoutouts(shoutout_queue):
-    while not shoutout_queue.empty():
-        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
-        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
-        url = 'https://api.twitch.tv/helix/chat/shoutouts'
-        headers = {
-            "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-ID": CLIENT_ID,
-        }
-        payload = {
-            "from_broadcaster_id": CHANNEL_ID,
-            "to_broadcaster_id": mentioned_user_id,
-            "moderator_id": CHANNEL_ID
-        }
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status == 429:
-                        # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
-                        retry_after = 180  # 3 minutes in seconds
-                        twitch_logger.error(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
-                        await asyncio.sleep(retry_after)
-                        continue  # Retry the request
-                    elif response.status in (200, 204):
-                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
-                        await asyncio.sleep(180)  # Wait for 3 minutes before processing the next shoutout
-                    else:
-                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-                        # Retry the request (exponential backoff can be implemented here)
-                        await asyncio.sleep(5)  # Wait for 5 seconds before retrying
-                        continue
-                    await shoutout_queue.task_done()
-        except aiohttp.ClientError as e:
-            twitch_logger.error(f"Error triggering shoutout: {e}")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status == 429:
+                    # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
+                    retry_after = 180  # 3 minutes in seconds
+                    twitch_logger.error(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
+                    await asyncio.sleep(retry_after)
+                elif response.status in (200, 204):
+                    twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                else:
+                    twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+        # Wait for 3 minutes before ending the task
+        await asyncio.sleep(180)
+    except aiohttp.ClientError as e:
+        twitch_logger.error(f"Error triggering shoutout: {e}")
 
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     headers = {
