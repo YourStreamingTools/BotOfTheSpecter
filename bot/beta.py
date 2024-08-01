@@ -886,7 +886,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
                                     if user_mention:
-                                        user_name = user_mention
+                                        user_name = user_mention.group(1)
                                     else:
                                         # Default to message author's name
                                         user_name = messageAuthor
