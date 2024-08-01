@@ -3429,12 +3429,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=payload) as response:
-                if response.status == 429:
-                    # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
-                    retry_after = 180  # 3 minutes in seconds
-                    twitch_logger.error(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
-                    await asyncio.sleep(retry_after)
-                elif response.status in (200, 204):
+                if response.status in (200, 204):
                     twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
                 else:
                     twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
