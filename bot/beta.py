@@ -4113,7 +4113,7 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
         # URL-encode the parameters
         encoded_params = urlencode(params)
         url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
-        bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        #bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
         async with session.get(url) as response:
             if response.status == 200:
                 bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
