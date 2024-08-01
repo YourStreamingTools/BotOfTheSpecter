@@ -42,10 +42,10 @@ include 'sqlite.php';
 
 $logContent = 'Loading Please Wait';
 $logType = 'bot';  // Default log type
-if(isset($_GET['logType'])) {
+if (isset($_GET['logType'])) {
   $logType = $_GET['logType'];
   $logPath = "/var/www/logs/$logType/$username.txt";
-  if(file_exists($logPath)) {
+  if (file_exists($logPath)) {
     // Read the file in reverse
     $file = new SplFileObject($logPath);
     $file->seek(PHP_INT_MAX); // Move to the end of the file
@@ -69,32 +69,25 @@ if(isset($_GET['logType'])) {
 // Check if it's an AJAX request
 if (isset($_GET['log'])) {
   header('Content-Type: application/json');
-
   $logType = $_GET['log'];
   $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
-
   $logPath = "/var/www/logs/$logType/$username.txt";
-
   if (!file_exists($logPath)) {
       echo json_encode(['error' => 'Log file does not exist']);
       exit();
   }
-
   $file = new SplFileObject($logPath);
   $file->seek(PHP_INT_MAX);
   $linesTotal = $file->key();
   $startLine = max(0, $linesTotal - 200);
-
   if ($since > 0) {
       $startLine = $since;
   }
-
   $logLines = [];
   $file->seek($startLine);
   while (!$file->eof()) {
       $logLines[] = $file->fgets();
   }
-
   $logContent = implode("", array_reverse($logLines));
   echo json_encode(['last_line' => $linesTotal, 'data' => htmlspecialchars($logContent)]);
   exit();
@@ -169,7 +162,7 @@ if (isset($_GET['log'])) {
       <h2 class="logs-title">Logs</h2>
       <div>
         <label for="logs-select">Select a log to view:</label>
-        <select id="logs-select" class="logs-select" onchange="updateLog(this.value)">
+        <select id="logs-select" class="logs-select">
           <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
           <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
           <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
@@ -184,7 +177,7 @@ if (isset($_GET['log'])) {
     <div class="logs-log-area">
       <div id="logs-logDisplay" class="logs-log-content">
         <h3 class="logs-title" id="logs-log-name"><?php echo ucfirst($logType); ?> Logs</h3>
-        <textarea id="logs-log-textarea" onscroll="textareaScroll();" readonly><?php echo htmlspecialchars($logContent); ?></textarea>
+        <textarea id="logs-log-textarea" readonly><?php echo htmlspecialchars($logContent); ?></textarea>
       </div>
     </div>
   </div>
@@ -192,49 +185,42 @@ if (isset($_GET['log'])) {
 
 <script>
 var last_line = 0;
-
-async function autoupdateLog(){
+async function autoupdateLog() {
     let logtext = document.getElementById("logs-log-textarea");
     const logselect = document.getElementById("logs-select");
-    if(logselect.selectedIndex >= 0){
+    if (logselect.selectedIndex >= 0) {
         const logname = logselect.value;
         // Fetch Log Data
         let response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
         let json = await response.json();
         last_line = json["last_line"];
-        if(last_line == 0){
+        if (last_line === 0) {
             logtext.innerHTML = json["data"];
-        }else{
-            logtext.innerHTML = logtext.innerHTML + json["data"];
+        } else {
+            logtext.innerHTML += json["data"];
         }
         logtext.scrollTop = logtext.scrollHeight;
     }
 }
-
-async function updateLog(logname){
-    console.log('Changing log type to:', logname);
-    last_line = 0;
-    var logtext = document.getElementById("logs-log-textarea");
-    var logtitle = document.getElementById("logs-log-name");
-    logtitle.innerHTML = logname.charAt(0).toUpperCase() + logname.slice(1) + ' Logs';
-    // Fetch Log Data
-    let response = await fetch(`logs.php?log=${logname}`);
-    let json = await response.json();
-    if(json["data"].length == 0){
-        logtext.innerHTML = "(log is empty)";
-    } else {
-        last_line = json["last_line"];
-        logtext.innerHTML = json["data"];
-    }
-    logtext.scrollTop = logtext.scrollHeight;
+async function updateLog(logname) {
+  console.log('Changing log type to:', logname);
+  last_line = 0;
+  var logtext = document.getElementById("logs-log-textarea");
+  var logtitle = document.getElementById("logs-log-name");
+  logtitle.innerHTML = logname.charAt(0).toUpperCase() + logname.slice(1) + ' Logs';
+  // Fetch Log Data
+  let response = await fetch(`logs.php?log=${logname}`);
+  let json = await response.json();
+  if (json["data"].length == 0) {
+    logtext.innerHTML = "(log is empty)";
+  } else {
+    last_line = json["last_line"];
+    logtext.innerHTML = json["data"];
+  }
 }
-
 document.getElementById("logs-select").addEventListener('change', (event) => {
-    updateLog(event.target.value);
+  updateLog(event.target.value);
 });
-
-// Every 10 secs see if we need to fetch more log file
-setInterval(autoupdateLog, 10000);
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
