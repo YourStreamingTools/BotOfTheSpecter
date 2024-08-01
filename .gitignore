@@ -21,8 +21,9 @@ app/BotOfTheSpecter.ui
 bot/phpmyadmin.txt
 bot/sql/*
 bot/test_websocket.py
-cdn/Thumbs.db
 websocket/service-account-file.json
 tts/*.mp3
 websocket/ips.txt
 walkons/*
+cdn/Thumbs.db
+cdn/emotes/Thumbs.db
