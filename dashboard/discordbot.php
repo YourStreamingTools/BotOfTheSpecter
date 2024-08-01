@@ -151,8 +151,9 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
     <h4 class="subtitle is-5">Thank you for linking your account.<br>
       We're constantly adding new Specter features to the Discord Bot, so keep an eye on the Discord server for updates.</h4>
     <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
-    <br><br><br>
+    <br>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>$buildStatus</p>"; } ?>
+    <br>
     <div class="columns is-desktop is-multiline">
       <!-- Webhook URL Form -->
       <div class="column is-two-fifths bot-box">
