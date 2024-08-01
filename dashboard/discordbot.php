@@ -50,48 +50,57 @@ $is_linked = ($discord_userResult->num_rows > 0);
 
 $buildStatus = "";
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (isset($_POST['option']) && isset($_POST['webhook'])) {
-        // Update webhook URL based on the selected option
-        $option = $_POST['option'];
-        $webhook = $_POST['webhook'];
-        $profile_key = "";
-        
-        switch ($option) {
-            case 'discord_alert':
-                $profile_key = "discord_alert";
-                break;
-            case 'discord_mod':
-                $profile_key = "discord_mod";
-                break;
-            case 'discord_alert_online':
-                $profile_key = "discord_alert_online";
-                break;
-            default:
-                $buildStatus = "Invalid option";
-                exit;
-        }
-
-        $stmt = $db->prepare("UPDATE profile SET $profile_key = :webhook");
-        $stmt->bindParam(':webhook', $webhook);
-        if ($stmt->execute()) {
-            $buildStatus = "Webhook URL updated successfully";
-        } else {
-            $buildStatus = "Error updating webhook URL: " . $stmt->errorInfo()[2];
-        }
-        $stmt->closeCursor();
-    } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id'])) {
-        // Update live_channel_id and guild_id
-        $live_channel_id = $_POST['live_channel_id'];
-        $guild_id = $_POST['guild_id'];
-        $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
-        $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
-        if ($stmt->execute()) {
-            $buildStatus = "Live Channel ID and Guild ID updated successfully";
-        } else {
-            $buildStatus = "Error updating Live Channel ID and Guild ID: " . $stmt->error;
-        }
-        $stmt->close();
+  if (isset($_POST['option']) && isset($_POST['webhook'])) {
+    // Update webhook URL based on the selected option
+    $option = $_POST['option'];
+    $webhook = $_POST['webhook'];
+    $profile_key = "";
+    switch ($option) {
+      case 'discord_alert':
+        $profile_key = "discord_alert";
+        break;
+      case 'discord_mod':
+        $profile_key = "discord_mod";
+        break;
+      case 'discord_alert_online':
+        $profile_key = "discord_alert_online";
+        break;
+      default:
+        $buildStatus = "Invalid option";
+        exit;
     }
+    $stmt = $db->prepare("UPDATE profile SET $profile_key = :webhook");
+    $stmt->bindParam(':webhook', $webhook);
+    if ($stmt->execute()) {
+      $buildStatus = "Webhook URL updated successfully";
+    } else {
+      $buildStatus = "Error updating webhook URL: " . $stmt->errorInfo()[2];
+    }
+    $stmt->closeCursor();
+  } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id'])) {
+    // Update live_channel_id and guild_id
+    $live_channel_id = $_POST['live_channel_id'];
+    $guild_id = $_POST['guild_id'];
+    $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
+    $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
+    if ($stmt->execute()) {
+      $buildStatus = "Live Channel ID and Guild ID updated successfully";
+    } else {
+      $buildStatus = "Error updating Live Channel ID and Guild ID: " . $stmt->error;
+    }
+    $stmt->close();
+  } elseif (isset($_POST['online_text']) && isset($_POST['offline_text'])) {
+    $onlineText = $_POST['online_text'];
+    $offlineText = $_POST['offline_text'];
+    $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
+    $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
+    if ($stmt->execute()) {
+      $buildStatus = "Online and Offline Text has been updated successfully";
+    } else {
+      $buildStatus = "Error updating Online and OFfline Text: " . $stmt->error;
+    }
+    $stmt->close();
+  }
 }
 
 // Fetch existing webhook URLs
@@ -99,21 +108,23 @@ $webhookKeys = ['discord_alert', 'discord_mod', 'discord_alert_online'];
 $existingWebhooks = [];
 
 foreach ($webhookKeys as $key) {
-    $stmt = $db->prepare("SELECT $key FROM profile");
-    $stmt->execute();
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    $existingWebhooks[$key] = $result ? $result[$key] : "";
-    $stmt->closeCursor();
+  $stmt = $db->prepare("SELECT $key FROM profile");
+  $stmt->execute();
+  $result = $stmt->fetch(PDO::FETCH_ASSOC);
+  $existingWebhooks[$key] = $result ? $result[$key] : "";
+  $stmt->closeCursor();
 }
 
 // Fetch existing live_channel_id and guild_id
-$discord_userSTMT = $conn->prepare("SELECT live_channel_id, guild_id FROM discord_users WHERE user_id = ?");
+$discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
 $discord_userSTMT->bind_param("i", $user_id);
 $discord_userSTMT->execute();
 $discord_userResult = $discord_userSTMT->get_result();
 $discordData = $discord_userResult->fetch_assoc();
 $existingLiveChannelId = $discordData['live_channel_id'] ?? "";
 $existingGuildId = $discordData['guild_id'] ?? "";
+$existingOnlineText = $discordData['online_text'] ?? "";
+$existingOfflineText = $discordData['offline_text'] ?? "";
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -142,10 +153,10 @@ $existingGuildId = $discordData['guild_id'] ?? "";
     <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
     <br><br><br>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>$buildStatus</p>"; } ?>
-    <!-- Webhook URL Form -->
-    <h2 class="title is-4">Add Discord Webhook URLs</h2>
-    <div class="columns">
-      <div class="column is-half">
+    <div class="columns is-desktop is-multiline">
+      <!-- Webhook URL Form -->
+      <div class="column is-two-fifths bot-box">
+        <h2 class="title is-4">Add Discord Webhook URLs</h2>
         <form action="" method="post">
           <div class="field">
             <label class="label" for="option">Select an option:</label>
@@ -170,11 +181,9 @@ $existingGuildId = $discordData['guild_id'] ?? "";
           </div>
         </form>
       </div>
-    </div>
-    <!-- Live Channel ID and Guild ID Form -->
-    <h2 class="title is-4">Set Live Channel ID and Guild ID</h2>
-    <div class="columns">
-      <div class="column is-half">
+      <!-- Live Channel ID and Guild ID Form -->
+      <div class="column is-two-fifths bot-box">
+        <h2 class="title is-4">Set Live Channel ID and Guild ID</h2>
         <form action="" method="post">
           <div class="field">
             <label class="label" for="live_channel_id">Live Channel ID:</label>
@@ -188,6 +197,27 @@ $existingGuildId = $discordData['guild_id'] ?? "";
             <p>This is your discord Server/Guild ID</p>
             <div class="control">
               <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required>
+            </div>
+          </div>
+          <div class="control">
+            <button class="button is-primary" type="submit">Submit</button>
+          </div>
+        </form>
+      </div>
+      <!-- Online and Offline Text Updates -->
+      <div class="column is-two-fifths bot-box">
+        <h2 class="title is-4">Set Discord Channel Text</h2>
+        <form action="" method="post">
+          <div class="field">
+            <label class="label" for="online_text">Online Text:</label>
+            <div class="control">
+              <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" for="offline_text">Offline Text:</label>
+            <div class="control">
+              <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required>
             </div>
           </div>
           <div class="control">
