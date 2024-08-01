@@ -160,8 +160,7 @@ if ($ModStatusOutput) {
     <?php if ($guild_id && $live_channel_id) { ?>
     <div class="column is-two-fifths bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
-      <?php echo $discordStatusOutput; ?>
-      <?php echo $discordRunning; ?><br>
+      <?php echo $discordStatusOutput; ?><br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger" type="submit" name="killDiscordBot">Stop Discord Bot</button>
