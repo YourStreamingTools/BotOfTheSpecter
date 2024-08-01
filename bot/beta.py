@@ -4104,6 +4104,9 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             else:
                 bot_logger.error(f"Event '{event}' requires both 'death' and 'game' parameters")
                 return
+        elif event in ["STREAM_ONLINE", "STREAM_OFFLINE"]:
+            # No additional parameters required for STREAM_ONLINE and STREAM_OFFLINE
+            pass
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters")
             return
