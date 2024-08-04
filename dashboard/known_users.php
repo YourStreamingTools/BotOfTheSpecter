@@ -95,7 +95,7 @@ function getTwitchUserId($userToCheck, $accesstoken) {
   $response = curl_exec($ch);
   curl_close($ch);
   $data = json_decode($response, true);
-  return $data['data'][0]['id'];
+  return $data['data'][0]['id'] ?? null;
 }
 function isUserBanned($userToCheck, $accesstoken, $broadcaster) {
   $banned_url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=$broadcaster&user_id=$userToCheck";
@@ -150,7 +150,7 @@ function isUserBanned($userToCheck, $accesstoken, $broadcaster) {
       <?php foreach ($seenUsersData as $userData): ?>
         <?php 
           $userToCheckID = getTwitchUserId($userData['username'], $access_token);
-          $banned = isUserBanned($userToCheckID, $access_token, $broadcasterID) ? " (banned)" : "";
+          $banned = isUserBanned($userToCheckID, $access_token, $broadcasterID) ? " <em style='color:red'>(banned)</em>" : "";
           ?>
         <tr>
           <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; echo $banned; ?></td>
