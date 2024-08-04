@@ -215,7 +215,7 @@ function fetchBannedStatus(username, usernameElement) {
       }
     }
   };
-  xhr.send("username=" + encodeURIComponent(username));
+  xhr.send("usernameToCheck=" + encodeURIComponent(username));
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
