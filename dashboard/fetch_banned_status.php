@@ -11,12 +11,13 @@ if (!isset($_SESSION['access_token'])) {
 
 $access_token = $_SESSION['access_token'];
 $broadcasterID = $_SESSION['twitch_user_id'];
+$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
-function getTwitchUserId($username, $accessToken) {
+function getTwitchUserId($username, $accessToken, $clientID) {
     $url = "https://api.twitch.tv/helix/users?login=$username";
     $headers = [
         "Authorization: Bearer $accessToken",
-        "Client-Id: " . getenv('TWITCH_CLIENT_ID')
+        "Client-Id: $clientID"
     ];
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -32,11 +33,11 @@ function getTwitchUserId($username, $accessToken) {
     return $data['data'][0]['id'] ?? null;
 }
 
-function isUserBanned($userId, $accessToken, $broadcasterID) {
+function isUserBanned($userId, $accessToken, $broadcasterID, $clientID) {
     $url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=$broadcasterID&user_id=$userId";
     $headers = [
         "Authorization: Bearer $accessToken",
-        "Client-Id: " . getenv('TWITCH_CLIENT_ID')
+        "Client-Id: $clientID"
     ];
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -55,10 +56,10 @@ function isUserBanned($userId, $accessToken, $broadcasterID) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     $username = $_POST['usernameToCheck'];
     error_log("Received request to check banned status for $username");
-    $userId = getTwitchUserId($username, $access_token);
+    $userId = getTwitchUserId($username, $access_token, $clientID);
 
     if ($userId) {
-        $banned = isUserBanned($userId, $access_token, $broadcasterID);
+        $banned = isUserBanned($userId, $access_token, $broadcasterID, $clientID);
         error_log("$username (ID: $userId) banned status: " . ($banned ? "banned" : "not banned"));
         echo json_encode(['banned' => $banned]);
     } else {
