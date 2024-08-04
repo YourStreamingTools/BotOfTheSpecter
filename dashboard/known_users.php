@@ -43,6 +43,24 @@ $pid = '';
 include 'bot_control.php';
 include 'sqlite.php';
 
+// Fetch the total number of users in the seen_users table
+$totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users");
+$totalUsersSTMT->execute();
+$totalUsersResult = $totalUsersSTMT->fetch(PDO::FETCH_ASSOC);
+$totalUsers = $totalUsersResult['total_users'];
+
+// Cache for banned users
+$cacheExpiration = 600; // Cache expires after 10 minutes
+$cacheDirectory = "cache/$username";
+$cacheFile = "$cacheDirectory/bannedUsers.json";
+if (!is_dir($cacheDirectory)) {
+    mkdir($cacheDirectory, 0755, true);
+}
+$bannedUsersCache = [];
+if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
+    $bannedUsersCache = json_decode(file_get_contents($cacheFile), true);
+}
+
 // Handle POST requests for updates
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   if (isset($_POST['username']) && isset($_POST['status'])) {
@@ -91,7 +109,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <div id="loadingNoticeBox" class="notification is-warning">
-    <p id="loadingNotice">Please wait while we load the users and their status...</p>
+    <p id="loadingNotice">Please wait while we load the users and their status... (0/<?php echo $totalUsers; ?>)</p>
   </div>
   <div id="content" style="display: none;">
     <h2 class="title is-4">Known Users & Welcome Messages</h2>
@@ -158,6 +176,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
+const totalUsers = <?php echo $totalUsers; ?>;
+let loadedUsers = 0;
+
 document.addEventListener('DOMContentLoaded', function() {
   console.log('Document loaded. Initializing editing functionality...');
 
@@ -192,6 +213,8 @@ function fetchBannedStatuses() {
     const username = usernameElement.dataset.username;
     fetchBannedStatus(username, usernameElement, () => {
       remainingRequests--;
+      loadedUsers++;
+      updateLoadingNotice();
       if (remainingRequests === 0) {
         const loadingNoticeBox = document.getElementById('loadingNoticeBox');
         const loadingNotice = document.getElementById('loadingNotice');
@@ -205,6 +228,11 @@ function fetchBannedStatuses() {
       }
     });
   });
+}
+
+function updateLoadingNotice() {
+  const loadingNotice = document.getElementById('loadingNotice');
+  loadingNotice.innerText = `Please wait while we load the users and their status... (${loadedUsers}/${totalUsers})`;
 }
 
 function fetchBannedStatus(username, usernameElement, callback) {
