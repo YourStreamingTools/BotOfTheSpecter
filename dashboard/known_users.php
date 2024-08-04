@@ -43,14 +43,11 @@ $pid = '';
 include 'bot_control.php';
 include 'sqlite.php';
 
-// Check if the update request is sent via POST
+// Handle POST requests for updates
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   if (isset($_POST['username']) && isset($_POST['status'])) {
-    // Process the update here
     $dbusername = $_POST['username'];
     $status = $_POST['status'];
-
-    // Update the status in the database
     $updateQuery = $db->prepare("UPDATE seen_users SET status = :status WHERE username = :username");
     $updateQuery->bindParam(':status', $status);
     $updateQuery->bindParam(':username', $dbusername);
@@ -58,11 +55,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   }
 
   if (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
-    // Process the update here
     $userId = $_POST['userId'];
     $newWelcomeMessage = $_POST['newWelcomeMessage'];
-
-    // Update the welcome message in the database
     $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = :welcome_message WHERE id = :user_id");
     $messageQuery->bindParam(':welcome_message', $newWelcomeMessage);
     $messageQuery->bindParam(':user_id', $userId);
@@ -71,12 +65,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   }
 
   if (isset($_POST['deleteUserId'])) {
-    // Processing the user
-    $userId = $_POST['deleteUserId'];
-
-    // Updating the database
+    $deleteUserId = $_POST['deleteUserId'];
     $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = :user_id");
-    $deleteQuery->bindParam(':user_id', $userId);
+    $deleteQuery->bindParam(':user_id', $deleteUserId);
     $deleteQuery->execute();
     echo "<script>window.location.reload();</script>";
   }
@@ -146,7 +137,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           <td>
             <button class="button is-small is-primary edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fas fa-pencil-alt"></i></button>
           </td>
-          <td></td>
+          <td>
+            <form method="POST" style="display:inline;">
+              <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
+              <button type="submit" class="button is-small is-danger"><i class="fas fa-trash-alt"></i></button>
+            </form>
+          </td>
         </tr>
       <?php endforeach; ?>
     </tbody>
@@ -163,7 +159,6 @@ function toggleStatus(username, isChecked) {
     xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
             console.log(xhr.responseText);
-            // Reload the page after the AJAX request is completed
             location.reload();
         }
     };
@@ -177,16 +172,12 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
     const welcomeMessage = document.getElementById('welcome-message-' + userId);
     
     if (editBox.style.display === 'none') {
-      // Show the edit box and hide the welcome message
       editBox.style.display = 'block';
       welcomeMessage.style.display = 'none';
-      // Change the color of the edit button
       this.classList.add('is-warning');
     } else {
-      // Save the updated welcome message
       const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
       updateWelcomeMessage(userId, newWelcomeMessage);
-      // Remove the warning class from the edit button
       this.classList.remove('is-warning');
     }
   });
@@ -204,6 +195,13 @@ function updateWelcomeMessage(userId, newWelcomeMessage) {
   xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
 }
 
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.username').forEach(usernameElement => {
+    const username = usernameElement.dataset.username;
+    fetchBannedStatus(username, usernameElement);
+  });
+});
+
 function fetchBannedStatus(username, usernameElement) {
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "fetch_banned_status.php", true);
@@ -213,7 +211,7 @@ function fetchBannedStatus(username, usernameElement) {
       const response = JSON.parse(xhr.responseText);
       const bannedStatusElement = usernameElement.nextElementSibling;
       if (response.banned) {
-        bannedStatusElement.innerHTML = " <em style='color: red;'>(banned)</em>"
+        bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
       }
     }
   };
