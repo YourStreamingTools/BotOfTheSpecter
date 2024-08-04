@@ -22,9 +22,13 @@ function getTwitchUserId($username, $accessToken) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
+    if (curl_errno($ch)) {
+        error_log('CURL error: ' . curl_error($ch));
+    }
     curl_close($ch);
     $data = json_decode($response, true);
 
+    error_log("Fetching Twitch user ID for $username: " . json_encode($data));
     return $data['data'][0]['id'] ?? null;
 }
 
@@ -38,21 +42,32 @@ function isUserBanned($userId, $accessToken, $broadcasterID) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
+    if (curl_errno($ch)) {
+        error_log('CURL error: ' . curl_error($ch));
+    }
     curl_close($ch);
     $data = json_decode($response, true);
 
+    error_log("Checking if user ID $userId is banned: " . json_encode($data));
     return !empty($data['data']);
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     $username = $_POST['usernameToCheck'];
+    error_log("Received request to check banned status for $username");
     $userId = getTwitchUserId($username, $access_token);
 
     if ($userId) {
         $banned = isUserBanned($userId, $access_token, $broadcasterID);
+        error_log("$username (ID: $userId) banned status: " . ($banned ? "banned" : "not banned"));
         echo json_encode(['banned' => $banned]);
     } else {
+        error_log("Failed to fetch user ID for $username");
         echo json_encode(['banned' => false]);
     }
+} else {
+    http_response_code(400);
+    error_log("Bad request");
+    echo json_encode(['error' => 'Bad request']);
 }
 ?>
