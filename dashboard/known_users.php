@@ -31,6 +31,7 @@ $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
 $twitchUserId = $user['twitch_user_id'];
+$_SESSION['twitch_user_id'] = $twitchUserId;
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
@@ -80,38 +81,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     echo "<script>window.location.reload();</script>";
   }
 }
-
-// Check if the users in the table are banned from the channel
-function getTwitchUserId($userToCheck, $accesstoken) {
-  $users_url = "https://api.twitch.tv/helix/users/?login=$userToCheck";
-  $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
-  $headers = [
-    "Client-ID: $clientID",
-    "Authorization: Bearer $accesstoken",
-  ];
-  $ch = curl_init($users_url);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-  $response = curl_exec($ch);
-  curl_close($ch);
-  $data = json_decode($response, true);
-  return $data['data'][0]['id'] ?? null;
-}
-function isUserBanned($userToCheck, $accesstoken, $broadcaster) {
-  $banned_url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=$broadcaster&user_id=$userToCheck";
-  $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
-  $headers = [
-    "Client-ID: $clientID",
-    "Authorization: Bearer $accesstoken",
-  ];
-  $ch = curl_init($banned_url);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-  $response = curl_exec($ch);
-  curl_close($ch);
-  $data = json_decode($response, true);
-  return !empty($data['data']);
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -148,12 +117,13 @@ function isUserBanned($userToCheck, $accesstoken, $broadcaster) {
     </thead>
     <tbody id="user-table">
       <?php foreach ($seenUsersData as $userData): ?>
-        <?php 
-          $userToCheckID = getTwitchUserId($userData['username'], $access_token);
-          $banned = isUserBanned($userToCheckID, $access_token, $broadcasterID) ? " <em style='color:red'>(banned)</em>" : "";
-          ?>
         <tr>
-          <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; echo $banned; ?></td>
+          <td>
+            <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
+              <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
+            </span>
+            <span class="banned-status"></span>
+          </td>
           <td>
             <div id="welcome-message-<?php echo $userData['id']; ?>">
               <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
@@ -232,6 +202,22 @@ function updateWelcomeMessage(userId, newWelcomeMessage) {
     }
   };
   xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
+}
+
+function fetchBannedStatus(username, usernameElement) {
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "fetch_banned_status.php", true);
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+      const response = JSON.parse(xhr.responseText);
+      const bannedStatusElement = usernameElement.nextElementSibling;
+      if (response.banned) {
+        bannedStatusElement.innerHTML = " <em style='color: red;'>(banned)</em>"
+      }
+    }
+  };
+  xhr.send("username=" + encodeURIComponent(username));
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
