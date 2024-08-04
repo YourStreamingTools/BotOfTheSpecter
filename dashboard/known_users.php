@@ -27,6 +27,7 @@ $userResult = $userSTMT->get_result();
 $user = $userResult->fetch_assoc();
 $user_id = $user['id'];
 $username = $user['username'];
+$_SESSION['username'] = $username;
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
@@ -253,6 +254,21 @@ function fetchBannedStatus(username, usernameElement, callback) {
         } else {
           console.log(`${username} is not banned`);
         }
+
+        // Update the cache
+        const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
+        bannedUsersCache[username] = response.banned;
+        fetch('update_banned_users_cache.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bannedUsersCache)
+        }).then(res => res.json()).then(data => {
+          console.log('Cache updated', data);
+        }).catch(error => {
+          console.error('Error updating cache', error);
+        });
       } else {
         console.log(`Error fetching banned status for ${username}: ${xhr.status}`);
       }
