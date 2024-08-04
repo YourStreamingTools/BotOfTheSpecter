@@ -61,7 +61,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $messageQuery->bindParam(':welcome_message', $newWelcomeMessage);
     $messageQuery->bindParam(':user_id', $userId);
     $messageQuery->execute();
-    echo "<script>window.location.reload();</script>";
+    header("Location: known_users.php");
+    exit();
   }
 
   if (isset($_POST['deleteUserId'])) {
@@ -69,7 +70,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = :user_id");
     $deleteQuery->bindParam(':user_id', $deleteUserId);
     $deleteQuery->execute();
-    echo "<script>window.location.reload();</script>";
+    header("Location: known_users.php");
+    exit();
   }
 }
 ?>
