@@ -138,6 +138,12 @@ bot_started = datetime.now()
 stream_online = False
 current_game = None
 
+# Spam Messages
+spam_pattern = [
+    re.compile(r'cheap viewers on', re.IGNORECASE),
+    re.compile(r'best viewers on', re.IGNORECASE),
+]
+
 # Setup Token Refresh
 async def refresh_token_every_day():
     global REFRESH_TOKEN
@@ -837,6 +843,11 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 messageAuthor = message.author.name if message.author else ""
                 messageAuthorID = message.author.id if message.author else ""
                 AuthorMessage = message.content if message.content else ""
+
+                # Check if the message matches the spam pattern
+                if spam_pattern.search(messageContent):
+                    await ban_user(messageAuthor, messageAuthorID)
+                    return
 
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
@@ -3950,6 +3961,25 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         await channel.send(message)
     finally:
         await sqldb.ensure_closed()
+
+# Function to ban a user
+async def ban_user(username, user_id):
+    ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={CHANNEL_ID}"
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        'Content-Type': "application/json",
+    }
+    data = {
+        'data': {
+            'user_id': user_id,
+            'reason': "Spam/Bot Account"
+        }
+    }
+    response = requests.post(ban_url, headers=headers, json=data)
+    if response.status == 200:
+        twitch_logger.info(f"{username} has been banend for sending a spam message in chat.")
+    else: twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}")
 
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
