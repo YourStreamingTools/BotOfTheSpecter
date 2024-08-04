@@ -152,12 +152,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <script>
 function toggleStatus(username, isChecked) {
+    console.log(`Toggling status for ${username} to ${isChecked ? 'True' : 'False'}`);
     var status = isChecked ? 'True' : 'False';
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
+            console.log(`Response received for toggling status of ${username}`);
             console.log(xhr.responseText);
             location.reload();
         }
@@ -172,6 +174,7 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
     const welcomeMessage = document.getElementById('welcome-message-' + userId);
     
     if (editBox.style.display === 'none') {
+      console.log(`Editing welcome message for user ID ${userId}`);
       editBox.style.display = 'block';
       welcomeMessage.style.display = 'none';
       this.classList.add('is-warning');
@@ -184,11 +187,13 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
 });
 
 function updateWelcomeMessage(userId, newWelcomeMessage) {
+  console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
+      console.log(`Response received for updating welcome message of user ID ${userId}`);
       location.reload();
     }
   };
@@ -196,6 +201,7 @@ function updateWelcomeMessage(userId, newWelcomeMessage) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('Document loaded. Fetching banned status for users...');
   document.querySelectorAll('.username').forEach(usernameElement => {
     const username = usernameElement.dataset.username;
     fetchBannedStatus(username, usernameElement);
@@ -203,15 +209,24 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function fetchBannedStatus(username, usernameElement) {
+  console.log(`Fetching banned status for ${username}`);
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "fetch_banned_status.php", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
-      const response = JSON.parse(xhr.responseText);
-      const bannedStatusElement = usernameElement.nextElementSibling;
-      if (response.banned) {
-        bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      console.log(`Response received for banned status of ${username}`);
+      if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        const bannedStatusElement = usernameElement.nextElementSibling;
+        if (response.banned) {
+          console.log(`${username} is banned`);
+          bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
+        } else {
+          console.log(`${username} is not banned`);
+        }
+      } else {
+        console.log(`Error fetching banned status for ${username}: ${xhr.status}`);
       }
     }
   };
