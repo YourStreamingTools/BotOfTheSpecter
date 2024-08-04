@@ -51,8 +51,9 @@ $totalUsersResult = $totalUsersSTMT->fetch(PDO::FETCH_ASSOC);
 $totalUsers = $totalUsersResult['total_users'];
 
 // Cache for banned users
+$cacheUsername = $_SESSION['username'];
 $cacheExpiration = 600; // Cache expires after 10 minutes
-$cacheDirectory = "cache/$username";
+$cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
 if (!is_dir($cacheDirectory)) {
     mkdir($cacheDirectory, 0755, true);
