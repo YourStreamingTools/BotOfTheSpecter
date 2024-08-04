@@ -44,8 +44,8 @@ function isUserBanned($userId, $accessToken, $broadcasterID) {
     return !empty($data['data']);
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username'])) {
-    $username = $_POST['username'];
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
+    $username = $_POST['usernameToCheck'];
     $userId = getTwitchUserId($username, $access_token);
 
     if ($userId) {
