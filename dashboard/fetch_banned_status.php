@@ -11,6 +11,7 @@ if (!isset($_SESSION['access_token'])) {
 
 $access_token = $_SESSION['access_token'];
 $broadcasterID = $_SESSION['twitch_user_id'];
+$cacheUsername = $_SESSION['username'];
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
 function getTwitchUserId($username, $accessToken, $clientID) {
@@ -56,16 +57,37 @@ function isUserBanned($userId, $accessToken, $broadcasterID, $clientID) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     $username = $_POST['usernameToCheck'];
     error_log("Received request to check banned status for $username");
-    $userId = getTwitchUserId($username, $access_token, $clientID);
 
-    if ($userId) {
-        $banned = isUserBanned($userId, $access_token, $broadcasterID, $clientID);
-        error_log("$username (ID: $userId) banned status: " . ($banned ? "banned" : "not banned"));
-        echo json_encode(['banned' => $banned]);
-    } else {
-        error_log("Failed to fetch user ID for $username");
-        echo json_encode(['banned' => false]);
+    $cacheDirectory = "cache/$cacheUsername";
+    $cacheFile = "$cacheDirectory/bannedUsers.json";
+    $cacheExpiration = 600; // Cache expires after 10 minutes
+
+    $bannedUsersCache = [];
+    if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
+        $bannedUsersCache = json_decode(file_get_contents($cacheFile), true);
     }
+
+    if (isset($bannedUsersCache[$username])) {
+        error_log("Using cached banned status for $username");
+        $banned = $bannedUsersCache[$username];
+    } else {
+        $userId = getTwitchUserId($username, $access_token, $clientID);
+        if ($userId) {
+            $banned = isUserBanned($userId, $access_token, $broadcasterID, $clientID);
+            error_log("$username (ID: $userId) banned status: " . ($banned ? "banned" : "not banned"));
+            $bannedUsersCache[$username] = $banned;
+
+            if (!is_dir($cacheDirectory)) {
+                mkdir($cacheDirectory, 0755, true);
+            }
+            file_put_contents($cacheFile, json_encode($bannedUsersCache));
+        } else {
+            error_log("Failed to fetch user ID for $username");
+            $banned = false;
+        }
+    }
+
+    echo json_encode(['banned' => $banned]);
 } else {
     http_response_code(400);
     error_log("Bad request");
