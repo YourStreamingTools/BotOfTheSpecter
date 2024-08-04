@@ -217,6 +217,7 @@ function fetchBannedStatus(username, usernameElement) {
     if (xhr.readyState === XMLHttpRequest.DONE) {
       console.log(`Response received for banned status of ${username}`);
       if (xhr.status === 200) {
+        console.log(`XHR response: ${xhr.responseText}`);
         const response = JSON.parse(xhr.responseText);
         const bannedStatusElement = usernameElement.nextElementSibling;
         if (response.banned) {
