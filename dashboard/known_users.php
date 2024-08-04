@@ -90,127 +90,124 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <h2 class="title is-4">Known Users & Welcome Messages</h2>
-  <p class="has-text-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</p>
-  
-  <!-- Search Bar -->
-  <input type="text" id="searchInput" class="input" placeholder="Search users..." onkeyup="searchFunction()">
-  <br><br>
-  
-  <table class="table is-fullwidth" id="commandsTable">
-    <thead>
-      <tr>
-        <th>Username</th>
-        <th>Welcome Message</th>
-        <th>Status</th>
-        <th>Action</th>
-        <th>Edit</th>
-        <th>Remove</th>
-      </tr>
-    </thead>
-    <tbody id="user-table">
-      <?php foreach ($seenUsersData as $userData): ?>
+  <div id="loadingNoticeBox" class="notification is-warning">
+    <p id="loadingNotice">Please wait while we load the users and their status...</p>
+  </div>
+  <div id="content" style="display: none;">
+    <h2 class="title is-4">Known Users & Welcome Messages</h2>
+    <p class="has-text-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</p>
+    
+    <!-- Search Bar -->
+    <input type="text" id="searchInput" class="input" placeholder="Search users..." onkeyup="searchFunction()">
+    <br><br>
+    
+    <table class="table is-fullwidth" id="commandsTable">
+      <thead>
         <tr>
-          <td>
-            <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
-              <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
-            </span>
-            <span class="banned-status"></span>
-          </td>
-          <td>
-            <div id="welcome-message-<?php echo $userData['id']; ?>">
-              <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
-            </div>
-            <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
-              <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
-            </div>
-          </td>
-          <td>
-            <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
-              <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
-            </span>
-          </td>
-          <td>
-            <label class="checkbox">
-              <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)">
-              <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-            </label>
-          </td>
-          <td>
-            <button class="button is-small is-primary edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fas fa-pencil-alt"></i></button>
-          </td>
-          <td>
-            <form method="POST" style="display:inline;">
-              <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
-              <button type="submit" class="button is-small is-danger"><i class="fas fa-trash-alt"></i></button>
-            </form>
-          </td>
+          <th>Username</th>
+          <th>Welcome Message</th>
+          <th>Status</th>
+          <th>Action</th>
+          <th>Edit</th>
+          <th>Remove</th>
         </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+      </thead>
+      <tbody id="user-table">
+        <?php foreach ($seenUsersData as $userData): ?>
+          <tr>
+            <td>
+              <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
+                <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
+              </span>
+              <span class="banned-status"></span>
+            </td>
+            <td>
+              <div id="welcome-message-<?php echo $userData['id']; ?>">
+                <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
+              </div>
+              <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
+                <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+              </div>
+            </td>
+            <td>
+              <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
+                <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
+              </span>
+            </td>
+            <td>
+              <label class="checkbox">
+                <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)">
+                <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+              </label>
+            </td>
+            <td>
+              <button class="button is-small is-primary edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fas fa-pencil-alt"></i></button>
+            </td>
+            <td>
+              <form method="POST" style="display:inline;">
+                <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
+                <button type="submit" class="button is-small is-danger"><i class="fas fa-trash-alt"></i></button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
   <br><br><br><br>
 </div>
 
 <script>
-function toggleStatus(username, isChecked) {
-    console.log(`Toggling status for ${username} to ${isChecked ? 'True' : 'False'}`);
-    var status = isChecked ? 'True' : 'False';
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "", true);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            console.log(`Response received for toggling status of ${username}`);
-            console.log(xhr.responseText);
-            location.reload();
-        }
-    };
-    xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
-}
-
-document.querySelectorAll('.edit-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const userId = this.getAttribute('data-user-id');
-    const editBox = document.getElementById('edit-box-' + userId);
-    const welcomeMessage = document.getElementById('welcome-message-' + userId);
-    
-    if (editBox.style.display === 'none') {
-      console.log(`Editing welcome message for user ID ${userId}`);
-      editBox.style.display = 'block';
-      welcomeMessage.style.display = 'none';
-      this.classList.add('is-warning');
-    } else {
-      const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
-      updateWelcomeMessage(userId, newWelcomeMessage);
-      this.classList.remove('is-warning');
-    }
-  });
-});
-
-function updateWelcomeMessage(userId, newWelcomeMessage) {
-  console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(`Response received for updating welcome message of user ID ${userId}`);
-      location.reload();
-    }
-  };
-  xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
-}
-
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Document loaded. Fetching banned status for users...');
-  document.querySelectorAll('.username').forEach(usernameElement => {
-    const username = usernameElement.dataset.username;
-    fetchBannedStatus(username, usernameElement);
+  console.log('Document loaded. Initializing editing functionality...');
+
+  // Initialize the editing functionality
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const userId = this.getAttribute('data-user-id');
+      const editBox = document.getElementById('edit-box-' + userId);
+      const welcomeMessage = document.getElementById('welcome-message-' + userId);
+
+      if (editBox.style.display === 'none') {
+        console.log(`Editing welcome message for user ID ${userId}`);
+        editBox.style.display = 'block';
+        welcomeMessage.style.display = 'none';
+        this.classList.add('is-warning');
+      } else {
+        const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
+        updateWelcomeMessage(userId, newWelcomeMessage, this);
+      }
+    });
   });
+
+  // Fetch the banned status for each user asynchronously
+  fetchBannedStatuses();
 });
 
-function fetchBannedStatus(username, usernameElement) {
+function fetchBannedStatuses() {
+  const usernames = document.querySelectorAll('.username');
+  let remainingRequests = usernames.length;
+
+  usernames.forEach(usernameElement => {
+    const username = usernameElement.dataset.username;
+    fetchBannedStatus(username, usernameElement, () => {
+      remainingRequests--;
+      if (remainingRequests === 0) {
+        const loadingNoticeBox = document.getElementById('loadingNoticeBox');
+        const loadingNotice = document.getElementById('loadingNotice');
+        loadingNotice.innerText = 'Loading completed, you can start editing';
+        loadingNoticeBox.classList.remove('is-warning');
+        loadingNoticeBox.classList.add('is-success');
+        setTimeout(() => {
+          loadingNoticeBox.style.display = 'none';
+          document.getElementById('content').style.display = 'block';
+        }, 2000); // Show the success message for 2 seconds before hiding it
+      }
+    });
+  });
+}
+
+function fetchBannedStatus(username, usernameElement, callback) {
   console.log(`Fetching banned status for ${username}`);
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "fetch_banned_status.php", true);
@@ -231,9 +228,40 @@ function fetchBannedStatus(username, usernameElement) {
       } else {
         console.log(`Error fetching banned status for ${username}: ${xhr.status}`);
       }
+      callback();
     }
   };
   xhr.send("usernameToCheck=" + encodeURIComponent(username));
+}
+
+function updateWelcomeMessage(userId, newWelcomeMessage, button) {
+  console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "", true);
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      console.log(`Response received for updating welcome message of user ID ${userId}`);
+      location.reload();
+    }
+  };
+  xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
+}
+
+function toggleStatus(username, isChecked) {
+  console.log(`Toggling status for ${username} to ${isChecked ? 'True' : 'False'}`);
+  var status = isChecked ? 'True' : 'False';
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "", true);
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      console.log(`Response received for toggling status of ${username}`);
+      console.log(xhr.responseText);
+      location.reload();
+    }
+  };
+  xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
