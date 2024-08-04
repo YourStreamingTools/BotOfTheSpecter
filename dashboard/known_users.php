@@ -43,29 +43,74 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 // Check if the update request is sent via POST
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($_POST['status'])) {
-  // Process the update here
-  $dbusername = $_POST['username'];
-  $status = $_POST['status'];
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+  if (isset($_POST['username']) && isset($_POST['status'])) {
+    // Process the update here
+    $dbusername = $_POST['username'];
+    $status = $_POST['status'];
 
-  // Update the status in the database
-  $updateQuery = $db->prepare("UPDATE seen_users SET status = :status WHERE username = :username");
-  $updateQuery->bindParam(':status', $status);
-  $updateQuery->bindParam(':username', $dbusername);
-  $updateQuery->execute();
+    // Update the status in the database
+    $updateQuery = $db->prepare("UPDATE seen_users SET status = :status WHERE username = :username");
+    $updateQuery->bindParam(':status', $status);
+    $updateQuery->bindParam(':username', $dbusername);
+    $updateQuery->execute();
+  }
+
+  if (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
+    // Process the update here
+    $userId = $_POST['userId'];
+    $newWelcomeMessage = $_POST['newWelcomeMessage'];
+
+    // Update the welcome message in the database
+    $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = :welcome_message WHERE id = :user_id");
+    $messageQuery->bindParam(':welcome_message', $newWelcomeMessage);
+    $messageQuery->bindParam(':user_id', $userId);
+    $messageQuery->execute();
+    echo "<script>window.location.reload();</script>";
+  }
+
+  if (isset($_POST['deleteUserId'])) {
+    // Processing the user
+    $userId = $_POST['deleteUserId'];
+
+    // Updating the database
+    $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = :user_id");
+    $deleteQuery->bindParam(':user_id', $userId);
+    $deleteQuery->execute();
+    echo "<script>window.location.reload();</script>";
+  }
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
-  // Process the update here
-  $userId = $_POST['userId'];
-  $newWelcomeMessage = $_POST['newWelcomeMessage'];
-
-  // Update the welcome message in the database
-  $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = :welcome_message WHERE id = :user_id");
-  $messageQuery->bindParam(':welcome_message', $newWelcomeMessage);
-  $messageQuery->bindParam(':user_id', $userId);
-  $messageQuery->execute();
-  echo "<script>window.location.reload();</script>";
+// Check if the users in the table are banned from the channel
+function getTwitchUserId($userToCheck, $accesstoken) {
+  $users_url = "https://api.twitch.tv/helix/users/?login=$userToCheck";
+  $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+  $headers = [
+    "Client-ID: $clientID",
+    "Authorization: Bearer $accesstoken",
+  ];
+  $ch = curl_init($users_url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  $data = json_decode($response, true);
+  return $data['data'][0]['id'];
+}
+function isUserBanned($userToCheck, $accesstoken, $broadcaster) {
+  $banned_url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=$broadcaster&user_id=$userToCheck";
+  $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+  $headers = [
+    "Client-ID: $clientID",
+    "Authorization: Bearer $accesstoken",
+  ];
+  $ch = curl_init($banned_url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  $data = json_decode($response, true);
+  return !empty($data['data']);
 }
 ?>
 <!DOCTYPE html>
@@ -98,12 +143,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
         <th>Status</th>
         <th>Action</th>
         <th>Edit</th>
+        <th>Remove</th>
       </tr>
     </thead>
     <tbody id="user-table">
       <?php foreach ($seenUsersData as $userData): ?>
+        <?php 
+          $userToCheckID = getTwitchUserId($userData['username'], $access_token);
+          $banned = isUserBanned($userToCheckID, $access_token, $broadcasterID) ? " (banned)" : "";
+          ?>
         <tr>
-          <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?></td>
+          <td><?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; echo $banned; ?></td>
           <td>
             <div id="welcome-message-<?php echo $userData['id']; ?>">
               <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
@@ -126,6 +176,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['userId']) && isset($_P
           <td>
             <button class="button is-small is-primary edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fas fa-pencil-alt"></i></button>
           </td>
+          <td></td>
         </tr>
       <?php endforeach; ?>
     </tbody>
