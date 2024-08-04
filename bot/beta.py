@@ -845,9 +845,10 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 AuthorMessage = message.content if message.content else ""
 
                 # Check if the message matches the spam pattern
-                if spam_pattern.search(messageContent):
-                    await ban_user(messageAuthor, messageAuthorID)
-                    return
+                for pattern in spam_pattern:
+                    if pattern.search(messageContent):
+                        await ban_user(messageAuthor, messageAuthorID)
+                        return
 
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
