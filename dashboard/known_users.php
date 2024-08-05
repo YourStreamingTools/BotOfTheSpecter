@@ -57,10 +57,15 @@ $cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
 if (!is_dir($cacheDirectory)) {
     mkdir($cacheDirectory, 0755, true);
+    error_log("Cache directory created for user $cacheUsername");
 }
 $bannedUsersCache = [];
 if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
-    $bannedUsersCache = json_decode(file_get_contents($cacheFile), true);
+    $cacheContent = file_get_contents($cacheFile);
+    $bannedUsersCache = json_decode($cacheContent, true);
+    error_log("Cache loaded for user $cacheUsername: $cacheContent");
+} else {
+    error_log("Cache file does not exist or is expired for user $cacheUsername");
 }
 
 // Handle POST requests for updates
