@@ -18,8 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     file_put_contents($cacheFile, json_encode($data));
+    error_log("Updated cache for $cacheUsername: " . json_encode($data));
     echo json_encode(['status' => 'success']);
 } else {
+    error_log("Failed to update cache for $cacheUsername");
     echo json_encode(['status' => 'failed', 'error' => 'Invalid request']);
 }
 ?>
