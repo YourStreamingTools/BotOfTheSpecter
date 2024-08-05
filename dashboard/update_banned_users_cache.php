@@ -8,7 +8,6 @@ session_start();
 $cacheUsername = $_SESSION['username'];
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = $_SESSION['username'];
     $cacheDirectory = "cache/$cacheUsername";
     $cacheFile = "$cacheDirectory/bannedUsers.json";
 
