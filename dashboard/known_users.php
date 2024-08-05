@@ -55,29 +55,16 @@ $cacheUsername = $_SESSION['username'];
 $cacheExpiration = 600; // Cache expires after 10 minutes
 $cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
-$logFile = "$cacheDirectory/bans.log";
-
-function logToFile($message) {
-    global $logFile;
-    file_put_contents($logFile, $message . PHP_EOL, FILE_APPEND);
-}
 
 if (!is_dir($cacheDirectory)) {
     mkdir($cacheDirectory, 0755, true);
-    logToFile("Cache directory created for user $cacheUsername");
 }
 $bannedUsersCache = [];
 if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
     $cacheContent = file_get_contents($cacheFile);
-    logToFile("Cache file content before loading: $cacheContent");
     if ($cacheContent) {
         $bannedUsersCache = json_decode($cacheContent, true);
-        logToFile("Cache loaded for user $cacheUsername: " . json_encode($bannedUsersCache));
-    } else {
-        logToFile("Cache file is empty for user $cacheUsername");
     }
-} else {
-    logToFile("Cache file does not exist or is expired for user $cacheUsername");
 }
 
 // Handle POST requests for updates
