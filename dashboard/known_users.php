@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
@@ -62,8 +62,12 @@ if (!is_dir($cacheDirectory)) {
 $bannedUsersCache = [];
 if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
     $cacheContent = file_get_contents($cacheFile);
-    $bannedUsersCache = json_decode($cacheContent, true);
-    error_log("Cache loaded for user $cacheUsername: $cacheContent");
+    if ($cacheContent) {
+        $bannedUsersCache = json_decode($cacheContent, true);
+        error_log("Cache loaded for user $cacheUsername: $cacheContent");
+    } else {
+        error_log("Cache file is empty for user $cacheUsername");
+    }
 } else {
     error_log("Cache file does not exist or is expired for user $cacheUsername");
 }
@@ -243,22 +247,18 @@ function updateLoadingNotice() {
 }
 
 function fetchBannedStatus(username, usernameElement, callback) {
-  console.log(`Fetching banned status for ${username}`);
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "fetch_banned_status.php", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(`Response received for banned status of ${username}`);
       if (xhr.status === 200) {
-        console.log(`XHR response: ${xhr.responseText}`);
+        console.log(`Response received for banned status of ${username} ${xhr.responseText}`);
         const response = JSON.parse(xhr.responseText);
         const bannedStatusElement = usernameElement.nextElementSibling;
         if (response.banned) {
-          console.log(`${username} is banned`);
           bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
         } else {
-          console.log(`${username} is not banned`);
         }
 
         // Update the cache
@@ -271,7 +271,6 @@ function fetchBannedStatus(username, usernameElement, callback) {
           },
           body: JSON.stringify(bannedUsersCache)
         }).then(res => res.json()).then(data => {
-          console.log('Cache updated', data);
         }).catch(error => {
           console.error('Error updating cache', error);
         });
