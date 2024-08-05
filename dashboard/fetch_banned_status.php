@@ -60,6 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
 
     $cacheDirectory = "cache/$cacheUsername";
     $cacheFile = "$cacheDirectory/bannedUsers.json";
+    $tempCacheFile = "$cacheFile.tmp";
     $cacheExpiration = 600; // Cache expires after 10 minutes
 
     $bannedUsersCache = [];
@@ -88,8 +89,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
             if (!is_dir($cacheDirectory)) {
                 mkdir($cacheDirectory, 0755, true);
             }
-            file_put_contents($cacheFile, json_encode($bannedUsersCache));
-            error_log("Updated cache file for $cacheUsername: " . json_encode($bannedUsersCache));
+
+            // Write to a temporary file first
+            if ($tempFileHandle = fopen($tempCacheFile, 'w')) {
+                if (flock($tempFileHandle, LOCK_EX)) {
+                    fwrite($tempFileHandle, json_encode($bannedUsersCache));
+                    fflush($tempFileHandle); // flush output before releasing the lock
+                    flock($tempFileHandle, LOCK_UN);
+                }
+                fclose($tempFileHandle);
+                rename($tempCacheFile, $cacheFile);
+                error_log("Updated cache file for $cacheUsername: " . json_encode($bannedUsersCache));
+            } else {
+                error_log("Failed to open temp cache file for writing");
+            }
         } else {
             error_log("Failed to fetch user ID for $username");
             $banned = false;
