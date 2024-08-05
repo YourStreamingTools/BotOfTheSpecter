@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     logToFile("Data to be written to cache: " . json_encode($data));
 
     // Write to a temporary file first
-    if ($tempFileHandle = fopen($tempCacheFile, 'w')) {
+    if (!empty($data) && $tempFileHandle = fopen($tempCacheFile, 'w')) {
         if (flock($tempFileHandle, LOCK_EX)) {
             fwrite($tempFileHandle, json_encode($data));
             fflush($tempFileHandle); // flush output before releasing the lock
@@ -45,8 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         logToFile("Updated cache for $cacheUsername: " . json_encode($data));
         echo json_encode(['status' => 'success']);
     } else {
-        logToFile("Failed to open temp cache file for writing");
-        echo json_encode(['status' => 'failed', 'error' => 'Could not write to cache file']);
+        logToFile("Failed to open temp cache file for writing or data is empty");
+        echo json_encode(['status' => 'failed', 'error' => 'Could not write to cache file or data is empty']);
     }
 
     // Log the cache file content after writing
