@@ -66,9 +66,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     $bannedUsersCache = [];
     if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
         $cacheContent = file_get_contents($cacheFile);
+        error_log("Cache file content before loading: $cacheContent");
         if ($cacheContent) {
             $bannedUsersCache = json_decode($cacheContent, true);
-            error_log("Loaded cache content: $cacheContent");
+            error_log("Loaded cache content: " . json_encode($bannedUsersCache));
         } else {
             error_log("Cache file is empty for user $cacheUsername");
         }
@@ -110,6 +111,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     }
 
     echo json_encode(['banned' => $banned]);
+
+    // Log the cache file content after writing
+    $finalCacheContent = file_get_contents($cacheFile);
+    error_log("Cache file content after updating: $finalCacheContent");
+
 } else {
     http_response_code(400);
     error_log("Bad request");
