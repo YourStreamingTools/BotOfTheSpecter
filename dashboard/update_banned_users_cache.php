@@ -24,6 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         mkdir($cacheDirectory, 0755, true);
     }
 
+    // Log the cache data to be written
+    error_log("Data to be written to cache: " . json_encode($data));
+
     // Write to a temporary file first
     if ($tempFileHandle = fopen($tempCacheFile, 'w')) {
         if (flock($tempFileHandle, LOCK_EX)) {
@@ -39,6 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         error_log("Failed to open temp cache file for writing");
         echo json_encode(['status' => 'failed', 'error' => 'Could not write to cache file']);
     }
+
+    // Log the cache file content after writing
+    $finalCacheContent = file_get_contents($cacheFile);
+    error_log("Cache file content after updating: $finalCacheContent");
+
 } else {
     error_log("Failed to update cache for $cacheUsername");
     echo json_encode(['status' => 'failed', 'error' => 'Invalid request']);
