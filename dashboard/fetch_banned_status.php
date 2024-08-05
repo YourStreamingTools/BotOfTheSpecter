@@ -64,7 +64,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
 
     $bannedUsersCache = [];
     if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
-        $bannedUsersCache = json_decode(file_get_contents($cacheFile), true);
+        $cacheContent = file_get_contents($cacheFile);
+        $bannedUsersCache = json_decode($cacheContent, true);
+        error_log("Loaded cache content: $cacheContent");
+    } else {
+        error_log("Cache file does not exist or is expired for user $cacheUsername");
     }
 
     if (isset($bannedUsersCache[$username])) {
@@ -81,6 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
                 mkdir($cacheDirectory, 0755, true);
             }
             file_put_contents($cacheFile, json_encode($bannedUsersCache));
+            error_log("Updated cache file for $cacheUsername: " . json_encode($bannedUsersCache));
         } else {
             error_log("Failed to fetch user ID for $username");
             $banned = false;
