@@ -99,7 +99,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
             }
 
             // Write to a temporary file first
-            if ($tempFileHandle = fopen($tempCacheFile, 'w')) {
+            if (!empty($bannedUsersCache) && $tempFileHandle = fopen($tempCacheFile, 'w')) {
                 if (flock($tempFileHandle, LOCK_EX)) {
                     fwrite($tempFileHandle, json_encode($bannedUsersCache));
                     fflush($tempFileHandle); // flush output before releasing the lock
@@ -109,7 +109,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
                 rename($tempCacheFile, $cacheFile);
                 logToFile("Updated cache file for $cacheUsername: " . json_encode($bannedUsersCache));
             } else {
-                logToFile("Failed to open temp cache file for writing");
+                logToFile("Failed to open temp cache file for writing or cache is empty");
             }
         } else {
             logToFile("Failed to fetch user ID for $username");
