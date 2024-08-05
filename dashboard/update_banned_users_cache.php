@@ -6,6 +6,12 @@ error_reporting(E_ALL);
 session_start();
 
 $cacheUsername = $_SESSION['username'];
+$logFile = "cache/$cacheUsername/bans.log";
+
+function logToFile($message) {
+    global $logFile;
+    file_put_contents($logFile, $message . PHP_EOL, FILE_APPEND);
+}
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $cacheDirectory = "cache/$cacheUsername";
@@ -15,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
 
     if ($data === null) {
-        error_log("Received invalid JSON data");
+        logToFile("Received invalid JSON data");
         echo json_encode(['status' => 'failed', 'error' => 'Invalid JSON']);
         exit();
     }
@@ -25,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     // Log the cache data to be written
-    error_log("Data to be written to cache: " . json_encode($data));
+    logToFile("Data to be written to cache: " . json_encode($data));
 
     // Write to a temporary file first
     if ($tempFileHandle = fopen($tempCacheFile, 'w')) {
@@ -36,19 +42,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         fclose($tempFileHandle);
         rename($tempCacheFile, $cacheFile);
-        error_log("Updated cache for $cacheUsername: " . json_encode($data));
+        logToFile("Updated cache for $cacheUsername: " . json_encode($data));
         echo json_encode(['status' => 'success']);
     } else {
-        error_log("Failed to open temp cache file for writing");
+        logToFile("Failed to open temp cache file for writing");
         echo json_encode(['status' => 'failed', 'error' => 'Could not write to cache file']);
     }
 
     // Log the cache file content after writing
     $finalCacheContent = file_get_contents($cacheFile);
-    error_log("Cache file content after updating: $finalCacheContent");
+    logToFile("Cache file content after updating: $finalCacheContent");
 
 } else {
-    error_log("Failed to update cache for $cacheUsername");
+    logToFile("Failed to update cache for $cacheUsername");
     echo json_encode(['status' => 'failed', 'error' => 'Invalid request']);
 }
 ?>
