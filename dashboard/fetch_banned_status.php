@@ -65,8 +65,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     $bannedUsersCache = [];
     if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
         $cacheContent = file_get_contents($cacheFile);
-        $bannedUsersCache = json_decode($cacheContent, true);
-        error_log("Loaded cache content: $cacheContent");
+        if ($cacheContent) {
+            $bannedUsersCache = json_decode($cacheContent, true);
+            error_log("Loaded cache content: $cacheContent");
+        } else {
+            error_log("Cache file is empty for user $cacheUsername");
+        }
     } else {
         error_log("Cache file does not exist or is expired for user $cacheUsername");
     }
