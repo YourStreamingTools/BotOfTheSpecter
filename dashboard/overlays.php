@@ -114,9 +114,11 @@ include 'sqlite.php';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">To Do List:</h4>
-                <p><em>Display a list of tasks to be completed during the stream. This overlay helps you keep track of your goals and share them with your audience.
-                    <br>You can define a working category by adding it to the URL like this: <strong>todolist.php?code=API_KEY&category=1</strong></em></p>
-                <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE&category=1</code>
+                <p><em>Display a list of tasks to be completed during the stream.
+                    <br>This overlay helps you keep track of your goals and share them with your audience.
+                    <br>You can define a working category by adding it to the URL like this:
+                    <br>todolist.php?code=API_KEY&category=1</></em></p>
+                <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</code>
             </div>
         </div>
     </div>
