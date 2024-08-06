@@ -4547,8 +4547,8 @@ async def setup_database():
                 ''',
                 'tipping_settings': '''
                     CREATE TABLE IF NOT EXISTS tipping_settings (
-                        StreamElements VARCHAR(255) DEFAULT NULL,
-                        StreamLabs VARCHAR(255) DEFAULT NULL
+                        StreamElements TEXT DEFAULT NULL,
+                        StreamLabs TEXT DEFAULT NULL
                     ) ENGINE=InnoDB
                 ''',
                 'tipping': '''
