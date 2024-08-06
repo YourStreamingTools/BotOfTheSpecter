@@ -811,6 +811,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         await builtin_commands_creation()
         await known_users()
         asyncio.get_event_loop().create_task(twitch_eventsub())
+        asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
         await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
