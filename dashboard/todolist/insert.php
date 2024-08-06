@@ -15,10 +15,10 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - Add Objective";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,14 +40,19 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
+// Include the secondary database connection
+include 'database.php';
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-  // get form data
+  // Get form data
   $objective = $_POST['objective'];
   $category = $_POST['category'];
 
-  // prepare and execute query
-  $stmt = $conn->prepare("INSERT INTO todos (user_id, objective, category, created_at, updated_at, completed) VALUES (?, ?, ?, NOW(), NOW(), 'No')");
-  $stmt->bind_param("iss", $user_id, $objective, $category);
+  // Prepare and execute query
+  $stmt = $db->prepare("INSERT INTO todos (user_id, objective, category, created_at, updated_at, completed) VALUES (?, ?, ?, NOW(), NOW(), 'No')");
+  $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+  $stmt->bindParam(2, $objective, PDO::PARAM_STR);
+  $stmt->bindParam(3, $category, PDO::PARAM_INT);
   $stmt->execute();
   header('Location: dashboard.php');
   exit();
@@ -132,16 +137,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="select">
           <select id="category" name="category">
             <?php
-            // retrieve categories from database
-            $stmt = $conn->prepare("SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL");
-            $stmt->bind_param("i", $user_id);
+            // Retrieve categories from secondary database
+            $stmt = $db->prepare("SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL");
+            $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
             $stmt->execute();
-            $result = $stmt->get_result();
-            // display categories as options in dropdown menu
-            while ($row = $result->fetch_assoc()) {
-              echo '<option value="'.$row['id'].'">'.htmlspecialchars($row['category']).'</option>';
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Display categories as options in dropdown menu
+            foreach ($result as $row) {
+              echo '<option value="'.htmlspecialchars($row['id']).'">'.htmlspecialchars($row['category']).'</option>';
             }
-            $stmt->close();
             ?>
           </select>
         </div>
@@ -162,11 +166,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
 <script>
   // JavaScript function to handle the category filter change
-  document.getElementById("categoryFilter").addEventListener("change", function() {
-    var selectedCategoryId = this.value;
+  function applyCategoryFilter() {
+    var selectedCategoryId = document.getElementById("categoryFilter").value;
     // Redirect to the page with the selected category filter
     window.location.href = "insert.php?category=" + selectedCategoryId;
-  });
+  }
 </script>
 </body>
 </html>
