@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
@@ -55,7 +55,7 @@ if (isset($_GET['category'])) {
 $stmt->execute();
 $result = $stmt->get_result();
 $stmt->close();
-$num_rows = mysqli_num_rows($result);
+$num_rows = $result->num_rows;
 
 // Assign incomplete tasks to the $incompleteTasks variable
 $incompleteTasks = [];
@@ -78,8 +78,8 @@ if (isset($_POST['task_id'])) {
 
 // Retrieve categories for the filter dropdown
 $categorySql = "SELECT * FROM categories";
-$categoryResult = mysqli_query($conn, $categorySql);
-$categories = mysqli_fetch_all($categoryResult, MYSQLI_ASSOC);
+$categoryResult = $conn->query($categorySql);
+$categories = $categoryResult->fetch_all(MYSQLI_ASSOC);
 
 // Check if a specific category is selected
 $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
@@ -89,138 +89,131 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title></title>
-    <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
-    <link rel="stylesheet" href="https://yourlistonline.yourcdnonline.com/css/custom.css">
-    <script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
-    <script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
+    <title><?php echo $title; ?></title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
     <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
     <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
   </head>
 <body>
 <!-- Navigation -->
-<div class="title-bar" data-responsive-toggle="mobile-menu" data-hide-for="medium">
-  <button class="menu-icon" type="button" data-toggle="mobile-menu"></button>
-  <div class="title-bar-title">Menu</div>
-</div>
-<nav class="top-bar stacked-for-medium" id="mobile-menu">
-  <div class="top-bar-left">
-    <ul class="dropdown vertical medium-horizontal menu" data-responsive-menu="drilldown medium-dropdown hinge-in-from-top hinge-out-from-top">
-      <li class="menu-text menu-text-black">YourListOnline</li>
-      <li><a href="dashboard.php">Dashboard</a></li>
-      <li><a href="insert.php">Add</a></li>
-      <li><a href="remove.php">Remove</a></li>
-      <li>
-        <a>Update</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <li><a href="update_objective.php">Update Objective</a></li>
-          <li><a href="update_category.php">Update Objective Category</a></li>
-        </ul>
-      </li>
-      <li class="is-active"><a href="completed.php">Completed</a></li>
-      <li>
-        <a>Categories</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <li><a href="categories.php">View Categories</a></li>
-          <li><a href="add_category.php">Add Category</a></li>
-        </ul>
-      </li>
-      <li>
-        <a>Profile</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <li><a href="profile.php">View Profile</a></li>
-          <li><a href="update_profile.php">Update Profile</a></li>
-          <li><a href="obs_options.php">OBS Viewing Options</a></li>
-          <li><a href="twitch_mods.php">Twitch Mods</a></li>
-          <li><a href="logout.php">Logout</a></li>
-        </ul>
-      </li>
-      <?php if ($is_admin) { ?>
-        <li>
-        <a>Admins</a>
-        <ul class="vertical menu" data-dropdown-menu>
-					<li><a href="../admins/dashboard.php" target="_self">Admin Dashboard</a></li>
-        </ul>
-      </li>
-      <?php } ?>
-    </ul>
+<nav class="navbar is-spaced" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a class="navbar-item" href="dashboard.php">
+      YourListOnline
+    </a>
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
   </div>
-  <div class="top-bar-right">
-    <ul class="menu">
-      <li><button id="dark-mode-toggle"><i class="icon-toggle-dark-mode"></i></button></li>
-      <li><a class="popup-link" onclick="showPopup()">&copy; 2023 YourListOnline. All rights reserved.</a></li>
-    </ul>
+  <div id="navbarBasicExample" class="navbar-menu">
+    <div class="navbar-start">
+      <a class="navbar-item" href="dashboard.php">Dashboard</a>
+      <a class="navbar-item" href="insert.php">Add</a>
+      <a class="navbar-item" href="remove.php">Remove</a>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Update</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="update_objective.php">Update Objective</a>
+          <a class="navbar-item" href="update_category.php">Update Objective Category</a>
+        </div>
+      </div>
+      <a class="navbar-item is-active" href="completed.php">Completed</a>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Categories</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="categories.php">View Categories</a>
+          <a class="navbar-item" href="add_category.php">Add Category</a>
+        </div>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Profile</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="obs_options.php">OBS Viewing Options</a>
+        </div>
+      </div>
+    </div>
+    <div class="navbar-end">
+      <div class="navbar-item">
+        <button id="dark-mode-toggle" class="button is-dark"><i class="icon-toggle-dark-mode"></i></button>
+      </div>
+      <div class="navbar-item">
+        <a class="popup-link" onclick="showPopup()">&copy; 2023 YourListOnline. All rights reserved.</a>
+      </div>
+    </div>
   </div>
 </nav>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
-<br>
-<?php if ($num_rows < 1) {} else { ?>
-<!-- Category Filter Dropdown & Search Bar-->
-<div class="search-and-filter">
-  <form method="GET" action="">
-    <input type="text" name="search" placeholder="Search todos" class="search-input">
-  </form>
-  <select id="categoryFilter" onchange="applyCategoryFilter()">
-    <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
-    <?php
-      $categories_sql = "SELECT * FROM categories WHERE user_id = '$user_id' OR user_id IS NULL";
-      $categories_result = mysqli_query($conn, $categories_sql);
-      while ($category_row = mysqli_fetch_assoc($categories_result)) {
-        $categoryId = $category_row['id'];
-        $categoryName = $category_row['category'];
-        $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
-        echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
-      }
-    ?>
-  </select>
-</div>
-<!-- /Category Filter Dropdown & Search Bar -->
-<?php } ?>
-
-<?php if ($num_rows < 1) { echo '<h4 style="color: red;">There are no tasks to show.</h4>'; } else { echo "<h3>Completed Tasks:</h3><br><h4>Number of total tasks in the category: " . mysqli_num_rows($result); echo "</h4>"; ?>
-
-<table class="sortable dark-mode-table">
-  <thead>
-  <tr>
-    <th width="700">Objective</th>
-    <th width="300">Category</th>
-    <th width="200">Action</th>
-  </tr>
-  </thead>
-  <tbody>
-  <?php foreach ($incompleteTasks as $row): ?>
-    <tr>
-      <td><?php echo htmlspecialchars($row['objective']); ?></td>
-      <td>
-      <?php
-      $category_id = $row['category'];
-      $category_sql = "SELECT category FROM categories WHERE id = '$category_id'";
-      $category_result = mysqli_query($conn, $category_sql);
-      $category_row = mysqli_fetch_assoc($category_result);
-      echo $category_row['category'];
-      ?>
-      </td>
-      <td>
-        <form method="post" action="completed.php">
-            <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
-            <button type="submit" class="save-button">Mark as completed</button>
-        </form>
-      </td>
-    </tr>
-  <?php endforeach; ?>
-  </tbody>
-</table>
-<?php } ?>
+<div class="container">
+  <br>
+  <h1 class="title"><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
+  <br>
+  <?php if ($num_rows < 1) {} else { ?>
+  <!-- Category Filter Dropdown & Search Bar -->
+  <div class="field is-grouped">
+    <p class="control is-expanded">
+      <input type="text" name="search" placeholder="Search todos" class="input">
+    </p>
+    <p class="control">
+      <div class="select">
+        <select id="categoryFilter" onchange="applyCategoryFilter()">
+          <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+          <?php foreach ($categories as $category): ?>
+            <option value="<?php echo $category['id']; ?>" <?php if ($categoryFilter == $category['id']) echo 'selected'; ?>>
+              <?php echo htmlspecialchars($category['category']); ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </p>
+  </div>
+  <!-- /Category Filter Dropdown & Search Bar -->
+  <?php } ?>
+  <?php if ($num_rows < 1) { echo '<h4 style="color: red;">There are no tasks to show.</h4>'; } else { echo "<h3>Completed Tasks:</h3><br><h4>Number of total tasks in the category: " . $num_rows; echo "</h4>"; ?>
+  <table class="table is-striped is-fullwidth sortable">
+    <thead>
+      <tr>
+        <th width="700">Objective</th>
+        <th width="300">Category</th>
+        <th width="200">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($incompleteTasks as $row): ?>
+        <tr>
+          <td><?php echo htmlspecialchars($row['objective']); ?></td>
+          <td>
+          <?php
+          $category_id = $row['category'];
+          $category_sql = "SELECT category FROM categories WHERE id = ?";
+          $category_stmt = $conn->prepare($category_sql);
+          $category_stmt->bind_param("i", $category_id);
+          $category_stmt->execute();
+          $category_result = $category_stmt->get_result();
+          $category_row = $category_result->fetch_assoc();
+          echo htmlspecialchars($category_row['category']);
+          $category_stmt->close();
+          ?>
+          </td>
+          <td>
+            <form method="post" action="completed.php">
+              <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
+              <button type="submit" class="button is-primary">Mark as completed</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  <?php } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script src="https://yourlistonline.yourcdnonline.com/js/darkmode.js"></script>
-<script>$(document).foundation();</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
+<script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
+<script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
 <script>
   // JavaScript function to handle the category filter change
   document.getElementById("categoryFilter").addEventListener("change", function() {

@@ -6,10 +6,10 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
@@ -41,16 +41,19 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
 // Get user's to-do list
-$sql = "SELECT * FROM todos WHERE user_id = $user_id ORDER BY id DESC";
-$result = $conn->query($sql);
+$sql = "SELECT * FROM todos WHERE user_id = ? ORDER BY id DESC";
+$todoSTMT = $conn->prepare($sql);
+$todoSTMT->bind_param("i", $user_id);
+$todoSTMT->execute();
+$result = $todoSTMT->get_result();
 
 if ($result) {
   $rows = $result->fetch_all(MYSQLI_ASSOC);
-  $num_rows = mysqli_num_rows($result);
+  $num_rows = $result->num_rows;
 } else {
-  error_log("Error: " . mysqli_error($conn));
+  error_log("Error: " . $conn->error);
   header("Location: error.php");
-  exit;
+  exit();
 }
 
 // Handle form submission
@@ -60,12 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $new_objective = $_POST['objective'][$row_id];
     // Check if the objective has been updated
     if ($new_objective != $row['objective']) {
-      $sql = "UPDATE todos SET objective = '$new_objective' WHERE id = " . intval($row_id);
-      mysqli_query($conn, $sql);
+      $updateSTMT = $conn->prepare("UPDATE todos SET objective = ? WHERE id = ?");
+      $updateSTMT->bind_param("si", $new_objective, $row_id);
+      $updateSTMT->execute();
     }
   }
   header('Location: update_objective.php');
-  exit;
+  exit();
 }
 ?>
 <!DOCTYPE html>
@@ -73,111 +77,109 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title></title>
-    <link rel="stylesheet" href="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.min.css">
-    <link rel="stylesheet" href="https://yourlistonline.yourcdnonline.com/css/custom.css">
-    <script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
-    <script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
+    <title><?php echo $title; ?></title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
     <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
     <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
   </head>
 <body>
 <!-- Navigation -->
-<div class="title-bar" data-responsive-toggle="mobile-menu" data-hide-for="medium">
-  <button class="menu-icon" type="button" data-toggle="mobile-menu"></button>
-  <div class="title-bar-title">Menu</div>
-</div>
-<nav class="top-bar stacked-for-medium" id="mobile-menu">
-  <div class="top-bar-left">
-    <ul class="dropdown vertical medium-horizontal menu" data-responsive-menu="drilldown medium-dropdown hinge-in-from-top hinge-out-from-top">
-      <li class="menu-text menu-text-black">YourListOnline</li>
-      <li><a href="dashboard.php">Dashboard</a></li>
-      <li><a href="insert.php">Add</a></li>
-      <li><a href="remove.php">Remove</a></li>
-      <li>
-        <a>Update</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <li class="is-active"><a href="update_objective.php">Update Objective</a></li>
-          <li><a href="update_category.php">Update Objective Category</a></li>
-        </ul>
-      </li>
-      <li><a href="completed.php">Completed</a></li>
-      <li>
-        <a>Categories</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <li><a href="categories.php">View Categories</a></li>
-          <li><a href="add_category.php">Add Category</a></li>
-        </ul>
-      </li>
-      <li>
-        <a>Profile</a>
-        <ul class="vertical menu" data-dropdown-menu>
-          <li><a href="obs_options.php">OBS Viewing Options</a></li>
-          <li><a href="logout.php">Logout</a></li>
-        </ul>
-      </li>
-      <?php if ($is_admin) { ?>
-        <li>
-        <a>Admins</a>
-        <ul class="vertical menu" data-dropdown-menu>
-					<li><a href="../admins/dashboard.php" target="_self">Admin Dashboard</a></li>
-        </ul>
-      </li>
-      <?php } ?>
-    </ul>
+<nav class="navbar is-spaced" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a class="navbar-item" href="dashboard.php">
+      YourListOnline
+    </a>
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
   </div>
-  <div class="top-bar-right">
-    <ul class="menu">
-      <li><button id="dark-mode-toggle"><i class="icon-toggle-dark-mode"></i></button></li>
-      <li><a class="popup-link" onclick="showPopup()">&copy; 2023 YourListOnline. All rights reserved.</a></li>
-    </ul>
+  <div id="navbarBasicExample" class="navbar-menu">
+    <div class="navbar-start">
+      <a class="navbar-item" href="dashboard.php">Dashboard</a>
+      <a class="navbar-item" href="insert.php">Add</a>
+      <a class="navbar-item" href="remove.php">Remove</a>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Update</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="update_objective.php">Update Objective</a>
+          <a class="navbar-item" href="update_category.php">Update Objective Category</a>
+        </div>
+      </div>
+      <a class="navbar-item" href="completed.php">Completed</a>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Categories</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="categories.php">View Categories</a>
+          <a class="navbar-item" href="add_category.php">Add Category</a>
+        </div>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Profile</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="obs_options.php">OBS Viewing Options</a>
+        </div>
+      </div>
+    </div>
+    <div class="navbar-end">
+      <div class="navbar-item">
+        <button id="dark-mode-toggle" class="button is-dark"><i class="icon-toggle-dark-mode"></i></button>
+      </div>
+      <div class="navbar-item">
+        <a class="popup-link" onclick="showPopup()">&copy; 2023 YourListOnline. All rights reserved.</a>
+      </div>
+    </div>
   </div>
 </nav>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
-<br>
-<form method="POST">
-<?php if ($num_rows < 1) { echo '<h3 style="color: red;">There are no rows to edit</h3>'; } else { echo "<h2>Please pick which row to update on your list:</h2>"; ?>
-  <?php $num_rows = mysqli_num_rows($result); if ($num_rows > 0) { echo '<button type="submit" name="submit" class="save-button">Update All</button>'; } ?>
-<table class="sortable dark-mode-table">
-<thead>
-  <tr>
-      <th width="500">Objective</th>
-      <th width="300">Category</th>
-      <th width="200">Update Objective</th>
-  </tr>
-</thead>
-<tbody>
-  <?php foreach ($rows as $row) { ?>
-    <tr>
-      <td><?php echo $row['objective']; ?></td>
-      <td>
-        <?php
-          $category_id = $row['category'];
-          $category_sql = "SELECT category FROM categories WHERE id = '$category_id'";
-          $category_result = mysqli_query($conn, $category_sql);
-          $category_row = mysqli_fetch_assoc($category_result);
-          echo $category_row['category'];
-        ?>
-      </td>
-      <td>
-        <input type="text" name="objective[<?php echo $row['id']; ?>]" class="form-control" value="<?php echo $row['objective']; ?>">
-      </td>
-    </tr>
-  <?php } ?>
+<div class="container">
+  <br>
+  <h1 class="title"><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
+  <br>
+  <form method="POST">
+    <?php if ($num_rows < 1) { echo '<h3 style="color: red;">There are no rows to edit</h3>'; } else { echo "<h2>Please pick which row to update on your list:</h2>"; ?>
+    <?php if ($num_rows > 0) { echo '<button type="submit" name="submit" class="button is-primary">Update All</button>'; } ?>
+    <table class="table is-striped is-fullwidth sortable">
+      <thead>
+        <tr>
+          <th width="500">Objective</th>
+          <th width="300">Category</th>
+          <th width="200">Update Objective</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($rows as $row) { ?>
+        <tr>
+          <td><?php echo htmlspecialchars($row['objective']); ?></td>
+          <td>
+            <?php
+              $category_id = $row['category'];
+              $category_sql = "SELECT category FROM categories WHERE id = ?";
+              $categorySTMT = $conn->prepare($category_sql);
+              $categorySTMT->bind_param("i", $category_id);
+              $categorySTMT->execute();
+              $category_result = $categorySTMT->get_result();
+              $category_row = $category_result->fetch_assoc();
+              echo htmlspecialchars($category_row['category']);
+            ?>
+          </td>
+          <td>
+            <input type="text" name="objective[<?php echo $row['id']; ?>]" class="input" value="<?php echo htmlspecialchars($row['objective']); ?>">
+          </td>
+        </tr>
+        <?php } ?>
+      </tbody>
+    </table>
+    <?php } ?>
   </form>
-</tbody>
-</table>
-<?php } ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://dhbhdrzi4tiry.cloudfront.net/cdn/sites/foundation.js"></script>
-<script src="https://yourlistonline.yourcdnonline.com/js/darkmode.js"></script>
-<script>$(document).foundation();</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
+<script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
+<script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
 <script>
   // JavaScript function to handle the category filter change
   document.getElementById("categoryFilter").addEventListener("change", function() {
