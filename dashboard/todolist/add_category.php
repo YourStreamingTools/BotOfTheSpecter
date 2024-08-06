@@ -15,10 +15,10 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - Add Category";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,6 +40,9 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
+// Include the secondary database connection
+include 'database.php';
+
 // Initialize variables
 $category = "";
 $category_err = "";
@@ -52,28 +55,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   } else {
     // Prepare a select statement
     $sql = "SELECT id FROM categories WHERE category = ?";
-    if ($stmt = $conn->prepare($sql)) {
-      // Bind variables to the prepared statement as parameters
-      $stmt->bind_param("s", $param_category);
-      // Set parameters
-      $param_category = trim($_POST["category"]);
-      // Attempt to execute the prepared statement
-      if ($stmt->execute()) {
-        // Store result
-        $stmt->store_result();
-        if ($stmt->num_rows == 1) {
-          $category_err = "This category name already exists.";
-        } else {
-          $category = trim($_POST["category"]);
-        }
-      } else {
-        echo "Oops! Something went wrong. Please try again later.";
-      }
+    $stmt = $db->prepare($sql);
+    $stmt->bindParam(1, $param_category, PDO::PARAM_STR);
+    $param_category = trim($_POST["category"]);
+    // Attempt to execute the prepared statement
+    $stmt->execute();
+    if ($stmt->rowCount() == 1) {
+      $category_err = "This category name already exists.";
+    } else {
+      $category = trim($_POST["category"]);
     }
-    // Close statement
-    $stmt->close();
   }
-
   // Check input errors before inserting into the database
   if (empty($category_err)) {
     // Check if the 'Public' checkbox is checked
@@ -82,25 +74,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $param_user_id = $is_public ? NULL : $user_id;
     // Prepare an insert statement
     $sql = "INSERT INTO categories (category, user_id) VALUES (?, ?)";
-    if ($stmt = $conn->prepare($sql)) {
-      // Bind variables to the prepared statement as parameters
-      $stmt->bind_param("si", $param_category, $param_user_id);
-      // Set parameters
-      $param_category = $category;
-      // Attempt to execute the prepared statement
-      if ($stmt->execute()) {
-        // Redirect to categories page
-        header("location: categories.php");
-        exit();
-      } else {
-        echo "Oops! Something went wrong. Please try again later.";
-      }
+    $stmt = $db->prepare($sql);
+    $stmt->bindParam(1, $param_category, PDO::PARAM_STR);
+    $stmt->bindParam(2, $param_user_id, PDO::PARAM_INT);
+    // Attempt to execute the prepared statement
+    if ($stmt->execute()) {
+      // Redirect to categories page
+      header("location: categories.php");
+      exit();
+    } else {
+      echo "Oops! Something went wrong. Please try again later.";
     }
-    // Close statement
-    $stmt->close();
   }
-  // Close connection
-  $conn->close();
 }
 ?>
 <!DOCTYPE html>
