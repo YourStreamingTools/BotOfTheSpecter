@@ -68,10 +68,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   }
   // Check input errors before inserting into the database
   if (empty($category_err)) {
-    // Check if the 'Public' checkbox is checked
-    $is_public = isset($_POST['public']) ? 1 : 0;
-    // If the category is public, set user_id to NULL; otherwise, use the user's ID
-    $param_user_id = $is_public ? NULL : $user_id;
+    // Use the user's ID for the category
+    $param_user_id = $user_id;
     // Prepare an insert statement
     $sql = "INSERT INTO categories (category, user_id) VALUES (?, ?)";
     $stmt = $db->prepare($sql);
@@ -128,7 +126,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <a class="navbar-link">Categories</a>
         <div class="navbar-dropdown">
           <a class="navbar-item" href="categories.php">View Categories</a>
-          <a class="navbar-item" href="add_category.php">Add Category</a>
+          <a class="navbar-item is-active" href="add_category.php">Add Category</a>
         </div>
       </div>
       <div class="navbar-item has-dropdown is-hoverable">
@@ -161,12 +159,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <input type="text" name="category" class="input" value="<?php echo htmlspecialchars($category); ?>">
       </div>
       <p class="help is-danger"><?php echo $category_err; ?></p>
-    </div>
-    <div class="field">
-      <div class="control">
-        <input type="checkbox" name="public" id="publicCheckbox" value="1">
-        <label for="publicCheckbox" class="checkbox">Public Category</label>
-      </div>
     </div>
     <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
     <div class="field">
