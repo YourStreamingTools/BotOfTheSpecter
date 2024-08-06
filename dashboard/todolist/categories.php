@@ -15,10 +15,10 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - View Categories";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,15 +40,18 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
-// Get categories from the database for the logged-in user
-$query = "SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL";
-$stmt = $conn->prepare($query);
-$stmt->bind_param("i", $user_id);
+// Include the secondary database connection
+include 'database.php';
+
+// Get categories from the secondary database for the logged-in user
+$query = "SELECT * FROM categories WHERE user_id = :user_id OR user_id IS NULL";
+$stmt = $db->prepare($query);
+$stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
 $stmt->execute();
-$result = $stmt->get_result();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (!$result) {
-    die("Error retrieving categories: " . $conn->error);
+  die("Error retrieving categories: " . $db->errorInfo()[2]);
 }
 ?>
 <!DOCTYPE html>
@@ -127,12 +130,12 @@ if (!$result) {
       </tr>
     </thead>
     <tbody>
-      <?php while ($row = $result->fetch_assoc()): ?>
+      <?php foreach ($result as $row): ?>
       <tr>
         <td><?php echo htmlspecialchars($row['id']); ?></td>
         <td><?php echo htmlspecialchars($row['category']); ?></td>
       </tr>
-      <?php endwhile; ?>
+      <?php endforeach; ?>
     </tbody>
   </table>
 </div>
