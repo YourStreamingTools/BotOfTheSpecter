@@ -15,10 +15,10 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - Update Objective Category";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,18 +40,15 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
-// Get user's to-do list
-$sql = "SELECT * FROM todos WHERE user_id = $user_id ORDER BY id DESC";
-$result = $conn->query($sql);
-$num_rows = $result->num_rows;
+// Include the secondary database connection
+include 'database.php';
 
-if ($result) {
-  $rows = $result->fetch_all(MYSQLI_ASSOC);
-} else {
-  error_log("Error: " . mysqli_error($conn));
-  header("Location: error.php");
-  exit;
-}
+// Get user's to-do list
+$stmt = $db->prepare("SELECT * FROM todos WHERE user_id = :user_id ORDER BY id DESC");
+$stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+$stmt->execute();
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$num_rows = count($rows);
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -60,13 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $new_category = $_POST['category'][$row_id];
     // Check if the row has been updated
     if ($new_category != $row['category']) {
-      $stmt = $conn->prepare("UPDATE todos SET category = ? WHERE id = ?");
-      $stmt->bind_param("si", $new_category, $row_id);
-      $stmt->execute();
+      $updateStmt = $db->prepare("UPDATE todos SET category = :category WHERE id = :id");
+      $updateStmt->bindParam(':category', $new_category, PDO::PARAM_STR);
+      $updateStmt->bindParam(':id', $row_id, PDO::PARAM_INT);
+      $updateStmt->execute();
     }
   }
   header('Location: update_category.php');
-  exit;
+  exit();
 }
 ?>
 <!DOCTYPE html>
@@ -153,29 +151,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <td>
           <?php
             $category_id = $row['category'];
-            $category_sql = "SELECT category FROM categories WHERE id = ?";
-            $category_stmt = $conn->prepare($category_sql);
-            $category_stmt->bind_param("i", $category_id);
+            $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = :category_id");
+            $category_stmt->bindParam(':category_id', $category_id, PDO::PARAM_INT);
             $category_stmt->execute();
-            $category_result = $category_stmt->get_result();
-            $category_row = $category_result->fetch_assoc();
+            $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
             echo htmlspecialchars($category_row['category']);
-            $category_stmt->close();
           ?>
         </td>
         <td>
           <div class="select">
             <select id="category" name="category[<?php echo $row['id']; ?>]" class="form-control">
               <?php
-                $stmt = $conn->prepare("SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL");
-                $stmt->bind_param("i", $user_id);
+                $stmt = $db->prepare("SELECT * FROM categories WHERE user_id = :user_id OR user_id IS NULL");
+                $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
                 $stmt->execute();
-                $result = $stmt->get_result();
-                while ($category_row = $result->fetch_assoc()) {
+                $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($categories as $category_row) {
                   $selected = ($category_row['id'] == $row['category']) ? 'selected' : '';
                   echo '<option value="'.$category_row['id'].'" '.$selected.'>'.htmlspecialchars($category_row['category']).'</option>';
                 }
-                $stmt->close();
               ?>
             </select>
           </div>
