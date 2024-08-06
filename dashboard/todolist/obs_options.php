@@ -15,10 +15,10 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - OBS Viewing Options";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,19 +40,21 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
+// Include the secondary database connection
+include 'database.php';
+
 // Retrieve font, color, list, shadow, bold, and font_size data for the user from the showobs table
-$stmt = $conn->prepare("SELECT * FROM showobs WHERE user_id = ?");
-$stmt->bind_param("i", $user_id);
+$stmt = $db->prepare("SELECT * FROM showobs WHERE user_id = ?");
+$stmt->bindParam(1, $user_id, PDO::PARAM_INT);
 $stmt->execute();
-$result = $stmt->get_result();
-$settings = $result->fetch_assoc();
-// Retrieve font, color, list, shadow, bold, and font_size data for the user from the showobs table
-$font = isset($settings['font']) && $settings['font'] !== '' ? $settings['font'] : 'Not set';
-$color = isset($settings['color']) && $settings['color'] !== '' ? $settings['color'] : 'Not set';
-$list = isset($settings['list']) && $settings['list'] !== '' ? $settings['list'] : 'Bullet';
-$shadow = isset($settings['shadow']) && $settings['shadow'] == 1 ? true : false;
-$bold = isset($settings['bold']) && $settings['bold'] == 1 ? true : false;
-$font_size = isset($settings['font_size']) ? $settings['font_size'] : '12px';
+$result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$font = isset($result['font']) && $result['font'] !== '' ? $result['font'] : 'Not set';
+$color = isset($result['color']) && $result['color'] !== '' ? $result['color'] : 'Not set';
+$list = isset($result['list']) && $result['list'] !== '' ? $result['list'] : 'Bullet';
+$shadow = isset($result['shadow']) && $result['shadow'] == 1 ? true : false;
+$bold = isset($result['bold']) && $result['bold'] == 1 ? true : false;
+$font_size = isset($result['font_size']) ? $result['font_size'] : '12px';
 
 // Process form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -73,10 +75,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Check if the user has existing settings
-    if ($result->num_rows > 0) {
+    if ($result) {
         // Update the font, color, list, shadow, bold, and font_size data in the database
-        $stmt = $conn->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? WHERE user_id = ?");
-        $stmt->bind_param("sssiiis", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize, $user_id);
+        $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? WHERE user_id = ?");
+        $stmt->bindParam(1, $selectedFont, PDO::PARAM_STR);
+        $stmt->bindParam(2, $selectedColor, PDO::PARAM_STR);
+        $stmt->bindParam(3, $selectedList, PDO::PARAM_STR);
+        $stmt->bindParam(4, $selectedShadow, PDO::PARAM_INT);
+        $stmt->bindParam(5, $selectedBold, PDO::PARAM_INT);
+        $stmt->bindParam(6, $selectedFontSize, PDO::PARAM_STR);
+        $stmt->bindParam(7, $user_id, PDO::PARAM_INT);
         if ($stmt->execute()) {
             // Update successful
             header("Location: obs_options.php");
@@ -86,8 +94,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     } else {
         // Insert new settings for the user
-        $stmt = $conn->prepare("INSERT INTO showobs (user_id, font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("isssiiis", $user_id, $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
+        $stmt = $db->prepare("INSERT INTO showobs (user_id, font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+        $stmt->bindParam(2, $selectedFont, PDO::PARAM_STR);
+        $stmt->bindParam(3, $selectedColor, PDO::PARAM_STR);
+        $stmt->bindParam(4, $selectedList, PDO::PARAM_STR);
+        $stmt->bindParam(5, $selectedShadow, PDO::PARAM_INT);
+        $stmt->bindParam(6, $selectedBold, PDO::PARAM_INT);
+        $stmt->bindParam(7, $selectedFontSize, PDO::PARAM_STR);
         if ($stmt->execute()) {
             // Insertion successful
             header("Location: obs_options.php");
