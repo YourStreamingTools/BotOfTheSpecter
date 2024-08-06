@@ -4322,7 +4322,6 @@ async def setup_database():
             # Create MySQL database named after the channel, if it doesn't exist
             await cursor.execute("CREATE DATABASE IF NOT EXISTS `{}`".format(CHANNEL_NAME))
             await cursor.execute("USE `{}`".format(CHANNEL_NAME))
-
             # List of table creation statements
             tables = {
                 'everyone': '''
@@ -4593,7 +4592,6 @@ async def setup_database():
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
             }
-
             # Create tables
             for table_name, table_schema in tables.items():
                 try:
@@ -4603,8 +4601,22 @@ async def setup_database():
                         bot_logger.info(f"Table {table_name} already exists.")
                     else:
                         bot_logger.error(f"Error creating table {table_name}: {err}")
-
             await conn.commit()
+            # Insert 'Default' category if not exists
+            await cursor.execute("SELECT COUNT(*) FROM categories WHERE category = 'Default'")
+            result = await cursor.fetchone()
+            if result[0] == 0:
+                await cursor.execute("INSERT INTO categories (category) VALUES ('Default')")
+                await conn.commit()
+            # Insert default options for showobs if not exists
+            await cursor.execute("SELECT COUNT(*) FROM showobs")
+            result = await cursor.fetchone()
+            if result[0] == 0:
+                await cursor.execute('''
+                    INSERT INTO showobs (font, color, list, shadow, bold, font_size)
+                    VALUES ('Arial', 'Black', 'Bullet', 0, 0, 22)
+                ''')
+                await conn.commit()
     except aiomysql.Error as err:
         bot_logger.error(err)
     finally:
