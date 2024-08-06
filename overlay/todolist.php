@@ -6,14 +6,16 @@
 <link rel='apple-touch-icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png'>
 <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
 <?php
-// Database connection details for primary database
-$primary_db_username = ''; // CHANGE TO MAKE THIS WORK
-$primary_db_password = ''; // CHANGE TO MAKE THIS WORK
-$primary_db_servername = "sql.botofthespecter.com";
+// Database connection deatils
+$db_servername = "sql.botofthespecter.com";
+$db_username = ''; // CHANGE TO MAKE THIS WORK
+$db_password = ''; // CHANGE TO MAKE THIS WORK
+
+// Primary database
 $primary_db_name = "website";
 
 // Create a connection to the primary database
-$conn = new mysqli($primary_db_servername, $primary_db_username, $primary_db_password, $primary_db_name);
+$conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
 
 // Check connection
 if ($conn->connect_error) {
@@ -56,15 +58,12 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
     exit;
 }
 
-// Database connection details for secondary database
-$secondary_db_username = ''; // CHANGE TO MAKE THIS WORK
-$secondary_db_password = ''; // CHANGE TO MAKE THIS WORK
-$secondary_db_servername = "sql.botofthespecter.com";
+// Secondary database
 $secondary_db_name = $username;
 
 try {
     // Create a connection to the secondary database
-    $db = new PDO("mysql:host=$secondary_db_servername;dbname=$secondary_db_name", $secondary_db_username, $secondary_db_password);
+    $db = new PDO("mysql:host=$db_servername;dbname=$secondary_db_name", $db_username, $db_password);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Retrieve font, font_size, color, list, and shadow settings for the user from the secondary database
