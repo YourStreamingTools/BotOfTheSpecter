@@ -66,7 +66,7 @@ include 'sqlite.php';
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
                 <p><em>This URL includes any and all overlays we offer, automatically added and updated.
-                    <br>The only exception is the Stream Ending Credits, which must be added separately.
+                    <br>The only exception is the Stream Ending Credits & To Do List, which must be added separately.
                     <br>Simply add this link once, and any new overlays will be included automatically:</em></p>
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
