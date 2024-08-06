@@ -90,7 +90,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             header("Location: obs_options.php");
         } else {
             // Display error message
-            echo "Error updating settings: " . $stmt->error;
+            $errorInfo = $stmt->errorInfo();
+            echo "Error updating settings: " . $errorInfo[2];
         }
     } else {
         // Insert new settings for the user
@@ -107,7 +108,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             header("Location: obs_options.php");
         } else {
             // Display error message
-            echo "Error inserting settings: " . $stmt->error;
+            $errorInfo = $stmt->errorInfo();
+            echo "Error inserting settings: " . $errorInfo[2];
         }
     }
 }
@@ -158,7 +160,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="navbar-item has-dropdown is-hoverable">
                 <a class="navbar-link">Profile</a>
                 <div class="navbar-dropdown">
-                    <a class="navbar-item" href="obs_options.php">OBS Viewing Options</a>
+                    <a class="navbar-item is-active" href="obs_options.php">OBS Viewing Options</a>
                 </div>
             </div>
         </div>
