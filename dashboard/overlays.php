@@ -1,5 +1,8 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
@@ -11,6 +14,7 @@ if (!isset($_SESSION['access_token'])) {
 
 // Page Title
 $title = "Overlays";
+
 // Connect to database
 require_once "db_connect.php";
 
@@ -105,6 +109,14 @@ include 'sqlite.php';
                 <h4 class="title is-4">Walkons Only:</h4>
                 <p><em>Only hear the Walkon audio that you've set for each user.</em></p>
                 <code>https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">To Do List:</h4>
+                <p><em>Display a list of tasks to be completed during the stream. This overlay helps you keep track of your goals and share them with your audience.
+                    <br>You can define a working category by adding it to the URL like this: <strong>todolist.php?code=API_KEY&category=1</strong></em></p>
+                <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE&category=1</code>
             </div>
         </div>
     </div>
