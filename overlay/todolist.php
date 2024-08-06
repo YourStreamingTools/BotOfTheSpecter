@@ -6,7 +6,7 @@
 <link rel='apple-touch-icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png'>
 <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
 <?php
-// Database connection deatils
+// Database connection details
 $db_servername = "sql.botofthespecter.com";
 $db_username = ''; // CHANGE TO MAKE THIS WORK
 $db_password = ''; // CHANGE TO MAKE THIS WORK
@@ -67,8 +67,7 @@ try {
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Retrieve font, font_size, color, list, and shadow settings for the user from the secondary database
-    $stmt = $db->prepare("SELECT * FROM showobs WHERE user_id = ?");
-    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+    $stmt = $db->prepare("SELECT * FROM showobs LIMIT 1");
     $stmt->execute();
     $settings = $stmt->fetch(PDO::FETCH_ASSOC);
     $font = isset($settings['font']) ? $settings['font'] : null;
@@ -80,18 +79,16 @@ try {
     $bold = isset($settings['bold']) ? $settings['bold'] : null;
 
     $category_id = isset($_GET['category']) && !empty($_GET['category']) ? $_GET['category'] : "1";
-    $stmt = $db->prepare("SELECT category FROM categories WHERE id = ? AND user_id = ?");
+    $stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
     $stmt->bindParam(1, $category_id, PDO::PARAM_INT);
-    $stmt->bindParam(2, $user_id, PDO::PARAM_INT);
     $stmt->execute();
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($result) {
         $category = $result['category'];
 
-        $stmt = $db->prepare("SELECT * FROM todos WHERE user_id = ? AND category = ? ORDER BY id ASC");
-        $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-        $stmt->bindParam(2, $category_id, PDO::PARAM_INT);
+        $stmt = $db->prepare("SELECT * FROM todos WHERE category = ? ORDER BY id ASC");
+        $stmt->bindParam(1, $category_id, PDO::PARAM_INT);
         $stmt->execute();
         $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
