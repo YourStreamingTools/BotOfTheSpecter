@@ -15,10 +15,10 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - Completed";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,37 +40,34 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
+// Include the secondary database connection
+include 'database.php';
+
 // Check if a specific category is selected
 if (isset($_GET['category'])) {
   $category_id = $_GET['category'];
   $sql = "SELECT * FROM todos WHERE user_id = ? AND category = ? AND completed = 'No'";
-  $stmt = $conn->prepare($sql);
-  $stmt->bind_param("ii", $user_id, $category_id);
+  $stmt = $db->prepare($sql);
+  $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+  $stmt->bindParam(2, $category_id, PDO::PARAM_INT);
 } else {
   $sql = "SELECT * FROM todos WHERE user_id = ? AND completed = 'No'";
-  $stmt = $conn->prepare($sql);
-  $stmt->bind_param("i", $user_id);
+  $stmt = $db->prepare($sql);
+  $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
 }
 
 $stmt->execute();
-$result = $stmt->get_result();
-$stmt->close();
-$num_rows = $result->num_rows;
-
-// Assign incomplete tasks to the $incompleteTasks variable
-$incompleteTasks = [];
-while ($row = $result->fetch_assoc()) {
-  $incompleteTasks[] = $row;
-}
+$incompleteTasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$num_rows = count($incompleteTasks);
 
 // Mark task as completed
 if (isset($_POST['task_id'])) {
   $task_id = $_POST['task_id'];
   $sql = "UPDATE todos SET completed = 'Yes' WHERE id = ? AND user_id = ?";
-  $stmt = $conn->prepare($sql);
-  $stmt->bind_param("ii", $task_id, $user_id);
+  $stmt = $db->prepare($sql);
+  $stmt->bindParam(1, $task_id, PDO::PARAM_INT);
+  $stmt->bindParam(2, $user_id, PDO::PARAM_INT);
   $stmt->execute();
-  $stmt->close();
   
   header('Location: completed.php');
   exit();
@@ -78,8 +75,8 @@ if (isset($_POST['task_id'])) {
 
 // Retrieve categories for the filter dropdown
 $categorySql = "SELECT * FROM categories";
-$categoryResult = $conn->query($categorySql);
-$categories = $categoryResult->fetch_all(MYSQLI_ASSOC);
+$categoryStmt = $db->query($categorySql);
+$categories = $categoryStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Check if a specific category is selected
 $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
@@ -188,13 +185,11 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
           <?php
           $category_id = $row['category'];
           $category_sql = "SELECT category FROM categories WHERE id = ?";
-          $category_stmt = $conn->prepare($category_sql);
-          $category_stmt->bind_param("i", $category_id);
+          $category_stmt = $db->prepare($category_sql);
+          $category_stmt->bindParam(1, $category_id, PDO::PARAM_INT);
           $category_stmt->execute();
-          $category_result = $category_stmt->get_result();
-          $category_row = $category_result->fetch_assoc();
+          $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
           echo htmlspecialchars($category_row['category']);
-          $category_stmt->close();
           ?>
           </td>
           <td>
