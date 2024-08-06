@@ -15,10 +15,10 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - Dashboard";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,6 +40,9 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
+// Include the secondary database connection
+include 'database.php';
+
 // Get the selected category filter, default to "all" if not provided
 $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 
@@ -50,35 +53,38 @@ $searchKeyword = isset($_GET['search']) ? $_GET['search'] : '';
 if ($categoryFilter === 'all') {
   if (!empty($searchKeyword)) {
     $sql = "SELECT * FROM todos WHERE user_id = ? AND title LIKE ? ORDER BY id ASC";
-    $stmt = $conn->prepare($sql);
+    $stmt = $db->prepare($sql);
     $searchKeyword = "%$searchKeyword%";
-    $stmt->bind_param("is", $user_id, $searchKeyword);
+    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+    $stmt->bindParam(2, $searchKeyword, PDO::PARAM_STR);
   } else {
     $sql = "SELECT * FROM todos WHERE user_id = ? ORDER BY id ASC";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $user_id);
+    $stmt = $db->prepare($sql);
+    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
   }
 } else {
-  $categoryFilter = mysqli_real_escape_string($conn, $categoryFilter);
   if (!empty($searchKeyword)) {
     $sql = "SELECT * FROM todos WHERE user_id = ? AND category = ? AND title LIKE ? ORDER BY id ASC";
-    $stmt = $conn->prepare($sql);
+    $stmt = $db->prepare($sql);
     $searchKeyword = "%$searchKeyword%";
-    $stmt->bind_param("iis", $user_id, $categoryFilter, $searchKeyword);
+    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+    $stmt->bindParam(2, $categoryFilter, PDO::PARAM_INT);
+    $stmt->bindParam(3, $searchKeyword, PDO::PARAM_STR);
   } else {
     $sql = "SELECT * FROM todos WHERE user_id = ? AND category = ? ORDER BY id ASC";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ii", $user_id, $categoryFilter);
+    $stmt = $db->prepare($sql);
+    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+    $stmt->bindParam(2, $categoryFilter, PDO::PARAM_INT);
   }
 }
 
 $stmt->execute();
-$result = $stmt->get_result();
-$num_rows = $result->num_rows;
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$num_rows = count($result);
 
 // Handle errors
 if (!$result) {
-  echo "Error: " . $conn->error;
+  echo "Error: " . $db->errorInfo()[2];
   exit();
 }
 ?>
@@ -162,17 +168,16 @@ if (!$result) {
           <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
           <?php
             $categories_sql = "SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL";
-            $categories_stmt = $conn->prepare($categories_sql);
-            $categories_stmt->bind_param("i", $user_id);
+            $categories_stmt = $db->prepare($categories_sql);
+            $categories_stmt->bindParam(1, $user_id, PDO::PARAM_INT);
             $categories_stmt->execute();
-            $categories_result = $categories_stmt->get_result();
-            while ($category_row = $categories_result->fetch_assoc()) {
+            $categories_result = $categories_stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($categories_result as $category_row) {
               $categoryId = $category_row['id'];
               $categoryName = htmlspecialchars($category_row['category']);
               $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
               echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
             }
-            $categories_stmt->close();
           ?>
         </select>
       </div>
@@ -194,27 +199,25 @@ if (!$result) {
       </tr>
     </thead>
     <tbody>
-      <?php while ($row = $result->fetch_assoc()): ?>
+      <?php foreach ($result as $row): ?>
         <tr>
           <td><?php echo ($row['completed'] == 'Yes') ? '<s>' . htmlspecialchars($row['objective']) . '</s>' : htmlspecialchars($row['objective']); ?></td>
           <td>
             <?php
               $category_id = $row['category'];
               $category_sql = "SELECT category FROM categories WHERE id = ?";
-              $category_stmt = $conn->prepare($category_sql);
-              $category_stmt->bind_param("i", $category_id);
+              $category_stmt = $db->prepare($category_sql);
+              $category_stmt->bindParam(1, $category_id, PDO::PARAM_INT);
               $category_stmt->execute();
-              $category_result = $category_stmt->get_result();
-              $category_row = $category_result->fetch_assoc();
+              $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
               echo htmlspecialchars($category_row['category']);
-              $category_stmt->close();
             ?>
           </td>
           <td><?php echo htmlspecialchars($row['created_at']); ?></td>
           <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
           <td><?php echo htmlspecialchars($row['completed']); ?></td>
         </tr>
-      <?php endwhile; ?>
+      <?php endforeach; ?>
     </tbody>
   </table>
   <?php } ?>
