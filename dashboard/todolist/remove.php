@@ -8,17 +8,17 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
 $title = "YourListOnline - Remove Objective";
 
-// Connect to database
+// Connect to the primary database
 require_once "db_connect.php";
 
-// Fetch the user's data from the database based on the access_token
+// Fetch the user's data from the primary database based on the access_token
 $access_token = $_SESSION['access_token'];
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
@@ -40,42 +40,36 @@ $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
+// Include the secondary database connection
+include 'database.php';
+
 // Get the selected category filter, default to "all" if not provided
 $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 
 // Build the SQL query based on the category filter
 if ($categoryFilter === 'all') {
-  $sql = "SELECT * FROM todos WHERE user_id = ? ORDER BY id ASC";
-  $stmt = $conn->prepare($sql);
-  $stmt->bind_param("i", $user_id);
+  $stmt = $db->prepare("SELECT * FROM todos WHERE user_id = :user_id ORDER BY id ASC");
+  $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
 } else {
-  $categoryFilter = mysqli_real_escape_string($conn, $categoryFilter);
-  $sql = "SELECT * FROM todos WHERE user_id = ? AND category = ? ORDER BY id ASC";
-  $stmt = $conn->prepare($sql);
-  $stmt->bind_param("is", $user_id, $categoryFilter);
+  $stmt = $db->prepare("SELECT * FROM todos WHERE user_id = :user_id AND category = :category ORDER BY id ASC");
+  $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+  $stmt->bindParam(':category', $categoryFilter, PDO::PARAM_STR);
 }
 
 $stmt->execute();
-$result = $stmt->get_result();
-$num_rows = $result->num_rows;
-
-// Handle errors
-if (!$result) {
-  echo "Error: " . $conn->error;
-  exit();
-}
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$num_rows = count($result);
 
 // Handle remove item form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $todo_id = $_POST['todo_id'];
-    // Delete item from database
-    $sql = "DELETE FROM todos WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $todo_id);
-    $stmt->execute();
-    // Redirect back to remove page
-    header('Location: remove.php');
-    exit;
+  $todo_id = $_POST['todo_id'];
+  // Delete item from database
+  $stmt = $db->prepare("DELETE FROM todos WHERE id = :todo_id");
+  $stmt->bindParam(':todo_id', $todo_id, PDO::PARAM_INT);
+  $stmt->execute();
+  // Redirect back to remove page
+  header('Location: remove.php');
+  exit();
 }
 ?>
 <!DOCTYPE html>
@@ -144,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <br>
 <h1 class="title"><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
 <br>
-<?php if ($num_rows < 1) {} else { ?>
+<?php if ($num_rows > 0) { ?>
 <!-- Category Filter Dropdown & Search Bar -->
 <div class="field is-grouped">
   <p class="control is-expanded">
@@ -157,18 +151,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <select id="categoryFilter" onchange="applyCategoryFilter()">
         <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
         <?php
-          $categories_sql = "SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL";
-          $categories_stmt = $conn->prepare($categories_sql);
-          $categories_stmt->bind_param("i", $user_id);
+          $categories_sql = "SELECT * FROM categories WHERE user_id = :user_id OR user_id IS NULL";
+          $categories_stmt = $db->prepare($categories_sql);
+          $categories_stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
           $categories_stmt->execute();
-          $categories_result = $categories_stmt->get_result();
-          while ($category_row = $categories_result->fetch_assoc()) {
+          $categories_result = $categories_stmt->fetchAll(PDO::FETCH_ASSOC);
+          foreach ($categories_result as $category_row) {
             $categoryId = $category_row['id'];
             $categoryName = htmlspecialchars($category_row['category']);
             $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
             echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
           }
-          $categories_stmt->close();
         ?>
       </select>
     </div>
@@ -190,20 +183,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </tr>
   </thead>
   <tbody>
-    <?php while ($row = $result->fetch_assoc()): ?>
+    <?php foreach ($result as $row): ?>
       <tr>
         <td><?= htmlspecialchars($row['objective']) ?></td>
         <td>
           <?php
             $category_id = $row['category'];
-            $category_sql = "SELECT category FROM categories WHERE id = ?";
-            $category_stmt = $conn->prepare($category_sql);
-            $category_stmt->bind_param("i", $category_id);
+            $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = :category_id");
+            $category_stmt->bindParam(':category_id', $category_id, PDO::PARAM_INT);
             $category_stmt->execute();
-            $category_result = $category_stmt->get_result();
-            $category_row = $category_result->fetch_assoc();
+            $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
             echo htmlspecialchars($category_row['category']);
-            $category_stmt->close();
           ?>
         </td>
         <td><?= htmlspecialchars($row['completed']) ?></td>
@@ -214,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </form>
         </td>
       </tr>
-    <?php endwhile; ?>
+    <?php endforeach; ?>
   </tbody>
 </table>
 <?php } ?>
