@@ -81,20 +81,7 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 const humidity = currentWeatherMetric.humidity;
                 const windDirection = getWindDirection(currentWeatherMetric.wind_deg);
                 const weatherIcon = `https://openweathermap.org/img/wn/${currentWeatherMetric.weather[0].icon}@2x.png`;
-                let currentTime = null;
-                if (timezone) {
-                    currentTime = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                }
-                console.log('Formatted weather data:', {
-                    currentTime,
-                    status,
-                    temperature: `${temperatureC}°C | ${temperatureF}°F`,
-                    wind: `${windSpeedKph} km/h | ${windSpeedMph} mph ${windDirection}`,
-                    humidity: `Humidity: ${humidity}%`,
-                    icon: weatherIcon
-                });
                 return {
-                    currentTime,
                     status,
                     temperature: `${temperatureC}°C | ${temperatureF}°F`,
                     wind: `${windSpeedKph} km/h | ${windSpeedMph} mph ${windDirection}`,
@@ -129,7 +116,7 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 weatherOverlay.innerHTML = `
                     <div class="overlay-content">
                         <div class="overlay-header">
-                            ${weather.currentTime ? `<div class="time">${weather.currentTime}</div>` : ''}
+                            <div id="currentTime" class="time"></div>
                             <div class="temperature">${weather.temperature}</div>
                         </div>
                         <div class="weather-details">
@@ -143,6 +130,9 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 weatherOverlay.classList.add('show');
                 weatherOverlay.style.display = 'block';
 
+                // Start the timer for updating the time
+                startTimer(timezone);
+
                 setTimeout(() => {
                     weatherOverlay.classList.remove('show');
                     weatherOverlay.classList.add('hide');
@@ -151,6 +141,17 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 setTimeout(() => {
                     weatherOverlay.style.display = 'none';
                 }, 11000);
+            }
+
+            function startTimer(timezone) {
+                function updateTime() {
+                    const currentTimeElement = document.getElementById('currentTime');
+                    if (currentTimeElement) {
+                        currentTimeElement.innerHTML = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    }
+                }
+                updateTime();
+                setInterval(updateTime, 1000);
             }
 
             socket.on('connect', () => {
@@ -183,62 +184,6 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
             });
         });
     </script>
-    <style>
-        .weather-overlay {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background-color: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
-            color: #333;
-            width: 400px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        .weather-overlay .overlay-content {
-            font-size: 14px;
-        }
-        .weather-overlay .overlay-header {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-        }
-        .weather-overlay .time {
-            font-size: 14px;
-            color: #666;
-        }
-        .weather-overlay .temperature {
-            font-size: 22px;
-            margin-top: 5px;
-        }
-        .weather-overlay .condition {
-            font-size: 16px;
-            color: #666;
-            margin-top: 5px;
-        }
-        .weather-overlay .wind, .weather-overlay .humidity {
-            font-size: 14px;
-            color: #666;
-            margin-top: 5px;
-        }
-        .weather-overlay .weather-details {
-            display: flex;
-            align-items: center;
-            margin-top: 10px;
-        }
-        .weather-overlay .weather-icon {
-            width: 50px;
-            height: 50px;
-            margin-right: 10px;
-        }
-        .weather-overlay.hide {
-            display: none;
-        }
-        .weather-overlay.show {
-            display: block;
-        }
-    </style>
 </head>
 <body>
     <div id="weatherOverlay" class="weather-overlay hide"></div>
