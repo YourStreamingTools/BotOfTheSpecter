@@ -44,8 +44,7 @@ $greeting = 'Hello';
 include 'database.php';
 
 // Get user's to-do list
-$stmt = $db->prepare("SELECT * FROM todos WHERE user_id = :user_id ORDER BY id DESC");
-$stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+$stmt = $db->prepare("SELECT * FROM todos ORDER BY id DESC");
 $stmt->execute();
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $num_rows = count($rows);
@@ -162,8 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           <div class="select">
             <select id="category" name="category[<?php echo $row['id']; ?>]" class="form-control">
               <?php
-                $stmt = $db->prepare("SELECT * FROM categories WHERE user_id = :user_id OR user_id IS NULL");
-                $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+                $stmt = $db->prepare("SELECT * FROM categories WHERE user_id IS NULL");
                 $stmt->execute();
                 $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 foreach ($categories as $category_row) {
