@@ -31,32 +31,38 @@
                 return data;
             }
 
+            async function fetchWeatherDataImperial(lat, lon) {
+                const response = await fetch(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,daily,alerts&units=imperial&appid=${apiKey}`);
+                const data = await response.json();
+                return data;
+            }
+
             async function getWeather(location) {
                 const coords = await getLatLon(location);
                 if (!coords) {
                     return null;
                 }
-                const weatherData = await fetchWeatherData(coords.lat, coords.lon);
-                if (!weatherData) {
+                const weatherDataMetric = await fetchWeatherData(coords.lat, coords.lon);
+                const weatherDataImperial = await fetchWeatherDataImperial(coords.lat, coords.lon);
+                if (!weatherDataMetric || !weatherDataImperial) {
                     return null;
                 }
-                return formatWeatherData(location, weatherData.current);
+                return formatWeatherData(location, weatherDataMetric.current, weatherDataImperial.current);
             }
 
-            function formatWeatherData(location, currentWeather) {
-                const status = currentWeather.weather[0].description;
-                const temperature = currentWeather.temp;
-                const temperatureF = (temperature * 9 / 5 + 32).toFixed(1);
-                const windSpeed = currentWeather.wind_speed.toFixed(1);
-                const windSpeedMph = (windSpeed / 1.6).toFixed(2);
-                const humidity = currentWeather.humidity;
-                const windDirection = getWindDirection(currentWeather.wind_deg);
-
+            function formatWeatherData(location, currentWeatherMetric, currentWeatherImperial) {
+                const status = currentWeatherMetric.weather[0].description;
+                const temperatureC = currentWeatherMetric.temp.toFixed(1);
+                const temperatureF = currentWeatherImperial.temp.toFixed(1);
+                const windSpeedKph = currentWeatherMetric.wind_speed.toFixed(1);
+                const windSpeedMph = currentWeatherImperial.wind_speed.toFixed(1);
+                const humidity = currentWeatherMetric.humidity;
+                const windDirection = getWindDirection(currentWeatherMetric.wind_deg);
                 return {
                     location,
                     status,
-                    temperature: `${temperature}°C (${temperatureF}°F)`,
-                    wind: `Wind: ${windDirection} at ${windSpeed} kph (${windSpeedMph} mph)`,
+                    temperature: `${temperatureC}°C (${temperatureF}°F)`,
+                    wind: `Wind: ${windDirection} at ${windSpeedKph} kph (${windSpeedMph} mph)`,
                     humidity: `Humidity: ${humidity}%`
                 };
             }
