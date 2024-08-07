@@ -74,14 +74,15 @@ class BotOfTheSpecterWebsocketServer:
             ("disconnect", self.disconnect),
             ("REGISTER", self.register),
             ("LIST_CLIENTS", self.list_clients_event),
+            ("NOTIFY", self.notify),
             ("DEATHS", self.deaths),
+            ("WEATHER", self.weather),
             ("TWITCH_FOLLOW", self.twitch_follow),
             ("TWITCH_CHEER", self.twitch_cheer),
             ("TWITCH_RAID", self.twitch_raid),
             ("TWITCH_SUB", self.twitch_sub),
             ("WALKON", self.walkon),
             ("TTS", self.tts),
-            ("NOTIFY", self.notify),
             ("STREAM_ONLINE", self.stream_online),
             ("STREAM_OFFLINE", self.stream_offline),
             ("*", self.event)
@@ -279,6 +280,19 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"Stream offline event from SID [{sid}]: {data}")
         # Broadcast the stream offline event to all clients
         await self.sio.emit("STREAM_OFFLINE", data)
+
+    async def weather(self, sid, data):
+        self.logger.info(f"Weather event from SID [{sid}]: {data}")
+        location = data.get("location")
+        if not location:
+            self.logger.error('Missing location information for WEATHER event')
+            return
+        weather_data = {
+            'location': location
+        }
+        self.logger.info(f"Broadcasting WEATHER event with data: {weather_data}")
+        # Broadcast the weather event to all clients
+        await self.sio.emit("WEATHER", weather_data)
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
