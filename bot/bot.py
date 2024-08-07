@@ -65,57 +65,37 @@ builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", 
 
 # Logs
 webroot = "/var/www/"
-logs_directory = "logs"
-bot_logs = os.path.join(logs_directory, "bot")
-chat_logs = os.path.join(logs_directory, "chat")
-twitch_logs = os.path.join(logs_directory, "twitch")
-api_logs = os.path.join(logs_directory, "api")
-chat_history_logs = os.path.join(logs_directory, "chat_history")
+logs_directory = os.path.join(webroot, "logs")
+log_types = ["bot", "chat", "twitch", "api", "chat_history"]
 
 # Ensure directories exist
-for directory in [logs_directory, bot_logs, chat_logs, twitch_logs, api_logs, chat_history_logs]:
-    directory_path = os.path.join(webroot, directory)
-    if not os.path.exists(directory_path):
-        os.makedirs(directory_path)
+for log_type in log_types:
+    directory_path = os.path.join(logs_directory, log_type)
+    os.makedirs(directory_path, exist_ok=True)
 
 # Create a function to setup individual loggers for clarity
 def setup_logger(name, log_file, level=logging.INFO):
-    handler = logging.FileHandler(log_file)    
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    logger.addHandler(handler)
-
+    handler = logging.FileHandler(log_file)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    if not logger.hasHandlers():
+        logger.addHandler(handler)
     return logger
 
-# Function to get today's date in the required format
-def get_today_date():
-    return datetime.now().strftime("%d-%m-%Y")
+# Setup loggers
+loggers = {}
+for log_type in log_types:
+    log_file = os.path.join(logs_directory, log_type, f"{CHANNEL_NAME}.txt")
+    loggers[log_type] = setup_logger(log_type, log_file)
 
-# Setup bot logger
-bot_log_file = os.path.join(webroot, bot_logs, f"{CHANNEL_NAME}.txt")
-bot_logger = setup_logger('bot', bot_log_file)
-
-# Setup chat logger
-chat_log_file = os.path.join(webroot, chat_logs, f"{CHANNEL_NAME}.txt")
-chat_logger = setup_logger('chat', chat_log_file)
-
-# Setup twitch logger
-twitch_log_file = os.path.join(webroot, twitch_logs, f"{CHANNEL_NAME}.txt")
-twitch_logger = setup_logger('twitch', twitch_log_file)
-
-# Setup API logger
-api_log_file = os.path.join(webroot, api_logs, f"{CHANNEL_NAME}.txt")
-api_logger = setup_logger("api", api_log_file)
-
-# Setup chat history logger
-chat_history_folder = os.path.join(webroot, chat_history_logs, CHANNEL_NAME)
-if not os.path.exists(chat_history_folder):
-    os.makedirs(chat_history_folder)
-chat_history_log_file = os.path.join(chat_history_folder, f"{get_today_date()}.txt")
-chat_history_logger = setup_logger('chat_history', chat_history_log_file)
+# Access individual loggers
+bot_logger = loggers['bot']
+chat_logger = loggers['chat']
+chat_history_logger = loggers['chat_history']
+twitch_logger = loggers['twitch']
+api_logger = loggers['api']
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
 translator = GoogleTranslator
