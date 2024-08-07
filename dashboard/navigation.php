@@ -26,7 +26,6 @@
         <a class="navbar-link">Logs</a>
         <div class="navbar-dropdown">
           <a class="navbar-item" href="../logs.php">View Logs</a>
-          <a class="navbar-item" href="../chat_history.php">Chat History</a>
         </div>
       </div>
       <div class="navbar-item has-dropdown is-hoverable">
