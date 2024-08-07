@@ -194,6 +194,19 @@ input[type="submit"]:hover {
     font-size: 14px;
 }
 
+@keyframes heartbeat {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+.beating {
+    animation: heartbeat 1s infinite;
+}
+
 /* Dark mode table styles */
 .table {
     width: 100%;
