@@ -124,7 +124,11 @@ class BotOfTheSpecterWebsocketServer:
     
     async def heartbeat(self, request):
         # Handle the heartbeat route.
-        return web.json_response({"status": "OK"})
+        response = web.json_response({"status": "OK"})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
 
     async def list_clients(self, request):
         # List the registered clients.
