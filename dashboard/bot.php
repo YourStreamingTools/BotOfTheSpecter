@@ -176,16 +176,16 @@ if ($ModStatusOutput) {
     </div>
     <div class="column  is-5 bot-box" style="visibility: hidden;"></div>
     <div class="column is-11 bot-box">
-    <h4 class="title is-4">Websocket Notices</h4>
+      <h4 class="title is-4">Websocket Notices</h4>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
-        <h4 class="title is-4" style="margin-right: 10px;">Mark Stream as Online:</h4>
+        <h4 class="title is-4" style="margin-right: 10px; margin-bottom: 0;">Mark Stream as Online:</h4>
         <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
           <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
           <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
         </div>
       </div>
       <div style="display: flex; align-items: center;">
-        <h4 class="title is-4" style="margin-right: 10px;">Mark Stream as Offline:</h4>
+        <h4 class="title is-4" style="margin-right: 10px; margin-bottom: 0;">Mark Stream as Offline:</h4>
         <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
           <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
           <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
