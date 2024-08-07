@@ -8,8 +8,8 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
@@ -43,10 +43,9 @@ $greeting = 'Hello';
 // Include the secondary database connection
 include 'database.php';
 
-// Get categories from the secondary database for the logged-in user
-$query = "SELECT * FROM categories WHERE user_id = :user_id OR user_id IS NULL";
+// Get categories from the secondary database
+$query = "SELECT * FROM categories";
 $stmt = $db->prepare($query);
-$stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
 $stmt->execute();
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -120,8 +119,8 @@ if (!$result) {
   <br>
   <h1 class="title"><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
   <br>
-  <p>Here is the current list of categories you can filter your lists in, each category is its own list.<br>
-    The categories in this list are either created by you or publicly accessible.</p>
+  <p>Here is the current list of categories you can filter your lists in, each category is its own list.
+    <br>The categories in this list are either created by you or publicly accessible.</p>
   <table class="table is-striped is-fullwidth sortable">
     <thead>
       <tr>
