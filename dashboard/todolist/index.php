@@ -8,8 +8,8 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
@@ -52,29 +52,25 @@ $searchKeyword = isset($_GET['search']) ? $_GET['search'] : '';
 // Build the SQL query based on the category filter and search keyword
 if ($categoryFilter === 'all') {
   if (!empty($searchKeyword)) {
-    $sql = "SELECT * FROM todos WHERE user_id = ? AND title LIKE ? ORDER BY id ASC";
+    $sql = "SELECT * FROM todos WHERE title LIKE ? ORDER BY id ASC";
     $stmt = $db->prepare($sql);
     $searchKeyword = "%$searchKeyword%";
-    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-    $stmt->bindParam(2, $searchKeyword, PDO::PARAM_STR);
+    $stmt->bindParam(1, $searchKeyword, PDO::PARAM_STR);
   } else {
-    $sql = "SELECT * FROM todos WHERE user_id = ? ORDER BY id ASC";
+    $sql = "SELECT * FROM todos ORDER BY id ASC";
     $stmt = $db->prepare($sql);
-    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
   }
 } else {
   if (!empty($searchKeyword)) {
-    $sql = "SELECT * FROM todos WHERE user_id = ? AND category = ? AND title LIKE ? ORDER BY id ASC";
+    $sql = "SELECT * FROM todos WHERE category = ? AND title LIKE ? ORDER BY id ASC";
     $stmt = $db->prepare($sql);
     $searchKeyword = "%$searchKeyword%";
-    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-    $stmt->bindParam(2, $categoryFilter, PDO::PARAM_INT);
-    $stmt->bindParam(3, $searchKeyword, PDO::PARAM_STR);
+    $stmt->bindParam(1, $categoryFilter, PDO::PARAM_INT);
+    $stmt->bindParam(2, $searchKeyword, PDO::PARAM_STR);
   } else {
-    $sql = "SELECT * FROM todos WHERE user_id = ? AND category = ? ORDER BY id ASC";
+    $sql = "SELECT * FROM todos WHERE category = ? ORDER BY id ASC";
     $stmt = $db->prepare($sql);
-    $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-    $stmt->bindParam(2, $categoryFilter, PDO::PARAM_INT);
+    $stmt->bindParam(1, $categoryFilter, PDO::PARAM_INT);
   }
 }
 
@@ -167,10 +163,8 @@ if (!$result) {
         <select id="categoryFilter" onchange="applyCategoryFilter()">
           <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
           <?php
-            $categories_sql = "SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL";
-            $categories_stmt = $db->prepare($categories_sql);
-            $categories_stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-            $categories_stmt->execute();
+            $categories_sql = "SELECT * FROM categories";
+            $categories_stmt = $db->query($categories_sql);
             $categories_result = $categories_stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($categories_result as $category_row) {
               $categoryId = $category_row['id'];
@@ -185,9 +179,7 @@ if (!$result) {
   </div>
   <!-- /Category Filter Dropdown & Search Bar -->
   <?php } ?>
-
   <?php if ($num_rows < 1) { echo '<h4 style="color: red;">There are no tasks to show.</h4>'; } else { echo "<h4>Number of total tasks in the category: " . $num_rows; echo "</h4>"; ?>
-
   <table class="table is-striped is-fullwidth sortable">
     <thead>
       <tr>
