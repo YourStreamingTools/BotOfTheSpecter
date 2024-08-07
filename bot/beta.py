@@ -1349,6 +1349,9 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         return
                 if location:
                     weather_info = await get_weather(location)
+                    if await command_permissions(ctx.author):
+                        chat_logger.info(f"Sending WEATHER event with location: {location}")
+                        await websocket_notice(event="WEATHER", weather=location)
                 else:
                     location = await get_streamer_weather()
                     if location:
@@ -4101,7 +4104,7 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to connect to the websocket server and push a notice
-async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None):
+async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None, weather=None):
     async with ClientSession() as session:
         params = {
             'code': API_TOKEN,
@@ -4130,6 +4133,8 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
         elif event == "STREAM_OFFLINE":
             # No additional parameters required for STREAM_OFFLINE
             pass
+        elif event == "WEATHER" and weather:
+            params['location'] = weather
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters")
             return
