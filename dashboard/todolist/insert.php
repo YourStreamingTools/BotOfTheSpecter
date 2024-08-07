@@ -47,12 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   // Get form data
   $objective = $_POST['objective'];
   $category = $_POST['category'];
-
   // Prepare and execute query
-  $stmt = $db->prepare("INSERT INTO todos (user_id, objective, category, created_at, updated_at, completed) VALUES (?, ?, ?, NOW(), NOW(), 'No')");
-  $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-  $stmt->bindParam(2, $objective, PDO::PARAM_STR);
-  $stmt->bindParam(3, $category, PDO::PARAM_INT);
+  $stmt = $db->prepare("INSERT INTO todos (objective, category, created_at, updated_at, completed) VALUES (?, ?, NOW(), NOW(), 'No')");
+  $stmt->bindParam(1, $objective, PDO::PARAM_STR);
+  $stmt->bindParam(2, $category, PDO::PARAM_INT);
   $stmt->execute();
   header('Location: dashboard.php');
   exit();
@@ -138,9 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           <select id="category" name="category">
             <?php
             // Retrieve categories from secondary database
-            $stmt = $db->prepare("SELECT * FROM categories WHERE user_id = ? OR user_id IS NULL");
-            $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-            $stmt->execute();
+            $stmt = $db->query("SELECT * FROM categories");
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             // Display categories as options in dropdown menu
             foreach ($result as $row) {
@@ -151,7 +147,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
       </div>
     </div>
-    <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
     <div class="field">
       <div class="control">
         <button type="submit" class="button is-primary">Add</button>
@@ -164,13 +159,5 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
 <script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
-<script>
-  // JavaScript function to handle the category filter change
-  function applyCategoryFilter() {
-    var selectedCategoryId = document.getElementById("categoryFilter").value;
-    // Redirect to the page with the selected category filter
-    window.location.href = "insert.php?category=" + selectedCategoryId;
-  }
-</script>
 </body>
 </html>
