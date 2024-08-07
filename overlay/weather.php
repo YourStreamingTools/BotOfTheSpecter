@@ -126,7 +126,6 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                         </div>
                     </div>
                 `;
-                weatherOverlay.classList.remove('hide');
                 weatherOverlay.classList.add('show');
                 weatherOverlay.style.display = 'block';
 
@@ -134,8 +133,8 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 startTimer(timezone);
 
                 setTimeout(() => {
-                    weatherOverlay.classList.remove('show');
                     weatherOverlay.classList.add('hide');
+                    weatherOverlay.classList.remove('show');
                 }, 10000);
 
                 setTimeout(() => {
