@@ -806,6 +806,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
             messageAuthorID = None
             messageContent = None
             AuthorMessage = None
+            bannedUser = None
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
@@ -832,6 +833,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if pattern.search(messageContent):
                         bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                         await ban_user(messageAuthor, messageAuthorID)
+                        bannedUser = messageAuthor
                         return
 
                 if messageContent.startswith('!'):
@@ -990,11 +992,13 @@ class BotOfTheSpecter(twitch_commands.Bot):
             finally:
                 await cursor.close()
                 await sqldb.ensure_closed()
-                await self.message_counting(messageAuthor, messageAuthorID, message)
+                await self.message_counting(messageAuthor, messageAuthorID, bannedUser, message)
 
-    async def message_counting(self, messageAuthor, messageAuthorID, message):
+    async def message_counting(self, messageAuthor, messageAuthorID, bannedUser, message):
         if messageAuthor is None:
             #chat_logger.error("messageAuthor is None")
+            return
+        if messageAuthor is bannedUser:
             return
         sqldb = await get_mysql_connection()
         channel = message.channel
