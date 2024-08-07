@@ -22,12 +22,7 @@
           <a class="navbar-item" href="../channel_rewards.php">Channel Point Rewards</a>
         </div>
       </div>
-      <div class="navbar-item has-dropdown is-hoverable">
-        <a class="navbar-link">Logs</a>
-        <div class="navbar-dropdown">
-          <a class="navbar-item" href="../logs.php">View Logs</a>
-        </div>
-      </div>
+      <a class="navbar-item" href="../logs.php">Logs</a>
       <div class="navbar-item has-dropdown is-hoverable">
         <a class="navbar-link">Bot Functions</a>
         <div class="navbar-dropdown">
