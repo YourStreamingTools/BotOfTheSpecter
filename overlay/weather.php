@@ -38,18 +38,24 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 alert('No code provided in the URL');
                 return;
             }
+
             async function getLatLon(location) {
+                console.log(`Fetching coordinates for location: ${location}`);
                 const response = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=1&appid=${apiKey}`);
                 const data = await response.json();
                 if (data.length > 0) {
+                    console.log(`Coordinates for ${location}:`, data[0]);
                     return { lat: data[0].lat, lon: data[0].lon };
                 }
+                console.error(`Coordinates not found for location: ${location}`);
                 return null;
             }
 
-            async function fetchWeatherData(lat, lon, units='metric') {
+            async function fetchWeatherData(lat, lon, units = 'metric') {
+                console.log(`Fetching weather data for coordinates: (${lat}, ${lon}), units: ${units}`);
                 const response = await fetch(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,daily,alerts&units=${units}&appid=${apiKey}`);
                 const data = await response.json();
+                console.log(`Weather data:`, data);
                 return data;
             }
 
@@ -79,6 +85,14 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 if (timezone) {
                     currentTime = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 }
+                console.log('Formatted weather data:', {
+                    currentTime,
+                    status,
+                    temperature: `${temperatureC}°C | ${temperatureF}°F`,
+                    wind: `${windSpeedKph} km/h | ${windSpeedMph} mph ${windDirection}`,
+                    humidity: `Humidity: ${humidity}%`,
+                    icon: weatherIcon
+                });
                 return {
                     currentTime,
                     status,
@@ -110,6 +124,7 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
             }
 
             function updateWeatherOverlay(weather) {
+                console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
                 weatherOverlay.innerHTML = `
                     <div class="overlay-content">
@@ -151,11 +166,19 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 console.log('Server says:', data.message);
             });
 
+            socket.onAny((event, ...args) => {
+                console.log(`Event: ${event}`, args);
+            });
+
             socket.on('WEATHER', async (data) => {
-                console.log('Weather update:', data);
-                const weather = await getWeather(data.city);
-                if (weather) {
-                    updateWeatherOverlay(weather);
+                console.log('Weather update received:', data);
+                if (data.location) {
+                    const weather = await getWeather(data.location);
+                    if (weather) {
+                        updateWeatherOverlay(weather);
+                    }
+                } else {
+                    console.error('No location provided in WEATHER event data');
                 }
             });
         });
@@ -170,7 +193,7 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
             border-radius: 5px;
             font-family: Arial, sans-serif;
             color: #333;
-            max-width: 250px;
+            width: 400px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
         .weather-overlay .overlay-content {
