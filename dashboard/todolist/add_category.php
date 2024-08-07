@@ -8,8 +8,8 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
@@ -68,13 +68,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   }
   // Check input errors before inserting into the database
   if (empty($category_err)) {
-    // Use the user's ID for the category
-    $param_user_id = $user_id;
     // Prepare an insert statement
-    $sql = "INSERT INTO categories (category, user_id) VALUES (?, ?)";
+    $sql = "INSERT INTO categories (category) VALUES (?)";
     $stmt = $db->prepare($sql);
     $stmt->bindParam(1, $param_category, PDO::PARAM_STR);
-    $stmt->bindParam(2, $param_user_id, PDO::PARAM_INT);
     // Attempt to execute the prepared statement
     if ($stmt->execute()) {
       // Redirect to categories page
@@ -160,7 +157,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       </div>
       <p class="help is-danger"><?php echo $category_err; ?></p>
     </div>
-    <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
     <div class="field">
       <div class="control">
         <input type="submit" class="button is-primary" value="Submit">
