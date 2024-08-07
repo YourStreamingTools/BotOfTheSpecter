@@ -49,11 +49,6 @@ Stay tuned for updates on the release of these exciting features!
 
 [View Full Changelog for Version 4.4](/bot/changelog/4.4.md)
 
-### Version 2.0 - Application
-- Added a "Counters" feature to provide real-time metrics and analytics within the application interface.
-
-[View Full Changelog for Version 2.0](/api/app/changelog.2.0.md)
-
 ## Contributing Guidelines
 
 We're thrilled that you're interested in contributing to BotOfTheSpecter! Whether you're looking to report a bug, suggest a feature, or contribute code, your help is greatly appreciated. Please follow these guidelines to ensure a smooth contribution process.
