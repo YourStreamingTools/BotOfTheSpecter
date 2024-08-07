@@ -255,17 +255,19 @@ function checkHeartbeat() {
   fetch('https://websocket.botofthespecter.com:8080/heartbeat')
     .then(response => response.json())
     .then(data => {
+      const heartbeatIcon = document.getElementById('heartbeat');
       if (data.status === 'OK') {
-        document.getElementById('heartbeat').className = 'fas fa-heartbeat';
-        document.getElementById('heartbeat').style.color = 'green';
+        heartbeatIcon.className = 'fas fa-heartbeat beating';
+        heartbeatIcon.style.color = 'green';
       } else {
-        document.getElementById('heartbeat').className = 'fas fa-heart-broken';
-        document.getElementById('heartbeat').style.color = 'red';
+        heartbeatIcon.className = 'fas fa-heart-broken';
+        heartbeatIcon.style.color = 'red';
       }
     })
     .catch(error => {
-      document.getElementById('heartbeat').className = 'fas fa-heart-broken';
-      document.getElementById('heartbeat').style.color = 'red';
+      const heartbeatIcon = document.getElementById('heartbeat');
+      heartbeatIcon.className = 'fas fa-heart-broken';
+      heartbeatIcon.style.color = 'red';
     });
 }
 // Check heartbeat every 5 seconds
