@@ -828,6 +828,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 # Check if the message matches the spam pattern
                 for pattern in spam_pattern:
                     if pattern.search(messageContent):
+                        bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                         await ban_user(messageAuthor, messageAuthorID)
                         return
 
@@ -3958,10 +3959,12 @@ async def ban_user(username, user_id):
             'reason': "Spam/Bot Account"
         }
     }
-    response = requests.post(ban_url, headers=headers, json=data)
-    if response.status == 200:
-        twitch_logger.info(f"{username} has been banend for sending a spam message in chat.")
-    else: twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}")
+    async with aiohttp.ClientSession() as session:
+        async with session.post(ban_url, headers=headers, json=data) as response:
+            if response.status == 200:
+                twitch_logger.info(f"{username} has been banned for sending a spam message in chat.")
+            else:
+                twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}")
 
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
