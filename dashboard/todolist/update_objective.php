@@ -44,8 +44,7 @@ $greeting = 'Hello';
 include 'database.php';
 
 // Get user's to-do list
-$stmt = $db->prepare("SELECT * FROM todos WHERE user_id = :user_id ORDER BY id DESC");
-$stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+$stmt = $db->prepare("SELECT * FROM todos ORDER BY id DESC");
 $stmt->execute();
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $num_rows = count($rows);
