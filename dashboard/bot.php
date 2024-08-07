@@ -121,7 +121,7 @@ if ($ModStatusOutput) {
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
-    <div class="column is-two-fifths bot-box" id="bot-status">
+    <div class="column  is-5 bot-box" id="bot-status">
       <h4 class="title is-4">Stable Bot:</h4>
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?><br>
@@ -139,7 +139,7 @@ if ($ModStatusOutput) {
       </div>
     </div>
     <?php if ($betaAccess) { ?>
-    <div class="column is-two-fifths bot-box" id="beta-bot-status">
+    <div class="column  is-5 bot-box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?><br>
@@ -158,7 +158,7 @@ if ($ModStatusOutput) {
     </div>
     <?php } ?>
     <?php if ($guild_id && $live_channel_id) { ?>
-    <div class="column is-two-fifths bot-box" id="discord-bot-status">
+    <div class="column  is-5 bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?><br>
       <div class="buttons">
@@ -174,18 +174,23 @@ if ($ModStatusOutput) {
         <br>
       </div>
     </div>
-    <div class="column is-two-fifths bot-box">
-      <h4 class="title is-4">Mark Stream as Online:</h4>
-      <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-        <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
-        <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
+    <div class="column  is-5 bot-box" style="visibility: hidden;"></div>
+    <div class="column is-11 bot-box">
+    <h4 class="title is-4">Websocket Notices</h4>
+      <div style="display: flex; align-items: center; margin-bottom: 10px;">
+        <h4 class="title is-4" style="margin-right: 10px;">Mark Stream as Online:</h4>
+        <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
+          <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Online</button>
+          <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
+        </div>
       </div>
-      <h4 class="title is-4">Mark Stream as Offline:</h4>
-      <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-        <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
-        <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
+      <div style="display: flex; align-items: center;">
+        <h4 class="title is-4" style="margin-right: 10px;">Mark Stream as Offline:</h4>
+        <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
+          <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Offline</button>
+          <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
+        </div>
       </div>
-      <br>
     </div>
     <?php } ?>
   </div>
