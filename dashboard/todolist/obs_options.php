@@ -44,8 +44,7 @@ $greeting = 'Hello';
 include 'database.php';
 
 // Retrieve font, color, list, shadow, bold, and font_size data for the user from the showobs table
-$stmt = $db->prepare("SELECT * FROM showobs WHERE user_id = ?");
-$stmt->bindParam(1, $user_id, PDO::PARAM_INT);
+$stmt = $db->prepare("SELECT * FROM showobs LIMIT 1");
 $stmt->execute();
 $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -77,14 +76,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Check if the user has existing settings
     if ($result) {
         // Update the font, color, list, shadow, bold, and font_size data in the database
-        $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? WHERE user_id = ?");
+        $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? LIMIT 1");
         $stmt->bindParam(1, $selectedFont, PDO::PARAM_STR);
         $stmt->bindParam(2, $selectedColor, PDO::PARAM_STR);
         $stmt->bindParam(3, $selectedList, PDO::PARAM_STR);
         $stmt->bindParam(4, $selectedShadow, PDO::PARAM_INT);
         $stmt->bindParam(5, $selectedBold, PDO::PARAM_INT);
         $stmt->bindParam(6, $selectedFontSize, PDO::PARAM_STR);
-        $stmt->bindParam(7, $user_id, PDO::PARAM_INT);
         if ($stmt->execute()) {
             // Update successful
             header("Location: obs_options.php");
@@ -95,14 +93,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     } else {
         // Insert new settings for the user
-        $stmt = $db->prepare("INSERT INTO showobs (user_id, font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-        $stmt->bindParam(2, $selectedFont, PDO::PARAM_STR);
-        $stmt->bindParam(3, $selectedColor, PDO::PARAM_STR);
-        $stmt->bindParam(4, $selectedList, PDO::PARAM_STR);
-        $stmt->bindParam(5, $selectedShadow, PDO::PARAM_INT);
-        $stmt->bindParam(6, $selectedBold, PDO::PARAM_INT);
-        $stmt->bindParam(7, $selectedFontSize, PDO::PARAM_STR);
+        $stmt = $db->prepare("INSERT INTO showobs (font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bindParam(1, $selectedFont, PDO::PARAM_STR);
+        $stmt->bindParam(2, $selectedColor, PDO::PARAM_STR);
+        $stmt->bindParam(3, $selectedList, PDO::PARAM_STR);
+        $stmt->bindParam(4, $selectedShadow, PDO::PARAM_INT);
+        $stmt->bindParam(5, $selectedBold, PDO::PARAM_INT);
+        $stmt->bindParam(6, $selectedFontSize, PDO::PARAM_STR);
         if ($stmt->execute()) {
             // Insertion successful
             header("Location: obs_options.php");
@@ -260,7 +257,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <input type="checkbox" name="bold" value="1" <?php if ($bold) echo 'checked'; ?>>
                         </div>
                     </div>
-                    <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
                     <div class="field">
                         <div class="control">
                             <button type="submit" class="button is-primary">Save</button>
