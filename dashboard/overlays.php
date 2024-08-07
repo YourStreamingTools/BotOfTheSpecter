@@ -121,6 +121,14 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</code>
             </div>
         </div>
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Weather Overlay:</h4>
+                <p><em>Display the current weather information for your specified location in your stream.
+                    <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
+                <code>https://overlay.botofthespecter.com/weather.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
     </div>
     <br>
 </div>
