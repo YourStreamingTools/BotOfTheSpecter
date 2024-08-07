@@ -1889,8 +1889,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 if result:
                     # User was lurking before
                     previous_start_time = result[0]
-                    # Convert previous_start_time from string to datetime
-                    previous_start_time = datetime.strptime(previous_start_time, "%Y-%m-%d %H:%M:%S")
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
