@@ -3237,20 +3237,23 @@ async def get_weather(location):
         lat, lon = await get_lat_lon(location)
         if lat is None or lon is None:
             return f"Location '{location}' not found."
-        # Get the weather data
-        weather_data = await fetch_weather_data(lat, lon)
-        if weather_data is None:
+        # Get the weather data in metric and imperial units
+        weather_data_metric = await fetch_weather_data(lat, lon, units='metric')
+        weather_data_imperial = await fetch_weather_data(lat, lon, units='imperial')
+        if weather_data_metric is None or weather_data_imperial is None:
             return f"An error occurred while fetching the weather data for '{location}'."
         # Extract weather information
-        current_weather = weather_data['current']
-        status = current_weather['weather'][0]['description']
-        temperature = current_weather['temp']
-        temperature_f = round(temperature * 9 / 5 + 32, 1)
-        wind_speed = round(current_weather['wind_speed'])
-        wind_speed_mph = round(wind_speed / 1.6, 2)
-        humidity = current_weather['humidity']
-        wind_direction = await getWindDirection(current_weather['wind_deg'])
-        return f"The weather in {location} is {status} with a temperature of {temperature}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at {wind_speed}kph ({wind_speed_mph}mph) and the humidity is {humidity}%."
+        current_weather_metric = weather_data_metric['current']
+        current_weather_imperial = weather_data_imperial['current']
+        status = current_weather_metric['weather'][0]['description']
+        temperature_c = current_weather_metric['temp']
+        temperature_f = current_weather_imperial['temp']
+        wind_speed_kph = current_weather_metric['wind_speed']
+        wind_speed_mph = current_weather_imperial['wind_speed']
+        humidity = current_weather_metric['humidity']
+        wind_direction = await getWindDirection(current_weather_metric['wind_deg'])
+        return (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
+                f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) and the humidity is {humidity}%.")
     except Exception as e:
         return f"An error occurred while processing the weather data for '{location}': {str(e)}"
 
@@ -3265,9 +3268,9 @@ async def get_lat_lon(location):
             else:
                 return None, None
 
-async def fetch_weather_data(lat, lon):
+async def fetch_weather_data(lat, lon, units='metric'):
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,daily,alerts&units=metric&appid={WEATHER_API}") as response:
+        async with session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,daily,alerts&units={units}&appid={WEATHER_API}") as response:
             data = await response.json()
             return data
 
