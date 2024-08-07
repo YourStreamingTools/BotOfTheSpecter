@@ -40,8 +40,8 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 
-$logContent = 'Loading Please Wait';
-$logType = 'bot';  // Default log type
+$logContent = 'Please Select A Log Type';
+$logType = '';  // Default log type
 if (isset($_GET['logType'])) {
   $logType = $_GET['logType'];
   $logPath = "/var/www/logs/$logType/$username.txt";
@@ -163,6 +163,7 @@ if (isset($_GET['log'])) {
       <div>
         <label for="logs-select">Select a log to view:</label>
         <select id="logs-select" class="logs-select">
+          <option>SELECT A LOG TYPE</option>
           <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
           <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
           <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
