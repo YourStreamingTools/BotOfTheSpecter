@@ -389,15 +389,17 @@ async def connect_to_streamelements():
         async with websockets.connect(uri) as streamelements_websocket:
             # Send the authentication message
             nonce = str(uuid.uuid4())
-            await streamelements_websocket.send(json.dumps({
+            auth_message = {
                 'type': 'subscribe',
                 'nonce': nonce,
                 'data': {
-                    'topic': 'channel.tip',
+                    'topic': 'channel.activities',
                     'token': streamelements_token,
                     'token_type': 'jwt'
                 }
-            }))
+            }
+            await streamelements_websocket.send(json.dumps(auth_message))
+            bot_logger.info(f"Sent auth message: {auth_message}")
             
             # Listen for messages
             while True:
