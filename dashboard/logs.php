@@ -166,6 +166,7 @@ if (isset($_GET['log'])) {
           <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
           <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
           <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
+          <option value="chat" <?php echo $logType === 'chat_history' ? 'selected' : ''; ?>>Chat History</option>
           <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>>Twitch Log</option>
           <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>>API Log</option>
         </select>
