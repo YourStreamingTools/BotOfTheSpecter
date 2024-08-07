@@ -110,6 +110,7 @@
     font-family: Arial, sans-serif;
     width: 400px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    display: none;
 }
 
 .weather-overlay .overlay-content {
@@ -157,10 +158,11 @@
 }
 
 .weather-overlay.hide {
+    display: none;
+    animation: slideOut 1s forwards, infinite alternate;
+}
+
+.weather-overlay.show {
     display: block;
     animation: slideIn 1s forwards, infinite alternate;
-}
-.weather-overlay.show {
-    animation: slideOut 1s forwards, infinite alternate;
-    display: block;
 }
