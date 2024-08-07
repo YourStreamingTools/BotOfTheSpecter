@@ -8,8 +8,8 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
@@ -46,14 +46,12 @@ include 'database.php';
 // Check if a specific category is selected
 if (isset($_GET['category'])) {
   $category_id = $_GET['category'];
-  $sql = "SELECT * FROM todos WHERE user_id = ? AND category = ? AND completed = 'No'";
+  $sql = "SELECT * FROM todos WHERE category = ? AND completed = 'No'";
   $stmt = $db->prepare($sql);
-  $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
-  $stmt->bindParam(2, $category_id, PDO::PARAM_INT);
+  $stmt->bindParam(1, $category_id, PDO::PARAM_INT);
 } else {
-  $sql = "SELECT * FROM todos WHERE user_id = ? AND completed = 'No'";
+  $sql = "SELECT * FROM todos WHERE completed = 'No'";
   $stmt = $db->prepare($sql);
-  $stmt->bindParam(1, $user_id, PDO::PARAM_INT);
 }
 
 $stmt->execute();
@@ -63,10 +61,9 @@ $num_rows = count($incompleteTasks);
 // Mark task as completed
 if (isset($_POST['task_id'])) {
   $task_id = $_POST['task_id'];
-  $sql = "UPDATE todos SET completed = 'Yes' WHERE id = ? AND user_id = ?";
+  $sql = "UPDATE todos SET completed = 'Yes' WHERE id = ?";
   $stmt = $db->prepare($sql);
   $stmt->bindParam(1, $task_id, PDO::PARAM_INT);
-  $stmt->bindParam(2, $user_id, PDO::PARAM_INT);
   $stmt->execute();
   
   header('Location: completed.php');
