@@ -1353,13 +1353,13 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         return
                 if location:
                     weather_info = await get_weather(location)
-                    if await command_permissions(ctx.author):
-                        chat_logger.info(f"Sending WEATHER event with location: {location}")
-                        await websocket_notice(event="WEATHER", weather=location)
                 else:
                     location = await get_streamer_weather()
                     if location:
                         weather_info = await get_weather(location)
+                        if await command_permissions(ctx.author):
+                            chat_logger.info(f"Sending WEATHER event with location: {location}")
+                            await websocket_notice(event="WEATHER", weather=location)
                     else:
                         weather_info = "I'm sorry, something went wrong trying to get the current weather."
                 await ctx.send(weather_info)
