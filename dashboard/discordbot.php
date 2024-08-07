@@ -49,57 +49,67 @@ $discord_userResult = $discord_userSTMT->get_result();
 $is_linked = ($discord_userResult->num_rows > 0);
 
 $buildStatus = "";
+$errorMsg = "";
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-  if (isset($_POST['option']) && isset($_POST['webhook'])) {
-    // Update webhook URL based on the selected option
-    $option = $_POST['option'];
-    $webhook = $_POST['webhook'];
-    $profile_key = "";
-    switch ($option) {
-      case 'discord_alert':
-        $profile_key = "discord_alert";
-        break;
-      case 'discord_mod':
-        $profile_key = "discord_mod";
-        break;
-      case 'discord_alert_online':
-        $profile_key = "discord_alert_online";
-        break;
-      default:
-        $buildStatus = "Invalid option";
-        exit;
+  try {
+    if (isset($_POST['option']) && isset($_POST['webhook'])) {
+      // Update webhook URL based on the selected option
+      $option = $_POST['option'];
+      $webhook = $_POST['webhook'];
+      $profile_key = "";
+      switch ($option) {
+        case 'discord_alert':
+          $profile_key = "discord_alert";
+          break;
+        case 'discord_mod':
+          $profile_key = "discord_mod";
+          break;
+        case 'discord_alert_online':
+          $profile_key = "discord_alert_online";
+          break;
+        default:
+          $buildStatus = "Invalid option";
+          exit;
+      }
+      $stmt = $db->prepare("UPDATE profile SET $profile_key = :webhook");
+      $stmt->bindParam(':webhook', $webhook);
+      if ($stmt->execute()) {
+        $buildStatus = "Webhook URL updated successfully";
+      } else {
+        $errorMsg = "Error updating webhook URL: " . $stmt->errorInfo()[2];
+      }
+      $stmt->closeCursor();
+    } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id'])) {
+      // Update live_channel_id and guild_id
+      $live_channel_id = $_POST['live_channel_id'];
+      $guild_id = $_POST['guild_id'];
+      $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
+      $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
+      if ($stmt->execute()) {
+        $buildStatus = "Live Channel ID and Guild ID updated successfully";
+      } else {
+        $errorMsg = "Error updating Live Channel ID and Guild ID: " . $stmt->error;
+      }
+      $stmt->close();
+    } elseif (isset($_POST['online_text']) && isset($_POST['offline_text'])) {
+      $onlineText = $_POST['online_text'];
+      $offlineText = $_POST['offline_text'];
+      $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
+      $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
+      if ($stmt->execute()) {
+        $buildStatus = "Online and Offline Text has been updated successfully";
+      } else {
+        $errorMsg = "Error updating Online and Offline Text: " . $stmt->error;
+      }
+      $stmt->close();
     }
-    $stmt = $db->prepare("UPDATE profile SET $profile_key = :webhook");
-    $stmt->bindParam(':webhook', $webhook);
-    if ($stmt->execute()) {
-      $buildStatus = "Webhook URL updated successfully";
+  } catch (mysqli_sql_exception $e) {
+    if (strpos($e->getMessage(), 'Data too long for column') !== false) {
+      $errorMsg = "The text entered is too long. Please reduce the length and try again.";
     } else {
-      $buildStatus = "Error updating webhook URL: " . $stmt->errorInfo()[2];
+      $errorMsg = "An error occurred: " . $e->getMessage();
     }
-    $stmt->closeCursor();
-  } elseif (isset($_POST['live_channel_id']) && isset($_POST['guild_id'])) {
-    // Update live_channel_id and guild_id
-    $live_channel_id = $_POST['live_channel_id'];
-    $guild_id = $_POST['guild_id'];
-    $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
-    $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
-    if ($stmt->execute()) {
-      $buildStatus = "Live Channel ID and Guild ID updated successfully";
-    } else {
-      $buildStatus = "Error updating Live Channel ID and Guild ID: " . $stmt->error;
-    }
-    $stmt->close();
-  } elseif (isset($_POST['online_text']) && isset($_POST['offline_text'])) {
-    $onlineText = $_POST['online_text'];
-    $offlineText = $_POST['offline_text'];
-    $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
-    $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
-    if ($stmt->execute()) {
-      $buildStatus = "Online and Offline Text has been updated successfully";
-    } else {
-      $buildStatus = "Error updating Online and OFfline Text: " . $stmt->error;
-    }
-    $stmt->close();
   }
 }
 
@@ -152,7 +162,14 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
       We're constantly adding new Specter features to the Discord Bot, so keep an eye on the Discord server for updates.</h4>
     <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
     <br>
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { echo "<p class='has-text-success'>$buildStatus</p>"; } ?>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { ?>
+      <?php if ($buildStatus) { ?>
+        <p class='has-text-success'><?php echo $buildStatus; ?></p>
+      <?php } ?>
+      <?php if ($errorMsg) { ?>
+        <p class='has-text-danger'><?php echo $errorMsg; ?></p>
+      <?php } ?>
+    <?php } ?>
     <br>
     <div class="columns is-desktop is-multiline">
       <!-- Webhook URL Form -->
@@ -243,17 +260,17 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
   });
 </script>
 <?php if (!$is_linked) { ?>
-    <script>
-        function linkDiscord() {
-            window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscord_auth.php&scope=identify+openid+guilds";
-        }
-    </script>
+  <script>
+    function linkDiscord() {
+      window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscord_auth.php&scope=identify+openid+guilds";
+    }
+  </script>
 <?php } else { ?>
-    <script>
-        function discordBotInvite() {
-            window.open("https://discord.com/oauth2/authorize?client_id=1170683250797187132&scope=applications.commands%20bot&permissions=8", "_blank");
-        }
-    </script>
+  <script>
+    function discordBotInvite() {
+      window.open("https://discord.com/oauth2/authorize?client_id=1170683250797187132&scope=applications.commands%20bot&permissions=8", "_blank");
+    }
+  </script>
 <?php } ?>
 </body>
 </html>
