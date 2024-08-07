@@ -174,9 +174,12 @@ if ($ModStatusOutput) {
         <br>
       </div>
     </div>
-    <div class="column  is-5 bot-box" style="visibility: hidden;"></div>
-    <div class="column is-11 bot-box">
-      <h4 class="title is-4">Websocket Notices</h4>
+    <div class="column is-5 bot-box">
+      <h4 class="title is-4" style="text-align: center;">Websocket Notices
+        <span id="heartbeatIcon" style="margin-left: 10px;">
+          <i id="heartbeat" class="fas fa-heartbeat" style="color: green;"></i>
+        </span>
+      </h4>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
         <h4 class="title is-4" style="margin-right: 10px; margin-bottom: 0;">Mark Stream as Online:</h4>
         <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
@@ -247,6 +250,28 @@ function showTooltip(eventType) {
     tooltip.style.opacity = '0';
   }, 2000);
 }
+
+function checkHeartbeat() {
+  fetch('https://websocket.botofthespecter.com:8080/heartbeat')
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'OK') {
+        document.getElementById('heartbeat').className = 'fas fa-heartbeat';
+        document.getElementById('heartbeat').style.color = 'green';
+      } else {
+        document.getElementById('heartbeat').className = 'fas fa-heart-broken';
+        document.getElementById('heartbeat').style.color = 'red';
+      }
+    })
+    .catch(error => {
+      document.getElementById('heartbeat').className = 'fas fa-heart-broken';
+      document.getElementById('heartbeat').style.color = 'red';
+    });
+}
+// Check heartbeat every 5 seconds
+setInterval(checkHeartbeat, 5000);
+// Initial check
+checkHeartbeat();
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
