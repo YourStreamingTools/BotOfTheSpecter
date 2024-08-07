@@ -39,7 +39,7 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 return;
             }
             async function getLatLon(location) {
-                const response = await fetch(`http://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=1&appid=${apiKey}`);
+                const response = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=1&appid=${apiKey}`);
                 const data = await response.json();
                 if (data.length > 0) {
                     return { lat: data[0].lat, lon: data[0].lon };
