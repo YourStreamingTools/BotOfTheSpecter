@@ -98,3 +98,69 @@
     display: inline-block;
     vertical-align: middle;
 }
+
+.weather-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #FFFFFF;
+    padding: 10px;
+    border-radius: 5px;
+    font-family: Arial, sans-serif;
+    width: 400px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.weather-overlay .overlay-content {
+    font-size: 14px;
+}
+
+.weather-overlay .overlay-header {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.weather-overlay .time {
+    font-size: 14px;
+    color: #FFFFFF;
+}
+
+.weather-overlay .temperature {
+    font-size: 22px;
+    margin-top: 5px;
+}
+
+.weather-overlay .condition {
+    font-size: 16px;
+    color: #FFFFFF;
+    margin-top: 5px;
+}
+
+.weather-overlay .wind, .weather-overlay .humidity {
+    font-size: 14px;
+    color: #FFFFFF;
+    margin-top: 5px;
+}
+
+.weather-overlay .weather-details {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.weather-overlay .weather-icon {
+    width: 50px;
+    height: 50px;
+    margin-right: 10px;
+}
+
+.weather-overlay.hide {
+    display: block;
+    animation: slideIn 1s forwards, infinite alternate;
+}
+.weather-overlay.show {
+    animation: slideOut 1s forwards, infinite alternate;
+    display: block;
+}
