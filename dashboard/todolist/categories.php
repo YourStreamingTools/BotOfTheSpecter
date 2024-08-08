@@ -47,10 +47,10 @@ include 'database.php';
 $query = "SELECT * FROM categories";
 $stmt = $db->prepare($query);
 $stmt->execute();
-$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 if (!$result) {
-  die("Error retrieving categories: " . $db->errorInfo()[2]);
+  die("Error retrieving categories: " . $db->error);
 }
 ?>
 <!DOCTYPE html>
