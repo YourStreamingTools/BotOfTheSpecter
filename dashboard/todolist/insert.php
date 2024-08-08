@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $stmt->bindParam(1, $objective, PDO::PARAM_STR);
   $stmt->bindParam(2, $category, PDO::PARAM_INT);
   $stmt->execute();
-  header('Location: dashboard.php');
+  header('Location: index.php');
   exit();
 }
 ?>
