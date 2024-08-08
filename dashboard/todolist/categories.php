@@ -8,7 +8,7 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-  header('Location: login.php');
+  header('Location: ../login.php');
   exit();
 }
 
@@ -60,6 +60,7 @@ if (!$result) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><?php echo $title; ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+    <link rel="stylesheet" href="../css/bulma-custom.css">
     <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
     <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
   </head>
@@ -70,10 +71,9 @@ if (!$result) {
 
 <div class="container">
   <br>
-  <h1 class="title"><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <p>Here is the current list of categories you can filter your lists in, each category is its own list.
-    <br>The categories in this list are either created by you or publicly accessible.</p>
+  <p>Here is the current list of categories you can filter your lists in, each category is its own list.</p>
   <table class="table is-striped is-fullwidth sortable">
     <thead>
       <tr>
@@ -94,7 +94,7 @@ if (!$result) {
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
-<script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
+<script src="../js/about.js" defer></script>
 <script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
 <script>
   // JavaScript function to handle the category filter change
