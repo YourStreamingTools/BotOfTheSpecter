@@ -56,11 +56,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Prepare a select statement
     $sql = "SELECT id FROM categories WHERE category = ?";
     $stmt = $db->prepare($sql);
-    $stmt->bindParam(1, $param_category, PDO::PARAM_STR);
+    $stmt->bind_param("s", $param_category);
     $param_category = trim($_POST["category"]);
     // Attempt to execute the prepared statement
     $stmt->execute();
-    if ($stmt->rowCount() == 1) {
+    $stmt->store_result(); // To check row count
+    if ($stmt->num_rows == 1) {
       $category_err = "This category name already exists.";
     } else {
       $category = trim($_POST["category"]);
@@ -71,7 +72,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Prepare an insert statement
     $sql = "INSERT INTO categories (category) VALUES (?)";
     $stmt = $db->prepare($sql);
-    $stmt->bindParam(1, $param_category, PDO::PARAM_STR);
+    $stmt->bind_param("s", $category); // Using the final category value
     // Attempt to execute the prepared statement
     if ($stmt->execute()) {
       // Redirect to categories page
