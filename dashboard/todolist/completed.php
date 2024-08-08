@@ -101,9 +101,7 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
   <?php if ($num_rows < 1) {} else { ?>
   <!-- Category Filter Dropdown & Search Bar -->
   <div class="field is-grouped">
-    <p class="control is-expanded">
-      <input type="text" name="search" placeholder="Search todos" class="input">
-    </p>
+    <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search objectives">
     <p class="control">
       <div class="select">
         <select id="categoryFilter" onchange="applyCategoryFilter()">
@@ -120,7 +118,7 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
   <!-- /Category Filter Dropdown & Search Bar -->
   <?php } ?>
   <?php if ($num_rows < 1) { echo '<h4 style="color: red;">There are no tasks to show.</h4>'; } else { echo "<h3>Completed Tasks:</h3><br><h4>Number of total tasks in the category: " . $num_rows; echo "</h4>"; ?>
-  <table class="table is-striped is-fullwidth sortable">
+  <table class="table is-striped is-fullwidth sortable" id="commandsTable">
     <thead>
       <tr>
         <th width="700">Objective</th>
@@ -159,6 +157,7 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
 <script src="../js/about.js" defer></script>
+<script src="../js/search.js"></script>
 <script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
 <script>
   // JavaScript function to handle the category filter change
