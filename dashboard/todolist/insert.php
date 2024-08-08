@@ -49,8 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $category = $_POST['category'];
   // Prepare and execute query
   $stmt = $db->prepare("INSERT INTO todos (objective, category, created_at, updated_at, completed) VALUES (?, ?, NOW(), NOW(), 'No')");
-  $stmt->bindParam(1, $objective, PDO::PARAM_STR);
-  $stmt->bindParam(2, $category, PDO::PARAM_INT);
+  $stmt->bind_param("si", $objective, $category);
   $stmt->execute();
   header('Location: index.php');
   exit();
@@ -91,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <?php
             // Retrieve categories from secondary database
             $stmt = $db->query("SELECT * FROM categories");
-            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $result = $stmt->fetch_all(MYSQLI_ASSOC);
             // Display categories as options in dropdown menu
             foreach ($result as $row) {
               echo '<option value="'.htmlspecialchars($row['id']).'">'.htmlspecialchars($row['category']).'</option>';
