@@ -46,7 +46,7 @@ include 'database.php';
 // Get user's to-do list
 $stmt = $db->prepare("SELECT * FROM todos ORDER BY id DESC");
 $stmt->execute();
-$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $num_rows = count($rows);
 
 // Handle form submission
@@ -56,9 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $new_objective = $_POST['objective'][$row_id];
     // Check if the objective has been updated
     if ($new_objective != $row['objective']) {
-      $updateStmt = $db->prepare("UPDATE todos SET objective = :objective WHERE id = :id");
-      $updateStmt->bindParam(':objective', $new_objective, PDO::PARAM_STR);
-      $updateStmt->bindParam(':id', $row_id, PDO::PARAM_INT);
+      $updateStmt = $db->prepare("UPDATE todos SET objective = ? WHERE id = ?");
+      $updateStmt->bind_param('si', $new_objective, $row_id);
       $updateStmt->execute();
     }
   }
@@ -104,10 +103,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           <td>
             <?php
               $category_id = $row['category'];
-              $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = :category_id");
-              $category_stmt->bindParam(':category_id', $category_id, PDO::PARAM_INT);
+              $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
+              $category_stmt->bind_param('i', $category_id);
               $category_stmt->execute();
-              $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
+              $category_row = $category_stmt->get_result()->fetch_assoc();
               echo htmlspecialchars($category_row['category']);
             ?>
           </td>
