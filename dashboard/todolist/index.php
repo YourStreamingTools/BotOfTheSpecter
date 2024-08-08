@@ -51,27 +51,12 @@ $searchKeyword = isset($_GET['search']) ? $_GET['search'] : '';
 
 // Build the SQL query based on the category filter and search keyword
 if ($categoryFilter === 'all') {
-  if (!empty($searchKeyword)) {
-    $sql = "SELECT * FROM todos WHERE title LIKE ? ORDER BY id ASC";
-    $stmt = $db->prepare($sql);
-    $searchKeyword = "%$searchKeyword%";
-    $stmt->bindParam(1, $searchKeyword, PDO::PARAM_STR);
-  } else {
-    $sql = "SELECT * FROM todos ORDER BY id ASC";
-    $stmt = $db->prepare($sql);
-  }
+  $sql = "SELECT * FROM todos ORDER BY id ASC";
+  $stmt = $db->prepare($sql);
 } else {
-  if (!empty($searchKeyword)) {
-    $sql = "SELECT * FROM todos WHERE category = ? AND title LIKE ? ORDER BY id ASC";
-    $stmt = $db->prepare($sql);
-    $searchKeyword = "%$searchKeyword%";
-    $stmt->bindParam(1, $categoryFilter, PDO::PARAM_INT);
-    $stmt->bindParam(2, $searchKeyword, PDO::PARAM_STR);
-  } else {
-    $sql = "SELECT * FROM todos WHERE category = ? ORDER BY id ASC";
-    $stmt = $db->prepare($sql);
-    $stmt->bindParam(1, $categoryFilter, PDO::PARAM_INT);
-  }
+  $sql = "SELECT * FROM todos WHERE category = ? ORDER BY id ASC";
+  $stmt = $db->prepare($sql);
+  $stmt->bindParam(1, $categoryFilter, PDO::PARAM_INT);
 }
 
 $stmt->execute();
@@ -98,13 +83,14 @@ $num_rows = count($result);
   <br>
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <?php if ($num_rows < 1) {} else { ?>
   <!-- Category Filter Dropdown & Search Bar -->
   <div class="field is-grouped">
     <p class="control is-expanded">
-      <form method="GET" action="">
-        <input type="text" name="search" placeholder="Search todos" class="input" value="<?php echo htmlspecialchars($searchKeyword); ?>">
-      </form>
+    <div class="field">
+      <div class="control">
+        <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search objectives">
+      </div>
+    </div>
     </p>
     <p class="control">
       <div class="select">
@@ -126,16 +112,15 @@ $num_rows = count($result);
     </p>
   </div>
   <!-- /Category Filter Dropdown & Search Bar -->
-  <?php } ?>
   <?php if ($num_rows < 1) { echo '<h4 style="color: red;">There are no tasks to show.</h4>'; } else { echo "<h4>Number of total tasks in the category: " . $num_rows; echo "</h4>"; ?>
-  <table class="table is-striped is-fullwidth sortable">
+  <table class="table is-striped is-fullwidth sortable" id="commandsTable">
     <thead>
       <tr>
-        <th>Objective</th>
-        <th width="400">Category</th>
-        <th width="600">Created</th>
-        <th width="600">Last Updated</th>
-        <th width="200">Completed</th>
+        <th width="700">Objective</th>
+        <th width="300">Category</th>
+        <th width="300">Created</th>
+        <th width="300">Last Updated</th>
+        <th width="150">Completed</th>
       </tr>
     </thead>
     <tbody>
@@ -166,13 +151,14 @@ $num_rows = count($result);
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
 <script src="../js/about.js" defer></script>
+<script src="../js/search.js"></script>
 <script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
 <script>
   // JavaScript function to handle the category filter change
   function applyCategoryFilter() {
     var selectedCategoryId = document.getElementById("categoryFilter").value;
     // Redirect to the page with the selected category filter
-    window.location.href = "dashboard.php?category=" + selectedCategoryId;
+    window.location.href = "index.php?category=" + selectedCategoryId;
   }
 </script>
 </body>
