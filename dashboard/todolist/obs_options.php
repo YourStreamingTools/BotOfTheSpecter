@@ -46,7 +46,7 @@ include 'database.php';
 // Retrieve font, color, list, shadow, bold, and font_size data for the user from the showobs table
 $stmt = $db->prepare("SELECT * FROM showobs LIMIT 1");
 $stmt->execute();
-$result = $stmt->fetch(PDO::FETCH_ASSOC);
+$result = $stmt->get_result()->fetch_assoc();
 
 $font = isset($result['font']) && $result['font'] !== '' ? $result['font'] : 'Not set';
 $color = isset($result['color']) && $result['color'] !== '' ? $result['color'] : 'Not set';
@@ -77,36 +77,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($result) {
         // Update the font, color, list, shadow, bold, and font_size data in the database
         $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? LIMIT 1");
-        $stmt->bindParam(1, $selectedFont, PDO::PARAM_STR);
-        $stmt->bindParam(2, $selectedColor, PDO::PARAM_STR);
-        $stmt->bindParam(3, $selectedList, PDO::PARAM_STR);
-        $stmt->bindParam(4, $selectedShadow, PDO::PARAM_INT);
-        $stmt->bindParam(5, $selectedBold, PDO::PARAM_INT);
-        $stmt->bindParam(6, $selectedFontSize, PDO::PARAM_STR);
+        $stmt->bind_param("sssisss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
         if ($stmt->execute()) {
             // Update successful
             header("Location: obs_options.php");
         } else {
             // Display error message
-            $errorInfo = $stmt->errorInfo();
-            echo "Error updating settings: " . $errorInfo[2];
+            echo "Error updating settings: " . $stmt->error;
         }
     } else {
         // Insert new settings for the user
         $stmt = $db->prepare("INSERT INTO showobs (font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bindParam(1, $selectedFont, PDO::PARAM_STR);
-        $stmt->bindParam(2, $selectedColor, PDO::PARAM_STR);
-        $stmt->bindParam(3, $selectedList, PDO::PARAM_STR);
-        $stmt->bindParam(4, $selectedShadow, PDO::PARAM_INT);
-        $stmt->bindParam(5, $selectedBold, PDO::PARAM_INT);
-        $stmt->bindParam(6, $selectedFontSize, PDO::PARAM_STR);
+        $stmt->bind_param("sssisss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
         if ($stmt->execute()) {
             // Insertion successful
             header("Location: obs_options.php");
         } else {
             // Display error message
-            $errorInfo = $stmt->errorInfo();
-            echo "Error inserting settings: " . $errorInfo[2];
+            echo "Error inserting settings: " . $stmt->error;
         }
     }
 }
