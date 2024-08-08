@@ -48,14 +48,14 @@ if (isset($_GET['category'])) {
   $category_id = $_GET['category'];
   $sql = "SELECT * FROM todos WHERE category = ? AND completed = 'No'";
   $stmt = $db->prepare($sql);
-  $stmt->bindParam(1, $category_id, PDO::PARAM_INT);
+  $stmt->bind_param("i", $category_id);
 } else {
   $sql = "SELECT * FROM todos WHERE completed = 'No'";
   $stmt = $db->prepare($sql);
 }
 
 $stmt->execute();
-$incompleteTasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$incompleteTasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $num_rows = count($incompleteTasks);
 
 // Mark task as completed
@@ -63,7 +63,7 @@ if (isset($_POST['task_id'])) {
   $task_id = $_POST['task_id'];
   $sql = "UPDATE todos SET completed = 'Yes' WHERE id = ?";
   $stmt = $db->prepare($sql);
-  $stmt->bindParam(1, $task_id, PDO::PARAM_INT);
+  $stmt->bind_param("i", $task_id);
   $stmt->execute();
   
   header('Location: completed.php');
@@ -73,7 +73,7 @@ if (isset($_POST['task_id'])) {
 // Retrieve categories for the filter dropdown
 $categorySql = "SELECT * FROM categories";
 $categoryStmt = $db->query($categorySql);
-$categories = $categoryStmt->fetchAll(PDO::FETCH_ASSOC);
+$categories = $categoryStmt->fetch_all(MYSQLI_ASSOC);
 
 // Check if a specific category is selected
 $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
@@ -137,9 +137,9 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
           $category_id = $row['category'];
           $category_sql = "SELECT category FROM categories WHERE id = ?";
           $category_stmt = $db->prepare($category_sql);
-          $category_stmt->bindParam(1, $category_id, PDO::PARAM_INT);
+          $category_stmt->bind_param("i", $category_id);
           $category_stmt->execute();
-          $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
+          $category_row = $category_stmt->get_result()->fetch_assoc();
           echo htmlspecialchars($category_row['category']);
           ?>
           </td>
