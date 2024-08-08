@@ -8,7 +8,7 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-  header('Location: login.php');
+  header('Location: ../login.php');
   exit();
 }
 
@@ -90,6 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><?php echo $title; ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+    <link rel="stylesheet" href="../css/bulma-custom.css">
     <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
     <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
   </head>
@@ -100,7 +101,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <div class="container">
   <br>
-  <h1 class="title"><?php echo "$greeting, <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>$twitchDisplayName!"; ?></h1>
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
     <h3 class="title is-3">Type in what your new category will be:</h3>
@@ -121,7 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
-<script src="https://yourlistonline.yourcdnonline.com/js/about.js"></script>
+<script src="../js/about.js" defer></script>
 <script>
   // JavaScript function to handle the category filter change
   document.getElementById("categoryFilter").addEventListener("change", function() {
