@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           <div class="select">
             <select id="category" name="category[<?php echo $row['id']; ?>]" class="form-control">
               <?php
-                $stmt = $db->prepare("SELECT * FROM categories WHERE user_id IS NULL");
+                $stmt = $db->prepare("SELECT * FROM categories");
                 $stmt->execute();
                 $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 foreach ($categories as $category_row) {
