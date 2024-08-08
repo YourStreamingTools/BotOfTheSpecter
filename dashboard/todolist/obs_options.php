@@ -260,6 +260,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
 <script src="../js/about.js" defer></script>
-<script src="https://yourlistonline.yourcdnonline.com/js/obsbutton.js" defer></script>
+<script src="../js/obsinfo.js" defer></script>
 </body>
 </html>
