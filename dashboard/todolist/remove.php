@@ -50,20 +50,20 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 if ($categoryFilter === 'all') {
   $stmt = $db->prepare("SELECT * FROM todos ORDER BY id ASC");
 } else {
-  $stmt = $db->prepare("SELECT * FROM todos WHERE category = :category ORDER BY id ASC");
-  $stmt->bindParam(':category', $categoryFilter, PDO::PARAM_STR);
+  $stmt = $db->prepare("SELECT * FROM todos WHERE category = ? ORDER BY id ASC");
+  $stmt->bind_param('s', $categoryFilter);
 }
 
 $stmt->execute();
-$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $num_rows = count($result);
 
 // Handle remove item form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $todo_id = $_POST['todo_id'];
   // Delete item from database
-  $stmt = $db->prepare("DELETE FROM todos WHERE id = :todo_id");
-  $stmt->bindParam(':todo_id', $todo_id, PDO::PARAM_INT);
+  $stmt = $db->prepare("DELETE FROM todos WHERE id = ?");
+  $stmt->bind_param('i', $todo_id);
   $stmt->execute();
   // Redirect back to remove page
   header('Location: remove.php');
@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $categories_sql = "SELECT * FROM categories WHERE user_id IS NULL";
           $categories_stmt = $db->prepare($categories_sql);
           $categories_stmt->execute();
-          $categories_result = $categories_stmt->fetchAll(PDO::FETCH_ASSOC);
+          $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
           foreach ($categories_result as $category_row) {
             $categoryId = $category_row['id'];
             $categoryName = htmlspecialchars($category_row['category']);
@@ -139,10 +139,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <td>
             <?php
             $category_id = $row['category'];
-            $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = :category_id");
-            $category_stmt->bindParam(':category_id', $category_id, PDO::PARAM_INT);
+            $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
+            $category_stmt->bind_param('i', $category_id);
             $category_stmt->execute();
-            $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
+            $category_row = $category_stmt->get_result()->fetch_assoc();
             echo htmlspecialchars($category_row['category']);
             ?>
           </td>
