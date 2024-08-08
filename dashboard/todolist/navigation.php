@@ -11,8 +11,8 @@
   </div>
   <div id="navbarBasic" class="navbar-menu">
   <div class="navbar-start">
-      <a class="navbar-item" href="../dashboard.php">Dashboard</a>
-      <a class="navbar-item" href="index.php">ToDo List</a>
+      <a class="navbar-item" href="../bot.php">Back to Bot</a>
+      <a class="navbar-item" href="index.php">Dashboard</a>
       <a class="navbar-item" href="insert.php">Add</a>
       <a class="navbar-item" href="remove.php">Remove</a>
       <div class="navbar-item has-dropdown is-hoverable">
