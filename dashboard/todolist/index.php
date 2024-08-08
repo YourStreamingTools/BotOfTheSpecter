@@ -46,18 +46,18 @@ include 'database.php';
 // Get the selected category filter, default to "all" if not provided
 $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 
-// Build the SQL query based on the category filter and search keyword
+// Build the SQL query based on the category filter
 if ($categoryFilter === 'all') {
   $sql = "SELECT * FROM todos ORDER BY id ASC";
   $stmt = $db->prepare($sql);
 } else {
   $sql = "SELECT * FROM todos WHERE category = ? ORDER BY id ASC";
   $stmt = $db->prepare($sql);
-  $stmt->bindParam(1, $categoryFilter, PDO::PARAM_INT);
+  $stmt->bind_param("i", $categoryFilter);
 }
 
 $stmt->execute();
-$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $num_rows = count($result);
 ?>
 <!DOCTYPE html>
@@ -96,7 +96,7 @@ $num_rows = count($result);
           <?php
             $categories_sql = "SELECT * FROM categories";
             $categories_stmt = $db->query($categories_sql);
-            $categories_result = $categories_stmt->fetchAll(PDO::FETCH_ASSOC);
+            $categories_result = $categories_stmt->fetch_all(MYSQLI_ASSOC);
             foreach ($categories_result as $category_row) {
               $categoryId = $category_row['id'];
               $categoryName = htmlspecialchars($category_row['category']);
@@ -129,9 +129,9 @@ $num_rows = count($result);
               $category_id = $row['category'];
               $category_sql = "SELECT category FROM categories WHERE id = ?";
               $category_stmt = $db->prepare($category_sql);
-              $category_stmt->bindParam(1, $category_id, PDO::PARAM_INT);
+              $category_stmt->bind_param("i", $category_id);
               $category_stmt->execute();
-              $category_row = $category_stmt->fetch(PDO::FETCH_ASSOC);
+              $category_row = $category_stmt->get_result()->fetch_assoc();
               echo htmlspecialchars($category_row['category']);
             ?>
           </td>
