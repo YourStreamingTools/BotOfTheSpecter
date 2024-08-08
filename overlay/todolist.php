@@ -27,14 +27,13 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
     $api_key = $_GET['code'];
 
     // Check if API key is valid in the primary database
-    $stmt = $conn->prepare("SELECT id, username FROM users WHERE api_key = ?");
+    $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
     $stmt->bind_param("s", $api_key);
     $stmt->execute();
     $result = $stmt->get_result();
     $user = $result->fetch_assoc();
 
     if ($user) {
-        $user_id = $user['id'];
         $username = $user['username'];
     } else {
         echo "</head>";
