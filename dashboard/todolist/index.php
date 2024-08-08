@@ -46,9 +46,6 @@ include 'database.php';
 // Get the selected category filter, default to "all" if not provided
 $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 
-// Get the search keyword from the form
-$searchKeyword = isset($_GET['search']) ? $_GET['search'] : '';
-
 // Build the SQL query based on the category filter and search keyword
 if ($categoryFilter === 'all') {
   $sql = "SELECT * FROM todos ORDER BY id ASC";
