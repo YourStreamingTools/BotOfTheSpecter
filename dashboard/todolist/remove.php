@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <select id="categoryFilter" onchange="applyCategoryFilter()">
           <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
           <?php
-          $categories_sql = "SELECT * FROM categories WHERE user_id IS NULL";
+          $categories_sql = "SELECT * FROM categories";
           $categories_stmt = $db->prepare($categories_sql);
           $categories_stmt->execute();
           $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
