@@ -28,3 +28,5 @@ walkons/*
 cdn/Thumbs.db
 cdn/emotes/Thumbs.db
 /app
+dashboard/botcontrol.php
+dashboard/bottest.php
