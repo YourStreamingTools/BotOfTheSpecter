@@ -45,8 +45,8 @@ include 'sqlite.php';
 // Handle AJAX request to load followers
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   header('Content-Type: application/json'); // Ensure the output is JSON
-  // Fetch existing followers from the database, sorted by oldest to newest
-  $stmt = $db->prepare("SELECT user_id, user_name, followed_at FROM followers_data ORDER BY followed_at ASC");
+  // Fetch existing followers from the database, sorted by newest to oldest
+  $stmt = $db->prepare("SELECT user_id, user_name, followed_at FROM followers_data ORDER BY followed_at DESC");
   $stmt->execute();
   $existingFollowers = $stmt->fetchAll(PDO::FETCH_ASSOC);
   // Check for updates from Twitch API and update the database accordingly
@@ -94,7 +94,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     }
   }
   // Fetch the updated list of followers from the database
-  $stmt = $db->prepare("SELECT user_id, user_name, followed_at FROM followers_data ORDER BY followed_at ASC");
+  $stmt = $db->prepare("SELECT user_id, user_name, followed_at FROM followers_data ORDER BY followed_at DESC");
   $stmt->execute();
   $updatedFollowers = $stmt->fetchAll(PDO::FETCH_ASSOC);
   echo json_encode(["status" => "success", "data" => $updatedFollowers]);
@@ -127,6 +127,18 @@ function fetchFollowers($url, $authToken, $clientID) {
   <head>
     <!-- Header -->
     <?php include('header.php'); ?>
+    <style>
+      /* Fade-in animation */
+      .follower-box {
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+      }
+      .follower-box.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    </style>
     <!-- /Header -->
   </head>
 <body>
@@ -161,19 +173,25 @@ $(document).ready(function() {
       success: function(response) {
         if (response.status === 'success') {
           $('#followers-list').empty();
-          response.data.forEach(function(follower) {
-            var followerHTML = `
-              <div class="column is-one-third">
-                <div class="box">
-                  <span>${follower.user_name}</span><br>
-                  ${new Date(follower.followed_at).toLocaleDateString()}<br>
-                  ${new Date(follower.followed_at).toLocaleTimeString()}
+          response.data.forEach(function(follower, index) {
+            setTimeout(function() {
+              var followerHTML = `
+                <div class="column is-one-third follower-box">
+                  <div class="box">
+                    <span>${follower.user_name}</span><br>
+                    ${new Date(follower.followed_at).toLocaleDateString()}<br>
+                    ${new Date(follower.followed_at).toLocaleTimeString()}
+                  </div>
                 </div>
-              </div>
-            `;
-            $('#followers-list').append(followerHTML);
+              `;
+              var $followerElement = $(followerHTML);
+              $('#followers-list').append($followerElement);
+              setTimeout(function() {
+                $followerElement.addClass('visible');
+              }, 10);
+            }, index * 100);
           });
-          $('#live-data').text("Followers have been updated.");
+          $('#live-data').text("");
         } else {
           $('#live-data').text("Failed to load followers.");
         }
