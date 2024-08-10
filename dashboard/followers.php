@@ -27,12 +27,15 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $user_id = $user['id'];
 $username = $user['username'];
-$broadcasterID = $user['twitch_user_id'];
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
+$betaAccess = ($user['beta_access'] == 1);
+$twitchUserId = $user['twitch_user_id'];
+$broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
+$api_key = $user['api_key'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
@@ -42,8 +45,9 @@ include 'sqlite.php';
 // API endpoint to fetch followers
 $allFollowers = [];
 $showDisclaimer = true;
+$followersPerPage = 100;
 // API endpoint to fetch followers
-$followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID";
+$followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&first=$followersPerPage";
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   $showDisclaimer = false;
@@ -117,9 +121,6 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
     } while ($cursor);
   }
 }
-
-// Number of followers per page
-$followersPerPage = 50;
 
 // Calculate the total number of pages
 $totalPages = ceil(count($allFollowers) / $followersPerPage);
