@@ -24,6 +24,7 @@ from deep_translator import GoogleTranslator
 from twitchio.ext import commands as twitch_commands
 import streamlink
 import pytz
+from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 import openai
 import uuid
@@ -1367,7 +1368,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
             await sqldb.ensure_closed()
 
     @twitch_commands.command(name='time')
-    async def time_command(self, ctx, timezone: str = None) -> None:
+    async def time_command(self, ctx, *, timezone: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1378,13 +1379,31 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if status == 'Disabled':
                         return
                 if timezone:
-                    tz = pytz.timezone(timezone)
-                    chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                    geolocator = Nominatim(user_agent="BotOfTheSpecter")
+                    location_data = geolocator.geocode(timezone)
+                    chat_logger.info(f"Location Data: {location_data}")
+                    if not location_data:
+                        await ctx.send(f"Could not find the time location that you requested.")
+                        chat_logger.info(f"Could not find the time location that you requested.")
+                        return
+                    timezone_api_key = os.getenv('TIMEZONE_API')
+                    timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
+                    chat_logger.info(f"{timezone_url}")
+                    reponse = requests.get(timezone_url)
+                    timezone_data = reponse.json()
+                    chat_logger.info(f"Timezone Data: {timezone_data}")
+                    if timezone_data['status'] != "OK":
+                        await ctx.send(f"Could not find the time location that you requested.")
+                        chat_logger.info(f"Could not find the time location that you requested.")
+                        return
+                    timezone_str = timezone_data["zoneName"]
+                    tz = pytz.timezone(timezone_str)
+                    chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str}")
                     current_time = datetime.now(tz)
                     time_format_date = current_time.strftime("%B %d, %Y")
                     time_format_time = current_time.strftime("%I:%M %p")
                     time_format_week = current_time.strftime("%A")
-                    time_format = f"For the timezone {timezone}, it is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+                    time_format = f"The time for {timezone} is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
                 else:
                     await cursor.execute("SELECT timezone FROM profile")
                     result = await cursor.fetchone()
@@ -1892,7 +1911,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 result = await cursor.fetchone()
                 if result:
                     # User was lurking before
-                    previous_start_time = result[0]
+                    previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
@@ -2032,7 +2051,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     result = await cursor.fetchone()
                     if result:
                         time_now = datetime.now()
-                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        start_time = result[0]
                         elapsed_time = time_now - start_time
                         # Calculate the duration
                         days, seconds = divmod(elapsed_time.total_seconds(), 86400)
