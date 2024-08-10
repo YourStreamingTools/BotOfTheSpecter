@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
@@ -42,142 +42,85 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 
-// API endpoint to fetch followers
-$allFollowers = [];
-$showDisclaimer = true;
-$followersPerPage = 100;
-// API endpoint to fetch followers
-$followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&first=$followersPerPage";
-$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+// Handle AJAX request to load followers
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
-  $showDisclaimer = false;
-  $allFollowers = [];
-  $liveData = "";
-  $cacheExpiration = 3600; // Cache expires after 1 hour
-  $cacheDirectory = "cache/$username";
-  $cacheFile = "$cacheDirectory/allFollowers.json";
-  if (!is_dir($cacheDirectory)) {
-    mkdir($cacheDirectory, 0755, true);
+  header('Content-Type: application/json'); // Ensure the output is JSON
+  // Fetch existing followers from the database, sorted by oldest to newest
+  $stmt = $db->prepare("SELECT user_id, user_name, followed_at FROM followers_data ORDER BY followed_at ASC");
+  $stmt->execute();
+  $existingFollowers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  // Check for updates from Twitch API and update the database accordingly
+  $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&first=100";
+  $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+  $apiFollowers = [];
+  do {
+      $response = fetchFollowers($followersURL, $authToken, $clientID);
+      if ($response === false) {
+        echo json_encode(["status" => "error", "message" => "Failed to fetch followers"]);
+        exit();
+      }
+      $followerData = json_decode($response, true);
+      if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(["status" => "error", "message" => "Error decoding JSON response"]);
+        exit();
+      }
+      foreach ($followerData["data"] as $follower) {
+        $apiFollowers[] = $follower["user_id"];
+        $followedAt = date('Y-m-d H:i:s', strtotime($follower["followed_at"]));
+        // Check if the follower exists in the database
+        $stmt = $db->prepare("SELECT COUNT(*) FROM followers_data WHERE user_id = :user_id");
+        $stmt->execute([":user_id" => $follower["user_id"]]);
+        $exists = $stmt->fetchColumn();
+        if (!$exists) {
+          // Insert new follower into the database
+          $insertStmt = $db->prepare("INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (:user_id, :user_name, :followed_at)");
+          $insertStmt->execute([
+            ":user_id" => $follower["user_id"],
+            ":user_name" => $follower["user_name"],
+            ":followed_at" => $followedAt
+          ]);
+        }
+      }
+      $cursor = $followerData["pagination"]["cursor"] ?? null;
+      if ($cursor) {
+        $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&first=100&after=$cursor";
+      }
+  } while ($cursor);
+  // Delete followers from the database if they are no longer in the Twitch API response
+  foreach ($existingFollowers as $existingFollower) {
+    if (!in_array($existingFollower['user_id'], $apiFollowers)) {
+      $deleteStmt = $db->prepare("DELETE FROM followers_data WHERE user_id = :user_id");
+      $deleteStmt->execute([":user_id" => $existingFollower['user_id']]);
+    }
   }
-  if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
-    $allFollowers = json_decode(file_get_contents($cacheFile), true);
-    $cacheTime = filemtime($cacheFile);
-    $currentTime = time();
-    $timeDifference = round(($currentTime - $cacheTime) / 60);
-    $liveData = "Follower results are cached up to 1 hour. (Cache updated: $timeDifference minutes ago)";
-  } else {
-    do {
-        // Set up cURL request with headers
-        $curl = curl_init($followersURL);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $authToken,
-            'Client-ID: ' . $clientID
-        ]);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
-        // Execute cURL request
-        $response = curl_exec($curl);
-
-        if ($response === false) {
-            // Handle cURL error
-            $errorInfo = curl_getinfo($curl);
-            $errorMessage = 'cURL error: ' . curl_error($curl);
-            $errorDetails = 'URL: ' . $errorInfo['url'] . ' | HTTP Code: ' . $errorInfo['http_code'];
-        
-            // Log the error to a file for debugging
-            error_log($errorMessage . ' | ' . $errorDetails, 3, 'curl_errors.log');
-        
-            echo 'An error occurred while fetching data. Please try again later.';
-            exit;
-        }
-
-        if ($response === false) {
-            // Handle cURL error
-            echo 'cURL error: ' . curl_error($curl);
-            exit;
-        }
-
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        if ($httpCode !== 200) {
-            // Handle non-successful HTTP response
-            $HTTPError = 'HTTP error: ' . $httpCode;
-            echo "$HTTPError";
-            exit;
-        }
-
-        curl_close($curl);
-
-        // Process and append follower information to the array
-        $followersData = json_decode($response, true);
-        $allFollowers = array_merge($allFollowers, $followersData['data']);
-
-        // Save the data to the cache file
-        file_put_contents($cacheFile, json_encode($allFollowers));
-        $liveData = "Follower results have been cached, you're viewing live data.";
-
-        // Check if there are more pages of followers
-        $cursor = $followersData['pagination']['cursor'] ?? null;
-        $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&after=$cursor";
-    } while ($cursor);
-  }
+  // Fetch the updated list of followers from the database
+  $stmt = $db->prepare("SELECT user_id, user_name, followed_at FROM followers_data ORDER BY followed_at ASC");
+  $stmt->execute();
+  $updatedFollowers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  echo json_encode(["status" => "success", "data" => $updatedFollowers]);
+  exit();
 }
 
-// Calculate the total number of pages
-$totalPages = ceil(count($allFollowers) / $followersPerPage);
-
-// Current page (default to 1 if not specified)
-$currentPage = isset($_GET['page']) ? max(1, min($totalPages, intval($_GET['page']))) : 1;
-
-// Calculate the start and end index for the current page
-$startIndex = ($currentPage - 1) * $followersPerPage;
-$endIndex = $startIndex + $followersPerPage;
-
-// Get followers for the current page
-$followersForCurrentPage = array_slice($allFollowers, $startIndex, $followersPerPage);
-
-// Set up cURL request with headers
-$curl = curl_init($followersURL);
-curl_setopt($curl, CURLOPT_HTTPHEADER, [
+// Function to fetch followers with error handling
+function fetchFollowers($url, $authToken, $clientID) {
+  $curl = curl_init($url);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, [
     'Authorization: Bearer ' . $authToken,
     'Client-ID: ' . $clientID
-]);
-curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
-// Execute cURL request
-$response = curl_exec($curl);
-
-if ($response === false) {
+  ]);
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+  $response = curl_exec($curl);
+  if ($response === false) {
     // Handle cURL error
-    $errorInfo = curl_getinfo($curl);
     $errorMessage = 'cURL error: ' . curl_error($curl);
-    $errorDetails = 'URL: ' . $errorInfo['url'] . ' | HTTP Code: ' . $errorInfo['http_code'];
-
-    // Log the error to a file for debugging
+    $errorDetails = 'URL: ' . curl_getinfo($curl, CURLINFO_EFFECTIVE_URL) . ' | HTTP Code: ' . curl_getinfo($curl, CURLINFO_HTTP_CODE);
     error_log($errorMessage . ' | ' . $errorDetails, 3, 'curl_errors.log');
-
-    echo 'An error occurred while fetching data. Please try again later.';
-    exit;
+    curl_close($curl);
+    return false;
+  }
+  curl_close($curl);
+  return $response;
 }
-
-if ($response === false) {
-    // Handle cURL error
-    echo 'cURL error: ' . curl_error($curl);
-    exit;
-}
-
-$httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-if ($httpCode !== 200) {
-    // Handle non-successful HTTP response
-    $HTTPError = 'HTTP error: ' . $httpCode;
-    echo "$HTTPError";
-    exit;
-}
-
-curl_close($curl);
-
-// Process and append follower information to the array
-$followersData = json_decode($response, true);
-$followerCount = $followersData['total'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -194,54 +137,56 @@ $followerCount = $followersData['total'];
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <?php if ($showDisclaimer): ?>
-  <!-- Disclaimer and Button -->
-  <div class="content has-text-centered">
-    <p>Note: Clicking the 'View Followers' button will begin retrieving your Twitch followers, which may take some time. Please be patient while the information loads.</p>
-    <a href="?load=followers" class="button is-large is-primary">View Followers</a>
-  </div>
-  <?php endif; ?>
-  <!-- Followers Content Container (initially hidden) -->
-  <div id="followers-content" <?php if (!isset($_GET['load'])) echo 'style="display: none;"'; ?>>
-    <?php if (isset($_GET['load']) && $_GET['load'] == 'followers'): ?>
-    <h1 class="title is-4">Your Followers: (<?php echo $followerCount; ?>)</h1>
-    <h3><?php echo $liveData ?></h3><br>
-    <div class="columns is-multiline">
-        <?php foreach ($followersForCurrentPage as $follower) : 
-            $followerDisplayName = $follower['user_name'];
-        ?>
-        <div class="column is-one-third">
-            <div class="box">
-                <span><?php echo $followerDisplayName; ?></span>
-                <br>
-                <span class="has-text-grey-light">
-                  <?php echo date('d F Y', strtotime($follower['followed_at'])); ?><br>
-                  <?php echo date('H:i', strtotime($follower['followed_at'])); ?>
-                </span>
-            </div>
-        </div>
-        <?php endforeach; ?>
+  <!-- Followers Content Container -->
+  <div id="followers-content">
+    <h1 class="title is-4">Your Followers:</h1>
+    <h3 id="live-data">Loading new followers...</h3><br>
+    <div id="followers-list" class="columns is-multiline">
+      <!-- AJAX appended followers -->
     </div>
-    
-    <!-- Pagination -->
-    <nav class="pagination is-centered" role="navigation" aria-label="pagination">
-      <ul class="pagination-list">
-        <?php if ($totalPages > 1) : ?>
-            <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
-                <?php if ($page === $currentPage) : ?>
-                    <li><a class="pagination-link is-current"><?php echo $page; ?></a></li>
-                <?php else : ?>
-                    <li><a class="pagination-link" href="followers.php?load=followers&page=<?php echo $page; ?>"><?php echo $page; ?></a></li>
-                <?php endif; ?>
-            <?php endfor; ?>
-        <?php endif; ?>
-      </ul>
-    </nav>
-    <?php endif; ?>
   </div>
   <br>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script>
+$(document).ready(function() {
+  // Automatically fetch followers when the page loads
+  function fetchNewFollowers() {
+    $.ajax({
+      url: window.location.href,
+      method: 'GET',
+      data: { load: 'followers' },
+      dataType: 'json',
+      success: function(response) {
+        if (response.status === 'success') {
+          $('#followers-list').empty();
+          response.data.forEach(function(follower) {
+            var followerHTML = `
+              <div class="column is-one-third">
+                <div class="box">
+                  <span>${follower.user_name}</span><br>
+                  ${new Date(follower.followed_at).toLocaleDateString()}<br>
+                  ${new Date(follower.followed_at).toLocaleTimeString()}
+                </div>
+              </div>
+            `;
+            $('#followers-list').append(followerHTML);
+          });
+          $('#live-data').text("Followers have been updated.");
+        } else {
+          $('#live-data').text("Failed to load followers.");
+        }
+      },
+      error: function(xhr, status, error) {
+        console.error('AJAX Error: ' + error);
+        $('#live-data').text("Failed to load followers.");
+      }
+    });
+  }
+  // Trigger the AJAX request on page load
+  fetchNewFollowers();
+});
+</script>
 </body>
 </html>
