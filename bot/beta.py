@@ -1381,17 +1381,14 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 if timezone:
                     geolocator = Nominatim(user_agent="BotOfTheSpecter")
                     location_data = geolocator.geocode(timezone)
-                    chat_logger.info(f"Location Data: {location_data}")
                     if not location_data:
                         await ctx.send(f"Could not find the time location that you requested.")
                         chat_logger.info(f"Could not find the time location that you requested.")
                         return
                     timezone_api_key = os.getenv('TIMEZONE_API')
                     timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
-                    chat_logger.info(f"{timezone_url}")
                     reponse = requests.get(timezone_url)
                     timezone_data = reponse.json()
-                    chat_logger.info(f"Timezone Data: {timezone_data}")
                     if timezone_data['status'] != "OK":
                         await ctx.send(f"Could not find the time location that you requested.")
                         chat_logger.info(f"Could not find the time location that you requested.")
