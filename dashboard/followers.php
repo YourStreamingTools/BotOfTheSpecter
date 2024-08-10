@@ -172,7 +172,7 @@ $(document).ready(function() {
       dataType: 'json',
       success: function(response) {
         if (response.status === 'success') {
-          $('#followers-list').empty();
+          // Prepend new followers to the top of the list
           response.data.forEach(function(follower, index) {
             setTimeout(function() {
               var followerHTML = `
@@ -189,7 +189,7 @@ $(document).ready(function() {
               setTimeout(function() {
                 $followerElement.addClass('visible');
               }, 10);
-            }, index * 100);
+            }, index * 50);
           });
           $('#live-data').text("");
         } else {
@@ -204,6 +204,8 @@ $(document).ready(function() {
   }
   // Trigger the AJAX request on page load
   fetchNewFollowers();
+  // Check for new followers every 5 minutes
+  setInterval(fetchNewFollowers, 300000);
 });
 </script>
 </body>
