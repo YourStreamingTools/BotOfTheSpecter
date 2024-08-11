@@ -13,7 +13,15 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 
-# Initialize FastAPI app with metadata
+# Define the tags metadata
+tags_metadata = [
+    {
+        "name": "Commands",
+        "description": "Operations related to commands, including retrieving command responses.",
+    },
+]
+
+# Initialize FastAPI app with metadata and tags
 app = FastAPI(
     title="BotOfTheSpecter",
     description="API Endpoints for BotOfTheSpecter",
@@ -24,6 +32,7 @@ app = FastAPI(
         "url": "https://discord.com/invite/ANwEkpauHJ",
         "email": "questions@botofthespecter.com",
     },
+    openapi_tags=tags_metadata
 )
 
 # Make a connection to the MySQL Server
@@ -92,7 +101,7 @@ with open("/var/www/api/killCommand.json", "r") as killCommand:
 
 # killCommand EndPoint
 @app.get(
-    "/killcommand",
+    "/kill",
     response_model=KillCommandResponse,
     summary="Retrieve the Kill Command Responses",
     responses={
@@ -100,7 +109,8 @@ with open("/var/www/api/killCommand.json", "r") as killCommand:
             "model": ValidationErrorResponse,
             "description": "Validation Error"
         }
-    }
+    },
+    tags=["Commands"]
 )
 async def get_kill_commands(api_key: str = Depends(verify_api_key)):
     return {"killcommand": kill_commands}
