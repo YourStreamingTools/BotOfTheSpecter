@@ -62,7 +62,6 @@ TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
-OPENAI_KEY = os.getenv('OPENAI_KEY')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
@@ -105,7 +104,6 @@ api_logger = loggers['api']
 translator = GoogleTranslator
 scheduled_tasks = asyncio.Queue()
 sio = socketio.AsyncClient()
-openai.api_key = OPENAI_KEY
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
