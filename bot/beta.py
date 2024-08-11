@@ -26,7 +26,6 @@ import streamlink
 import pytz
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
-import openai
 import uuid
 import websockets
 
