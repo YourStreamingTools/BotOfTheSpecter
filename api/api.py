@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, HTTPException, Depends
 import uvicorn
 from pydantic import BaseModel
-from typing import Dict
+from typing import Dict, List
 import json
 import aiomysql
 from dotenv import load_dotenv, find_dotenv
@@ -13,7 +13,18 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 
-app = FastAPI()
+# Initialize FastAPI app with metadata
+app = FastAPI(
+    title="BotOfTheSpecter",
+    description="API Endpoints for BotOfTheSpecter",
+    version="1.0.0",
+    terms_of_service="https://botofthespecter.com/terms-of-service.php",
+    contact={
+        "name": "YourStreamingTools",
+        "url": "https://discord.com/invite/ANwEkpauHJ",
+        "email": "questions@botofthespecter.com",
+    },
+)
 
 # Make a connection to the MySQL Server
 async def get_mysql_connection():
@@ -54,6 +65,27 @@ class KillCommandResponse(BaseModel):
             }
         }
 
+class ValidationErrorDetail(BaseModel):
+    loc: List[str]
+    msg: str
+    type: str
+
+class ValidationErrorResponse(BaseModel):
+    detail: List[ValidationErrorDetail]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "detail": [
+                    {
+                        "loc": ["body", "api_key"],
+                        "msg": "field required",
+                        "type": "value_error.missing"
+                    }
+                ]
+            }
+        }
+
 # Load the killCommand JSON file.
 with open("/var/www/api/killCommand.json", "r") as killCommand:
     kill_commands = json.load(killCommand)
@@ -62,7 +94,13 @@ with open("/var/www/api/killCommand.json", "r") as killCommand:
 @app.get(
     "/killcommand",
     response_model=KillCommandResponse,
-    summary="Retrieve the Kill Command Responses"
+    summary="Retrieve the Kill Command Responses",
+    responses={
+        422: {
+            "model": ValidationErrorResponse,
+            "description": "Validation Error"
+        }
+    }
 )
 async def get_kill_commands(api_key: str = Depends(verify_api_key)):
     return {"killcommand": kill_commands}
