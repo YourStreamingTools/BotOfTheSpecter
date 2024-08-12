@@ -156,6 +156,18 @@ class QuoteResponse(BaseModel):
             }
         }
 
+# Define the response model for Version Control
+class VersionControlResponse(BaseModel):
+    beta_version: str
+    stable_version: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "beta_version": "4.6",
+                "stable_version": "4.5.2"
+            }
+        }
+
 # Create Docs Favicon
 @app.get('/favicon.ico', include_in_schema=False)
 async def favicon():
@@ -179,6 +191,21 @@ async def get_quote(api_key: str = Depends(verify_api_key)):
     # Select a random quote from the chosen author
     random_quote = random.choice(quotes[random_author])
     return {"author": random_author, "quote": random_quote}
+
+# Version Control endpoint
+@app.get(
+    "/version",
+    response_model=VersionControlResponse,
+    summary="Get the current bot versions",
+    tags=["Commands"]
+)
+async def get_versions(api_key: str = Depends(verify_api_key)):
+    versions_path = "/var/www/api/versions.json"
+    if not os.path.exists(versions_path):
+        raise HTTPException(status_code=404, detail="Version file not found")
+    with open(versions_path, "r") as versions_file:
+        versions = json.load(versions_file)
+    return versions
 
 # killCommand EndPoint
 @app.get(
