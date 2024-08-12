@@ -3,13 +3,14 @@ import aiohttp
 import aiomysql
 import random
 import json
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Body
 from fastapi.responses import FileResponse
 import uvicorn
 from pydantic import BaseModel
 from typing import Dict, List
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
+from urllib.parse import urlencode
 
 # Load ENV file
 load_dotenv(find_dotenv("/var/www/bot/.env"))
@@ -22,8 +23,16 @@ favicon_path = "https://cdn.botofthespecter.com/logo.png"
 # Define the tags metadata
 tags_metadata = [
     {
+        "name": "BotOfTheSpecter",
+        "description": "Endpoints related to public bot functionalities and operations.",
+    },
+    {
         "name": "Commands",
-        "description": "Operations related to commands, including retrieving command responses.",
+        "description": "Endpoints for managing and retrieving command responses.",
+    },
+    {
+        "name": "Websocket",
+        "description": "Endpoints for interacting with the internal WebSocket server.",
     },
 ]
 
@@ -56,13 +65,14 @@ async def verify_api_key(api_key: str):
     conn = await get_mysql_connection()
     try:
         async with conn.cursor() as cur:
-            await cur.execute("SELECT api_key FROM users WHERE api_key=%s", (api_key,))
+            await cur.execute("SELECT username, api_key FROM users WHERE api_key=%s", (api_key,))
             result = await cur.fetchone()
             if result is None:
                 raise HTTPException(
                     status_code=401,
                     detail="Invalid API Key",
                 )
+            return result[0]  # Return the username associated with the API key
     finally:
         conn.close()
 
@@ -73,6 +83,34 @@ async def verify_admin_key(api_key: str):
             status_code=403,
             detail="Forbidden: Invalid Admin Key",
         )
+
+# Function to connect to the websocket server and push a notice
+async def websocket_notice(event: str, params: Dict[str, str], api_key: str):
+    await verify_api_key(api_key)  # Validate the API key before proceeding
+    async with aiohttp.ClientSession() as session:
+        params['code'] = api_key  # Pass the verified API key to the websocket server
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        async with session.get(url) as response:
+            if response.status != 200:
+                raise HTTPException(
+                    status_code=response.status,
+                    detail=f"Failed to send HTTP event '{event}' to websocket server."
+                )
+
+# Define models for the websocket events
+class TTSRequest(BaseModel):
+    text: str
+
+class WalkonRequest(BaseModel):
+    user: str
+
+class DeathsRequest(BaseModel):
+    death: str
+    game: str
+
+class WeatherRequest(BaseModel):
+    location: str
 
 # Define the response model for validation errors
 class ValidationErrorDetail(BaseModel):
@@ -197,7 +235,7 @@ async def quotes(api_key: str = Depends(verify_api_key)):
     "/versions",
     response_model=VersionControlResponse,
     summary="Get the current bot versions",
-    tags=["Commands"]
+    tags=["BotOfTheSpecter"]
 )
 async def versions():
     versions_path = "/var/www/api/versions.json"
@@ -243,8 +281,81 @@ async def joke(api_key: str = Depends(verify_api_key)):
     # Return the joke response
     return get_joke
 
+# Websocket endpoints
+@app.post(
+    "/websocket/tts",
+    summary="Trigger TTS via API",
+    tags=["Websocket"],
+)
+async def websocket_tts(request: TTSRequest, api_key: str = Depends(verify_api_key)):
+    params = {"event": "TTS", "text": request.text}
+    await websocket_notice("TTS", params, api_key)
+    return {"status": "success"}
+
+@app.post(
+    "/websocket/walkon",
+    summary="Trigger WALKON via API",
+    tags=["Websocket"]
+)
+async def websocket_walkon(request: WalkonRequest, api_key: str = Depends(verify_api_key)):
+    channel = await verify_api_key(api_key)  # Fetch the channel (username) from the database
+    walkon_file_path = f"/var/www/walkons/{channel}/{request.user}.mp3"
+    if os.path.exists(walkon_file_path):
+        params = {"event": "WALKON", "channel": channel, "user": request.user}
+        await websocket_notice("WALKON", params, api_key)
+        return {"status": "success"}
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Walkon file for user '{request.user}' does not exist."
+        )
+
+@app.post(
+    "/websocket/deaths",
+    summary="Trigger DEATHS via API",
+    tags=["Websocket"]
+)
+async def websocket_deaths(request: DeathsRequest, api_key: str = Depends(verify_api_key)):
+    params = {"event": "DEATHS", "death-text": request.death, "game": request.game}
+    await websocket_notice("DEATHS", params, api_key)
+    return {"status": "success"}
+
+@app.post(
+    "/websocket/weather",
+    summary="Trigger WEATHER via API",
+    tags=["Websocket"]
+)
+async def websocket_weather(request: WeatherRequest, api_key: str = Depends(verify_api_key)):
+    params = {"event": "WEATHER", "location": request.location}
+    await websocket_notice("WEATHER", params, api_key)
+    return {"status": "success"}
+
+@app.post(
+    "/websocket/stream_online",
+    summary="Trigger STREAM_ONLINE via API",
+    tags=["Websocket"]
+)
+async def websocket_stream_online(api_key: str = Depends(verify_api_key)):
+    params = {"event": "STREAM_ONLINE"}
+    await websocket_notice("STREAM_ONLINE", params, api_key)
+    return {"status": "success"}
+
+@app.post(
+    "/websocket/stream_offline",
+    summary="Trigger STREAM_OFFLINE via API",
+    tags=["Websocket"]
+)
+async def websocket_stream_offline(api_key: str = Depends(verify_api_key)):
+    params = {"event": "STREAM_OFFLINE"}
+    await websocket_notice("STREAM_OFFLINE", params, api_key)
+    return {"status": "success"}
+
 # authorizedusers EndPoint (hidden from docs)
-@app.get("/authorizedusers", include_in_schema=False)
+@app.get(
+    "/authorizedusers",
+    summary="Get a list of authorized users",
+    include_in_schema=False
+)
 async def authorized_users(api_key: str = Depends(verify_admin_key)):
     auth_users_path = "/var/www/api/authusers.json"
     if not os.path.exists(auth_users_path):
