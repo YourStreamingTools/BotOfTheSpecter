@@ -12,6 +12,7 @@ load_dotenv(find_dotenv("/var/www/bot/.env"))
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+ADMIN_KEY = os.getenv('ADMIN_KEY')
 
 # Define the tags metadata
 tags_metadata = [
@@ -28,7 +29,7 @@ app = FastAPI(
     version="1.0.0",
     terms_of_service="https://botofthespecter.com/terms-of-service.php",
     contact={
-        "name": "YourStreamingTools",
+        "name": "BotOfTheSpecter",
         "url": "https://discord.com/invite/ANwEkpauHJ",
         "email": "questions@botofthespecter.com",
     },
@@ -59,7 +60,35 @@ async def verify_api_key(api_key: str):
     finally:
         conn.close()
 
+# Verify the ADMIN Key Given
+async def verify_admin_key(api_key: str):
+    if api_key != ADMIN_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: Invalid Admin Key",
+        )
+
 # Define the response model
+class ValidationErrorDetail(BaseModel):
+    loc: List[str]
+    msg: str
+    type: str
+
+class ValidationErrorResponse(BaseModel):
+    detail: List[ValidationErrorDetail]
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "detail": [
+                    {
+                        "loc": ["body", "api_key"],
+                        "msg": "field required",
+                        "type": "value_error.missing"
+                    }
+                ]
+            }
+        }
+
 class KillCommandResponse(BaseModel):
     class Config:
         json_schema_extra = {
@@ -74,31 +103,6 @@ class KillCommandResponse(BaseModel):
             }
         }
 
-class ValidationErrorDetail(BaseModel):
-    loc: List[str]
-    msg: str
-    type: str
-
-class ValidationErrorResponse(BaseModel):
-    detail: List[ValidationErrorDetail]
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "detail": [
-                    {
-                        "loc": ["body", "api_key"],
-                        "msg": "field required",
-                        "type": "value_error.missing"
-                    }
-                ]
-            }
-        }
-
-# Load the killCommand JSON file.
-with open("/var/www/api/killCommand.json", "r") as killCommand:
-    kill_commands = json.load(killCommand)
-
 # killCommand EndPoint
 @app.get(
     "/kill",
@@ -112,8 +116,23 @@ with open("/var/www/api/killCommand.json", "r") as killCommand:
     },
     tags=["Commands"]
 )
-async def get_kill_commands(api_key: str = Depends(verify_api_key)):
+async def get_kill_responses(api_key: str = Depends(verify_api_key)):
+    kill_command_path = "/var/www/api/killCommand.json"
+    if not os.path.exists(kill_command_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    with open(kill_command_path, "r") as kill_command_file:
+        kill_commands = json.load(kill_command_file)
     return {"killcommand": kill_commands}
+
+# authorizedusers EndPoint (hidden from docs)
+@app.get("/authorizedusers", include_in_schema=False)
+async def get_authorized_users(api_key: str = Depends(verify_admin_key)):
+    auth_users_path = "/var/www/api/authusers.json"
+    if not os.path.exists(auth_users_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    with open(auth_users_path, "r") as auth_users_file:
+        auth_users = json.load(auth_users_file)
+    return auth_users
 
 if __name__ == "__main__":
     uvicorn.run(
