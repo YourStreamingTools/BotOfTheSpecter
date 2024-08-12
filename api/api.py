@@ -180,7 +180,7 @@ async def favicon():
     summary="Get a random quote",
     tags=["Commands"]
 )
-async def get_quote(api_key: str = Depends(verify_api_key)):
+async def quotes(api_key: str = Depends(verify_api_key)):
     quotes_path = "/var/www/api/quotes.json"
     if not os.path.exists(quotes_path):
         raise HTTPException(status_code=404, detail="Quotes file not found")
@@ -199,7 +199,7 @@ async def get_quote(api_key: str = Depends(verify_api_key)):
     summary="Get the current bot versions",
     tags=["Commands"]
 )
-async def get_versions():
+async def versions():
     versions_path = "/var/www/api/versions.json"
     if not os.path.exists(versions_path):
         raise HTTPException(status_code=404, detail="Version file not found")
@@ -220,7 +220,7 @@ async def get_versions():
     },
     tags=["Commands"]
 )
-async def get_kill_responses(api_key: str = Depends(verify_api_key)):
+async def kill_responses(api_key: str = Depends(verify_api_key)):
     kill_command_path = "/var/www/api/killCommand.json"
     if not os.path.exists(kill_command_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -235,7 +235,7 @@ async def get_kill_responses(api_key: str = Depends(verify_api_key)):
     summary="Get a random joke",
     tags=["Commands"]
 )
-async def get_joke(api_key: str = Depends(verify_api_key)):
+async def joke(api_key: str = Depends(verify_api_key)):
     jokes = await Jokes()
     get_joke = await jokes.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
     if "category" not in get_joke:
@@ -245,7 +245,7 @@ async def get_joke(api_key: str = Depends(verify_api_key)):
 
 # authorizedusers EndPoint (hidden from docs)
 @app.get("/authorizedusers", include_in_schema=False)
-async def get_authorized_users(api_key: str = Depends(verify_admin_key)):
+async def authorized_users(api_key: str = Depends(verify_admin_key)):
     auth_users_path = "/var/www/api/authusers.json"
     if not os.path.exists(auth_users_path):
         raise HTTPException(status_code=404, detail="File not found")
