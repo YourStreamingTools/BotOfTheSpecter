@@ -161,7 +161,12 @@ async def get_kill_responses(api_key: str = Depends(verify_api_key)):
     return {"killcommand": kill_commands}
 
 # Joke endpoint
-@app.get("/joke", response_model=JokeResponse, summary="Get a random joke")
+@app.get(
+        "/joke",
+        response_model=JokeResponse,
+        summary="Get a random joke",
+        tags=["Commands"]
+)
 async def get_joke(api_key: str = Depends(verify_api_key)):
     jokes_api_url = "https://v2.jokeapi.dev/joke/Programming,Miscellaneous,Pun,Spooky,Christmas?blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
     async with aiohttp.ClientSession() as session:
