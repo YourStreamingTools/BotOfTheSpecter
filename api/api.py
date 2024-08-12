@@ -194,7 +194,7 @@ async def get_quote(api_key: str = Depends(verify_api_key)):
 
 # Version Control endpoint
 @app.get(
-    "/version",
+    "/versions",
     response_model=VersionControlResponse,
     summary="Get the current bot versions",
     tags=["Commands"]
