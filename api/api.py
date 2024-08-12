@@ -199,7 +199,7 @@ async def get_quote(api_key: str = Depends(verify_api_key)):
     summary="Get the current bot versions",
     tags=["Commands"]
 )
-async def get_versions(api_key: str = Depends(verify_api_key)):
+async def get_versions():
     versions_path = "/var/www/api/versions.json"
     if not os.path.exists(versions_path):
         raise HTTPException(status_code=404, detail="Version file not found")
