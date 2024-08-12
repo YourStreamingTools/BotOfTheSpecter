@@ -92,6 +92,7 @@ class ValidationErrorResponse(BaseModel):
 
 # Define the response model for KillCommandResponse
 class KillCommandResponse(BaseModel):
+    killcommand: Dict[str, str]
     class Config:
         json_schema_extra = {
             "example": {
