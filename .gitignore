@@ -1,33 +1,53 @@
+# Environment files
 bot/.env
-app/dist/*
-app/build/*
-app/__pycache__/*
+app/.env
+
+# Build and distribution directories
+app/dist/
+app/build/
+app/__pycache__/
+app/CodeSignTool/
+
+# Compiled and temporary files
 app/BotOfTheSpecter.spec
 app/build.bat
 app/data.txt
-app/.env
-app/CodeSignTool/*
+app/BotOfTheSpecter.ui
+bot/working.py
+bot/test.py
+bot/test_websocket.py
+bot/phpmyadmin.txt
+
+# Log files & cache
+logs/*
 dashboard/logs/*
 dashboard/cache/*
-api/app/*.exe
-api/authusers.json
-logs/*
-bot/working.py
-bot/commands/*.db
+
+# SSL Certificates and configurations
 ssl/*.pem
-ssl/sites-available/*
-bot/test.py
-app/BotOfTheSpecter.ui
-bot/phpmyadmin.txt
+ssl/sites-available/
+
+# Database files
+bot/commands/*.db
 bot/sql/*
-bot/test_websocket.py
+api/app/*.exe
+
+# Specific API files
+api/authusers.json
 websocket/service-account-file.json
-tts/*.mp3
 websocket/ips.txt
-walkons/*
+
+# Media files
+tts/*.mp3
+walkons/*.mp3
+walkons/*.mp4
+
+# Miscellaneous files
 cdn/Thumbs.db
 cdn/emotes/Thumbs.db
-/app
 dashboard/botcontrol.php
 dashboard/bottest.php
+
+# Ignoring entire directories
+/app
 /api/app
