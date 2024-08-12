@@ -69,7 +69,7 @@ async def verify_admin_key(api_key: str):
             detail="Forbidden: Invalid Admin Key",
         )
 
-# Define the response model
+# Define the response model for validation errors
 class ValidationErrorDetail(BaseModel):
     loc: List[str]
     msg: str
@@ -90,6 +90,7 @@ class ValidationErrorResponse(BaseModel):
             }
         }
 
+# Define the response model for KillCommandResponse
 class KillCommandResponse(BaseModel):
     class Config:
         json_schema_extra = {
@@ -101,6 +102,39 @@ class KillCommandResponse(BaseModel):
                     "killcommand.self.4": "$1 exploded.",
                     "killcommand.self.5": "$1 forgot how to breathe."
                 }
+            }
+        }
+
+# Define the response model for Jokes
+class JokeResponse(BaseModel):
+    error: bool
+    category: str
+    type: str
+    joke: str = None
+    setup: str = None
+    delivery: str = None
+    flags: Dict[str, bool]
+    id: int
+    safe: bool
+    lang: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "error": False,
+                "category": "Programming",
+                "type": "single",
+                "joke": "A man is smoking a cigarette and blowing smoke rings into the air. His girlfriend becomes irritated with the smoke and says \"Can't you see the warning on the cigarette pack? Smoking is hazardous to your health!\" to which the man replies, \"I am a programmer. We don't worry about warnings; we only worry about errors.\"",
+                "flags": {
+                    "nsfw": False,
+                    "religious": False,
+                    "political": False,
+                    "racist": False,
+                    "sexist": False,
+                    "explicit": False
+                },
+                "id": 38,
+                "safe": True,
+                "lang": "en"
             }
         }
 
@@ -126,7 +160,7 @@ async def get_kill_responses(api_key: str = Depends(verify_api_key)):
     return {"killcommand": kill_commands}
 
 # Joke endpoint
-@app.get("/joke", summary="Get a random joke")
+@app.get("/joke", response_model=JokeResponse, summary="Get a random joke")
 async def get_joke(api_key: str = Depends(verify_api_key)):
     jokes_api_url = "https://v2.jokeapi.dev/joke/Programming,Miscellaneous,Pun,Spooky,Christmas?blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
     async with aiohttp.ClientSession() as session:
@@ -134,17 +168,8 @@ async def get_joke(api_key: str = Depends(verify_api_key)):
             if response.status != 200:
                 raise HTTPException(status_code=502, detail="Failed to retrieve joke from the API")
             data = await response.json()
-    # Check if the joke type is present in the data
-    if "type" not in data:
-        raise HTTPException(status_code=500, detail="Error: Unable to retrieve joke from API.")
-    # Get the joke based on the type
-    if data['type'] == 'single':
-        joke = data['joke']
-    elif data['type'] == 'twopart':
-        joke = f"{data['setup']}\n{data['delivery']}"
-    else:
-        raise HTTPException(status_code=500, detail="Error: Invalid joke type.")
-    return {"joke": joke}
+    # Return the joke response
+    return data
 
 # authorizedusers EndPoint (hidden from docs)
 @app.get("/authorizedusers", include_in_schema=False)
