@@ -36,7 +36,8 @@ app = FastAPI(
         "url": "https://discord.com/invite/ANwEkpauHJ",
         "email": "questions@botofthespecter.com",
     },
-    openapi_tags=tags_metadata
+    openapi_tags=tags_metadata,
+    swagger_ui_parameters={"defaultModelsExpandDepth": -1}
 )
 
 # Make a connection to the MySQL Server
