@@ -30,3 +30,4 @@ cdn/emotes/Thumbs.db
 /app
 dashboard/botcontrol.php
 dashboard/bottest.php
+/api/app
