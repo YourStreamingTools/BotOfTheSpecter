@@ -1,15 +1,16 @@
 import os
 import aiohttp
+import aiomysql
+import random
+import json
 from fastapi import FastAPI, HTTPException, Depends
 import uvicorn
 from pydantic import BaseModel
 from typing import Dict, List
-import json
-import aiomysql
-from dotenv import load_dotenv, find_dotenv
 from jokeapi import Jokes
+from dotenv import load_dotenv, find_dotenv
 
-# Load ENV file and get SQL Data
+# Load ENV file
 load_dotenv(find_dotenv("/var/www/bot/.env"))
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -139,6 +140,37 @@ class JokeResponse(BaseModel):
                 "lang": "en"
             }
         }
+
+# Define the response model for Quotes
+class QuoteResponse(BaseModel):
+    author: str
+    quote: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "author": "Winston Churchill",
+                "quote": "Success is not final, failure is not fatal: It is the courage to continue that counts."
+            }
+        }
+
+# Quotes endpoint
+@app.get(
+    "/quotes",
+    response_model=QuoteResponse,
+    summary="Get a random quote",
+    tags=["Commands"]
+)
+async def get_quote(api_key: str = Depends(verify_api_key)):
+    quotes_path = "/var/www/api/quotes.json"
+    if not os.path.exists(quotes_path):
+        raise HTTPException(status_code=404, detail="Quotes file not found")
+    with open(quotes_path, "r") as quotes_file:
+        quotes = json.load(quotes_file)
+    # Select a random author
+    random_author = random.choice(list(quotes.keys()))
+    # Select a random quote from the chosen author
+    random_quote = random.choice(quotes[random_author])
+    return {"author": random_author, "quote": random_quote}
 
 # killCommand EndPoint
 @app.get(
