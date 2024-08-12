@@ -38,9 +38,8 @@ websocket/service-account-file.json
 websocket/ips.txt
 
 # Media files
-tts/*.mp3
-walkons/*.mp3
-walkons/*.mp4
+tts/*
+walkons/*
 
 # Miscellaneous files
 cdn/Thumbs.db
