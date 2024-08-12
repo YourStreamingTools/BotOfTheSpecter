@@ -1,4 +1,5 @@
 import os
+import aiohttp
 from fastapi import FastAPI, HTTPException, Depends
 import uvicorn
 from pydantic import BaseModel
@@ -123,6 +124,27 @@ async def get_kill_responses(api_key: str = Depends(verify_api_key)):
     with open(kill_command_path, "r") as kill_command_file:
         kill_commands = json.load(kill_command_file)
     return {"killcommand": kill_commands}
+
+# Joke endpoint
+@app.get("/joke", summary="Get a random joke")
+async def get_joke(api_key: str = Depends(verify_api_key)):
+    jokes_api_url = "https://v2.jokeapi.dev/joke/Programming,Miscellaneous,Pun,Spooky,Christmas?blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(jokes_api_url) as response:
+            if response.status != 200:
+                raise HTTPException(status_code=502, detail="Failed to retrieve joke from the API")
+            data = await response.json()
+    # Check if the joke type is present in the data
+    if "type" not in data:
+        raise HTTPException(status_code=500, detail="Error: Unable to retrieve joke from API.")
+    # Get the joke based on the type
+    if data['type'] == 'single':
+        joke = data['joke']
+    elif data['type'] == 'twopart':
+        joke = f"{data['setup']}\n{data['delivery']}"
+    else:
+        raise HTTPException(status_code=500, detail="Error: Invalid joke type.")
+    return {"joke": joke}
 
 # authorizedusers EndPoint (hidden from docs)
 @app.get("/authorizedusers", include_in_schema=False)
