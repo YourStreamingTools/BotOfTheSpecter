@@ -7,6 +7,7 @@ from typing import Dict, List
 import json
 import aiomysql
 from dotenv import load_dotenv, find_dotenv
+from jokeapi import Jokes
 
 # Load ENV file and get SQL Data
 load_dotenv(find_dotenv("/var/www/bot/.env"))
@@ -162,20 +163,18 @@ async def get_kill_responses(api_key: str = Depends(verify_api_key)):
 
 # Joke endpoint
 @app.get(
-        "/joke",
-        response_model=JokeResponse,
-        summary="Get a random joke",
-        tags=["Commands"]
+    "/joke",
+    response_model=JokeResponse,
+    summary="Get a random joke",
+    tags=["Commands"]
 )
 async def get_joke(api_key: str = Depends(verify_api_key)):
-    jokes_api_url = "https://v2.jokeapi.dev/joke/Programming,Miscellaneous,Pun,Spooky,Christmas?blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(jokes_api_url) as response:
-            if response.status != 200:
-                raise HTTPException(status_code=502, detail="Failed to retrieve joke from the API")
-            data = await response.json()
+    jokes = await Jokes()
+    get_joke = await jokes.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
+    if "category" not in get_joke:
+        raise HTTPException(status_code=500, detail="Error: Unable to retrieve joke from API.")
     # Return the joke response
-    return data
+    return get_joke
 
 # authorizedusers EndPoint (hidden from docs)
 @app.get("/authorizedusers", include_in_schema=False)
