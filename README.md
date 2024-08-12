@@ -33,21 +33,25 @@ Stay tuned for updates on the release of these exciting features!
 
 ## Versions
 
-### Version 4.4 - BotOfTheSpecter
+### Version 4.5 - BotOfTheSpecter
 
-- Added new commands: 'roulette', 'kill', 'slots'
-- Enhanced message counting and user level identification
-- Dynamic polling updates for ongoing and concluded polls
-- Welcome messages for new and returning users based on roles
-- Implemented token refresh mechanism
-- Integrated Twitch EventSub for various events
-- Added comprehensive logging for bot, chat, Twitch, API, and chat history
-- Fixed broadcaster user level identification and 'Session is closed' error in `known_users` function
-- Improved raid event processing, custom command handling, and URL blocking
-- Updated ad break messaging duration format and token refresh log messages
-- Optimized command handling and event message processing
+- Added tipping support via StreamElements and StreamLabs.
+- Integrated WebSocket connections for real-time tipping updates.
+- Introduced AI support for chat mentions and responses.
+- Added `connect_to_tipping_services` function for managing tipping connections.
+- Created `process_message` and `process_tipping_message` functions for handling tipping data.
+- Improved message parsing for multiple mentions in chat.
+- Updated Twitch WebSocket connection to support simultaneous connections.
+- Added `uuid` import for WebSocket connections.
+- Created `tipping_settings` table for storing tipping tokens.
+- Created `tipping` table for recording tip details.
+- Enhanced error handling for StreamElements WebSocket connections.
+- Improved AI response integration for chat interactions.
+- Streamlined WebSocket connections to handle tipping events.
+- Enhanced logging for tipping and AI-related events.
+- Optimized database operations for tipping data storage.
 
-[View Full Changelog for Version 4.4](/bot/changelog/4.4.md)
+[View Full Changelog for Version 4.5](/bot/changelog/4.5.md)
 
 ## Contributing Guidelines
 
