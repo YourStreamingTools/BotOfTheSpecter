@@ -16,6 +16,7 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_KEY = os.getenv('ADMIN_KEY')
+favicon_path = "https://cdn.botofthespecter.com/logo.png"
 
 # Define the tags metadata
 tags_metadata = [
@@ -153,6 +154,11 @@ class QuoteResponse(BaseModel):
                 "quote": "Success is not final, failure is not fatal: It is the courage to continue that counts."
             }
         }
+
+# Create Docs Favicon
+@app.get('/favicon.ico', include_in_schema=False)
+async def favicon():
+    return FileResponse(favicon_path)
 
 # Quotes endpoint
 @app.get(
