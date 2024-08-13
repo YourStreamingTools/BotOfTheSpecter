@@ -68,7 +68,7 @@ builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", 
 # Logs
 webroot = "/var/www/"
 logs_directory = os.path.join(webroot, "logs")
-log_types = ["bot", "chat", "twitch", "api", "chat_history"]
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log"]
 
 # Ensure directories exist
 for log_type in log_types:
@@ -95,9 +95,10 @@ for log_type in log_types:
 # Access individual loggers
 bot_logger = loggers['bot']
 chat_logger = loggers['chat']
-chat_history_logger = loggers['chat_history']
 twitch_logger = loggers['twitch']
 api_logger = loggers['api']
+chat_history_logger = loggers['chat_history']
+event_logger = loggers['event_log']
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
 translator = GoogleTranslator
@@ -208,8 +209,8 @@ async def twitch_eventsub():
                     session_id = eventsub_welcome_data['payload']['session']['id']
                     keepalive_timeout = eventsub_welcome_data['payload']['session']['keepalive_timeout_seconds']
 
-                    bot_logger.info(f"Connected with session ID: {session_id}")
-                    bot_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
+                    event_logger.info(f"Connected with session ID: {session_id}")
+                    event_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
 
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
@@ -218,10 +219,10 @@ async def twitch_eventsub():
                     await asyncio.gather(receive_messages(twitch_websocket, keepalive_timeout))
 
         except websockets.ConnectionClosedError as e:
-            bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
+            event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
-            bot_logger.error(f"An unexpected error occurred: {e}")
+            event_logger.error(f"An unexpected error occurred: {e}")
             await asyncio.sleep(10)  # Wait before reconnecting
 
 async def subscribe_to_events(session_id):
@@ -287,7 +288,7 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    bot_logger.info(f"WebSocket subscription successful for {v1topic}")
+                    event_logger.info(f"WebSocket subscription successful for {v1topic}")
                     responses.append(await response.json())
 
     async with aiohttp.ClientSession() as session:
@@ -320,7 +321,7 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    bot_logger.info(f"WebSocket subscription successful for {v2topic}")
+                    event_logger.info(f"WebSocket subscription successful for {v2topic}")
                     responses.append(await response.json())
 
 async def receive_messages(twitch_websocket, keepalive_timeout):
@@ -328,30 +329,30 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
         try:
             message = await asyncio.wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
-            # bot_logger.info(f"Received message: {message}")
+            # event_logger.info(f"Received message: {message}")
 
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
-                    bot_logger.info("Received session keepalive message")
+                    event_logger.info("Received session keepalive message")
                 else:
-                    # bot_logger.info(f"Received message type: {message_type}")
-                    bot_logger.info(f"Info from Twitch EventSub: {message_data}")
+                    # event_logger.info(f"Received message type: {message_type}")
+                    event_logger.info(f"Info from Twitch EventSub: {message_data}")
                     await process_eventsub_message(message_data)
             else:
-                bot_logger.error("Received unrecognized message format")
+                event_logger.error("Received unrecognized message format")
 
         except asyncio.TimeoutError:
-            bot_logger.error("Keepalive timeout exceeded, reconnecting...")
+            event_logger.error("Keepalive timeout exceeded, reconnecting...")
             await twitch_websocket.close()
             break  # Exit the loop to allow reconnection logic
 
         except websockets.ConnectionClosedError as e:
-            bot_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
+            event_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
             break  # Exit the loop for reconnection
 
         except Exception as e:
-            bot_logger.error(f"Error receiving message: {e}")
+            event_logger.error(f"Error receiving message: {e}")
             break  # Exit the loop on critical error
 
 async def connect_to_tipping_services():
@@ -374,9 +375,9 @@ async def connect_to_tipping_services():
             if tasks:
                 await asyncio.gather(*tasks)
             else:
-                bot_logger.error("No valid token found for either StreamElements or StreamLabs.")
+                event_logger.error("No valid token found for either StreamElements or StreamLabs.")
     except aiomysql.MySQLError as err:
-        bot_logger.error(f"Database error: {err}")
+        event_logger.error(f"Database error: {err}")
     finally:
         await sqldb.ensure_closed()
 
@@ -397,16 +398,16 @@ async def connect_to_streamelements():
                 }
             }
             await streamelements_websocket.send(json.dumps(auth_message))
-            bot_logger.info(f"Sent auth message: {auth_message}")
+            event_logger.info(f"Sent auth message: {auth_message}")
             
             # Listen for messages
             while True:
                 message = await streamelements_websocket.recv()
                 await process_message(message, "StreamElements")
     except websockets.ConnectionClosed as e:
-        bot_logger.error(f"StreamElements WebSocket connection closed: {e}")
+        event_logger.error(f"StreamElements WebSocket connection closed: {e}")
     except Exception as e:
-        bot_logger.error(f"StreamElements WebSocket error: {e}")
+        event_logger.error(f"StreamElements WebSocket error: {e}")
 
 async def connect_to_streamlabs():
     global streamlabs_token
@@ -418,9 +419,9 @@ async def connect_to_streamlabs():
                 message = await streamlabs_websocket.recv()
                 await process_message(message, "StreamLabs")
     except websockets.ConnectionClosed as e:
-        bot_logger.error(f"StreamLabs WebSocket connection closed: {e}")
+        event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
     except Exception as e:
-        bot_logger.error(f"StreamLabs WebSocket error: {e}")
+        event_logger.error(f"StreamLabs WebSocket error: {e}")
 
 async def process_message(message, source):
     try:
@@ -430,11 +431,11 @@ async def process_message(message, source):
             if 'error' in data:
                 handle_streamelements_error(data['error'], data['data']['message'])
             else:
-                bot_logger.info(f"StreamElements subscription success: {data['data']['message']}")
+                event_logger.info(f"StreamElements subscription success: {data['data']['message']}")
         else:
             await process_tipping_message(data, source)
     except Exception as e:
-        bot_logger.error(f"Error processing message from {source}: {e}")
+        event_logger.error(f"Error processing message from {source}: {e}")
 
 def handle_streamelements_error(error, message):
     error_messages = {
@@ -445,7 +446,7 @@ def handle_streamelements_error(error, message):
         "invalid_message": "The message was invalid or could not be processed."
     }
     error_message = error_messages.get(error, "Unknown error occurred.")
-    bot_logger.error(f"StreamElements error: {error_message} - {message}")
+    event_logger.error(f"StreamElements error: {error_message} - {message}")
 
 async def process_tipping_message(data, source):
     try:
@@ -476,11 +477,11 @@ async def process_tipping_message(data, source):
                     )
                     await sqldb.commit()
             except aiomysql.MySQLError as err:
-                bot_logger.error(f"Database error: {err}")
+                event_logger.error(f"Database error: {err}")
             finally:
                 await sqldb.ensure_closed()
     except Exception as e:
-        bot_logger.error(f"Error processing tipping message: {e}")
+        event_logger.error(f"Error processing tipping message: {e}")
 
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
@@ -511,7 +512,7 @@ async def process_eventsub_message(message):
                         event_data.get("cumulative_months", 1)
                     )
                 elif event_type == "channel.subscription.message":
-                    bot_logger.info(f"Subscription (Message) Event Data: {event_data}")
+                    event_logger.info(f"Subscription (Message) Event Data: {event_data}")
                     tier_mapping = {
                         "1000": "Tier 1",
                         "2000": "Tier 2",
@@ -549,18 +550,17 @@ async def process_eventsub_message(message):
                         event_data["bits"]
                     )
                 elif event_type == "channel.raid":
-                    bot_logger.info(f"Raid Event Data: {event_data}")
                     await process_raid_event(
                         event_data["from_broadcaster_user_id"],
                         event_data["from_broadcaster_user_name"],
                         event_data["viewers"]
                     )
                 elif event_type == "channel.hype_train.begin":
-                    bot_logger.info(f"Hype Train Start Event Data: {event_data}")
+                    event_logger.info(f"Hype Train Start Event Data: {event_data}")
                     level = event_data["level"]
                     await channel.send(f"The Hype Train has started! Starting at level: {level}")
                 elif event_type == "channel.hype_train.end":
-                    bot_logger.info(f"Hype Train End Event Data: {event_data}")
+                    event_logger.info(f"Hype Train End Event Data: {event_data}")
                     level = event_data["level"]
                     top_contributions = event_data.get("top_contributions", [])
                     message = f"The Hype Train has ended at level {level}! Top contributions:"
@@ -578,7 +578,7 @@ async def process_eventsub_message(message):
                     category_name = event_data["category_name"]
                     stream_title = title
                     current_game = category_name
-                    bot_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
+                    event_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 elif event_type == 'channel.ad_break.begin':
                     duration_seconds = event_data["duration_seconds"]
                     asyncio.create_task(handle_ad_break(duration_seconds))
@@ -623,7 +623,7 @@ async def process_eventsub_message(message):
                     await send_to_discord_mod(discord_message, discord_title, discord_image)
                 elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
                     if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                        bot_logger.info(f"Channel Point Automatic Reward Event Data: {event_data}")
+                        event_logger.info(f"Channel Point Automatic Reward Event Data: {event_data}")
                         reward_id = event_data.get("id")
                         reward_title = event_data["reward"].get("type")
                         reward_cost = event_data["reward"].get("cost")
@@ -640,16 +640,16 @@ async def process_eventsub_message(message):
                                 else:
                                     pass
                         else:
-                            bot_logger.error("Error: Unexpected result from database query.")
+                            event_logger.error("Error: Unexpected result from database query.")
                     elif event_type == "channel.channel_points_custom_reward_redemption.add":
-                        bot_logger.info(f"Channel Point Custom Reward Event Data: {event_data}")
+                        event_logger.info(f"Channel Point Custom Reward Event Data: {event_data}")
                         reward_id = event_data["reward"].get("id")
                         reward_title = event_data["reward"].get("title")
                         reward_cost = event_data["reward"].get("cost")
                         if "tts" in reward_title.lower():
                             tts_message = event_data["user_input"]
                             await websocket_notice(event="TTS", text=tts_message)
-                            bot_logger.info(f"TTS message sent: {tts_message}")
+                            event_logger.info(f"TTS message sent: {tts_message}")
                             return
                         await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
                         result = await cursor.fetchone()
@@ -664,7 +664,7 @@ async def process_eventsub_message(message):
                                 else:
                                     pass
                         else:
-                            bot_logger.error("Error: Unexpected result from database query.")
+                            event_logger.error("Error: Unexpected result from database query.")
                 elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
@@ -771,7 +771,7 @@ async def process_eventsub_message(message):
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
 
     except Exception as e:
-        bot_logger.error(f"Error processing EventSub message: {e}")
+        event_logger.error(f"Error processing EventSub message: {e}")
     finally:
         await sqldb.ensure_closed()
 
