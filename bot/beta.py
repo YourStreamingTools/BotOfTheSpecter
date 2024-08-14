@@ -3137,7 +3137,9 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     else:
                         await ctx.send("Invalid format. Please use the format: !convert <amount><unit> <to_unit> or !convert $<amount><from_currency> <to_currency>")
                 except Exception as e:
-                    await ctx.send(f"An error occurred: {str(e)}")
+                    await ctx.send("Failed to convert, please try again.")
+                    sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[API_KEY]')
+                    api_logger.error(f"An error occurred: {sanitized_error}")
         finally:
             await sqldb.ensure_closed()
 
