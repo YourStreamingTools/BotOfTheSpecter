@@ -4228,7 +4228,7 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
 async def group_creation():
     sqldb = await get_mysql_connection()
     try:
-        group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
+        group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3", "Normal"]
         try:
             async with sqldb.cursor() as cursor:
                 # Create placeholders for each group name
