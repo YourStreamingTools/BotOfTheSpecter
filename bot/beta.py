@@ -3115,7 +3115,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 from_currency = args[1].upper()
                 to_currency = args[2].upper()
                 converted_amount = await convert_currency(amount, from_currency, to_currency)
-                await ctx.send(f"The currency exchange for ${amount}{from_currency} is {converted_amount:.2f}{to_currency}")
+                await ctx.send(f"The currency exchange for ${amount}{from_currency} is ${converted_amount:.2f}{to_currency}")
             elif len(args) == 3:
                 # Handle unit conversion
                 amount = float(args[0])
@@ -4296,18 +4296,21 @@ async def check_stream_online():
     return
 
 async def convert_currency(amount, from_currency, to_currency):
-    url = f"https://api.exchangeratesapi.io/latest?base={from_currency}&symbols={to_currency}&access_key={EXCHANGE_RATE_API}"
+    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API}/pair/{from_currency}/{to_currency}/{amount}"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 response.raise_for_status()
                 data = await response.json()
-                rate = data['rates'][to_currency]
-                converted_amount = amount * rate
-                api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency} at rate {rate:.4f}")
-                return converted_amount
+                if data['result'] == "success":
+                    converted_amount = data['conversion_result']
+                    api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency}")
+                    return converted_amount
+                else:
+                    error_message = data.get('error-type', 'Unknown error')
+                    api_logger.error(f"Error: {error_message}")
+                    return f"Error: {error_message}"
     except aiohttp.ClientError as e:
-        # Log any request-related errors
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {str(e)}")
         raise
 
