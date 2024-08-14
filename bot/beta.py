@@ -3121,23 +3121,23 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 try:
                     if len(args) == 3 and args[0].startswith('$'):
                         # Handle currency conversion
-                        amount = float(args[0][1:])
+                        amount_str = args[0]
+                        amount = float(amount_str[1:])
                         from_currency = args[1].upper()
                         to_currency = args[2].upper()
                         converted_amount = await convert_currency(amount, from_currency, to_currency)
-                        formatted_amount = f"{amount:,.2f}"
                         formatted_converted_amount = f"{converted_amount:,.2f}"
-                        await ctx.send(f"The currency exchange for ${formatted_amount} {from_currency} is ${formatted_converted_amount} {to_currency}")
+                        await ctx.send(f"The currency exchange for {amount_str}{from_currency} is ${formatted_converted_amount} {to_currency}")
                     elif len(args) == 3:
                         # Handle unit conversion
-                        amount = float(args[0])
+                        amount_str = args[0]
+                        amount = float(amount_str)
                         from_unit = args[1]
                         to_unit = args[2]
                         quantity = amount * ureg(from_unit)
                         converted_quantity = quantity.to(to_unit)
-                        formatted_amount = f"{amount:,.2f}"
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
-                        await ctx.send(f"{formatted_amount} {from_unit} in {to_unit} is {formatted_converted_quantity} {converted_quantity.units}")
+                        await ctx.send(f"{amount_str} {from_unit} in {to_unit} is {formatted_converted_quantity} {converted_quantity.units}")
                     else:
                         await ctx.send("Invalid format. Please use the format: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
