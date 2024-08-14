@@ -3125,7 +3125,9 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         from_currency = args[1].upper()
                         to_currency = args[2].upper()
                         converted_amount = await convert_currency(amount, from_currency, to_currency)
-                        await ctx.send(f"The currency exchange for ${amount}{from_currency} is ${converted_amount:.2f}{to_currency}")
+                        formatted_amount = f"{amount:,.2f}"
+                        formatted_converted_amount = f"{converted_amount:,.2f}"
+                        await ctx.send(f"The currency exchange for ${formatted_amount} {from_currency} is ${formatted_converted_amount} {to_currency}")
                     elif len(args) == 3:
                         # Handle unit conversion
                         amount = float(args[0])
@@ -3133,11 +3135,13 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         to_unit = args[2]
                         quantity = amount * ureg(from_unit)
                         converted_quantity = quantity.to(to_unit)
-                        await ctx.send(f"{amount} {from_unit} in {to_unit} is {converted_quantity.magnitude:.2f} {converted_quantity.units}")
+                        formatted_amount = f"{amount:,.2f}"
+                        formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
+                        await ctx.send(f"{formatted_amount} {from_unit} in {to_unit} is {formatted_converted_quantity} {converted_quantity.units}")
                     else:
-                        await ctx.send("Invalid format. Please use the format: !convert <amount><unit> <to_unit> or !convert $<amount><from_currency> <to_currency>")
+                        await ctx.send("Invalid format. Please use the format: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
-                    await ctx.send("Failed to convert, please try again. Please ensure the format is: !convert <amount><unit> <to_unit> or !convert $<amount><from_currency> <to_currency>")
+                    await ctx.send("Failed to convert, please try again. Please ensure the format is: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                     sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[API_KEY]')
                     api_logger.error(f"An error occurred: {sanitized_error}")
         finally:
