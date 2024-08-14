@@ -62,7 +62,7 @@ SHAZAM_API = os.getenv('SHAZAM_API')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -3089,7 +3089,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("rps",))
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("story",))
                 result = await cursor.fetchone()
                 if result:
                     status = result[0]
@@ -3108,26 +3108,38 @@ class BotOfTheSpecter(twitch_commands.Bot):
 
     @twitch_commands.command(name="convert")
     async def convert_command(self, ctx, *args):
+        sqldb = await get_mysql_connection()
         try:
-            if len(args) == 3 and args[0].startswith('$'):
-                # Handle currency conversion
-                amount = float(args[0][1:])
-                from_currency = args[1].upper()
-                to_currency = args[2].upper()
-                converted_amount = await convert_currency(amount, from_currency, to_currency)
-                await ctx.send(f"The currency exchange for ${amount}{from_currency} is ${converted_amount:.2f}{to_currency}")
-            elif len(args) == 3:
-                # Handle unit conversion
-                amount = float(args[0])
-                from_unit = args[1]
-                to_unit = args[2]
-                quantity = amount * ureg(from_unit)
-                converted_quantity = quantity.to(to_unit)
-                await ctx.send(f"{amount} {from_unit} in {to_unit} is {converted_quantity.magnitude:.2f} {converted_quantity.units}")
-            else:
-                await ctx.send("Invalid format. Please use the format: !convert <amount><unit> <to_unit> or !convert $<amount><from_currency> <to_currency>")
-        except Exception as e:
-            await ctx.send(f"An error occurred: {str(e)}")
+            async with sqldb.cursor() as cursor:
+                # Check if the 'convert' command is enabled
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("convert",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result[0]
+                    if status == 'Disabled':
+                        return
+                try:
+                    if len(args) == 3 and args[0].startswith('$'):
+                        # Handle currency conversion
+                        amount = float(args[0][1:])
+                        from_currency = args[1].upper()
+                        to_currency = args[2].upper()
+                        converted_amount = await convert_currency(amount, from_currency, to_currency)
+                        await ctx.send(f"The currency exchange for ${amount}{from_currency} is ${converted_amount:.2f}{to_currency}")
+                    elif len(args) == 3:
+                        # Handle unit conversion
+                        amount = float(args[0])
+                        from_unit = args[1]
+                        to_unit = args[2]
+                        quantity = amount * ureg(from_unit)
+                        converted_quantity = quantity.to(to_unit)
+                        await ctx.send(f"{amount} {from_unit} in {to_unit} is {converted_quantity.magnitude:.2f} {converted_quantity.units}")
+                    else:
+                        await ctx.send("Invalid format. Please use the format: !convert <amount><unit> <to_unit> or !convert $<amount><from_currency> <to_currency>")
+                except Exception as e:
+                    await ctx.send(f"An error occurred: {str(e)}")
+        finally:
+            await sqldb.ensure_closed()
 
 # Functions for all the commands
 ##
