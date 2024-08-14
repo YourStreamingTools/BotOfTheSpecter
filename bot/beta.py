@@ -1197,31 +1197,32 @@ class BotOfTheSpecter(twitch_commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("commands",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result[0]
-                    if status == 'Disabled':
-                        return
-
-                is_mod = await command_permissions(ctx.author)
-                if is_mod:
-                    # If the user is a mod, include both custom_commands and builtin_commands
-                    all_commands = list(mod_commands) + list(builtin_commands)
-                else:
-                    # If the user is not a mod, only include builtin_commands
-                    all_commands = list(builtin_commands)
-
-                # Construct the list of available commands to the user
-                commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
-
-                # Construct the response messages
-                response_message = f"Available commands to you: {commands_list}"
-                custom_response_message = f"Available Custom Commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
-
-                # Sending the response messages to the chat
-                await ctx.send(response_message)
-                await ctx.send(custom_response_message)
+                try:
+                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("commands",))
+                    result = await cursor.fetchone()
+                    if result:
+                        status = result[0]
+                        if status == 'Disabled':
+                            chat_logger.warning(f"Command 'commands' is disabled and cannot be run by {ctx.author.name}.")
+                            return
+                    is_mod = await command_permissions(ctx.author)
+                    if is_mod:
+                        # If the user is a mod, include both mod_commands and builtin_commands
+                        all_commands = list(mod_commands) + list(builtin_commands)
+                    else:
+                        # If the user is not a mod, only include builtin_commands
+                        all_commands = list(builtin_commands)
+                    # Construct the list of available commands to the user
+                    commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
+                    # Construct the response messages
+                    response_message = f"Available commands to you: {commands_list}"
+                    custom_response_message = f"Available Custom Commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
+                    # Sending the response messages to the chat
+                    await ctx.send(response_message)
+                    await ctx.send(custom_response_message)
+                except Exception as e:
+                    chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
+                    await ctx.send("An error occurred while fetching the commands. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
