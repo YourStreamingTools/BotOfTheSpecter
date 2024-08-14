@@ -1208,17 +1208,13 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     is_mod = await command_permissions(ctx.author)
                     if is_mod:
                         # If the user is a mod, include both mod_commands and builtin_commands
-                        all_commands = list(mod_commands) + list(builtin_commands)
-                    else:
-                        # If the user is not a mod, only include builtin_commands
-                        all_commands = list(builtin_commands)
-                    # Construct the list of available commands to the user
-                    commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
-                    # Construct the response messages
-                    response_message = f"Available commands to you: {commands_list}"
-                    custom_response_message = f"Available Custom Commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
-                    # Sending the response messages to the chat
-                    await ctx.send(response_message)
+                        mod_commands_list = ", ".join(sorted(f"!{command}" for command in mod_commands))
+                        await ctx.send(f"Moderator commands: {mod_commands_list}")
+                    # Include builtin commands for both mod and normal users
+                    builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
+                    await ctx.send(f"General commands: {builtin_commands_list}")
+                    # Custom commands link
+                    custom_response_message = f"Custom commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
                     await ctx.send(custom_response_message)
                 except Exception as e:
                     chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
