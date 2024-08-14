@@ -655,10 +655,7 @@ async def process_eventsub_message(message):
                                 # Insert new reward if it doesn't exist
                                 event_logger.info(f"Inserting new reward into the database: {reward_id}, {reward_title}, {reward_cost}")
                                 try:
-                                    await cursor.execute(
-                                        "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)",
-                                        (reward_id, reward_title, reward_cost)
-                                    )
+                                    await cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
                                     event_logger.info(f"Successfully inserted reward: {reward_id}")
                                 except Exception as db_error:
                                     event_logger.error(f"Failed to insert reward into the database: {str(db_error)}")
@@ -667,10 +664,7 @@ async def process_eventsub_message(message):
                                 # Update reward title and cost if it already exists
                                 event_logger.info(f"Updating existing reward in the database: {reward_id}, {reward_title}, {reward_cost}")
                                 try:
-                                    await cursor.execute(
-                                        "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s WHERE reward_id = %s",
-                                        (reward_title, reward_cost, reward_id)
-                                    )
+                                    await cursor.execute("UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s WHERE reward_id = %s", (reward_title, reward_cost, reward_id))
                                     event_logger.info(f"Successfully updated reward: {reward_id}")
                                 except Exception as db_error:
                                     event_logger.error(f"Failed to update reward in the database: {str(db_error)}")
