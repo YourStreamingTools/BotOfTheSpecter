@@ -3114,7 +3114,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 amount = float(args[0][1:])
                 from_currency = args[1].upper()
                 to_currency = args[2].upper()
-                converted_amount = convert_currency(amount, from_currency, to_currency)
+                converted_amount = await convert_currency(amount, from_currency, to_currency)
                 await ctx.send(f"The currency exchange for ${amount}{from_currency} is {converted_amount:.2f}{to_currency}")
             elif len(args) == 3:
                 # Handle unit conversion
