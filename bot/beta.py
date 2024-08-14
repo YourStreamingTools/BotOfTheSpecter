@@ -624,49 +624,66 @@ async def process_eventsub_message(message):
                         discord_image = "ban.png"
                     await send_to_discord_mod(discord_message, discord_title, discord_image)
                 elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
-                    if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                        event_logger.info(f"Channel Point Automatic Reward Event Data: {event_data}")
-                        reward_id = event_data.get("id")
-                        reward_title = event_data["reward"].get("type")
-                        reward_cost = event_data["reward"].get("cost")
-                        await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                        result = await cursor.fetchone()
-                        if result is not None and len(result) == 2:
-                            if result[0] == 0:
-                                await cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
-                            else:
-                                existing_custom_message = result[1]
-                                if existing_custom_message:
-                                    message = existing_custom_message
-                                    await channel.send(message)
+                    try:
+                        if event_type == "channel.channel_points_automatic_reward_redemption.add":
+                            event_logger.info(f"Channel Point Automatic Reward Event Data: {event_data}")
+                            reward_id = event_data.get("id")
+                            reward_title = event_data["reward"].get("type")
+                            reward_cost = event_data["reward"].get("cost")
+                            if not reward_id or not reward_title or reward_cost is None:
+                                event_logger.error(f"Missing data in event: reward_id={reward_id}, reward_title={reward_title}, reward_cost={reward_cost}")
+                                return
+                            await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                            result = await cursor.fetchone()
+                            if result is not None and len(result) == 2:
+                                if result[0] == 0:
+                                    event_logger.info(f"Inserting new automatic reward into the database: {reward_id}, {reward_title}, {reward_cost}")
+                                    await cursor.execute(
+                                        "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)",
+                                        (reward_id, reward_title, reward_cost)
+                                    )
                                 else:
-                                    pass
-                        else:
-                            event_logger.error("Error: Unexpected result from database query.")
-                    elif event_type == "channel.channel_points_custom_reward_redemption.add":
-                        event_logger.info(f"Channel Point Custom Reward Event Data: {event_data}")
-                        reward_id = event_data["reward"].get("id")
-                        reward_title = event_data["reward"].get("title")
-                        reward_cost = event_data["reward"].get("cost")
-                        if "tts" in reward_title.lower():
-                            tts_message = event_data["user_input"]
-                            await websocket_notice(event="TTS", text=tts_message)
-                            event_logger.info(f"TTS message sent: {tts_message}")
-                            return
-                        await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                        result = await cursor.fetchone()
-                        if result is not None and len(result) == 2:
-                            if result[0] == 0:
-                                await cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
+                                    existing_custom_message = result[1]
+                                    if existing_custom_message:
+                                        message = existing_custom_message
+                                        await channel.send(message)
+                                    else:
+                                        event_logger.info(f"No custom message found for reward: {reward_id}")
                             else:
-                                existing_custom_message = result[1]
-                                if existing_custom_message:
-                                    message = existing_custom_message
-                                    await channel.send(message)
+                                event_logger.error("Unexpected result from database query or no result returned.")
+                        elif event_type == "channel.channel_points_custom_reward_redemption.add":
+                            event_logger.info(f"Channel Point Custom Reward Event Data: {event_data}")
+                            reward_id = event_data["reward"].get("id")
+                            reward_title = event_data["reward"].get("title")
+                            reward_cost = event_data["reward"].get("cost")
+                            if not reward_id or not reward_title or reward_cost is None:
+                                event_logger.error(f"Missing data in event: reward_id={reward_id}, reward_title={reward_title}, reward_cost={reward_cost}")
+                                return
+                            if "tts" in reward_title.lower():
+                                tts_message = event_data["user_input"]
+                                await websocket_notice(event="TTS", text=tts_message)
+                                event_logger.info(f"TTS message sent: {tts_message}")
+                                return
+                            await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                            result = await cursor.fetchone()
+                            if result is not None and len(result) == 2:
+                                if result[0] == 0:
+                                    event_logger.info(f"Inserting new custom reward into the database: {reward_id}, {reward_title}, {reward_cost}")
+                                    await cursor.execute(
+                                        "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)",
+                                        (reward_id, reward_title, reward_cost)
+                                    )
                                 else:
-                                    pass
-                        else:
-                            event_logger.error("Error: Unexpected result from database query.")
+                                    existing_custom_message = result[1]
+                                    if existing_custom_message:
+                                        message = existing_custom_message
+                                        await channel.send(message)
+                                    else:
+                                        event_logger.info(f"No custom message found for reward: {reward_id}")
+                            else:
+                                event_logger.error("Unexpected result from database query or no result returned.")
+                    except Exception as e:
+                        event_logger.error(f"An error occurred while processing the reward: {str(e)}")
                 elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
