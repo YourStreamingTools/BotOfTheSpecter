@@ -13,7 +13,7 @@ from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlencode
 
 # Load ENV file
-load_dotenv(find_dotenv("/var/www/bot/.env"))
+load_dotenv(find_dotenv("/home/fastapi/.env"))
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -219,7 +219,7 @@ async def favicon():
     tags=["Commands"]
 )
 async def quotes(api_key: str = Depends(verify_api_key)):
-    quotes_path = "/var/www/api/quotes.json"
+    quotes_path = "/home/fastapi/quotes.json"
     if not os.path.exists(quotes_path):
         raise HTTPException(status_code=404, detail="Quotes file not found")
     with open(quotes_path, "r") as quotes_file:
@@ -238,7 +238,7 @@ async def quotes(api_key: str = Depends(verify_api_key)):
     tags=["BotOfTheSpecter"]
 )
 async def versions():
-    versions_path = "/var/www/api/versions.json"
+    versions_path = "/home/fastapi/versions.json"
     if not os.path.exists(versions_path):
         raise HTTPException(status_code=404, detail="Version file not found")
     with open(versions_path, "r") as versions_file:
@@ -259,7 +259,7 @@ async def versions():
     tags=["Commands"]
 )
 async def kill_responses(api_key: str = Depends(verify_api_key)):
-    kill_command_path = "/var/www/api/killCommand.json"
+    kill_command_path = "/home/fastapi/killCommand.json"
     if not os.path.exists(kill_command_path):
         raise HTTPException(status_code=404, detail="File not found")
     with open(kill_command_path, "r") as kill_command_file:
@@ -357,7 +357,7 @@ async def websocket_stream_offline(api_key: str = Depends(verify_api_key)):
     include_in_schema=False
 )
 async def authorized_users(api_key: str = Depends(verify_admin_key)):
-    auth_users_path = "/var/www/api/authusers.json"
+    auth_users_path = "/home/fastapi/authusers.json"
     if not os.path.exists(auth_users_path):
         raise HTTPException(status_code=404, detail="File not found")
     with open(auth_users_path, "r") as auth_users_file:
@@ -368,7 +368,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
-        ssl_certfile="/etc/letsencrypt/live/botofthespecter.com-0001/fullchain.pem",
-        ssl_keyfile="/etc/letsencrypt/live/botofthespecter.com-0001/privkey.pem"
+        port=443,
+        ssl_certfile="/home/fastapi/ssl/fullchain.pem",
+        ssl_keyfile="/home/fastapi/ssl/privkey.pem"
     )
