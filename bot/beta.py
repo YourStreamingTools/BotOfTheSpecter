@@ -17,7 +17,6 @@ from urllib.parse import urlencode
 import aiohttp
 from aiohttp import ClientSession
 import socketio
-import requests
 import aiomysql
 from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
@@ -28,6 +27,7 @@ from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 import uuid
 import websockets
+from pint import UnitRegistry
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -61,6 +61,7 @@ TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
+EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
@@ -104,6 +105,7 @@ event_logger = loggers['event_log']
 translator = GoogleTranslator
 scheduled_tasks = asyncio.Queue()
 sio = socketio.AsyncClient()
+ureg = UnitRegistry()
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
@@ -1384,8 +1386,13 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         return
                     timezone_api_key = os.getenv('TIMEZONE_API')
                     timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
-                    reponse = requests.get(timezone_url)
-                    timezone_data = reponse.json()
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(timezone_url) as response:
+                            if response.status != 200:
+                                await ctx.send(f"Could not retrieve time information from the API.")
+                                chat_logger.info(f"Failed to retrieve time information from the API, status code: {response.status}")
+                                return
+                            timezone_data = await response.json()
                     if timezone_data['status'] != "OK":
                         await ctx.send(f"Could not find the time location that you requested.")
                         chat_logger.info(f"Could not find the time location that you requested.")
@@ -1832,19 +1839,20 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 params = {
                     'count': 1
                 }
-                response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data['data']:
-                        top_cheerer = data['data'][0]
-                        score = "{:,}".format(top_cheerer['score'])
-                        await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
-                    else:
-                        await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
-                elif response.status_code == 401:
-                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
-                else:
-                    await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data['data']:
+                                top_cheerer = data['data'][0]
+                                score = "{:,}".format(top_cheerer['score'])
+                                await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
+                            else:
+                                await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
+                        elif response.status == 401:
+                            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                        else:
+                            await ctx.send("Sorry, I couldn't fetch the leaderboard.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1867,19 +1875,20 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 params = {
                     'user_id': user_id
                 }
-                response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data['data']:
-                        user_bits = data['data'][0]
-                        bits = "{:,}".format(user_bits['score'])
-                        await ctx.send(f"You have given {bits} bits in total.")
-                    else:
-                        await ctx.send("You haven't given any bits yet.")
-                elif response.status_code == 401:
-                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
-                else:
-                    await ctx.send("Sorry, I couldn't fetch your bits information.")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data['data']:
+                                user_bits = data['data'][0]
+                                bits = "{:,}".format(user_bits['score'])
+                                await ctx.send(f"You have given {bits} bits in total.")
+                            else:
+                                await ctx.send("You haven't given any bits yet.")
+                        elif response.status == 401:
+                            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                        else:
+                            await ctx.send("Sorry, I couldn't fetch your bits information.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2093,34 +2102,35 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     params = {
                         "broadcaster_id": CHANNEL_ID
                     }
-                    clip_response = requests.post('https://api.twitch.tv/helix/clips', headers=headers, params=params)
-                    if clip_response.status_code == 202:
-                        clip_data = clip_response.json()
-                        clip_id = clip_data['data'][0]['id']
-                        clip_url = f"http://clips.twitch.tv/{clip_id}"
-                        await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
-                        # Create a stream marker
-                        marker_description = f"Clip created by {ctx.author.name}"
-                        marker_payload = {
-                            "user_id": CHANNEL_ID,
-                            "description": marker_description
-                        }
-                        marker_headers = {
-                            "Client-ID": CLIENT_ID,
-                            "Authorization": f"Bearer {CHANNEL_AUTH}",
-                            "Content-Type": "application/json"
-                        }
-                        marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
-                        if marker_response.status_code == 200:
-                            marker_data = marker_response.json()
-                            marker_created_at = marker_data['data'][0]['created_at']
-                            twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
-                        else:
-                            twitch_logger.info("Failed to create a stream marker for the clip.")
-                    else:
-                        await ctx.send(f"Failed to create clip.")
-                        twitch_logger.error(f"Clip Error Code: {clip_response.status_code}")
-                except requests.exceptions.RequestException as e:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post('https://api.twitch.tv/helix/clips', headers=headers, params=params) as clip_response:
+                            if clip_response.status == 202:
+                                clip_data = await clip_response.json()
+                                clip_id = clip_data['data'][0]['id']
+                                clip_url = f"http://clips.twitch.tv/{clip_id}"
+                                await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
+                                # Create a stream marker
+                                marker_description = f"Clip created by {ctx.author.name}"
+                                marker_payload = {
+                                    "user_id": CHANNEL_ID,
+                                    "description": marker_description
+                                }
+                                marker_headers = {
+                                    "Client-ID": CLIENT_ID,
+                                    "Authorization": f"Bearer {CHANNEL_AUTH}",
+                                    "Content-Type": "application/json"
+                                }
+                                async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
+                                    if marker_response.status == 200:
+                                        marker_data = await marker_response.json()
+                                        marker_created_at = marker_data['data'][0]['created_at']
+                                        twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
+                                    else:
+                                        twitch_logger.info("Failed to create a stream marker for the clip.")
+                            else:
+                                await ctx.send(f"Failed to create clip.")
+                                twitch_logger.error(f"Clip Error Code: {clip_response.status}")
+                except aiohttp.ClientError as e:
                     twitch_logger.error(f"Error making clip: {e}")
                     await ctx.send("An error occurred while making the request. Please try again later.")
         finally:
@@ -2138,26 +2148,24 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if status == 'Disabled':
                         return
                 if await command_permissions(ctx.author):
-                    if description:
-                        marker_description = description
-                    else:
-                        marker_description = f"Marker made by {ctx.author.name}"
+                    marker_description = description if description else f"Marker made by {ctx.author.name}"
+                    marker_payload = {
+                        "user_id": CHANNEL_ID,
+                        "description": marker_description
+                    }
+                    marker_headers = {
+                        "Client-ID": CLIENT_ID,
+                        "Authorization": f"Bearer {CHANNEL_AUTH}",
+                        "Content-Type": "application/json"
+                    }
                     try:
-                        marker_payload = {
-                            "user_id": CHANNEL_ID,
-                            "description": marker_description
-                        }
-                        marker_headers = {
-                            "Client-ID": CLIENT_ID,
-                            "Authorization": f"Bearer {CHANNEL_AUTH}",
-                            "Content-Type": "application/json"
-                        }
-                        marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
-                        if marker_response.status_code == 200:
-                            await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
-                        else:
-                            await ctx.send("Failed to create a stream marker.")
-                    except requests.exceptions.RequestException as e:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
+                                if marker_response.status == 200:
+                                    await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
+                                else:
+                                    await ctx.send("Failed to create a stream marker.")
+                    except aiohttp.ClientError as e:
                         twitch_logger.error(f"Error creating stream marker: {e}")
                 else:
                     await ctx.send("You must be a moderator or the broadcaster to use this command.")
@@ -2176,7 +2184,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if status == 'Disabled':
                         return
                 try:
-                    # Headers & Params for Twitch API
                     user_id = ctx.author.id
                     headers = {
                         "Client-ID": CLIENT_ID,
@@ -2191,30 +2198,28 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         "2000": "Tier 2",
                         "3000": "Tier 3"
                     }
-                    subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
-                    if subscription_response.status_code == 200:
-                        subscription_data = subscription_response.json()
-                        subscriptions = subscription_data.get('data', [])
-                        if subscriptions:
-                            # Iterate over each subscription
-                            for subscription in subscriptions:
-                                user_name = subscription['user_name']
-                                tier = subscription['tier']
-                                is_gift = subscription['is_gift']
-                                gifter_name = subscription['gifter_name'] if is_gift else None
-                                tier_name = tier_mapping.get(tier, tier)
-                                # Prepare message based on subscription status
-                                if is_gift:
-                                    await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+                            if subscription_response.status == 200:
+                                subscription_data = await subscription_response.json()
+                                subscriptions = subscription_data.get('data', [])
+                                if subscriptions:
+                                    for subscription in subscriptions:
+                                        user_name = subscription['user_name']
+                                        tier = subscription['tier']
+                                        is_gift = subscription['is_gift']
+                                        gifter_name = subscription.get('gifter_name') if is_gift else None
+                                        tier_name = tier_mapping.get(tier, tier)
+                                        if is_gift:
+                                            await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                                        else:
+                                            await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
                                 else:
-                                    await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
-                        else:
-                            # If no subscriptions found for the provided user ID
-                            await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
-                    else:
-                        await ctx.send("Failed to retrieve subscription information. Please try again later.")
-                        twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status_code}")
-                except requests.exceptions.RequestException as e:
+                                    await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
+                            else:
+                                await ctx.send("Failed to retrieve subscription information. Please try again later.")
+                                twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
+                except aiohttp.ClientError as e:
                     twitch_logger.error(f"Error retrieving subscription information: {e}")
                     await ctx.send("An error occurred while making the request. Please try again later.")
         finally:
@@ -3010,9 +3015,10 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                response = requests.get("https://api.botofthespecter.com/killCommand.json")
-                data = response.json()
-                kill_message = data
+                async with aiohttp.ClientSession() as session:
+                    async with session.get("https://api.botofthespecter.com/killCommand.json") as response:
+                        data = await response.json()
+                        kill_message = data
                 if ctx.message.mentions:
                     target = ctx.message.mentions[0].name
                     message_key = [key for key in kill_message if "other" in key]
@@ -3022,8 +3028,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     message_key = [key for key in kill_message if "self" in key]
                     message = random.choice([kill_message[key] for key in message_key])
                     result = message.replace("$1", ctx.author.name)
-                message = result
-                await ctx.send(message)
+                await ctx.send(result)
         finally:
             await sqldb.ensure_closed()
 
@@ -3101,32 +3106,49 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
+    @twitch_commands.command(name="convert")
+    async def convert_command(self, ctx, *args):
+        try:
+            if len(args) == 3 and args[0].startswith('$'):
+                # Handle currency conversion
+                amount = float(args[0][1:])
+                from_currency = args[1].upper()
+                to_currency = args[2].upper()
+                converted_amount = convert_currency(amount, from_currency, to_currency)
+                await ctx.send(f"The currency exchange for ${amount}{from_currency} is {converted_amount:.2f}{to_currency}")
+            elif len(args) == 3:
+                # Handle unit conversion
+                amount = float(args[0])
+                from_unit = args[1]
+                to_unit = args[2]
+                quantity = amount * ureg(from_unit)
+                converted_quantity = quantity.to(to_unit)
+                await ctx.send(f"{amount} {from_unit} in {to_unit} is {converted_quantity.magnitude:.2f} {converted_quantity.units}")
+            else:
+                await ctx.send("Invalid format. Please use the format: !convert <amount><unit> <to_unit> or !convert $<amount><from_currency> <to_currency>")
+        except Exception as e:
+            await ctx.send(f"An error occurred: {str(e)}")
+
 # Functions for all the commands
 ##
 # Function  to check if the user is a real user on Twitch
 async def is_valid_twitch_user(user_to_shoutout):
-    # Twitch API endpoint to check if a user exists
     url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
-
-    # Headers including the Twitch Client ID
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
-
-    # Send a GET request to the Twitch API
-    response = requests.get(url, headers=headers)
-
-    # Check if the response is successful and if the user exists
-    if response.status_code == 200:
-        data = response.json()
-        if data['data']:
-            return True  # User exists
-        else:
-            return False  # User does not exist
-    else:
-        # If there's an error with the request or response, return False
-        return False
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data['data']:
+                    return True  # User exists
+                else:
+                    return False  # User does not exist
+            else:
+                # If there's an error with the request or response, return False
+                return False
 
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
@@ -3207,7 +3229,7 @@ async def is_user_vip(username):
 
 
 # Function to check if a user is a subscriber of the channel
-def is_user_subscribed(user_id):
+async def is_user_subscribed(user_id):
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -3221,16 +3243,16 @@ def is_user_subscribed(user_id):
         "2000": "Tier 2",
         "3000": "Tier 3"
     }
-    subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
-    if subscription_response.status_code == 200:
-        subscription_data = subscription_response.json()
-        subscriptions = subscription_data.get('data', [])
-        if subscriptions:
-            # Iterate over each subscription
-            for subscription in subscriptions:
-                tier = subscription['tier']
-                tier_name = tier_mapping.get(tier, tier)
-                return tier_name
+    async with aiohttp.ClientSession() as session:
+        async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+            if subscription_response.status == 200:
+                subscription_data = await subscription_response.json()
+                subscriptions = subscription_data.get('data', [])
+                if subscriptions:
+                    for subscription in subscriptions:
+                        tier = subscription['tier']
+                        tier_name = tier_mapping.get(tier, tier)
+                        return tier_name
     return None
 
 # Function to add user to the table of known users
@@ -3246,13 +3268,14 @@ async def user_is_seen(username):
         await sqldb.ensure_closed()
 
 # Function to fetch custom API responses
-def fetch_api_response(url):
+async def fetch_api_response(url):
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.text
-        else:
-            return f"Status Error: {response.status_code}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    return await response.text()
+                else:
+                    return f"Status Error: {response.status}"
     except Exception as e:
         return f"Exception Error: {str(e)}"
 
@@ -3389,11 +3412,12 @@ async def trigger_twitch_title_update(new_title):
         "broadcaster_id": CHANNEL_ID,
         "title": new_title
     }
-    response = requests.patch(url, headers=headers, json=params)
-    if response.status_code == 200:
-        twitch_logger.info(f'Stream title updated to: {new_title}')
-    else:
-        twitch_logger.error(f'Failed to update stream title: {response.text}')
+    async with aiohttp.ClientSession() as session:
+        async with session.patch(url, headers=headers, json=params) as response:
+            if response.status == 200:
+                twitch_logger.info(f'Stream title updated to: {new_title}')
+            else:
+                twitch_logger.error(f'Failed to update stream title: {await response.text()}')
 
 async def trigger_twitch_game_update(new_game_id):
     # Twitch API
@@ -3406,12 +3430,13 @@ async def trigger_twitch_game_update(new_game_id):
         "broadcaster_id": CHANNEL_ID,
         "game_id": new_game_id
     }
-    response = requests.patch(url, headers=headers, json=params)
-    if response.status_code == 200:
-        twitch_logger.info(f'Stream game updated to: {new_game_id}')
-    else:
-        twitch_logger.error(f'Failed to update stream game: {response.text}')
-        raise GameUpdateFailedException(f'Failed to update stream game')
+    async with aiohttp.ClientSession() as session:
+        async with session.patch(url, headers=headers, json=params) as response:
+            if response.status == 200:
+                twitch_logger.info(f'Stream game updated to: {new_game_id}')
+            else:
+                twitch_logger.error(f'Failed to update stream game: {await response.text()}')
+                raise GameUpdateFailedException(f'Failed to update stream game')
 
 async def get_game_id(game_name):
     # Twitch API
@@ -3423,13 +3448,14 @@ async def get_game_id(game_name):
     params = {
         "name": game_name
     }
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        if data and 'data' in data and len(data['data']) > 0:
-            return data['data'][0]['id']
-    twitch_logger.error(f"Game '{game_name}' not found.")
-    raise GameNotFoundException(f"Game '{game_name}' not found.")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, params=params) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data and 'data' in data and len(data['data']) > 0:
+                    return data['data'][0]['id']
+            twitch_logger.error(f"Game '{game_name}' not found.")
+            raise GameNotFoundException(f"Game '{game_name}' not found.")
 
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
@@ -3738,14 +3764,16 @@ async def detect_song(raw_audio_b64):
         }
         # Convert base64 encoded audio to bytes
         audio_bytes = raw_audio_b64
-        response = requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
-        # Check requests remaining for the API
-        if "x-ratelimit-requests-remaining" in response.headers:
-            requests_left = response.headers['x-ratelimit-requests-remaining']
-            api_logger.info(f"There are {requests_left} requests lefts for the song command.")
-            if requests_left == 0:
-                return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
-        return response.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15) as response:
+                # Check requests remaining for the API
+                if "x-ratelimit-requests-remaining" in response.headers:
+                    requests_left = response.headers['x-ratelimit-requests-remaining']
+                    api_logger.info(f"There are {requests_left} requests lefts for the song command.")
+                    if int(requests_left) == 0:
+                        return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
+                
+                return await response.json()
     except Exception as e:
         api_logger.error(f"An error occurred while detecting song: {e}")
         return {}
@@ -4018,14 +4046,12 @@ async def send_to_discord(message, title, image):
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
-            try:
-                response = requests.post(discord_url, json=payload)
-                if response.status_code in [200, 204]:
-                    return
-                else:
-                    bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                bot_logger.error(f"Request to Discord failed: {e}")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(discord_url, json=payload) as response:
+                    if response.status not in [200, 204]:
+                        bot_logger.error(f"Failed to send to Discord - Error: {response.status}")
+    except Exception as e:
+        bot_logger.error(f"Request to Discord failed: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -4058,14 +4084,12 @@ async def send_to_discord_mod(message, title, image):
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
-            try:
-                response = requests.post(discord_url, json=payload)
-                if response.status_code in [200, 204]:
-                    return
-                else:
-                    bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                bot_logger.error(f"Request to Discord failed: {e}")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(discord_url, json=payload) as response:
+                    if response.status not in [200, 204]:
+                        bot_logger.error(f"Failed to send to Discord - Error: {response.status}")
+    except Exception as e:
+        bot_logger.error(f"Request to Discord failed: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -4074,45 +4098,48 @@ async def send_to_discord_stream_online(message, image):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
-            await cursor.execute("SELECT timezone FROM profile")
-            timezone_result = await cursor.fetchone()
-            timezone = timezone_result[0] if timezone_result else 'UTC'
+            await cursor.execute("SELECT timezone, discord_alert_online FROM profile")
+            result = await cursor.fetchone()
+            if not result:
+                bot_logger.error("Required profile information not found.")
+                return
+            timezone = result[0] if result[0] else 'UTC'
+            discord_url = result[1]
+            if not discord_url:
+                bot_logger.error("Discord URL not found.")
+                return
+            # Generate the current time based on the fetched timezone
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz)
             time_format_date = current_time.strftime("%B %d, %Y")
             time_format_time = current_time.strftime("%I:%M %p")
             time_format = f"{time_format_date} at {time_format_time}"
-            await cursor.execute("SELECT discord_alert_online FROM profile")
-            discord_url_result = await cursor.fetchone()
-            if discord_url_result:
-                discord_url = discord_url_result[0]
-                title = f"{CHANNEL_NAME} is now live on Twitch!"
-                payload = {
-                    "username": "BotOfTheSpecter",
-                    "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
-                    "content": "@everyone",
-                    "embeds": [{
-                        "description": message,
-                        "title": title,
-                        "url": f"https://twitch.tv/{CHANNEL_NAME}",
-                        "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
-                    }]
+            title = f"{CHANNEL_NAME} is now live on Twitch!"
+            payload = {
+                "username": "BotOfTheSpecter",
+                "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
+                "content": "@everyone",
+                "embeds": [{
+                    "description": message,
+                    "title": title,
+                    "url": f"https://twitch.tv/{CHANNEL_NAME}",
+                    "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
+                }]
+            }
+            if image:
+                payload["embeds"][0]["image"] = {
+                    "url": image,
+                    "height": 720,
+                    "width": 1280
                 }
-                if image:
-                    payload["embeds"][0]["image"] = {
-                        "url": image,
-                        "height": 720,
-                        "width": 1280
-                    }
-                else:
-                    bot_logger.warning("No image URL provided; sending message without image.")
-                response = requests.post(discord_url, json=payload)
-                if response.status_code in (200, 204):
-                    bot_logger.info(f"Message sent to Discord successfully - Status Code: {response.status_code}")
-                else:
-                    bot_logger.error(f"Failed to send to Discord - Status Code: {response.status_code}, Response: {response.text}")
             else:
-                bot_logger.error("Discord URL not found.")
+                bot_logger.warning("No image URL provided; sending message without image.")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(discord_url, json=payload) as response:
+                    if response.status in (200, 204):
+                        bot_logger.info(f"Message sent to Discord successfully - Status Code: {response.status}")
+                    else:
+                        bot_logger.error(f"Failed to send to Discord - Status Code: {response.status}, Response: {await response.text()}")
     except Exception as e:
         bot_logger.error(f"An error occurred while sending a message to Discord: {e}")
     finally:
@@ -4267,6 +4294,22 @@ async def check_stream_online():
                 current_game = game
                 bot_logger.info(f"Bot Restarted, Stream is online. Game: {current_game}")
     return
+
+async def convert_currency(amount, from_currency, to_currency):
+    url = f"https://api.exchangeratesapi.io/latest?base={from_currency}&symbols={to_currency}&access_key={EXCHANGE_RATE_API}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                data = await response.json()
+                rate = data['rates'][to_currency]
+                converted_amount = amount * rate
+                api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency} at rate {rate:.4f}")
+                return converted_amount
+    except aiohttp.ClientError as e:
+        # Log any request-related errors
+        api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {str(e)}")
+        raise
 
 async def known_users():
     sqldb = await get_mysql_connection()
