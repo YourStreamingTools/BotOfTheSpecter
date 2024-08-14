@@ -630,58 +630,57 @@ async def process_eventsub_message(message):
                             reward_id = event_data.get("id")
                             reward_title = event_data["reward"].get("type")
                             reward_cost = event_data["reward"].get("cost")
-                            if not reward_id or not reward_title or reward_cost is None:
-                                event_logger.error(f"Missing data in event: reward_id={reward_id}, reward_title={reward_title}, reward_cost={reward_cost}")
-                                return
-                            await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                            result = await cursor.fetchone()
-                            if result is not None and len(result) == 2:
-                                if result[0] == 0:
-                                    event_logger.info(f"Inserting new automatic reward into the database: {reward_id}, {reward_title}, {reward_cost}")
-                                    await cursor.execute(
-                                        "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)",
-                                        (reward_id, reward_title, reward_cost)
-                                    )
-                                else:
-                                    existing_custom_message = result[1]
-                                    if existing_custom_message:
-                                        message = existing_custom_message
-                                        await channel.send(message)
-                                    else:
-                                        event_logger.info(f"No custom message found for reward: {reward_id}")
-                            else:
-                                event_logger.error("Unexpected result from database query or no result returned.")
                         elif event_type == "channel.channel_points_custom_reward_redemption.add":
                             event_logger.info(f"Channel Point Custom Reward Event Data: {event_data}")
                             reward_id = event_data["reward"].get("id")
                             reward_title = event_data["reward"].get("title")
                             reward_cost = event_data["reward"].get("cost")
-                            if not reward_id or not reward_title or reward_cost is None:
-                                event_logger.error(f"Missing data in event: reward_id={reward_id}, reward_title={reward_title}, reward_cost={reward_cost}")
-                                return
                             if "tts" in reward_title.lower():
                                 tts_message = event_data["user_input"]
                                 await websocket_notice(event="TTS", text=tts_message)
                                 event_logger.info(f"TTS message sent: {tts_message}")
                                 return
-                            await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                            result = await cursor.fetchone()
-                            if result is not None and len(result) == 2:
-                                if result[0] == 0:
-                                    event_logger.info(f"Inserting new custom reward into the database: {reward_id}, {reward_title}, {reward_cost}")
+                        # Ensure all required data is present
+                        if not reward_id or not reward_title or reward_cost is None:
+                            event_logger.error(f"Missing data in event: reward_id={reward_id}, reward_title={reward_title}, reward_cost={reward_cost}")
+                            return
+                        # Check if the reward is already in the database
+                        await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                        result = await cursor.fetchone()
+                        if result is not None and len(result) == 2:
+                            if result[0] == 0:
+                                # Insert new reward if it doesn't exist
+                                event_logger.info(f"Inserting new reward into the database: {reward_id}, {reward_title}, {reward_cost}")
+                                try:
                                     await cursor.execute(
                                         "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)",
                                         (reward_id, reward_title, reward_cost)
                                     )
-                                else:
-                                    existing_custom_message = result[1]
-                                    if existing_custom_message:
-                                        message = existing_custom_message
-                                        await channel.send(message)
-                                    else:
-                                        event_logger.info(f"No custom message found for reward: {reward_id}")
+                                    event_logger.info(f"Successfully inserted reward: {reward_id}")
+                                except Exception as db_error:
+                                    event_logger.error(f"Failed to insert reward into the database: {str(db_error)}")
+                                    return
                             else:
-                                event_logger.error("Unexpected result from database query or no result returned.")
+                                # Update reward title and cost if it already exists
+                                event_logger.info(f"Updating existing reward in the database: {reward_id}, {reward_title}, {reward_cost}")
+                                try:
+                                    await cursor.execute(
+                                        "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s WHERE reward_id = %s",
+                                        (reward_title, reward_cost, reward_id)
+                                    )
+                                    event_logger.info(f"Successfully updated reward: {reward_id}")
+                                except Exception as db_error:
+                                    event_logger.error(f"Failed to update reward in the database: {str(db_error)}")
+                                    return
+                                # Send the custom message if it exists
+                                existing_custom_message = result[1]
+                                if existing_custom_message:
+                                    message = existing_custom_message
+                                    await channel.send(message)
+                                else:
+                                    event_logger.info(f"No custom message found for reward: {reward_id}")
+                        else:
+                            event_logger.error("Unexpected result from database query or no result returned.")
                     except Exception as e:
                         event_logger.error(f"An error occurred while processing the reward: {str(e)}")
                 elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
