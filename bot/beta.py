@@ -2533,7 +2533,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 if result:
                     status = result[0]
                     if status == 'Disabled':
-                        chat_logger.info("Death Add Command is disabled.")
                         return
                 else:
                     chat_logger.info("No status found for Death Add Command.")
@@ -2813,27 +2812,25 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if status == 'Disabled':
                         return
             if command_permissions(ctx.author):
-                REMOTE_VERSION_URL = "https://api.botofthespecter.com/beta_version_control.txt"
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(REMOTE_VERSION_URL) as response:
+                API_URL = "https://api.botofthespecter.com/versions"
+                async with ClientSession() as session:
+                    async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
-                            remote_version = await response.text()
-                            remote_version = remote_version.strip()
-                            if remote_version != VERSION:
-                                remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
+                            data = await response.json()
+                            beta_version = data.get('beta_version', '').strip()
+                            if beta_version and beta_version != VERSION:
+                                remote_major, remote_minor, remote_patch = map(int, beta_version.split('.'))
                                 local_major, local_minor, local_patch = map(int, VERSION.split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}B."
-                                elif remote_patch > local_patch:
-                                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}B."
+                                    message = f"A new beta update (V{beta_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}B."
                                 else:
-                                    message = f"There is no update pending. You are currently running V{VERSION}B."
-                                bot_logger.info(f"Bot update available. (V{remote_version})")
+                                    message = f"There is no beta update pending. You are currently running V{VERSION}B."
+                                bot_logger.info(f"Bot beta update available. (V{beta_version})")
                                 await ctx.send(message)
                             else:
-                                message = f"There is no update pending. You are currently running V{VERSION}B."
+                                message = f"There is no beta update pending. You are currently running V{VERSION}B."
                                 bot_logger.info(f"{message}")
                                 await ctx.send(message)
             else:
@@ -3015,7 +3012,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
             await sqldb.ensure_closed()
 
     @twitch_commands.command(name='kill')
-    async def kill_command(self, ctx):
+    async def kill_command(self, ctx, mention: str = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -3026,19 +3023,41 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if status == 'Disabled':
                         return
                 async with aiohttp.ClientSession() as session:
-                    async with session.get("https://api.botofthespecter.com/killCommand.json") as response:
-                        data = await response.json()
-                        kill_message = data
-                if ctx.message.mentions:
-                    target = ctx.message.mentions[0].name
+                    async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            kill_message = data.get("killcommand", {})
+                            if not kill_message:
+                                chat_logger.error("No 'killcommand' found in the API response.")
+                                await ctx.send("Error: No kill messages found.")
+                                return
+                        else:
+                            chat_logger.error(f"Failed to fetch kill messages from API. Status code: {response.status}")
+                            await ctx.send("Error: Unable to retrieve kill messages.")
+                            return
+                if mention:
+                    mention = mention.lstrip('@')
+                    target = mention
                     message_key = [key for key in kill_message if "other" in key]
-                    message = random.choice([kill_message[key] for key in message_key])
-                    result = message.replace("$1", ctx.author.name).replace("$2", target)
+                    if message_key:
+                        message = random.choice([kill_message[key] for key in message_key])
+                        result = message.replace("$1", ctx.author.name).replace("$2", target)
+                    else:
+                        result = f"{ctx.author.name} tried to kill {target}, but something went wrong."
+                        chat_logger.error("No 'other' kill message found.")
                 else:
                     message_key = [key for key in kill_message if "self" in key]
-                    message = random.choice([kill_message[key] for key in message_key])
-                    result = message.replace("$1", ctx.author.name)
+                    if message_key:
+                        message = random.choice([kill_message[key] for key in message_key])
+                        result = message.replace("$1", ctx.author.name)
+                    else:
+                        result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
+                        chat_logger.error("No 'self' kill message found.")
                 await ctx.send(result)
+                chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
+        except Exception as e:
+            chat_logger.exception("An error occurred during the execution of the kill command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
