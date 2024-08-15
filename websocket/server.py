@@ -85,6 +85,7 @@ class BotOfTheSpecterWebsocketServer:
             ("TTS", self.tts),
             ("STREAM_ONLINE", self.stream_online),
             ("STREAM_OFFLINE", self.stream_offline),
+            ("DISCORD_JOIN", self.discord_join),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -299,6 +300,19 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"Broadcasting WEATHER event with data: {weather_data}")
         # Broadcast the weather event to all clients
         await self.sio.emit("WEATHER", weather_data)
+
+    async def discord_join(self, sid, data):
+        # Handle the DISCORD_JOIN event for SocketIO.
+        self.logger.info(f"DISCORD_JOIN event from SID [{sid}]: {data}")
+        member = data.get("member")
+        if not member:
+            self.logger.error("Missing member information for DISCORD_JOIN event")
+            return
+        join_data = {
+            "member": member
+        }
+        # Broadcast the DISCORD_JOIN event to all clients
+        await self.sio.emit("DISCORD_JOIN", join_data)
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
