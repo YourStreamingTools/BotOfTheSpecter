@@ -215,6 +215,12 @@ class VersionControlResponse(BaseModel):
     tags=["Commands"]
 )
 async def quotes(api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     quotes_path = "/home/fastapi/quotes.json"
     if not os.path.exists(quotes_path):
         raise HTTPException(status_code=404, detail="Quotes file not found")
@@ -255,6 +261,12 @@ async def versions():
     tags=["Commands"]
 )
 async def kill_responses(api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     kill_command_path = "/home/fastapi/killCommand.json"
     if not os.path.exists(kill_command_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -270,6 +282,12 @@ async def kill_responses(api_key):
     tags=["Commands"]
 )
 async def joke(api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     jokes = await Jokes()
     get_joke = await jokes.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
     if "category" not in get_joke:
