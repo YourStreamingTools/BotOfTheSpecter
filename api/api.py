@@ -5,6 +5,7 @@ import random
 import json
 from fastapi import FastAPI, HTTPException, Depends, Body
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from pydantic import BaseModel
 from typing import Dict, List
@@ -48,6 +49,15 @@ app = FastAPI(
     },
     openapi_tags=tags_metadata,
     swagger_ui_parameters={"defaultModelsExpandDepth": -1}
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods, including OPTIONS
+    allow_headers=["*"],  # Allow all headers
 )
 
 # Make a connection to the MySQL Server
