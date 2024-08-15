@@ -250,7 +250,7 @@ function showTooltip(eventType) {
 }
 
 function checkHeartbeat() {
-  fetch('https://websocket.botofthespecter.com:8080/heartbeat')
+  fetch('https://api.botofthespecter.com/websocket/heartbeat')
     .then(response => response.json())
     .then(data => {
       const heartbeatIcon = document.getElementById('heartbeat');
