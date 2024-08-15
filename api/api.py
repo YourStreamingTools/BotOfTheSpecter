@@ -18,7 +18,6 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_KEY = os.getenv('ADMIN_KEY')
-favicon_path = "https://cdn.botofthespecter.com/logo.png"
 
 # Define the tags metadata
 tags_metadata = [
@@ -61,23 +60,20 @@ async def get_mysql_connection():
     )
 
 # Verify the API Key Given
-async def verify_api_key(api_key: str):
+async def verify_api_key(api_key):
     conn = await get_mysql_connection()
     try:
         async with conn.cursor() as cur:
             await cur.execute("SELECT username, api_key FROM users WHERE api_key=%s", (api_key,))
             result = await cur.fetchone()
             if result is None:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid API Key",
-                )
+                return None  # Return None if the API key is invalid
             return result[0]  # Return the username associated with the API key
     finally:
         conn.close()
 
 # Verify the ADMIN Key Given
-async def verify_admin_key(api_key: str):
+async def verify_admin_key(api_key):
     if api_key != ADMIN_KEY:
         raise HTTPException(
             status_code=403,
@@ -85,8 +81,13 @@ async def verify_admin_key(api_key: str):
         )
 
 # Function to connect to the websocket server and push a notice
-async def websocket_notice(event: str, params: Dict[str, str], api_key: str):
-    await verify_api_key(api_key)  # Validate the API key before proceeding
+async def websocket_notice(event, params, api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     async with aiohttp.ClientSession() as session:
         params['code'] = api_key  # Pass the verified API key to the websocket server
         encoded_params = urlencode(params)
@@ -206,11 +207,6 @@ class VersionControlResponse(BaseModel):
             }
         }
 
-# Create Docs Favicon
-@app.get('/favicon.ico', include_in_schema=False)
-async def favicon():
-    return FileResponse(favicon_path)
-
 # Quotes endpoint
 @app.get(
     "/quotes",
@@ -218,7 +214,7 @@ async def favicon():
     summary="Get a random quote",
     tags=["Commands"]
 )
-async def quotes(api_key: str = Depends(verify_api_key)):
+async def quotes(api_key):
     quotes_path = "/home/fastapi/quotes.json"
     if not os.path.exists(quotes_path):
         raise HTTPException(status_code=404, detail="Quotes file not found")
@@ -258,7 +254,7 @@ async def versions():
     },
     tags=["Commands"]
 )
-async def kill_responses(api_key: str = Depends(verify_api_key)):
+async def kill_responses(api_key):
     kill_command_path = "/home/fastapi/killCommand.json"
     if not os.path.exists(kill_command_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -273,7 +269,7 @@ async def kill_responses(api_key: str = Depends(verify_api_key)):
     summary="Get a random joke",
     tags=["Commands"]
 )
-async def joke(api_key: str = Depends(verify_api_key)):
+async def joke(api_key):
     jokes = await Jokes()
     get_joke = await jokes.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
     if "category" not in get_joke:
@@ -282,23 +278,35 @@ async def joke(api_key: str = Depends(verify_api_key)):
     return get_joke
 
 # Websocket endpoints
-@app.post(
+@app.get(
     "/websocket/tts",
     summary="Trigger TTS via API",
     tags=["Websocket"],
 )
-async def websocket_tts(request: TTSRequest, api_key: str = Depends(verify_api_key)):
+async def websocket_tts(request: TTSRequest, api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     params = {"event": "TTS", "text": request.text}
     await websocket_notice("TTS", params, api_key)
     return {"status": "success"}
 
-@app.post(
+@app.get(
     "/websocket/walkon",
     summary="Trigger WALKON via API",
     tags=["Websocket"]
 )
-async def websocket_walkon(request: WalkonRequest, api_key: str = Depends(verify_api_key)):
-    channel = await verify_api_key(api_key)  # Fetch the channel (username) from the database
+async def websocket_walkon(request: WalkonRequest, api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
+    channel = valid  # Fetch the channel (username) from the database
     walkon_file_path = f"/var/www/walkons/{channel}/{request.user}.mp3"
     if os.path.exists(walkon_file_path):
         params = {"event": "WALKON", "channel": channel, "user": request.user}
@@ -310,42 +318,66 @@ async def websocket_walkon(request: WalkonRequest, api_key: str = Depends(verify
             detail=f"Walkon file for user '{request.user}' does not exist."
         )
 
-@app.post(
+@app.get(
     "/websocket/deaths",
     summary="Trigger DEATHS via API",
     tags=["Websocket"]
 )
-async def websocket_deaths(request: DeathsRequest, api_key: str = Depends(verify_api_key)):
+async def websocket_deaths(request: DeathsRequest, api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     params = {"event": "DEATHS", "death-text": request.death, "game": request.game}
     await websocket_notice("DEATHS", params, api_key)
     return {"status": "success"}
 
-@app.post(
+@app.get(
     "/websocket/weather",
     summary="Trigger WEATHER via API",
     tags=["Websocket"]
 )
-async def websocket_weather(request: WeatherRequest, api_key: str = Depends(verify_api_key)):
+async def websocket_weather(request: WeatherRequest, api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     params = {"event": "WEATHER", "location": request.location}
     await websocket_notice("WEATHER", params, api_key)
     return {"status": "success"}
 
-@app.post(
+@app.get(
     "/websocket/stream_online",
     summary="Trigger STREAM_ONLINE via API",
     tags=["Websocket"]
 )
-async def websocket_stream_online(api_key: str = Depends(verify_api_key)):
+async def websocket_stream_online(api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     params = {"event": "STREAM_ONLINE"}
     await websocket_notice("STREAM_ONLINE", params, api_key)
     return {"status": "success"}
 
-@app.post(
+@app.get(
     "/websocket/stream_offline",
     summary="Trigger STREAM_OFFLINE via API",
     tags=["Websocket"]
 )
-async def websocket_stream_offline(api_key: str = Depends(verify_api_key)):
+async def websocket_stream_offline(api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
     params = {"event": "STREAM_OFFLINE"}
     await websocket_notice("STREAM_OFFLINE", params, api_key)
     return {"status": "success"}
