@@ -20,6 +20,24 @@
     }
 }
 
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
 @keyframes glow {
     0% {
         box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.8), 0 0 30px 20px rgba(255, 0, 0, 0.6);
@@ -165,4 +183,45 @@
 .weather-overlay.show {
     display: block;
     animation: slideIn 1s forwards, infinite alternate;
+}
+
+.discord-overlay {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 10px 20px;
+    border-radius: 10px;
+    color: white;
+    font-size: 18px;
+    display: none;
+    z-index: 1000;
+}
+
+.discord-overlay .overlay-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.discord-overlay .discord-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    display: inline-block;
+    vertical-align: middle;
+    filter: invert(100%);
+}
+
+.discord-overlay span {
+    line-height: 24px;
+}
+
+.discord-overlay.show {
+    animation: fadeIn 0.5s forwards;
+}
+
+.discord-overlay.hide {
+    animation: fadeOut 0.5s forwards;
 }
