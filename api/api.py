@@ -400,7 +400,7 @@ async def websocket_stream_offline(api_key):
     await websocket_notice("STREAM_OFFLINE", params, api_key)
     return {"status": "success"}
 
-# authorizedusers EndPoint (hidden from docs)
+# Hidden Endpoints
 @app.get(
     "/authorizedusers",
     summary="Get a list of authorized users",
@@ -430,6 +430,14 @@ def read_root():
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
+
+@app.get("/bot_version_control.txt", include_in_schema=False)
+def bot_version_control():
+    return "4.5.2"
+
+@app.get("/beta_version_control.txt", include_in_schema=False)
+def beta_version_control():
+    return "4.6"
 
 if __name__ == "__main__":
     uvicorn.run(
