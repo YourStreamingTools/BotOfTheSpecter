@@ -44,7 +44,7 @@ app = FastAPI(
     terms_of_service="https://botofthespecter.com/terms-of-service.php",
     contact={
         "name": "BotOfTheSpecter",
-        "url": "https://discord.com/invite/ANwEkpauHJ",
+        "url": "https://botofthespecter.com/",
         "email": "questions@botofthespecter.com",
     },
     openapi_tags=tags_metadata,
@@ -453,7 +453,7 @@ async def authorized_users(api_key: str = Depends(verify_admin_key)):
     return auth_users
 
 @app.get("/", include_in_schema=False)
-def read_root():
+async def read_root():
     html_content = """
     <html>
         <head>
@@ -466,15 +466,15 @@ def read_root():
     return HTMLResponse(content=html_content, status_code=200)
 
 @app.get("/favicon.ico", include_in_schema=False)
-def favicon():
+async def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
 
 @app.get("/bot_version_control.txt", include_in_schema=False)
-def bot_version_control():
+async def bot_version_control():
     return "4.5.2"
 
 @app.get("/beta_version_control.txt", include_in_schema=False)
-def beta_version_control():
+async def beta_version_control():
     return "4.6"
 
 if __name__ == "__main__":
