@@ -253,6 +253,33 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 }
             });
 
+            // Listen for DISCORD_JOIN events
+            socket.on('DISCORD_JOIN', (data) => {
+                console.log('Discord Join:', data);
+                const discordOverlay = document.getElementById('discordOverlay');
+                discordOverlay.innerHTML = `
+                    <div class="overlay-content">
+                        <span>
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-icon"> 
+                            ${data.member} has joined the Discord server
+                        </span>
+                    </div>
+                `;
+                discordOverlay.classList.add('show');
+                discordOverlay.style.display = 'block';
+
+                // Display for 10 seconds
+                setTimeout(() => {
+                    discordOverlay.classList.remove('show');
+                    discordOverlay.classList.add('hide');
+                }, 10000);
+
+                // Hide after the transition
+                setTimeout(() => {
+                    discordOverlay.style.display = 'none';
+                }, 11000);
+            });
+
             // Log all events
             socket.onAny((event, ...args) => {
                 console.log(`Event: ${event}`, args);
@@ -263,5 +290,6 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
 <body>
     <div id="deathOverlay" class="death-overlay"></div>
     <div id="weatherOverlay" class="weather-overlay hide"></div>
+    <div id="discordOverlay" class="discord-overlay"></div>
 </body>
 </html>
