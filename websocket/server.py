@@ -123,10 +123,12 @@ class BotOfTheSpecterWebsocketServer:
             return web.Response(text=f.read(), content_type='text/html')
     
     async def heartbeat(self, request):
-        # Handle the heartbeat route.
-        response = web.json_response({"status": "OK"})
+        if request.method == 'OPTIONS':
+            response = web.Response(status=204)
+        else:
+            response = web.json_response({"status": "OK"})
         response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response
 
