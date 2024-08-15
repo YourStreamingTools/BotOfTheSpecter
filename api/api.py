@@ -207,6 +207,15 @@ class VersionControlResponse(BaseModel):
             }
         }
 
+# Define the response model for Websocket Heartbeat
+class HeartbeatControlResponse(BaseModel):
+    status: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "OK",
+            }
+        }
 # Quotes endpoint
 @app.get(
     "/quotes",
@@ -246,6 +255,25 @@ async def versions():
     with open(versions_path, "r") as versions_file:
         versions = json.load(versions_file)
     return versions
+
+# Websocket HeartBeat
+@app.get(
+    "/websocket/heartbeat",
+    summary="Get the heartbeat status of the websocket server",
+    tags=["BotOfTheSpecter", "Websocket"]
+)
+async def websocket_heartbeat():
+    url = "https://websocket.botofthespecter.com:8080/heartbeat"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    heartbeat_data = await response.json()  # Fetch the JSON data
+                    return heartbeat_data  # Return the data as the response
+                else:
+                    return {"status": "OFF"} 
+    except Exception:
+        return {"status": "OFF"}
 
 # killCommand EndPoint
 @app.get(
