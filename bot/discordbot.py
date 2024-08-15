@@ -10,6 +10,7 @@ import argparse
 import aiomysql
 import socketio
 from dotenv import load_dotenv
+from urllib.parse import urlencode
 
 # Load environment variables from .env file
 load_dotenv()
@@ -121,6 +122,24 @@ async def fetch_api_token(username, logger):
     except Exception as e:
         logger.error(f"Error fetching API token: {e}")
 
+# Function to connect to the websocket server and push a notice
+async def websocket_notice(event, member=None, api_token=None, logger=None):
+    async with aiohttp.ClientSession() as session:
+        params = {
+            'code': api_token,
+            'event': event,
+            'member': member
+        }
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        async with session.get(url) as response:
+            if response.status == 200:
+                logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+            else:
+                logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+
 class ChannelType(Enum):
     GUILD_TEXT = 0
     DM = 1
@@ -162,6 +181,7 @@ class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, channel_name, discord_logger, **kwargs):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.members = True
         super().__init__("!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.channel_name = channel_name
@@ -174,6 +194,10 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Setting channel {config.live_channel_id} to offline status on bot start.')
         await self.add_cog(WebSocketCog(self, config.api_token, self.logger))
         await self.update_channel_status(config.live_channel_id, "offline")
+
+    async def on_member_join(self, member):
+        self.logger.info(f'{member.name} has joined the server!')
+        await websocket_notice(event="DISCORD_JOIN", member=member.name, api_token=config.api_token, logger=self.logger)
 
     async def update_channel_status(self, channel_id: int, status: str):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {config.guild_id}.')
