@@ -30,77 +30,28 @@
                 const discordOverlay = document.getElementById('discordOverlay');
                 discordOverlay.innerHTML = `
                     <div class="overlay-content">
-                        <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-icon">
-                        <span>${data.member} has joined the Discord server</span>
+                        <span>
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-icon"> 
+                            ${data.member} has joined the Discord server
+                        </span>
                     </div>
                 `;
                 discordOverlay.classList.add('show');
                 discordOverlay.style.display = 'block';
 
+                // Display for 10 seconds
                 setTimeout(() => {
                     discordOverlay.classList.remove('show');
                     discordOverlay.classList.add('hide');
                 }, 10000);
 
+                // Hide after the transition
                 setTimeout(() => {
                     discordOverlay.style.display = 'none';
                 }, 11000);
             });
         });
     </script>
-    <style>
-        /* Basic styling for the overlay */
-        .discord-overlay {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            padding: 10px 20px;
-            border-radius: 10px;
-            color: white;
-            font-size: 18px;
-            display: none;
-            z-index: 1000;
-        }
-
-        .discord-overlay .overlay-content {
-            display: flex;
-            align-items: center;
-        }
-
-        .discord-overlay .discord-icon {
-            width: 30px;
-            height: 30px;
-            margin-right: 10px;
-        }
-
-        .discord-overlay.show {
-            animation: fadeIn 0.5s forwards;
-        }
-
-        .discord-overlay.hide {
-            animation: fadeOut 0.5s forwards;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-
-        @keyframes fadeOut {
-            from {
-                opacity: 1;
-            }
-            to {
-                opacity: 0;
-            }
-        }
-    </style>
 </head>
 <body>
     <div id="discordOverlay" class="discord-overlay"></div>
