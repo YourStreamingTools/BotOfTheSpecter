@@ -14,6 +14,7 @@ import base64
 
 # Third-party imports
 import aiohttp
+from aiohttp import ClientSession
 import requests
 import aiomysql
 from mysql.connector import errorcode
@@ -2709,24 +2710,25 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             if command_permissions(ctx.author):
-                REMOTE_VERSION_URL = "https://api.botofthespecter.com/version_control.txt"
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(REMOTE_VERSION_URL) as response:
+                API_URL = "https://api.botofthespecter.com/versions"
+                async with ClientSession() as session:
+                    async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
-                            remote_version = await response.text()
-                            remote_version = remote_version.strip()
-                            if remote_version != VERSION:
-                                remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
+                            data = await response.json()
+                            stable_version = data.get('stable_version', '').strip()
+
+                            if stable_version and stable_version != VERSION:
+                                remote_major, remote_minor, remote_patch = map(int, stable_version.split('.'))
                                 local_major, local_minor, local_patch = map(int, VERSION.split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new update (V{stable_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 elif remote_patch > local_patch:
-                                    message = f"A new hotfix update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new hotfix update (V{stable_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
                                     message = f"There is no update pending. You are currently running V{VERSION}."
-                                bot_logger.info(f"Bot update available. (V{remote_version})")
+                                bot_logger.info(f"Bot update available. (V{stable_version})")
                                 await ctx.send(message)
                             else:
                                 message = f"There is no update pending. You are currently running V{VERSION}."
@@ -2913,7 +2915,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='kill')
-    async def kill_command(self, ctx):
+    async def kill_command(self, ctx, mention: str = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2923,20 +2925,33 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                response = requests.get("https://api.botofthespecter.com/killCommand.json")
-                data = response.json()
-                kill_message = data
-                if ctx.message.mentions:
-                    target = ctx.message.mentions[0].name
+                response = requests.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}")
+                if response.status_code == 200:
+                    data = response.json()
+                    kill_message = data.get("killcommand", {})
+                    if not kill_message:
+                        await ctx.send("Error: No kill messages found.")
+                        return
+                else:
+                    await ctx.send("Error: Unable to retrieve kill messages.")
+                    return
+                if mention:
+                    mention = mention.lstrip('@')
+                    target = mention
                     message_key = [key for key in kill_message if "other" in key]
-                    message = random.choice([kill_message[key] for key in message_key])
-                    result = message.replace("$1", ctx.author.name).replace("$2", target)
+                    if message_key:
+                        message = random.choice([kill_message[key] for key in message_key])
+                        result = message.replace("$1", ctx.author.name).replace("$2", target)
+                    else:
+                        result = f"{ctx.author.name} tried to kill {target}, but something went wrong."
                 else:
                     message_key = [key for key in kill_message if "self" in key]
-                    message = random.choice([kill_message[key] for key in message_key])
-                    result = message.replace("$1", ctx.author.name)
-                message = result
-                await ctx.send(message)
+                    if message_key:
+                        message = random.choice([kill_message[key] for key in message_key])
+                        result = message.replace("$1", ctx.author.name)
+                    else:
+                        result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
+                await ctx.send(result)
         finally:
             await sqldb.ensure_closed()
 
