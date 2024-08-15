@@ -41,11 +41,11 @@ include 'sqlite.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
+<head>
+    <!-- Header -->
+    <?php include('header.php'); ?>
+    <!-- /Header -->
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
@@ -127,6 +127,15 @@ include 'sqlite.php';
                 <p><em>Display the current weather information for your specified location in your stream.
                     <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
                 <code>https://overlay.botofthespecter.com/weather.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- New Discord Join Notifications Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Discord Join Notifications:</h4>
+                <p><em>Display notifications when a user joins your Discord server.
+                    <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
+                <code>https://overlay.botofthespecter.com/discord.php?code=API_KEY_HERE</code>
             </div>
         </div>
     </div>
