@@ -4,7 +4,7 @@ import aiomysql
 import random
 import json
 from fastapi import FastAPI, HTTPException, Depends, Body
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 import uvicorn
 from pydantic import BaseModel
 from typing import Dict, List
@@ -413,6 +413,23 @@ async def authorized_users(api_key: str = Depends(verify_admin_key)):
     with open(auth_users_path, "r") as auth_users_file:
         auth_users = json.load(auth_users_file)
     return auth_users
+
+@app.get("/", include_in_schema=False)
+def read_root():
+    html_content = """
+    <html>
+        <head>
+            <meta http-equiv="refresh" content="0;url=/docs">
+        </head>
+        <body>
+        </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content, status_code=200)
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return "https://cdn.botofthespecter.com/logo.ico"
 
 if __name__ == "__main__":
     uvicorn.run(
