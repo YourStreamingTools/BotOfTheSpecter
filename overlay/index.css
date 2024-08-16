@@ -225,3 +225,31 @@
 .discord-overlay.hide {
     animation: fadeOut 0.5s forwards;
 }
+
+.twitch-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 8px;
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    text-align: center;
+    display: none;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+}
+
+.twitch-overlay.show {
+    display: block;
+    opacity: 1;
+    animation: fadeIn 1s forwards;
+}
+
+.twitch-overlay.hide {
+    opacity: 0;
+    animation: fadeOut 1s forwards;
+}
