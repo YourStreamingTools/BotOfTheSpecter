@@ -3909,6 +3909,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             await sqldb.commit()
         discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
         await send_to_discord(discord_message, "New Raid!", "raid.png")
+        await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
     finally:
@@ -3937,6 +3938,7 @@ async def process_cheer_event(user_id, user_name, bits):
                     image = "cheer1000.png"
                 await send_to_discord(discord_message, "New Cheer!", image)
                 await channel.send(f"Thank you {user_name} for {bits} bits!")
+                await websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits)
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             await sqldb.commit()
     finally:
@@ -3962,6 +3964,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
             await send_to_discord(discord_message, "New Subscriber!", "sub.png")
+            await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
             # Send the message to the channel
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
@@ -3986,10 +3989,11 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", event_months))
             await sqldb.commit()
             if subscriber_message.strip():
-                message = f"Thank you {user_name} for subscribing at {sub_plan}! Your message: '{subscriber_message}'"
+                message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: '{subscriber_message}'"
             else:
-                message = f"Thank you {user_name} for subscribing at {sub_plan}!"
+                message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
+            await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
             await send_to_discord(discord_message, "New Subscriber!", "sub.png")
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
@@ -4038,6 +4042,7 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         message = f"Thank you {user_name} for following! Welcome to the channel!"
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
+        await websocket_notice("TWITCH_FOLLOW", user=user_name)
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
     finally:
@@ -4193,12 +4198,13 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to connect to the websocket server and push a notice
-async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None, weather=None):
+async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None, weather=None, cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None):
     async with ClientSession() as session:
         params = {
             'code': API_TOKEN,
             'event': event
         }
+        # Handling different event types and their specific parameters
         if event == "TTS" and text:
             params['text'] = text
         elif event == "WALKON" and channel and user:
@@ -4209,13 +4215,9 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             else:
                 bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
                 return
-        elif event == "DEATHS":
-            if death is not None and game is not None:
-                params['death-text'] = death
-                params['game'] = game
-            else:
-                bot_logger.error(f"Event '{event}' requires both 'death' and 'game' parameters")
-                return
+        elif event == "DEATHS" and death and game:
+            params['death-text'] = death
+            params['game'] = game
         elif event == "STREAM_ONLINE":
             # No additional parameters required for STREAM_ONLINE
             pass
@@ -4224,13 +4226,26 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             pass
         elif event == "WEATHER" and weather:
             params['location'] = weather
+        elif event == "TWITCH_FOLLOW" and user:
+            params['twitch-username'] = user
+        elif event == "TWITCH_CHEER" and user and cheer_amount:
+            params['twitch-username'] = user
+            params['twitch-cheer-amount'] = cheer_amount
+        elif event == "TWITCH_SUB" and user and sub_tier and sub_months:
+            params['twitch-username'] = user
+            params['twitch-tier'] = sub_tier
+            params['twitch-sub-months'] = sub_months
+        elif event == "TWITCH_RAID" and user and raid_viewers:
+            params['twitch-username'] = user
+            params['twitch-raid'] = raid_viewers
         else:
-            bot_logger.error(f"Event '{event}' requires additional parameters")
+            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
             return
         # URL-encode the parameters
         encoded_params = urlencode(params)
         url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
-        #bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        # Send the HTTP request
         async with session.get(url) as response:
             if response.status == 200:
                 bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
