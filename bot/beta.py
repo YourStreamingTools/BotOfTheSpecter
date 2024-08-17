@@ -250,7 +250,6 @@ async def subscribe_to_events(session_id):
         "channel.charity_campaign.donate",
         "channel.channel_points_automatic_reward_redemption.add",
         "channel.channel_points_custom_reward_redemption.add",
-        "channel.channel_points_custom_reward_redemption.update",
         "channel.poll.begin",
         "channel.poll.progress",
         "channel.poll.end"
@@ -626,15 +625,14 @@ async def process_eventsub_message(message):
                     await send_to_discord_mod(discord_message, discord_title, discord_image)
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
-                    "channel.channel_points_custom_reward_redemption.add",
-                    "channel.channel_points_custom_reward_redemption.update"
+                    "channel.channel_points_custom_reward_redemption.add"
                     ]:
                     try:
                         if event_type == "channel.channel_points_automatic_reward_redemption.add":
                             reward_id = event_data.get("id")
                             reward_title = event_data["reward"].get("type")
                             reward_cost = event_data["reward"].get("cost")
-                        elif event_type == "channel.channel_points_custom_reward_redemption.add" or event_type == "channel.channel_points_custom_reward_redemption.update":
+                        elif event_type == "channel.channel_points_custom_reward_redemption.add":
                             reward_id = event_data["reward"].get("id")
                             reward_title = event_data["reward"].get("title")
                             reward_cost = event_data["reward"].get("cost")
