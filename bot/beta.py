@@ -804,6 +804,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         await group_creation()
         await builtin_commands_creation()
         await known_users()
+        await channel_point_rewards()
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
@@ -4375,6 +4376,41 @@ async def convert_currency(amount, from_currency, to_currency):
     except aiohttp.ClientError as e:
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {str(e)}")
         raise
+
+async def channel_point_rewards():
+    api_url = f"https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={CHANNEL_ID}"
+    headers = {
+        "Client-Id": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    try:
+        sqldb = await get_mysql_connection()
+        async with sqldb.cursor() as cursor:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        rewards = data.get("data", [])
+                        for reward in rewards:
+                            reward_id = reward.get("id")
+                            reward_title = reward.get("title")
+                            reward_cost = reward.get("cost")
+                            # Check if the reward already exists in the database
+                            await cursor.execute("SELECT COUNT(*) FROM channel_point_rewards WHERE reward_id = %s",(reward_id,))
+                            count_result = await cursor.fetchone()
+                            if count_result[0] == 0:
+                                # Insert new reward
+                                api_logger.info(f"Inserting new reward: {reward_id}, {reward_title}, {reward_cost}")
+                                await cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s, %s)",(reward_id, reward_title, reward_cost))
+                            else:
+                                # Update existing reward
+                                api_logger.info(f"Updating existing reward: {reward_id}, {reward_title}, {reward_cost}")
+                                await cursor.execute("UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s WHERE reward_id = %s",(reward_title, reward_cost, reward_id))
+                        api_logger.info("Rewards processed successfully.")
+                    else:
+                        api_logger.error(f"Failed to fetch rewards: {response.status} {response.reason}")
+    except Exception as e:
+        api_logger.error(f"An error occurred: {str(e)}")
 
 async def midnight(channel):
     # Get the timezone once outside the loop
