@@ -187,6 +187,7 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_name = channel_name
         self.logger = discord_logger
         self.dm_response_tracker = {}
+        self.typing_speed = 5
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
 
     async def on_ready(self):
@@ -216,9 +217,13 @@ class BotOfTheSpecter(commands.Bot):
                     return  # Ignore the message to prevent spam
             # Update the last response time for this user
             self.dm_response_tracker[user_id] = now
+            # Calculate delay based on message length
+            response_message = "Please send your message in the server where the bot is present. I can't respond to direct messages."
+            typing_delay = len(response_message) / self.typing_speed
             # Respond to the DM
             async with message.channel.typing():
-                await message.author.send("Please send your message in the server where the bot is present. I don't respond to direct messages.")
+                await asyncio.sleep(typing_delay)
+                await message.author.send(response_message)
             return
         # If the message is in a server channel, process commands
         await self.process_commands(message)
@@ -313,6 +318,7 @@ class QuoteCog(commands.Cog, name='Quote'):
         self.bot = bot
         self.api_token = api_token
         self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.typing_speed = 5
 
     @commands.command(name="quote")
     async def get_quote(self, ctx):
@@ -328,7 +334,11 @@ class QuoteCog(commands.Cog, name='Quote'):
                             if "quote" in quote_data and "author" in quote_data:
                                 quote = quote_data["quote"]
                                 author = quote_data["author"]
-                                await ctx.send(f'📜 **Quote:** "{quote}" — *{author}*')
+                                message = f'📜 **Quote:** "{quote}" — *{author}*'
+                                # Calculate delay based on message length
+                                typing_delay = len(message) / self.typing_speed
+                                await asyncio.sleep(typing_delay)
+                                await ctx.send(message)
                             else:
                                 await ctx.send("Sorry, I couldn't fetch a quote at this time.")
                         else:
