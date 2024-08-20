@@ -187,7 +187,7 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_name = channel_name
         self.logger = discord_logger
         self.dm_response_tracker = {}
-        self.typing_speed = 30
+        self.typing_speed = 50
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
 
     async def on_ready(self):
@@ -201,6 +201,23 @@ class BotOfTheSpecter(commands.Bot):
     async def on_member_join(self, member):
         self.logger.info(f'{member.name} has joined the server!')
         await websocket_notice(event="DISCORD_JOIN", member=member.name, api_token=config.api_token, logger=self.logger)
+
+    async def get_ai_response(self, user_message, user_id):
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "message": user_message,
+                    "channel": self.channel_name,
+                    "message_user": user_id
+                }
+                async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
+                    response.raise_for_status()  # Raise an exception for bad responses
+                    ai_response = await response.text()  # Read response as plain text
+                    self.logger.info(f"AI response received: {ai_response}")
+                    return ai_response
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Error getting AI response: {e}")
+            return "Sorry, I could not understand your request."
 
     async def on_message(self, message):
         # Ignore bot's own messages
@@ -217,13 +234,12 @@ class BotOfTheSpecter(commands.Bot):
                     return  # Ignore the message to prevent spam
             # Update the last response time for this user
             self.dm_response_tracker[user_id] = now
-            # Calculate delay based on message length
-            response_message = "Please send your message in the server where the bot is present. I can't respond to direct messages."
-            typing_delay = len(response_message) / self.typing_speed
-            # Respond to the DM
+            # Get the AI response
             async with message.channel.typing():
+                ai_response = await self.get_ai_response(message.content, user_id)
+                typing_delay = len(ai_response) / self.typing_speed
                 await asyncio.sleep(typing_delay)
-                await message.author.send(response_message)
+                await message.author.send(ai_response)
             return
         # If the message is in a server channel, process commands
         await self.process_commands(message)
@@ -318,7 +334,7 @@ class QuoteCog(commands.Cog, name='Quote'):
         self.bot = bot
         self.api_token = api_token
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.typing_speed = 30
+        self.typing_speed = 50
 
     @commands.command(name="quote")
     async def get_quote(self, ctx):
