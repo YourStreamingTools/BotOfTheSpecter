@@ -206,7 +206,8 @@ class BotOfTheSpecter(commands.Bot):
             return
         # If the message is a DM
         if isinstance(message.channel, discord.DMChannel):
-            await message.author.send("Please send your message in the server where the bot is present. I don't respond to direct messages.")
+            async with message.channel.typing():
+                await message.author.send("Please send your message in the server where the bot is present. I don't respond to direct messages.")
             return
         # If the message is in a server channel, process commands
         await self.process_commands(message)
@@ -309,18 +310,19 @@ class QuoteCog(commands.Cog, name='Quote'):
         url = f"https://api.botofthespecter.com/quotes?api_key={self.api_token}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        quote_data = await response.json()
-                        if "quote" in quote_data and "author" in quote_data:
-                            quote = quote_data["quote"]
-                            author = quote_data["author"]
-                            await ctx.send(f'📜 **Quote:** "{quote}" — *{author}*')
+                async with ctx.typing():
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            quote_data = await response.json()
+                            if "quote" in quote_data and "author" in quote_data:
+                                quote = quote_data["quote"]
+                                author = quote_data["author"]
+                                await ctx.send(f'📜 **Quote:** "{quote}" — *{author}*')
+                            else:
+                                await ctx.send("Sorry, I couldn't fetch a quote at this time.")
                         else:
+                            self.logger.error(f"Failed to fetch quote. Status code: {response.status}")
                             await ctx.send("Sorry, I couldn't fetch a quote at this time.")
-                    else:
-                        self.logger.error(f"Failed to fetch quote. Status code: {response.status}")
-                        await ctx.send("Sorry, I couldn't fetch a quote at this time.")
         except Exception as e:
             self.logger.error(f"Error fetching quote: {e}")
             await ctx.send("An error occurred while fetching the quote.")
