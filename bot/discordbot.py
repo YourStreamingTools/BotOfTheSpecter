@@ -189,6 +189,10 @@ class BotOfTheSpecter(commands.Bot):
         self.dm_response_tracker = {}
         self.typing_speed = 50
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
+        self.processed_messages_file = f"/var/www/logs/discord/messages_{self.channel_name}.txt"
+        # Ensure the log file exists
+        if not os.path.exists(self.processed_messages_file):
+            open(self.processed_messages_file, 'w').close()
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
@@ -223,24 +227,31 @@ class BotOfTheSpecter(commands.Bot):
         # Ignore bot's own messages
         if message.author == self.user:
             return
-        # If the message is a DM
+        # Use the message ID to track if it's already been processed
+        message_id = str(message.id)
+        # Check if the message ID is already in the file
+        with open(self.processed_messages_file, 'r') as file:
+            processed_messages = file.read().splitlines()
+        if message_id in processed_messages:
+            self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
+            return
+        # Process the message
         if isinstance(message.channel, discord.DMChannel):
             user_id = message.author.id
             now = asyncio.get_event_loop().time()
-            # Check if the user has been responded to recently
             if user_id in self.dm_response_tracker:
                 last_response_time = self.dm_response_tracker[user_id]
                 if now - last_response_time < 3:
                     return  # Ignore the message to prevent spam
-            # Update the last response time for this user
             self.dm_response_tracker[user_id] = now
-            # Get the AI response
             async with message.channel.typing():
                 ai_response = await self.get_ai_response(message.content, user_id)
                 typing_delay = len(ai_response) / self.typing_speed
                 await asyncio.sleep(typing_delay)
                 await message.author.send(ai_response)
-            return
+            # Mark the message as processed by appending the message ID to the file
+            with open(self.processed_messages_file, 'a') as file:
+                file.write(message_id + '\n')
         # If the message is in a server channel, process commands
         await self.process_commands(message)
 
