@@ -186,6 +186,7 @@ class BotOfTheSpecter(commands.Bot):
         self.discord_token = discord_token
         self.channel_name = channel_name
         self.logger = discord_logger
+        self.dm_response_tracker = {}
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
 
     async def on_ready(self):
@@ -206,6 +207,16 @@ class BotOfTheSpecter(commands.Bot):
             return
         # If the message is a DM
         if isinstance(message.channel, discord.DMChannel):
+            user_id = message.author.id
+            now = asyncio.get_event_loop().time()
+            # Check if the user has been responded to recently (e.g., within the last 60 seconds)
+            if user_id in self.dm_response_tracker:
+                last_response_time = self.dm_response_tracker[user_id]
+                if now - last_response_time < 60:
+                    return  # Ignore the message to prevent spam
+            # Update the last response time for this user
+            self.dm_response_tracker[user_id] = now
+            # Respond to the DM
             async with message.channel.typing():
                 await message.author.send("Please send your message in the server where the bot is present. I don't respond to direct messages.")
             return
