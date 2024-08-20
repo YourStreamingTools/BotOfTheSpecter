@@ -315,7 +315,7 @@ class QuoteCog(commands.Cog, name='Quote'):
                         if "quote" in quote_data and "author" in quote_data:
                             quote = quote_data["quote"]
                             author = quote_data["author"]
-                            await ctx.send(f'📜 **Quote:** "{quote}"\n— *{author}*')
+                            await ctx.send(f'📜 **Quote:** "{quote}" — *{author}*')
                         else:
                             await ctx.send("Sorry, I couldn't fetch a quote at this time.")
                     else:
