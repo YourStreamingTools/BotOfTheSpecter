@@ -49,6 +49,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
   $messageQuery->execute();
   echo "<script>window.location.reload();</script>";
 }
+
+// Fetch channel point rewards sorted by cost (low to high)
+$rewardsQuery = $db->prepare("SELECT * FROM channel_point_rewards ORDER BY reward_cost ASC");
+$rewardsQuery->execute();
+$channelPointRewards = $rewardsQuery->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
