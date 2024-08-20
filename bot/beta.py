@@ -807,6 +807,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
+        asyncio.get_event_loop().create_task(midnight(channel))
         await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
     # Function to check all messages and push out a custom command.
@@ -4374,6 +4375,36 @@ async def convert_currency(amount, from_currency, to_currency):
     except aiohttp.ClientError as e:
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {str(e)}")
         raise
+
+async def midnight(channel):
+    # Get the timezone once outside the loop
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor() as cursor:
+        await cursor.execute("SELECT timezone FROM profile")
+        result = await cursor.fetchone()
+        if result and result[0]:
+            timezone = result[0]
+            tz = pytz.timezone(timezone)
+        else:
+            # If no timezone is set, stop the function
+            chat_logger.info("No timezone set for the user. Stopping the midnight check.")
+            return
+
+    while True:
+        # Get the current time in the user's timezone
+        current_time = datetime.datetime.now(tz)
+        # Check if the current time in the user's timezone is exactly midnight
+        if current_time.hour == 0 and current_time.minute == 0:
+            cur_date = current_time.strftime("%Y-%m-%d")
+            cur_time = current_time.strftime("%H:%M:%S")
+            cur_day = current_time.strftime("%A")
+            message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
+            await channel.send(message)
+            # Sleep for 120 seconds to avoid sending the message multiple times
+            await asyncio.sleep(120)
+        else:
+            # Sleep for 10 seconds before checking again
+            await asyncio.sleep(10)
 
 async def known_users():
     sqldb = await get_mysql_connection()
