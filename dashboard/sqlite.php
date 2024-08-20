@@ -71,9 +71,9 @@ try {
     $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
     $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get Channel Point Rewards
-    $getChannelPointRewards = $db->query("SELECT * from channel_point_rewards");
-    $channelPointRewards = $getChannelPointRewards->fetchall(PDO::FETCH_ASSOC); 
+    // Fetch channel point rewards sorted by cost (low to high)
+    $rewardsQuery = $db->prepare("SELECT * FROM channel_point_rewards ORDER BY reward_cost ASC");
+    $channelPointRewards = $rewardsQuery->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch profile
     $getProfileSettings = $db->query("SELECT * FROM profile");
@@ -111,7 +111,7 @@ try {
 $userIds = array_column($lurkers, 'user_id');
 $userIdParams = implode('&id=', $userIds);
 $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
-$clientID = ''; // CHANGE TO MAKE THIS WORK
+$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 $headers = [
     "Client-ID: $clientID",
     "Authorization: Bearer $authToken",
