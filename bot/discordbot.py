@@ -263,10 +263,18 @@ class BotOfTheSpecter(commands.Bot):
                 except discord.HTTPException as e:
                     self.logger.error(f'Error fetching channel from API: {e}')
                     return
+            # Check if the current channel name already matches the intended status
             if status == "offline":
-                await self.set_channel_name(channel, f"🔴 {config.offline_text}")
+                intended_name = f"🔴 {config.offline_text}"
             elif status == "online":
-                await self.set_channel_name(channel, f"🟢 {config.online_text}")
+                intended_name = f"🟢 {config.online_text}"
+            else:
+                self.logger.error(f"Unknown status: {status}")
+                return
+            if channel.name == intended_name:
+                self.logger.info(f"Channel name already set to {intended_name}, no update needed.")
+            else:
+                await self.set_channel_name(channel, intended_name)
         except discord.HTTPException as e:
             self.logger.error(f'Error fetching guild with ID {config.guild_id}: {e}')
 
