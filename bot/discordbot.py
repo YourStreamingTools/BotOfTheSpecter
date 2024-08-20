@@ -187,7 +187,7 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_name = channel_name
         self.logger = discord_logger
         self.dm_response_tracker = {}
-        self.typing_speed = 5
+        self.typing_speed = 15
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
 
     async def on_ready(self):
@@ -318,7 +318,7 @@ class QuoteCog(commands.Cog, name='Quote'):
         self.bot = bot
         self.api_token = api_token
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.typing_speed = 5
+        self.typing_speed = 15
 
     @commands.command(name="quote")
     async def get_quote(self, ctx):
