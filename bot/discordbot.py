@@ -227,10 +227,10 @@ class BotOfTheSpecter(commands.Bot):
         if isinstance(message.channel, discord.DMChannel):
             user_id = message.author.id
             now = asyncio.get_event_loop().time()
-            # Check if the user has been responded to recently (e.g., within the last 60 seconds)
+            # Check if the user has been responded to recently
             if user_id in self.dm_response_tracker:
                 last_response_time = self.dm_response_tracker[user_id]
-                if now - last_response_time < 60:
+                if now - last_response_time < 3:
                     return  # Ignore the message to prevent spam
             # Update the last response time for this user
             self.dm_response_tracker[user_id] = now
