@@ -42,8 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
   // Process the update here
   $rewardid = $_POST['rewardid'];
   $newCustomMessage = $_POST['newCustomMessage'];
-
-  // Update the welcome message in the database
+  // Update the custom message in the database
   $messageQuery = $db->prepare("UPDATE channel_point_rewards SET custom_message = :custom_message WHERE reward_id = :rewardid");
   $messageQuery->bindParam(':custom_message', $newCustomMessage);
   $messageQuery->bindParam(':rewardid', $rewardid);
@@ -66,6 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
+  <h1 class="title is-4">Channel Point Rewards:</h1>
   <table class="table is-striped is-fullwidth">
     <thead>
       <tr>
@@ -107,22 +107,22 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
     const customMessage = document.getElementById(rewardid);
     
     if (editBox.style.display === 'none') {
-      // Show the edit box and hide the welcome message
+      // Show the edit box and hide the custom message
       editBox.style.display = 'block';
       customMessage.style.display = 'none';
       // Change the color of the edit button
       this.classList.add('editing');
     } else {
-      // Save the updated welcome message
+      // Save the updated custom message
       const newCustomMessage = editBox.querySelector('.custom-message').value;
-      updateWelcomeMessage(rewardid, newCustomMessage);
+      updateCustomMessage(rewardid, newCustomMessage);
       // Remove the editing class from the edit button
       this.classList.remove('editing');
     }
   });
 });
 
-function updateWelcomeMessage(rewardid, newCustomMessage) {
+function updateCustomMessage(rewardid, newCustomMessage) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
