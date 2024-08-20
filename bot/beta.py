@@ -4384,6 +4384,7 @@ async def channel_point_rewards():
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
     try:
+        # Get MySQL connection
         sqldb = await get_mysql_connection()
         async with sqldb.cursor() as cursor:
             async with aiohttp.ClientSession() as session:
@@ -4396,21 +4397,34 @@ async def channel_point_rewards():
                             reward_title = reward.get("title")
                             reward_cost = reward.get("cost")
                             # Check if the reward already exists in the database
-                            await cursor.execute("SELECT COUNT(*) FROM channel_point_rewards WHERE reward_id = %s",(reward_id,))
+                            await cursor.execute("SELECT COUNT(*) FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
                             count_result = await cursor.fetchone()
                             if count_result[0] == 0:
                                 # Insert new reward
                                 api_logger.info(f"Inserting new reward: {reward_id}, {reward_title}, {reward_cost}")
-                                await cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s, %s)",(reward_id, reward_title, reward_cost))
+                                await cursor.execute(
+                                    "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) "
+                                    "VALUES (%s, %s, %s)",
+                                    (reward_id, reward_title, reward_cost)
+                                )
                             else:
                                 # Update existing reward
                                 api_logger.info(f"Updating existing reward: {reward_id}, {reward_title}, {reward_cost}")
-                                await cursor.execute("UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s WHERE reward_id = %s",(reward_title, reward_cost, reward_id))
+                                await cursor.execute(
+                                    "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
+                                    "WHERE reward_id = %s",
+                                    (reward_title, reward_cost, reward_id)
+                                )
                         api_logger.info("Rewards processed successfully.")
                     else:
                         api_logger.error(f"Failed to fetch rewards: {response.status} {response.reason}")
+                        
+        await sqldb.commit()
     except Exception as e:
         api_logger.error(f"An error occurred: {str(e)}")
+    finally:
+        if sqldb:
+            sqldb.close()
 
 async def midnight(channel):
     # Get the timezone once outside the loop
