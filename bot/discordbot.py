@@ -199,6 +199,17 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'{member.name} has joined the server!')
         await websocket_notice(event="DISCORD_JOIN", member=member.name, api_token=config.api_token, logger=self.logger)
 
+    async def on_message(self, message):
+        # Ignore bot's own messages
+        if message.author == self.user:
+            return
+        # If the message is a DM
+        if isinstance(message.channel, discord.DMChannel):
+            await message.author.send("Please send your message in the server where the bot is present. I don't respond to direct messages.")
+            return
+        # If the message is in a server channel, process commands
+        await self.process_commands(message)
+
     async def update_channel_status(self, channel_id: int, status: str):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {config.guild_id}.')
         try:
