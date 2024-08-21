@@ -186,13 +186,8 @@ class BotOfTheSpecter(commands.Bot):
         self.discord_token = discord_token
         self.channel_name = channel_name
         self.logger = discord_logger
-        self.dm_response_tracker = {}
         self.typing_speed = 50
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
-        self.processed_messages_file = f"/var/www/logs/discord/messages_{self.channel_name}.txt"
-        # Ensure the log file exists
-        if not os.path.exists(self.processed_messages_file):
-            open(self.processed_messages_file, 'w').close()
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
@@ -206,53 +201,11 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'{member.name} has joined the server!')
         await websocket_notice(event="DISCORD_JOIN", member=member.name, api_token=config.api_token, logger=self.logger)
 
-    async def get_ai_response(self, user_message, user_id):
-        try:
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "message": user_message,
-                    "channel": self.channel_name,
-                    "message_user": user_id
-                }
-                async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
-                    response.raise_for_status()  # Raise an exception for bad responses
-                    ai_response = await response.text()  # Read response as plain text
-                    self.logger.info(f"AI response received: {ai_response}")
-                    return ai_response
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Error getting AI response: {e}")
-            return "Sorry, I could not understand your request."
-
     async def on_message(self, message):
         # Ignore bot's own messages
         if message.author == self.user:
             return
-        # Use the message ID to track if it's already been processed
-        message_id = str(message.id)
-        # Check if the message ID is already in the file
-        with open(self.processed_messages_file, 'r') as file:
-            processed_messages = file.read().splitlines()
-        if message_id in processed_messages:
-            self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
-            return
         # Process the message
-        if isinstance(message.channel, discord.DMChannel):
-            user_id = message.author.id
-            now = asyncio.get_event_loop().time()
-            if user_id in self.dm_response_tracker:
-                last_response_time = self.dm_response_tracker[user_id]
-                if now - last_response_time < 3:
-                    return  # Ignore the message to prevent spam
-            self.dm_response_tracker[user_id] = now
-            async with message.channel.typing():
-                ai_response = await self.get_ai_response(message.content, user_id)
-                typing_delay = len(ai_response) / self.typing_speed
-                await asyncio.sleep(typing_delay)
-                await message.author.send(ai_response)
-            # Mark the message as processed by appending the message ID to the file
-            with open(self.processed_messages_file, 'a') as file:
-                file.write(message_id + '\n')
-        # If the message is in a server channel, process commands
         await self.process_commands(message)
 
     async def update_channel_status(self, channel_id: int, status: str):
