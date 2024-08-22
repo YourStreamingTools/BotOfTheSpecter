@@ -638,7 +638,7 @@ async def process_eventsub_message(message):
                             reward_title = event_data["reward"].get("title")
                             if "tts" in reward_title.lower():
                                 tts_message = event_data["user_input"]
-                                await websocket_notice(event="TTS", text=tts_message)
+                                await websocket_notice_tts(event="TTS", text=tts_message)
                                 event_logger.info(f"TTS message sent: {tts_message}")
                                 return
                         await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
@@ -4208,6 +4208,30 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
         elif event == "TWITCH_RAID" and user and raid_viewers:
             params['twitch-username'] = user
             params['twitch-raid'] = raid_viewers
+        else:
+            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
+            return
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        # Send the HTTP request
+        async with session.get(url) as response:
+            if response.status == 200:
+                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+            else:
+                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+
+# Function to connect to the websocket server and push a notice
+async def websocket_notice_tts(event, text=None):
+    async with ClientSession() as session:
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
+        # Handling TTS event
+        if event == "TTS" and text:
+            params['text'] = text
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
             return
