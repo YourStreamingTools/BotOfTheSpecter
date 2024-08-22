@@ -128,7 +128,7 @@ spam_pattern = [
 ]
 
 # Setup Token Refresh
-async def refresh_token_every_day():
+async def refresh_token():
     global REFRESH_TOKEN
     # Initial sleep for 5 minutes before first token refresh
     initial_sleep_time = 300  # 5 minutes
@@ -4816,7 +4816,7 @@ async def event_command_error(error):
 # Run the bot
 def start_bot():
     # Schedule bot tasks
-    asyncio.get_event_loop().create_task(refresh_token_every_day())
+    asyncio.get_event_loop().create_task(refresh_token())
 
     # Start the bot
     bot.run()
