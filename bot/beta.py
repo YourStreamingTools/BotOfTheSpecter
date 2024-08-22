@@ -677,11 +677,11 @@ async def process_eventsub_message(message):
                             is_minutes = False
                         if seconds > 0:
                             if is_minutes is not False:
-                                message += f" and {int(seconds)} seconds."
+                                message += f" and {int(seconds)} seconds. "
                             else:
-                                message += f"Poll ending in {int(seconds)} seconds."
+                                message += f"Poll ending in {int(seconds)} seconds. "
                         else:
-                            message += "."
+                            message += ". "
                         await channel.send(message)
                     elif event_type == "channel.poll.progress":
                         current_time = time.time()
@@ -4347,7 +4347,8 @@ async def convert_currency(amount, from_currency, to_currency):
         raise
 
 async def channel_point_rewards():
-    api_url = f"https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={CHANNEL_ID}"
+    # Check the broadcaster's type
+    user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {
         "Client-Id": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -4357,6 +4358,19 @@ async def channel_point_rewards():
         sqldb = await get_mysql_connection()
         async with sqldb.cursor() as cursor:
             async with aiohttp.ClientSession() as session:
+                # Fetch broadcaster info
+                async with session.get(user_api_url, headers=headers) as user_response:
+                    if user_response.status == 200:
+                        user_data = await user_response.json()
+                        broadcaster_type = user_data["data"][0].get("broadcaster_type", "")
+                        if broadcaster_type not in ["affiliate", "partner"]:
+                            api_logger.info(f"Broadcaster type '{broadcaster_type}' does not support channel points. Exiting.")
+                            return
+                    else:
+                        api_logger.error(f"Failed to fetch broadcaster info: {user_response.status} {user_response.reason}")
+                        return
+                # If the broadcaster is an affiliate or partner, proceed with fetching rewards
+                api_url = f"https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={CHANNEL_ID}"
                 async with session.get(api_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
