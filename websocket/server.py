@@ -1,5 +1,4 @@
 import os
-import pathlib
 import socket
 import signal
 import asyncio
@@ -34,6 +33,10 @@ class BotOfTheSpecterWebsocketServer:
 
         # Initialize Google Text-to-Speech client
         self.tts_client = texttospeech.TextToSpeechClient()
+
+        # Initialize the TTS queue
+        self.tts_queue = asyncio.Queue()
+        self.processing_task = None
 
         # Allowed IPs for secure routes
         ips_file = "/var/www/websocket/ips.txt"
@@ -103,6 +106,29 @@ class BotOfTheSpecterWebsocketServer:
             return await handler(request)
         return middleware_handler
 
+    async def process_tts_queue(self):
+        while True:
+            text, session_id = await self.tts_queue.get()
+            await self.process_tts_request(text, session_id)
+            self.tts_queue.task_done()
+
+    async def process_tts_request(self, text, session_id):
+        # Generate the TTS audio
+        response = self.generate_speech(text)
+        audio_file = os.path.join(self.tts_dir, f'tts_output_{session_id}.mp3')
+        with open(audio_file, 'wb') as out:
+            out.write(response.audio_content)
+            self.logger.info(f'Audio content written to file "{audio_file}"')
+        # Emit the TTS audio to the client
+        await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/{audio_file}"}, to=session_id)
+        # Estimate the duration of the audio and wait for it to finish
+        duration = self.estimate_duration(response)
+        await asyncio.sleep(duration)
+
+    def estimate_duration(self, response):
+        # Calculate the duration based on the audio content length and bitrate
+        return len(response.audio_content) / 64000 # Duration in seconds for 64kbps MP3
+
     async def walkon(self, sid, data):
         # Handle the walkon event for SocketIO.
         self.logger.info(f"Walkon event from SID [{sid}]: {data}")
@@ -157,12 +183,8 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
         if event == "TTS" and text:
-            response = self.generate_speech(text)
-            audio_file = os.path.join(self.tts_dir, f'tts_output_{code}.mp3')
-            with open(audio_file, 'wb') as out:
-                out.write(response.audio_content)
-                self.logger.info(f'Audio content written to file "{audio_file}"')
-            data['audio_file'] = f"https://tts.botofthespecter.com/tts_output_{code}.mp3"
+            await self.tts_queue.put((text, code))
+            self.logger.info(f"TTS request added to queue: {text}")
         count = 0
         for sid, registered_code in self.registered_clients.items():
             if registered_code == code:
@@ -244,13 +266,8 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"TTS event from SID [{sid}]: {data}")
         text = data.get("text")
         if text:
-            response = self.generate_speech(text)
-            audio_file = os.path.join(self.tts_dir, f'tts_output_{sid}.mp3')
-            with open(audio_file, 'wb') as out:
-                out.write(response.audio_content)
-                self.logger.info(f'Audio content written to file "{audio_file}"')
-            # Send the audio file path to the requesting client
-            await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/tts_output_{sid}.mp3"}, to=sid)
+            await self.tts_queue.put((text, sid))
+            self.logger.info(f"TTS request added to queue: {text}")
 
     async def twitch_follow(self, sid, data):
         # Handle the Twitch follow event for SocketIO.
@@ -335,6 +352,8 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
         self.logger.info(f"Host: {host} Port: {port}")
         self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.processing_task = self.loop.create_task(self.process_tts_queue())
         web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=self.create_ssl_context(), handle_signals=True, shutdown_timeout=10)
     
     def stop(self):
