@@ -4695,7 +4695,7 @@ async def setup_database():
                         id INT PRIMARY KEY AUTO_INCREMENT,
                         username VARCHAR(255),
                         event VARCHAR(255),
-                        data INT
+                        data VARCHAR(255)
                     ) ENGINE=InnoDB
                 ''',
                 'message_counts': '''
