@@ -56,7 +56,6 @@ SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-TWITCH_API_AUTH = os.getenv('TWITCH_API_AUTH')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 WEATHER_API = os.getenv('WEATHER_API')
@@ -1556,12 +1555,8 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if game is None:
                         await ctx.send("You must provide a game for the stream.")
                         return
-                    # Get the game ID
                     try:
-                        game_id = await get_game_id(game)
-                        # Update the stream game/category
-                        await trigger_twitch_game_update(game_id)
-                        twitch_logger.info(f'Setting stream game to: {game}')
+                        await update_twitch_game(game)
                         await ctx.send(f'Stream game updated to: {game}')
                     except GameNotFoundException as e:
                         await ctx.send(str(e))
@@ -1572,7 +1567,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 else:
                     await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
-            await sqldb.ensure_closed()
+            await sqldb.ensure_closed()  # Ensure the database connection is closed
 
     @twitch_commands.command(name='song')
     async def song_command(self, ctx):
@@ -1591,7 +1586,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     return
                 await ctx.send("Please stand by, checking what song is currently playing...")
                 try:
-                    song_info = await get_song_info_command()
+                    song_info = await get_current_song()
                     await ctx.send(song_info)
                     await delete_recorded_files()
                 except Exception as e:
@@ -1848,6 +1843,12 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     if status == 'Disabled':
                         return
                 user_id = str(ctx.author.id)
+                await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
+                db_bits = await cursor.fetchone()
+                if db_bits:
+                    db_bits = db_bits[0]
+                else:
+                    db_bits = 0
                 headers = {
                     'Client-ID': CLIENT_ID,
                     'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -1861,8 +1862,21 @@ class BotOfTheSpecter(twitch_commands.Bot):
                             data = await response.json()
                             if data['data']:
                                 user_bits = data['data'][0]
-                                bits = "{:,}".format(user_bits['score'])
-                                await ctx.send(f"You have given {bits} bits in total.")
+                                api_bits = user_bits['score']
+                                # Compare API bits with the database bits and update if necessary
+                                if api_bits > db_bits:
+                                    # Update the database with the higher bits from the API
+                                    await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
+                                    await sqldb.commit()
+                                    bits = "{:,}".format(api_bits)
+                                    await ctx.send(f"You have given {bits} bits in total.")
+                                elif api_bits < db_bits:
+                                    # Inform the user that the local database has a higher value
+                                    bits = "{:,}".format(db_bits)
+                                    await ctx.send(f"Our records show you have given {bits} bits in total.")
+                                else:
+                                    bits = "{:,}".format(api_bits)
+                                    await ctx.send(f"You have given {bits} bits in total.")
                             else:
                                 await ctx.send("You haven't given any bits yet.")
                         elif response.status == 401:
@@ -1894,7 +1908,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 result = await cursor.fetchone()
                 if result:
                     # User was lurking before
-                    previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                    previous_start_time = result[0]
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
@@ -1983,7 +1997,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     now = datetime.now()
                     for user_id, start_time in lurkers:
                         # Convert start_time from string to datetime
-                        start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
                         lurk_duration = now - start_time
                         if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
                             longest_lurk = lurk_duration
@@ -3436,43 +3449,40 @@ async def trigger_twitch_title_update(new_title):
             else:
                 twitch_logger.error(f'Failed to update stream title: {await response.text()}')
 
-async def trigger_twitch_game_update(new_game_id):
-    # Twitch API
-    url = "https://api.twitch.tv/helix/channels"
+async def update_twitch_game(game_name):
+    # Twitch API to retrieve game ID and update stream game/category
+    url_get_game = "https://api.twitch.tv/helix/games"
+    url_update_game = "https://api.twitch.tv/helix/channels"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": CLIENT_ID,
     }
-    params = {
-        "broadcaster_id": CHANNEL_ID,
-        "game_id": new_game_id
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.patch(url, headers=headers, json=params) as response:
-            if response.status == 200:
-                twitch_logger.info(f'Stream game updated to: {new_game_id}')
-            else:
-                twitch_logger.error(f'Failed to update stream game: {await response.text()}')
-                raise GameUpdateFailedException(f'Failed to update stream game')
-
-async def get_game_id(game_name):
-    # Twitch API
-    url = "https://api.twitch.tv/helix/games/top"
-    headers = {
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": CLIENT_ID,
-    }
-    params = {
+    params_get_game = {
         "name": game_name
     }
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers, params=params) as response:
+        # Get the game ID from Twitch API
+        async with session.get(url_get_game, headers=headers, params=params_get_game) as response:
             if response.status == 200:
                 data = await response.json()
                 if data and 'data' in data and len(data['data']) > 0:
-                    return data['data'][0]['id']
-            twitch_logger.error(f"Game '{game_name}' not found.")
-            raise GameNotFoundException(f"Game '{game_name}' not found.")
+                    game_id = data['data'][0]['id']
+                else:
+                    twitch_logger.error(f"Game '{game_name}' not found.")
+                    raise GameNotFoundException(f"Game '{game_name}' not found.")
+            else:
+                twitch_logger.error(f"Failed to retrieve game ID: {await response.text()}")
+                raise GameNotFoundException(f"Game '{game_name}' not found.")
+        params_update_game = {
+            "broadcaster_id": CHANNEL_ID,
+            "game_id": game_id
+        }
+        async with session.patch(url_update_game, headers=headers, json=params_update_game) as response:
+            if response.status == 200:
+                twitch_logger.info(f'Stream game updated to: {game_name}')
+            else:
+                twitch_logger.error(f'Failed to update stream game: {await response.text()}')
+                raise GameUpdateFailedException('Failed to update stream game')
 
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
@@ -3629,16 +3639,13 @@ async def timed_message():
             await cursor.execute('SELECT interval_count, message FROM timed_messages')
             messages = await cursor.fetchall()
             bot_logger.info(f"Timed Messages: {messages}")
-
             # Store the messages currently scheduled
             current_messages = [task.get_name() for task in scheduled_tasks]
-
             # Check for messages to add or remove
             for interval, message in messages:
                 if message in current_messages:
                     # Message already scheduled, continue to next message
                     continue
-
                 bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
                 time_now = datetime.now()
                 send_time = time_now + timedelta(minutes=int(interval))
@@ -3647,7 +3654,6 @@ async def timed_message():
                 task = asyncio.create_task(send_timed_message(message, wait_time))
                 task.set_name(message)  # Set a name for the task
                 scheduled_tasks.append(task)  # Keep track of the task
-
             # Check for messages to remove
             for task in scheduled_tasks:
                 if task.get_name() not in [message for _, message in messages]:
@@ -3675,7 +3681,7 @@ async def send_timed_message(message, delay):
         bot_logger.info(f"Task cancelled for {message}")
 
 # Function to get the current playing song
-async def get_song_info_command():
+async def get_current_song():
     try:
         song_info = await get_song_info()
         if "error" in song_info:
@@ -3698,33 +3704,26 @@ async def get_song_info():
         # Test validity of GQL OAuth token
         if not await twitch_gql_token_valid():
             return {"error": "Twitch GQL Token Expired"}
-
         # Record stream audio
         random_file_name = str(random.randint(10000000, 99999999))
         working_dir = "/var/www/logs/songs"
         stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
         raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
         outfile = os.path.join(working_dir, f"{random_file_name}.acc")
-        
         # Assign filenames to global variables
         stream_recording_file_global = stream_recording_file
         raw_recording_file_global = raw_recording_file
-        
         if not await record_stream(outfile):
             return {"error": "Stream is not available"}
-
         # Convert Stream Audio into Raw Format for Shazam
         if not await convert_to_raw_audio(stream_recording_file, raw_recording_file):
             return {"error": "Error converting stream audio from ACC to raw PCM s16le"}
-
         # Encode raw audio to base64
         with open(raw_recording_file, "rb") as song:
             songBytes = song.read()
             songb64 = base64.b64encode(songBytes)
-
             # Detect the song
             matches = await detect_song(songb64)
-
             if "track" in matches.keys():
                 artist = matches["track"].get("subtitle", "")
                 song_title = matches["track"].get("title", "")
@@ -3760,7 +3759,6 @@ async def twitch_gql_token_valid():
             async with session.post(url, headers=headers, json=data, timeout=10) as response:
                 # Log the status code received
                 api_logger.info(f"Twitch GQL token validation response status code: {response.status}")
-
                 if response.status == 200:
                     return True
                 else:
@@ -4800,9 +4798,7 @@ async def setup_database():
                 try:
                     await cursor.execute(table_schema)
                 except aiomysql.Error as err:
-                    if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
-                        bot_logger.info(f"Table {table_name} already exists.")
-                    else:
+                    if err.errno != errorcode.ER_TABLE_EXISTS_ERROR:
                         bot_logger.error(f"Error creating table {table_name}: {err}")
             await conn.commit()
             # Insert 'Default' category if not exists
