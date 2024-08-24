@@ -109,7 +109,7 @@ $pointsName = htmlspecialchars($settings['point_name']);
                 </div>
                 <div class="column is-half">
                     <div class="field">
-                        <label class="label" for="point_amount_chat"><?php echo $pointsName; ?> Per Chat Message</label>
+                        <label class="label" for="point_amount_chat"><?php echo $pointsName; ?> Earned per Chat Message</label>
                         <div class="control">
                             <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required>
                         </div>
@@ -117,7 +117,7 @@ $pointsName = htmlspecialchars($settings['point_name']);
                 </div>
                 <div class="column is-half">
                     <div class="field">
-                        <label class="label" for="point_amount_follower"><?php echo $pointsName; ?> Per Follower</label>
+                        <label class="label" for="point_amount_follower"><?php echo $pointsName; ?> Earned for Following</label>
                         <div class="control">
                             <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_ammount_follower']); ?>" required>
                         </div>
@@ -125,7 +125,7 @@ $pointsName = htmlspecialchars($settings['point_name']);
                 </div>
                 <div class="column is-half">
                     <div class="field">
-                        <label class="label" for="point_amount_subscriber"><?php echo $pointsName; ?> Per Subscription</label>
+                        <label class="label" for="point_amount_subscriber"><?php echo $pointsName; ?> Earned for Subscribing</label>
                         <div class="control">
                             <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required>
                         </div>
@@ -133,7 +133,7 @@ $pointsName = htmlspecialchars($settings['point_name']);
                 </div>
                 <div class="column is-half">
                     <div class="field">
-                        <label class="label" for="point_amount_cheer"><?php echo $pointsName; ?> Per Cheer</label>
+                        <label class="label" for="point_amount_cheer"><?php echo $pointsName; ?> Earned Per Cheer</label>
                         <div class="control">
                             <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required>
                         </div>
@@ -141,7 +141,7 @@ $pointsName = htmlspecialchars($settings['point_name']);
                 </div>
                 <div class="column is-half">
                     <div class="field">
-                        <label class="label" for="point_amount_raid"><?php echo $pointsName; ?> Per Raid</label>
+                        <label class="label" for="point_amount_raid"><?php echo $pointsName; ?> Earned Per Raid</label>
                         <div class="control">
                             <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required>
                         </div>
