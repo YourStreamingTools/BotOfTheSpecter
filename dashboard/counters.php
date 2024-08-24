@@ -40,13 +40,87 @@ $api_key = $user['api_key'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
-$statusOutput = 'Bot Status: Unknown';
-$betaStatusOutput = 'Bot Status: Unknown';
-$pid = '';
-$versionRunning = '';
-$betaVersionRunning = '';
 include 'bot_control.php';
 include 'sqlite.php';
+
+try {
+    // Fetch lurkers
+    $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
+    $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+
+    // Calculate lurk durations for each user
+    foreach ($lurkers as $key => $lurker) {
+        $startTime = new DateTime($lurker['start_time']);
+        $currentTime = new DateTime();
+        $interval = $currentTime->diff($startTime);
+
+        // Calculate total duration in seconds for sorting
+        $totalDuration = ($interval->y * 365 * 24 * 3600) + 
+                        ($interval->m * 30 * 24 * 3600) + 
+                        ($interval->d * 24 * 3600) + 
+                        ($interval->h * 3600) + 
+                        ($interval->i * 60);
+
+        $lurkers[$key]['total_duration'] = $totalDuration; // Store for sorting
+
+        $timeStringParts = [];
+        if ($interval->y > 0) {
+            $timeStringParts[] = "{$interval->y} year(s)";
+        }
+        if ($interval->m > 0) {
+            $timeStringParts[] = "{$interval->m} month(s)";
+        }
+        if ($interval->d > 0) {
+            $timeStringParts[] = "{$interval->d} day(s)";
+        }
+        if ($interval->h > 0) {
+            $timeStringParts[] = "{$interval->h} hour(s)";
+        }
+        if ($interval->i > 0) {
+            $timeStringParts[] = "{$interval->i} minute(s)";
+        }
+        $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
+    }
+
+    // Sort the lurkers array by total_duration (longest to shortest)
+    usort($lurkers, function ($a, $b) {
+        return $b['total_duration'] - $a['total_duration'];
+    });
+    
+} catch (PDOException $e) {
+    echo 'Error: ' . $e->getMessage();
+}
+
+// Prepare the Twitch API request for user data
+$userIds = array_column($lurkers, 'user_id');
+$userIdParams = implode('&id=', $userIds);
+$twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
+$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+$headers = [
+    "Client-ID: $clientID",
+    "Authorization: Bearer $authToken",
+];
+
+// Execute the Twitch API request
+$ch = curl_init($twitchApiUrl);
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+
+// Decode the JSON response
+$userData = json_decode($response, true);
+
+// Check if data exists and is not null
+if (isset($userData['data']) && is_array($userData['data'])) {
+    // Map user IDs to usernames
+    $usernames = [];
+    foreach ($userData['data'] as $user) {
+        $usernames[$user['id']] = $user['display_name'];
+    }
+} else {
+    $usernames = [];
+}
 
 // Determine the selected count type from the URL
 $countType = isset($_GET['countType']) ? $_GET['countType'] : '';
@@ -73,12 +147,12 @@ $countType = isset($_GET['countType']) ? $_GET['countType'] : '';
   <br>
   <div class="tabs is-boxed is-centered" id="countTabs">
     <ul>
-      <li class="<?php echo $countType === 'lurking' ? 'is-active' : ''; ?>"><a href="?countType=lurking#lurking">Currently Lurking Users</a></li>
-      <li class="<?php echo $countType === 'typo' ? 'is-active' : ''; ?>"><a href="?countType=typo#typo">Typo Counts</a></li>
-      <li class="<?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="?countType=deaths#deaths">Deaths Overview</a></li>
-      <li class="<?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="?countType=hugs#hugs">Hug Counts</a></li>
-      <li class="<?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="?countType=kisses#kisses">Kiss Counts</a></li>
-      <li class="<?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="?countType=custom#custom">Custom Counts</a></li>
+      <li class="<?php echo $countType === 'lurking' ? 'is-active' : ''; ?>"><a href="?countType=lurking">Currently Lurking Users</a></li>
+      <li class="<?php echo $countType === 'typo' ? 'is-active' : ''; ?>"><a href="?countType=typo">Typo Counts</a></li>
+      <li class="<?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="?countType=deaths">Deaths Overview</a></li>
+      <li class="<?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="?countType=hugs">Hug Counts</a></li>
+      <li class="<?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="?countType=kisses">Kiss Counts</a></li>
+      <li class="<?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="?countType=custom">Custom Counts</a></li>
     </ul>
   </div>
   <div class="content">
@@ -86,12 +160,12 @@ $countType = isset($_GET['countType']) ? $_GET['countType'] : '';
       <!-- Lurking Users -->
       <div class="tab-content <?php echo $countType === 'lurking' ? 'is-active' : ''; ?>" id="lurking">
         <div class="box">
-          <h3 class="title">Currently Lurking Users</h3>
+          <h3 class="title" style="color: white;">Currently Lurking Users</h3>
           <table class="table is-striped is-fullwidth">
             <thead>
               <tr>
-                <th>Username</th>
-                <th>Lurk Duration</th>
+                <th style="color: white;">Username</th>
+                <th style="color: white;">Lurk Duration</th>
               </tr>
             </thead>
             <tbody>
