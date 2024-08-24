@@ -20,7 +20,7 @@ import socketio
 import aiomysql
 from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
-from twitchio.ext import commands as twitch_commands
+from twitchio.ext import commands as commands
 import streamlink
 import pytz
 from geopy.geocoders import Nominatim
@@ -61,7 +61,7 @@ SHAZAM_API = os.getenv('SHAZAM_API')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -132,17 +132,13 @@ async def token_refresh():
     # Initial sleep for 5 minutes before first token refresh
     initial_sleep_time = 300  # 5 minutes
     await asyncio.sleep(initial_sleep_time)
-
     # Perform the first token refresh after the initial sleep
     REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
-    
     # Calculate the next refresh time to be 4 hours minus 5 minutes from now
     next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes for refresh
-
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
-
         if current_time >= next_refresh_time:
             REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
         else:
@@ -152,7 +148,6 @@ async def token_refresh():
                 sleep_time = 300  # Check again in 5 minutes
             else:
                 sleep_time = 60  # Check every minute when close to expiration
-            
             # Log only when the check frequency changes or is about to refresh
             twitch_logger.info(f"Next token check in {sleep_time // 60} minutes. Token is still valid for {time_until_expiration // 60} minutes and {time_until_expiration % 60} seconds.")
             await asyncio.sleep(sleep_time)  # Wait before checking again, based on the time until expiration
@@ -175,17 +170,13 @@ async def refresh_token(current_refresh_token):
                     if new_access_token:
                         # Token refreshed successfully
                         new_refresh_token = response_json.get('refresh_token', current_refresh_token)
-
                         # Update the global variables with the new tokens
                         CHANNEL_AUTH = new_access_token
                         REFRESH_TOKEN = new_refresh_token
-
                         # Calculate the next refresh time to be 5 minutes before the 4-hour mark
                         next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes, so we refresh before actual expiration
-
                         log_message = "Refreshed token. New Access Token: {}, New Refresh Token: {}".format(new_access_token, new_refresh_token)
                         twitch_logger.info(log_message)
-
                         return new_refresh_token, next_refresh_time
                     else:
                         twitch_logger.error("Token refresh failed: 'access_token' not found in response")
@@ -206,21 +197,16 @@ async def twitch_eventsub():
                 # Receive and parse the welcome message
                 eventsub_welcome_message = await twitch_websocket.recv()
                 eventsub_welcome_data = json.loads(eventsub_welcome_message)
-
                 # Validate the message type
                 if eventsub_welcome_data.get('metadata', {}).get('message_type') == 'session_welcome':
                     session_id = eventsub_welcome_data['payload']['session']['id']
                     keepalive_timeout = eventsub_welcome_data['payload']['session']['keepalive_timeout_seconds']
-
                     event_logger.info(f"Connected with session ID: {session_id}")
                     event_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
-
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
-
                     # Manage keepalive and listen for messages concurrently
                     await asyncio.gather(receive_messages(twitch_websocket, keepalive_timeout))
-
         except websockets.ConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
             await asyncio.sleep(10)  # Wait before retrying
@@ -235,7 +221,6 @@ async def subscribe_to_events(session_id):
         "Client-Id": CLIENT_ID,
         "Content-Type": "application/json"
     }
-
     v1topics = [
         "channel.moderate",
         "stream.online",
@@ -255,7 +240,6 @@ async def subscribe_to_events(session_id):
         "channel.poll.progress",
         "channel.poll.end"
     ]
-
     v2topics = [
         "channel.follow",
         "channel.update",
@@ -333,7 +317,6 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
             message = await asyncio.wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
             # event_logger.info(f"Received message: {message}")
-
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
@@ -365,16 +348,13 @@ async def connect_to_tipping_services():
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT StreamElements, StreamLabs FROM tipping_settings LIMIT 1")
             result = await cursor.fetchone()
-
             streamelements_token = result['StreamElements']
             streamlabs_token = result['StreamLabs']
-
             tasks = []
             if streamelements_token:
                 tasks.append(connect_to_streamelements())
             if streamlabs_token:
                 tasks.append(connect_to_streamlabs())
-
             if tasks:
                 await asyncio.gather(*tasks)
             else:
@@ -751,13 +731,12 @@ async def process_eventsub_message(message):
                 # Logging for unknown event types
                 else:
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
-
     except Exception as e:
         event_logger.error(f"Error processing EventSub message: {e}")
     finally:
         await sqldb.ensure_closed()
 
-class BotOfTheSpecter(twitch_commands.Bot):
+class BotOfTheSpecter(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
         super().__init__(token=token, prefix=prefix, initial_channels=[channel_name])
@@ -793,23 +772,18 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 # Ignore messages from the bot itself
                 if message.echo:
                     return
-
                 # Log the message content
                 chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-
                 # Check for a valid author before proceeding
                 if message.author is None:
                     bot_logger.error("Received a message without a valid author.")
                     return
-
                 # Handle commands
                 await self.handle_commands(message)
-
                 messageContent = message.content.strip().lower() if message.content else ""
                 messageAuthor = message.author.name if message.author else ""
                 messageAuthorID = message.author.id if message.author else ""
                 AuthorMessage = message.content if message.content else ""
-
                 # Check if the message matches the spam pattern
                 for pattern in spam_pattern:
                     if pattern.search(messageContent):
@@ -817,18 +791,12 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         await ban_user(messageAuthor, messageAuthorID)
                         bannedUser = messageAuthor
                         return
-
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
                     command = command_parts[0][1:]  # Extract the command without '!'
-
-                    # Log all command usage
-                    chat_logger.info(f"{messageAuthor} used the command: {command}")
-
                     if command in builtin_commands or command in builtin_aliases:
                         chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                         return  # It's a built-in command or alias, do nothing more
-
                     # Check if the command exists in a hypothetical database and respond
                     await cursor.execute('SELECT response, status FROM custom_commands WHERE command = %s', (command,))
                     result = await cursor.fetchone()
@@ -837,7 +805,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                             response = result[0]
                             switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', '(command.', '(call.']
                             responses_to_send = []
-
                             while any(switch in response for switch in switches):
                                 if '(customapi.' in response:
                                     url_match = re.search(r'\(customapi\.(\S+)\)', response)
@@ -845,7 +812,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                                         url = url_match.group(1)
                                         api_response = fetch_api_response(url)
                                         response = response.replace(f"(customapi.{url})", api_response)
-
                                 if '(count)' in response:
                                     try:
                                         await update_custom_count(command)
@@ -853,7 +819,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
-
                                 if '(daysuntil.' in response:
                                     get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
                                     if get_date:
@@ -862,7 +827,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                                         current_date = datetime.now().date()
                                         days_left = (event_date - current_date).days
                                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
-
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
                                     if user_mention:
@@ -871,11 +835,9 @@ class BotOfTheSpecter(twitch_commands.Bot):
                                         # Default to message author's name
                                         user_name = messageAuthor
                                     response = response.replace('(user)', user_name)
-
                                 if '(author)' in response:
                                     user_name = messageAuthor
                                     response = response.replace('(author)', user_name)
-
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
                                     if command_match:
@@ -888,7 +850,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
                                             await channel.send(f"The command {sub_command} is no longer available.")
-
                                 if '(call.' in response:
                                     calling_match = re.search(r'\(call\.(\w+)\)', response)
                                     if calling_match:
@@ -896,7 +857,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                                         await self.call_command(match_call, message)
                                     else:
                                         pass
-
                             # Send the individual responses
                             if len(responses_to_send) > 1:
                                 for resp in responses_to_send:
@@ -908,7 +868,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
                         chat_logger.info(f"{command} not found in the database.")
-
                 # Handle AI responses
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
@@ -916,7 +875,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         await channel.send(f'Hello, {message.author.name}!')
                     else:
                         await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
-
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
@@ -926,7 +884,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     else:
                         # If url_blocking not found in the database, default to False
                         url_blocking = False
-
                     # Check if url_blocking is enabled
                     if url_blocking:
                         # Check if the user is permitted to post links
@@ -936,7 +893,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         if command_permissions(messageAuthor):
                             # User is a mod or is the broadcaster, they are by default permitted.
                             return
-
                         # Fetch link whitelist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
                         whitelisted_links = await cursor.fetchall()
@@ -944,7 +900,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                         await cursor.execute('SELECT link FROM link_blacklisting')
                         blacklisted_links = await cursor.fetchall()
                         blacklisted_links = [link[0] for link in blacklisted_links]
-
                         # Check if the message content contains any whitelisted or blacklisted link
                         contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
                         contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
@@ -991,7 +946,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 is_mod = await is_user_mod(messageAuthor)
                 is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
                 user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
-
                 # Insert into the database the number of chats during the stream
                 await cursor.execute(
                     'INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) '
@@ -999,19 +953,32 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     (messageAuthor, user_level, user_level)
                 )
                 await sqldb.commit()
-
+                # Retrieve the bot settings to get the chat points amount
+                settings = await get_bot_settings()
+                chat_points = settings['chat_points']
+                # Fetch current points for the user
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
+                result = await cursor.fetchone()
+                current_points = result[0] if result else 0
+                # Update the user's points based on chat activity
+                new_points = current_points + chat_points
+                if result:
+                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
+                else:
+                    await cursor.execute(
+                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                        (messageAuthorID, messageAuthor, new_points)
+                    )
+                await sqldb.commit()
                 # Has the user been seen during this stream
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 temp_seen_users = await cursor.fetchone()
-
                 # Check if the user is in the list of already seen users
                 if temp_seen_users:
                     return
-
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
-
                 if user_data:
                     # Check if the user is the broadcaster
                     if messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -1032,7 +999,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                     await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                     await sqldb.commit()
                     await websocket_notice(event="WALKON", channel=CHANNEL_NAME, user=messageAuthor)
-
                 if user_status_enabled == 'True':
                     if is_vip:
                         # VIP user
@@ -1174,7 +1140,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
             bot_logger.error(f"Error getting AI response: {e}")
             return "Sorry, I could not understand your request."
 
-    @twitch_commands.command(name='commands', aliases=['cmds'])
+    @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1204,7 +1170,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='bot')
+    @commands.command(name='bot')
     async def bot_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1220,7 +1186,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='forceonline')
+    @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
         if await command_permissions(ctx.author):
             sqldb = await get_mysql_connection()
@@ -1244,7 +1210,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
             chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
-    @twitch_commands.command(name='forceoffline')
+    @commands.command(name='forceoffline')
     async def forceoffline_command(self, ctx):
         global stream_online
         global current_game
@@ -1270,7 +1236,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
             chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
-    @twitch_commands.command(name='version')
+    @commands.command(name='version')
     async def version_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1304,7 +1270,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='roadmap')
+    @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1319,7 +1285,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='weather')
+    @commands.command(name='weather')
     async def weather_command(self, ctx, *, location: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1345,7 +1311,31 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='time')
+    @commands.command(name='points')
+    async def points_command(self, ctx):
+        user_id = str(ctx.author.id)
+        user_name = ctx.author.name
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Check if the user exists in the database
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                result = await cursor.fetchone()
+                if result:
+                    points = result[0]
+                else:
+                    points = 0
+                    await cursor.execute(
+                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                        (user_id, user_name, points)
+                    )
+                    await sqldb.commit()
+                await ctx.send(f'@{user_name}, you have {points} points.')
+        finally:
+            await cursor.close()
+            await sqldb.ensure_closed()
+
+    @commands.command(name='time')
     async def time_command(self, ctx, *, timezone: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1403,7 +1393,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='joke')
+    @commands.command(name='joke')
     async def joke_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1427,7 +1417,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='quote')
+    @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1455,7 +1445,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='quoteadd')
+    @commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
         try:
@@ -1472,7 +1462,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='removequote')
+    @commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1492,7 +1482,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='permit')
+    @commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1516,7 +1506,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='settitle')
+    @commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1540,7 +1530,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='setgame')
+    @commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1567,9 +1557,9 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 else:
                     await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
-            await sqldb.ensure_closed()  # Ensure the database connection is closed
+            await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='song')
+    @commands.command(name='song')
     async def song_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1595,7 +1585,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='timer')
+    @commands.command(name='timer')
     async def timer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1631,7 +1621,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='stoptimer')
+    @commands.command(name='stoptimer')
     async def stoptimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1647,7 +1637,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='checktimer')
+    @commands.command(name='checktimer')
     async def checktimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1665,7 +1655,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='hug')
+    @commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1705,7 +1695,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='kiss')
+    @commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1737,7 +1727,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='ping')
+    @commands.command(name='ping')
     async def ping_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1763,7 +1753,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='translate')
+    @commands.command(name='translate')
     async def translate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1796,7 +1786,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='cheerleader')
+    @commands.command(name='cheerleader')
     async def cheerleader_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1831,7 +1821,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='mybits')
+    @commands.command(name='mybits')
     async def mybits_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1886,7 +1876,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='lurk')
+    @commands.command(name='lurk')
     async def lurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1935,7 +1925,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='lurking')
+    @commands.command(name='lurking')
     async def lurking_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1978,7 +1968,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='lurklead')
+    @commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2026,7 +2016,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='unlurk', aliases=('back',))
+    @commands.command(name='unlurk', aliases=('back'))
     async def unlurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2071,7 +2061,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='clip')
+    @commands.command(name='clip')
     async def clip_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2129,7 +2119,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='marker')
+    @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
         sqldb = await get_mysql_connection()
         try:
@@ -2165,7 +2155,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='subscription', aliases=['mysub'])
+    @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2218,7 +2208,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='uptime')
+    @commands.command(name='uptime')
     async def uptime_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2262,7 +2252,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @twitch_commands.command(name='typo')
+    @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2296,7 +2286,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @twitch_commands.command(name='typos', aliases=('typocount',))
+    @commands.command(name='typos', aliases=('typocount'))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2328,7 +2318,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='edittypos', aliases=('edittypo',))
+    @commands.command(name='edittypos', aliases=('edittypo'))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2384,7 +2374,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='removetypos', aliases=('removetypo',))
+    @commands.command(name='removetypos', aliases=('removetypo'))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         try:
@@ -2429,7 +2419,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='steam')
+    @commands.command(name='steam')
     async def steam_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2472,7 +2462,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='deaths')
+    @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2506,7 +2496,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='deathadd', aliases=['death+'])
+    @commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2560,7 +2550,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='deathremove', aliases=['death-',])
+    @commands.command(name='deathremove', aliases=['death-',])
     async def deathremove_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2600,7 +2590,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @twitch_commands.command(name='game')
+    @commands.command(name='game')
     async def game_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2622,7 +2612,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='followage')
+    @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2695,7 +2685,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='schedule')
+    @commands.command(name='schedule')
     async def schedule_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2783,7 +2773,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='checkupdate')
+    @commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2822,7 +2812,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @twitch_commands.command(name='shoutout', aliases=('so',))
+    @commands.command(name='shoutout', aliases=('so'))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2881,7 +2871,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='addcommand')
+    @commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2900,7 +2890,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 except ValueError:
                     await ctx.send(f"Invalid command format. Use: !addcommand [command] [response]")
                     return
-
                 # Insert the command and response into the database
                 async with sqldb.cursor() as cursor:
                     await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
@@ -2912,7 +2901,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='removecommand')
+    @commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2941,7 +2930,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='disablecommand')
+    @commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2959,7 +2948,6 @@ class BotOfTheSpecter(twitch_commands.Bot):
                 except IndexError:
                     await ctx.send(f"Invalid command format. Use: !disablecommand [command]")
                     return
-
                 # Disable the command in the database
                 async with sqldb.cursor() as cursor:
                     await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
@@ -2971,7 +2959,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='slots')
+    @commands.command(name='slots')
     async def slots_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2994,7 +2982,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name='kill')
+    @commands.command(name='kill')
     async def kill_command(self, ctx, mention: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3044,7 +3032,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name="roulette")
+    @commands.command(name="roulette")
     async def roulette_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3065,7 +3053,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name="rps")
+    @commands.command(name="rps")
     async def rps_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3096,7 +3084,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name="story")
+    @commands.command(name="story")
     async def story_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3118,7 +3106,7 @@ class BotOfTheSpecter(twitch_commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @twitch_commands.command(name="convert")
+    @commands.command(name="convert")
     async def convert_command(self, ctx, *args):
         sqldb = await get_mysql_connection()
         try:
@@ -3188,7 +3176,6 @@ async def get_display_name(user_id):
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
-
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
@@ -3203,17 +3190,14 @@ async def command_permissions(user):
     if user.name == 'gfaundead':
         twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
         return True
-
     # Check if the user is the broadcaster
     elif user.name == CHANNEL_NAME:
         twitch_logger.info(f"User {user.name} is the Broadcaster")
         return True
-
     # Check if the user is a moderator
     is_mod = await is_user_mod(user.name)
     if is_mod:
         return True
-
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
     twitch_logger.info(f"User {user.name} does not have required permissions.")
     return False
@@ -3256,7 +3240,6 @@ async def is_user_vip(username):
             return False
         finally:
             await sqldb.ensure_closed()
-
 
 # Function to check if a user is a subscriber of the channel
 async def is_user_subscribed(user_id):
@@ -3864,8 +3847,10 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
+            # Check existing raid data
             await cursor.execute('SELECT raid_count, viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
             existing_data = await cursor.fetchone()
+            # Update or insert raid data
             if existing_data:
                 existing_raid_count, existing_viewer_count = existing_data
                 raid_count = existing_raid_count + 1
@@ -3873,13 +3858,37 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 await cursor.execute('UPDATE raid_data SET raid_count = %s, viewers = %s WHERE raider_id = %s', (raid_count, viewers, from_broadcaster_id))
             else:
                 await cursor.execute('INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers) VALUES (%s, %s, %s, %s)', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (from_broadcaster_name, "raid", viewer_count))
+            # Retrieve the bot settings to get the raid points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            raid_points = int(settings['point_amount_raid'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Check if the user is a subscriber and apply the multiplier
+            if await is_user_subscribed(from_broadcaster_id) is not None:
+                raid_points *= subscriber_multiplier
+            # Calculate and award points based on the raid event
+            total_awarded_points = raid_points * viewer_count
+            # Fetch current points for the raider
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (from_broadcaster_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the raider's points
+            new_points = current_points + total_awarded_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, from_broadcaster_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (from_broadcaster_id, from_broadcaster_name, new_points)
+                )
             await sqldb.commit()
-        discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
-        await send_to_discord(discord_message, "New Raid!", "raid.png")
-        await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
-        channel = bot.get_channel(CHANNEL_NAME)
-        await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
+            # Send raid notification to Discord Logs, Twitch Chat, and Websocket
+            discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
+            await send_to_discord(discord_message, "New Raid!", "raid.png")
+            await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
+            channel = bot.get_channel(CHANNEL_NAME)
+            await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
     finally:
         await sqldb.ensure_closed()
 
@@ -3888,9 +3897,11 @@ async def process_cheer_event(user_id, user_name, bits):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
+            # Check existing bits data
             await cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (user_id, user_name))
             existing_bits = await cursor.fetchone()
             channel = bot.get_channel(CHANNEL_NAME)
+            # Update or insert bits data
             if existing_bits:
                 total_bits = existing_bits[0] + bits
                 await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (total_bits, user_id, user_name))
@@ -3904,11 +3915,33 @@ async def process_cheer_event(user_id, user_name, bits):
                     image = "cheer100.png"
                 else:
                     image = "cheer1000.png"
-                await send_to_discord(discord_message, "New Cheer!", image)
-                await channel.send(f"Thank you {user_name} for {bits} bits!")
-                await websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits)
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
+            # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            cheer_points = int(settings['point_amount_cheer'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Check if the user is a subscriber and apply the multiplier
+            if await is_user_subscribed(user_id) is not None:
+                cheer_points *= subscriber_multiplier
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Award points based on the cheer event
+            new_points = current_points + cheer_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
             await sqldb.commit()
+            # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
+            await send_to_discord(discord_message, "New Cheer!", image)
+            await channel.send(f"Thank you {user_name} for {bits} bits!")
+            await websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits)
     finally:
         await sqldb.ensure_closed()
 
@@ -3919,6 +3952,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
         async with sqldb.cursor() as cursor:
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
             existing_subscription = await cursor.fetchone()
+            # Update or insert subscription data
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription
                 if existing_sub_plan != sub_plan:
@@ -3927,13 +3961,33 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                     await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
+            # Retrieve the bot settings to get the subscriber points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            subscriber_points = int(settings['point_amount_subscriber'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Apply the multiplier since this is a subscription event
+            subscriber_points *= subscriber_multiplier
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the user's points based on the subscription event
+            new_points = current_points + subscriber_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
             await sqldb.commit()
+            # Send notification messages
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
             await send_to_discord(discord_message, "New Subscriber!", "sub.png")
             await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
-            # Send the message to the channel
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
     finally:
@@ -3946,6 +4000,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
         async with sqldb.cursor() as cursor:
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
             existing_subscription = await cursor.fetchone()
+            # Update or insert subscription data
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription
                 if existing_sub_plan != sub_plan:
@@ -3954,10 +4009,31 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                     await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", event_months))
+            # Retrieve the bot settings to get the subscriber points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            subscriber_points = int(settings['point_amount_subscriber'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Apply the multiplier since this is a subscription event
+            subscriber_points *= subscriber_multiplier
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the user's points based on the subscription event
+            new_points = current_points + subscriber_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
             await sqldb.commit()
+            # Send notification messages
             if subscriber_message.strip():
-                message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: '{subscriber_message}'"
+                message = f'Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: "{subscriber_message}" '
             else:
                 message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
@@ -4004,9 +4080,33 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         time_now = datetime.now()
         followed_at = time_now.strftime("%Y-%m-%d %H:%M:%S")
         async with sqldb.cursor() as cursor:
-            await cursor.execute('INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (%s, %s, %s)', (user_id, user_name, followed_at))
-            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "follow", 0))
+            # Insert follower data
+            await cursor.execute(
+                'INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (%s, %s, %s)',
+                (user_id, user_name, followed_at)
+            )
+            await cursor.execute(
+                'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
+                (user_name, "follow", 0)
+            )
+            # Retrieve the bot settings to get the follower points amount
+            settings = await get_bot_settings()
+            follower_points = settings['follower_points']
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the user's points based on the follow event
+            new_points = current_points + follower_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
             await sqldb.commit()
+        # Send follow notification to Discord Logs, Twitch Chat and Websocket
         message = f"Thank you {user_name} for following! Welcome to the channel!"
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
@@ -4444,14 +4544,13 @@ async def midnight(channel):
             # If no timezone is set, stop the function
             chat_logger.info("No timezone set for the user. Stopping the midnight check.")
             return
-
     while True:
         # Get the current time in the user's timezone
-        current_time = datetime.datetime.now(tz)
+        current_time = datetime.now(tz)
         # Check if the current time in the user's timezone is exactly midnight
         if current_time.hour == 0 and current_time.minute == 0:
-            cur_date = current_time.strftime("%Y-%m-%d")
-            cur_time = current_time.strftime("%H:%M:%S")
+            cur_date = current_time.strftime("%d %B %Y")
+            cur_time = current_time.strftime("%I %p")
             cur_day = current_time.strftime("%A")
             message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
             await channel.send(message)
@@ -4460,6 +4559,27 @@ async def midnight(channel):
         else:
             # Sleep for 10 seconds before checking again
             await asyncio.sleep(10)
+
+async def get_bot_settings():
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            await cursor.execute("SELECT point_name, point_amount_chat, point_ammount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid FROM bot_settings LIMIT 1")
+            result = await cursor.fetchone()
+            if result:
+                return {
+                    'point_name': result[0],
+                    'chat_points': int(result[1]),
+                    'follower_points': int(result[2]),
+                    'subscriber_points': int(result[3]),
+                    'cheer_points': int(result[4]),
+                    'raid_points': int(result[5])
+                }
+            else:
+                return None
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
 
 async def known_users():
     sqldb = await get_mysql_connection()
@@ -4481,10 +4601,9 @@ async def known_users():
                         for mod in mod_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (mod, "MOD", "MOD"))
                         await sqldb.commit()
-                    bot_logger.info(f"Added moderators to the database: {mod_list}")
+                    api_logger.info(f"Added moderators to the database: {mod_list}")
                 else:
-                    bot_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
-
+                    api_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
             # Get all the VIPs and put them into the database
             url_vips = f'https://api.twitch.tv/helix/channels/vips?broadcaster_id={CHANNEL_ID}'
             async with session.get(url_vips, headers=headers) as response:
@@ -4496,9 +4615,9 @@ async def known_users():
                         for vip in vip_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "VIP", "VIP"))
                         await sqldb.commit()
-                    bot_logger.info(f"Added VIPs to the database: {vip_list}")
+                    api_logger.info(f"Added VIPs to the database: {vip_list}")
                 else:
-                    bot_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
+                    api_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
     except Exception as e:
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
@@ -4710,6 +4829,26 @@ async def setup_database():
                         PRIMARY KEY (username)
                     ) ENGINE=InnoDB
                 ''',
+                'bot_points': '''
+                    CREATE TABLE IF NOT EXISTS bot_points (
+                        user_id VARCHAR(50),
+                        user_name VARCHAR(50),
+                        points INT DEFAULT 0,
+                        PRIMARY KEY (user_id)
+                    ) ENGINE=InnoDB
+                ''',
+                'bot_settings': '''
+                    CREATE TABLE IF NOT EXISTS bot_settings (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        point_name TEXT,
+                        point_amount_chat VARCHAR(50),
+                        point_ammount_follower VARCHAR(50),
+                        point_amount_subscriber VARCHAR(50),
+                        point_amount_cheer VARCHAR(50),
+                        point_amount_raid VARCHAR(50),
+                        subscriber_multiplier VARCHAR(50)
+                    ) ENGINE=InnoDB
+                ''',
                 'channel_point_rewards': '''
                     CREATE TABLE IF NOT EXISTS channel_point_rewards (
                         reward_id VARCHAR(255),
@@ -4801,21 +4940,22 @@ async def setup_database():
                     if err.errno != errorcode.ER_TABLE_EXISTS_ERROR:
                         bot_logger.error(f"Error creating table {table_name}: {err}")
             await conn.commit()
-            # Insert 'Default' category if not exists
-            await cursor.execute("SELECT COUNT(*) FROM categories WHERE category = 'Default'")
-            result = await cursor.fetchone()
-            if result[0] == 0:
-                await cursor.execute("INSERT INTO categories (category) VALUES ('Default')")
-                await conn.commit()
-            # Insert default options for showobs if not exists
-            await cursor.execute("SELECT COUNT(*) FROM showobs")
-            result = await cursor.fetchone()
-            if result[0] == 0:
-                await cursor.execute('''
-                    INSERT INTO showobs (font, color, list, shadow, bold, font_size)
-                    VALUES ('Arial', 'Black', 'Bullet', 0, 0, 22)
-                ''')
-                await conn.commit()
+            # Ensure 'Default' category exists
+            await cursor.execute("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')")
+            await conn.commit()
+            # Ensure default options for showobs exist
+            await cursor.execute('''
+                INSERT INTO showobs (font, color, list, shadow, bold, font_size)
+                SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22
+                WHERE NOT EXISTS (SELECT 1 FROM showobs)
+            ''')
+            await conn.commit()
+            await cursor.execute('''
+                INSERT INTO bot_settings (point_name, point_amount_chat, point_ammount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier)
+                SELECT 'Points', '10', '300', '500', '350', '250', '2'
+                WHERE NOT EXISTS (SELECT 1 FROM bot_settings)
+            ''')
+            await conn.commit()
     except aiomysql.Error as err:
         bot_logger.error(err)
     finally:
