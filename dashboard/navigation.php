@@ -29,6 +29,7 @@
           <a class="navbar-item" href="../known_users.php">Welcome Messages</a>
           <a class="navbar-item" href="../timed_messages.php">Timed Messages</a>
           <a class="navbar-item" href="../counters.php">Counters</a>
+          <a class="navbar-item" href="../bot_points.php">Point System</a>
           <a class="navbar-item" href="../edit_typos.php">Edit Typos</a>
           <a class="navbar-item" href="../edit_custom_counts.php">Edit Custom Counters</a>
           <a class="navbar-item" href="../builtin.php">View Built-in Commands</a>
