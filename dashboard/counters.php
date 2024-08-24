@@ -121,9 +121,6 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 } else {
     $usernames = [];
 }
-
-// Determine the selected count type from the URL
-$countType = isset($_GET['countType']) ? $_GET['countType'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -145,206 +142,92 @@ $countType = isset($_GET['countType']) ? $_GET['countType'] : '';
     alt='" . htmlspecialchars($twitchDisplayName) . " Profile Image'>"; ?>
   </h1>
   <br>
-  <div class="tabs is-boxed is-centered" id="countTabs">
-    <ul>
-      <li class="<?php echo $countType === 'lurking' ? 'is-active' : ''; ?>"><a href="?countType=lurking">Currently Lurking Users</a></li>
-      <li class="<?php echo $countType === 'typo' ? 'is-active' : ''; ?>"><a href="?countType=typo">Typo Counts</a></li>
-      <li class="<?php echo $countType === 'deaths' ? 'is-active' : ''; ?>"><a href="?countType=deaths">Deaths Overview</a></li>
-      <li class="<?php echo $countType === 'hugs' ? 'is-active' : ''; ?>"><a href="?countType=hugs">Hug Counts</a></li>
-      <li class="<?php echo $countType === 'kisses' ? 'is-active' : ''; ?>"><a href="?countType=kisses">Kiss Counts</a></li>
-      <li class="<?php echo $countType === 'custom' ? 'is-active' : ''; ?>"><a href="?countType=custom">Custom Counts</a></li>
-    </ul>
+
+  <div class="buttons">
+    <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
+    <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
+    <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
+    <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
+    <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
+    <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
   </div>
+
   <div class="content">
-    <div class="tabs-content">
-      <!-- Lurking Users -->
-      <div class="tab-content <?php echo $countType === 'lurking' ? 'is-active' : ''; ?>" id="lurking">
-        <div class="box">
-          <h3 class="title" style="color: white;">Currently Lurking Users</h3>
-          <table class="table is-striped is-fullwidth">
-            <thead>
-              <tr>
-                <th style="color: white;">Username</th>
-                <th style="color: white;">Lurk Duration</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($lurkers as $lurker): 
-                $displayName = $usernames[$lurker['user_id']] ?? $lurker['user_id']; ?>
-              <tr>
-                <td id="<?php echo htmlspecialchars($lurker['user_id']); ?>"><?php echo htmlspecialchars($displayName); ?></td>
-                <td id="lurk_duration"><?php echo htmlspecialchars($lurker['lurk_duration']); ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <!-- Typo Counts -->
-      <div class="tab-content <?php echo $countType === 'typo' ? 'is-active' : ''; ?>" id="typo">
-        <div class="box">
-          <h3 class="title">Typo Counts</h3>
-          <table class="table is-striped is-fullwidth">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Typo Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($typos as $typo): ?>
-              <tr>
-                <td><?php echo htmlspecialchars($typo['username']); ?></td>
-                <td><?php echo htmlspecialchars($typo['typo_count']); ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Deaths Overview -->
-      <div class="tab-content <?php echo $countType === 'deaths' ? 'is-active' : ''; ?>" id="deaths">
-        <div class="box">
-          <h3 class="title">Deaths Overview</h3>
-          <table class="table is-striped is-fullwidth">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Total Deaths</td>
-                <td><?php echo htmlspecialchars($totalDeaths['death_count'] ?? '0'); ?></td>
-              </tr>
-              <?php foreach ($gameDeaths as $gameDeath): ?>
-              <tr>
-                <td><?php echo htmlspecialchars($gameDeath['game_name']); ?></td>
-                <td><?php echo htmlspecialchars($gameDeath['death_count']); ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Hug Counts -->
-      <div class="tab-content <?php echo $countType === 'hugs' ? 'is-active' : ''; ?>" id="hugs">
-        <div class="box">
-          <h3 class="title">Hug Counts</h3>
-          <table class="table is-striped is-fullwidth">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Hug Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Total Hugs</td>
-                <td><?php echo htmlspecialchars($totalHugs['total_hug_count'] ?? '0'); ?></td>
-              </tr>
-              <?php foreach ($hugCounts as $hugCount): ?>
-              <tr>
-                <td><?php echo htmlspecialchars($hugCount['username']); ?></td>
-                <td><?php echo htmlspecialchars($hugCount['hug_count']); ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Kiss Counts -->
-      <div class="tab-content <?php echo $countType === 'kisses' ? 'is-active' : ''; ?>" id="kisses">
-        <div class="box">
-          <h3 class="title">Kiss Counts</h3>
-          <table class="table is-striped is-fullwidth">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Kiss Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Total Kisses</td>
-                <td><?php echo htmlspecialchars($totalKisses['total_kiss_count'] ?? '0'); ?></td>
-              </tr>
-              <?php foreach ($kissCounts as $kissCount): ?>
-              <tr>
-                <td><?php echo htmlspecialchars($kissCount['username']); ?></td>
-                <td><?php echo htmlspecialchars($kissCount['kiss_count']); ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Custom Counts -->
-      <div class="tab-content <?php echo $countType === 'custom' ? 'is-active' : ''; ?>" id="custom">
-        <div class="box">
-          <h3 class="title">Custom Counts</h3>
-          <table class="table is-striped is-fullwidth">
-            <thead>
-              <tr>
-                <th>Command</th>
-                <th>Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($customCounts as $customCount): ?>
-              <tr>
-                <td><?php echo htmlspecialchars($customCount['command']); ?></td>
-                <td><?php echo htmlspecialchars($customCount['count']); ?></td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div class="box">
+      <h3 id="table-title" class="title" style="color: white;">Currently Lurking Users</h3>
+      <table class="table is-striped is-fullwidth">
+        <thead>
+          <tr>
+            <th style="color: white;">Username</th>
+            <th style="color: white;">Detail</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <!-- Content will be dynamically injected here -->
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const tabs = document.querySelectorAll('.tabs li');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    function activateTab(tab) {
-      tabs.forEach(item => item.classList.remove('is-active'));
-      tab.classList.add('is-active');
-      const target = tab.querySelector('a').getAttribute('href').substring(1);
-      tabContents.forEach(content => {
-        content.classList.remove('is-active');
-        if (content.id === target) {
-          content.classList.add('is-active');
-        }
-      });
+  function loadData(type) {
+    let data;
+    let title;
+
+    switch(type) {
+      case 'lurkers':
+        data = <?php echo json_encode($lurkers); ?>;
+        title = 'Currently Lurking Users';
+        break;
+      case 'typos':
+        data = <?php echo json_encode($typos); ?>;
+        title = 'Typo Counts';
+        break;
+      case 'deaths':
+        data = <?php echo json_encode($gameDeaths); ?>;
+        title = 'Deaths Overview';
+        break;
+      case 'hugs':
+        data = <?php echo json_encode($hugCounts); ?>;
+        title = 'Hug Counts';
+        break;
+      case 'kisses':
+        data = <?php echo json_encode($kissCounts); ?>;
+        title = 'Kiss Counts';
+        break;
+      case 'custom':
+        data = <?php echo json_encode($customCounts); ?>;
+        title = 'Custom Counts';
+        break;
     }
 
-    tabs.forEach(tab => {
-      tab.addEventListener('click', (event) => {
-        event.preventDefault();
-        history.pushState(null, '', tab.querySelector('a').getAttribute('href'));
-        activateTab(tab);
-      });
+    let output = '';
+    data.forEach(function(item) {
+      output += `<tr>`;
+      if (type === 'lurkers') {
+        output += `<td>${item.username}</td><td>${item.lurk_duration}</td>`;
+      } else if (type === 'typos') {
+        output += `<td>${item.username}</td><td>${item.typo_count}</td>`;
+      } else if (type === 'deaths') {
+        output += `<td>${item.game_name}</td><td>${item.death_count}</td>`;
+      } else if (type === 'hugs') {
+        output += `<td>${item.username}</td><td>${item.hug_count}</td>`;
+      } else if (type === 'kisses') {
+        output += `<td>${item.username}</td><td>${item.kiss_count}</td>`;
+      } else if (type === 'custom') {
+        output += `<td>${item.command}</td><td>${item.count}</td>`;
+      }
+      output += `</tr>`;
     });
 
-    // Activate the tab based on the URL hash
-    if (window.location.hash) {
-      const hash = window.location.hash.substring(1);
-      const initialTab = document.querySelector(`.tabs li a[href="#${hash}"]`).parentElement;
-      activateTab(initialTab);
-    } else {
-      // Default to the first tab
-      activateTab(tabs[0]);
-    }
+    document.getElementById('table-title').innerText = title;
+    document.getElementById('table-body').innerHTML = output;
+  }
+
+  // Load Lurkers by default on page load
+  document.addEventListener('DOMContentLoaded', function () {
+    loadData('lurkers');
   });
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
