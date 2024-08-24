@@ -94,7 +94,7 @@ $sliderValue = $settings['subscriber_multiplier'] == 0 ? 0 : $settings['subscrib
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
-    <h2 class="subtitle">Edit Bot Points Settings</h2>
+    <h2 class="subtitle">Points System Settings</h2>
     <?php if ($status): ?>
         <div class="notification is-success"><?php echo $status; ?></div>
     <?php endif; ?>
