@@ -81,6 +81,12 @@ $pointsName = htmlspecialchars($settings['point_name']);
 $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
 $pointsStmt->execute();
 $pointsData = $pointsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// If requested via AJAX, return the JSON data
+if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
+    echo json_encode($pointsData);
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -103,6 +109,7 @@ $pointsData = $pointsStmt->fetchAll(PDO::FETCH_ASSOC);
 
     <!-- Points Table -->
     <h2 class="subtitle">User Points</h2>
+    <p id="updateInfo">Data last updated: <span id="secondsAgo">0</span> seconds ago.</p>
     <table class="table is-fullwidth is-striped">
         <thead>
             <tr>
@@ -110,7 +117,7 @@ $pointsData = $pointsStmt->fetchAll(PDO::FETCH_ASSOC);
                 <th>Points</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="pointsTableBody">
             <?php foreach ($pointsData as $row): ?>
                 <tr>
                     <td><?php echo htmlspecialchars($row['user_name']); ?></td>
@@ -201,15 +208,42 @@ $pointsData = $pointsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
+    let secondsAgo = 0;
+
+    // Function to update the table with new data
+    function updatePointsTable() {
+        $.ajax({
+            url: '?action=get_points_data',
+            method: 'GET',
+            success: function(data) {
+                const pointsData = JSON.parse(data);
+                let tableBody = '';
+                pointsData.forEach(function(row) {
+                    tableBody += `<tr><td>${row.user_name}</td><td>${row.points}</td></tr>`;
+                });
+                $('#pointsTableBody').html(tableBody);
+                secondsAgo = 0; // Reset the seconds counter after each update
+            }
+        });
+    }
+
+    // Update the seconds ago counter
+    function updateSecondsAgo() {
+        secondsAgo++;
+        $('#secondsAgo').text(secondsAgo);
+    }
+    // Initial table update
+    updatePointsTable();
+    setInterval(updatePointsTable, 30000); // 30000 ms = 30 seconds
+    setInterval(updateSecondsAgo, 1000); // 1000 ms = 1 second
+
     // Modal Script
     document.getElementById('settingsButton').addEventListener('click', function() {
         document.getElementById('settingsModal').classList.add('is-active');
     });
-
     document.getElementById('closeModal').addEventListener('click', function() {
         document.getElementById('settingsModal').classList.remove('is-active');
     });
-
     document.querySelector('.modal-background').addEventListener('click', function() {
         document.getElementById('settingsModal').classList.remove('is-active');
     });
