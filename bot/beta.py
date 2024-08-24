@@ -956,20 +956,26 @@ class BotOfTheSpecter(commands.Bot):
                 # Retrieve the bot settings to get the chat points amount
                 settings = await get_bot_settings()
                 chat_points = settings['chat_points']
-                # Fetch current points for the user
-                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
-                result = await cursor.fetchone()
-                current_points = result[0] if result else 0
-                # Update the user's points based on chat activity
-                new_points = current_points + chat_points
-                if result:
-                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
-                else:
-                    await cursor.execute(
-                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                        (messageAuthorID, messageAuthor, new_points)
-                    )
-                await sqldb.commit()
+                # Fetch the excluded users from the settings
+                excluded_users = settings['excluded_users'].split(',')
+                # Convert message author to lowercase to check against excluded users
+                author_lower = messageAuthor.lower()
+                # Check if the user is in the excluded users list
+                if author_lower not in excluded_users:
+                    # Fetch current points for the user
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
+                    result = await cursor.fetchone()
+                    current_points = result[0] if result else 0
+                    # Update the user's points based on chat activity
+                    new_points = current_points + chat_points
+                    if result:
+                        await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
+                    else:
+                        await cursor.execute(
+                            "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                            (messageAuthorID, messageAuthor, new_points)
+                        )
+                    await sqldb.commit()
                 # Has the user been seen during this stream
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 temp_seen_users = await cursor.fetchone()
