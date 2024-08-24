@@ -4846,7 +4846,8 @@ async def setup_database():
                         point_amount_subscriber VARCHAR(50),
                         point_amount_cheer VARCHAR(50),
                         point_amount_raid VARCHAR(50),
-                        subscriber_multiplier VARCHAR(50)
+                        subscriber_multiplier VARCHAR(50),
+                        excluded_users TEXT
                     ) ENGINE=InnoDB
                 ''',
                 'channel_point_rewards': '''
