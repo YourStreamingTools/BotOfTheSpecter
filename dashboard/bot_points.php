@@ -40,6 +40,41 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 $status = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $point_name = $_POST['point_name'];
+    $point_amount_chat = $_POST['point_amount_chat'];
+    $point_amount_follower = $_POST['point_amount_follower'];
+    $point_amount_subscriber = $_POST['point_amount_subscriber'];
+    $point_amount_cheer = $_POST['point_amount_cheer'];
+    $point_amount_raid = $_POST['point_amount_raid'];
+    $subscriber_multiplier = $_POST['subscriber_multiplier'];
+
+    $updateStmt = $db->prepare("UPDATE bot_settings SET 
+        point_name = ?, 
+        point_amount_chat = ?, 
+        point_ammount_follower = ?, 
+        point_amount_subscriber = ?, 
+        point_amount_cheer = ?, 
+        point_amount_raid = ?, 
+        subscriber_multiplier = ?
+    WHERE id = 1");
+
+    $updateStmt->execute([
+        $point_name, 
+        $point_amount_chat, 
+        $point_amount_follower, 
+        $point_amount_subscriber, 
+        $point_amount_cheer, 
+        $point_amount_raid, 
+        $subscriber_multiplier
+    ]);
+    $status = "Settings updated successfully!";
+}
+
+$settingsStmt = $db->prepare("SELECT * FROM bot_settings WHERE id = 1");
+$settingsStmt->execute();
+$settings = $settingsStmt->fetch(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,6 +91,27 @@ $status = '';
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
+    <h2>Edit Bot Points Settings</h2>
+    <?php if ($status): ?>
+        <p><?php echo $status; ?></p>
+    <?php endif; ?>
+    <form method="POST" action="">
+        <label for="point_name">Point Name:</label>
+        <input type="text" name="point_name" value="<?php echo htmlspecialchars($settings['point_name']); ?>" required><br>
+        <label for="point_amount_chat">Points for Chat:</label>
+        <input type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required><br>
+        <label for="point_amount_follower">Points for Follower:</label>
+        <input type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_ammount_follower']); ?>" required><br>
+        <label for="point_amount_subscriber">Points for Subscriber:</label>
+        <input type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required><br>
+        <label for="point_amount_cheer">Points for Cheer:</label>
+        <input type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required><br>
+        <label for="point_amount_raid">Points for Raid:</label>
+        <input type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required><br>
+        <label for="subscriber_multiplier">Subscriber Multiplier:</label>
+        <input type="number" name="subscriber_multiplier" value="<?php echo htmlspecialchars($settings['subscriber_multiplier']); ?>" required><br>
+        <button type="submit">Update Settings</button>
+    </form>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
