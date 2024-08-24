@@ -205,6 +205,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                     <div class="control">
                         <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
+                    <p style="color: #ffffff;">By default, both the bot and yourself are excluded.</p>
                 </div>
                 <div class="field">
                     <div class="control">
