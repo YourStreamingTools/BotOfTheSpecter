@@ -49,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $point_amount_cheer = $_POST['point_amount_cheer'];
     $point_amount_raid = $_POST['point_amount_raid'];
     $subscriber_multiplier = $_POST['subscriber_multiplier'];
+    $excluded_users = $_POST['excluded_users'];
 
     $updateStmt = $db->prepare("UPDATE bot_settings SET 
         point_name = ?, 
@@ -57,7 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         point_amount_subscriber = ?, 
         point_amount_cheer = ?, 
         point_amount_raid = ?, 
-        subscriber_multiplier = ?
+        subscriber_multiplier = ?, 
+        excluded_users = ?
     WHERE id = 1");
 
     $updateStmt->execute([
@@ -67,7 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $point_amount_subscriber, 
         $point_amount_cheer, 
         $point_amount_raid, 
-        $subscriber_multiplier
+        $subscriber_multiplier,
+        $excluded_users
     ]);
     $status = "Settings updated successfully!";
 }
@@ -76,6 +79,7 @@ $settingsStmt = $db->prepare("SELECT * FROM bot_settings WHERE id = 1");
 $settingsStmt->execute();
 $settings = $settingsStmt->fetch(PDO::FETCH_ASSOC);
 $pointsName = htmlspecialchars($settings['point_name']);
+$excludedUsers = htmlspecialchars($settings['excluded_users']);
 
 // Fetch users and their points from bot_points table
 $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
@@ -194,6 +198,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                                 <option value="10" <?php echo $settings['subscriber_multiplier'] == 10 ? 'selected' : ''; ?>>10x</option>
                             </select>
                         </div>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label" for="excluded_users" style="color: #ffffff;">Excluded Users (comma-separated)</label>
+                    <div class="control">
+                        <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
