@@ -1,13 +1,14 @@
 <?php
+// Initialize all variables as empty arrays or values
 $commands = [];
 $builtinCommands = [];
 $typos = [];
 $lurkers = [];
 $totalDeaths = [];
 $gameDeaths = [];
-$totalHugs = [];
+$totalHugs = 0;
 $hugCounts = [];
-$totalKisses = [];
+$totalKisses = 0;
 $kissCounts = [];
 $customCounts = [];
 $seenUsersData = [];
