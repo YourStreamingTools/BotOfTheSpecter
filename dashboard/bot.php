@@ -121,8 +121,8 @@ if ($ModStatusOutput) {
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
-    <div class="column  is-5 bot-box" id="bot-status">
-      <h4 class="title is-4">Stable Bot:</h4>
+    <div class="column is-5 bot-box" id="bot-status">
+      <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?><br>
       <div class="buttons">
@@ -139,8 +139,8 @@ if ($ModStatusOutput) {
       </div>
     </div>
     <?php if ($betaAccess) { ?>
-    <div class="column  is-5 bot-box" id="beta-bot-status">
-      <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion; ?>)</h4>
+    <div class="column is-5 bot-box" id="beta-bot-status">
+      <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?><br>
       <div class="buttons">
@@ -158,7 +158,7 @@ if ($ModStatusOutput) {
     </div>
     <?php } ?>
     <?php if ($guild_id && $live_channel_id) { ?>
-    <div class="column  is-5 bot-box" id="discord-bot-status">
+    <div class="column is-5 bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?><br>
       <div class="buttons">
@@ -174,6 +174,7 @@ if ($ModStatusOutput) {
         <br>
       </div>
     </div>
+    <?php } ?>
     <div class="column is-5 bot-box">
       <h4 class="title is-4" style="text-align: center;">Websocket Notices
         <span id="heartbeatIcon" style="margin-left: 10px;">
@@ -193,7 +194,6 @@ if ($ModStatusOutput) {
         </div>
       </div>
     </div>
-    <?php } ?>
   </div>
 </div>
 
