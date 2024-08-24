@@ -16,6 +16,7 @@ $channelPointRewards = [];
 $profileData = [];
 
 try {
+    // Connect to MySQL database
     $db = new PDO("mysql:host=sql.botofthespecter.com;dbname={$username}", "USERNAME", "PASSWORD");
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
@@ -23,7 +24,7 @@ try {
     $getCommands = $db->query("SELECT * FROM custom_commands");
     $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
 
-    // Fetch all builtin commands from the bot DB
+    // Fetch all built-in commands
     $getBuiltinCommands = $db->query("SELECT * FROM builtin_commands");
     $builtinCommands = $getBuiltinCommands->fetchAll(PDO::FETCH_ASSOC);
 
@@ -31,7 +32,7 @@ try {
     $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
     $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
 
-    // Fetch Lurkers
+    // Fetch lurkers
     $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
     $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
 
@@ -59,7 +60,7 @@ try {
     $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
     $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
 
-    // Fetch Custom Counts
+    // Fetch custom counts
     $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
     $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
 
@@ -71,11 +72,11 @@ try {
     $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
     $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get Channel Point Rewards
-    $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY reward_cost ASC");
-    $channelPointRewards = $getChannelPointRewards->fetchall(PDO::FETCH_ASSOC); 
+    // Fetch channel point rewards sorted by cost (low to high)
+    $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
+    $channelPointRewards = $getChannelPointRewards->fetchAll(PDO::FETCH_ASSOC);
 
-    // Fetch profile
+    // Fetch profile data
     $getProfileSettings = $db->query("SELECT * FROM profile");
     $profileData = $getProfileSettings->fetchAll(PDO::FETCH_ASSOC);
 
