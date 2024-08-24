@@ -75,6 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $settingsStmt = $db->prepare("SELECT * FROM bot_settings WHERE id = 1");
 $settingsStmt->execute();
 $settings = $settingsStmt->fetch(PDO::FETCH_ASSOC);
+
+// Convert stored multiplier to slider value (0 to 9)
+$sliderValue = $settings['subscriber_multiplier'] == 0 ? 0 : $settings['subscriber_multiplier'] - 1;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -95,64 +98,82 @@ $settings = $settingsStmt->fetch(PDO::FETCH_ASSOC);
     <?php if ($status): ?>
         <div class="notification is-success"><?php echo $status; ?></div>
     <?php endif; ?>
-    <form method="POST" action="">
-        <div class="field">
-            <label class="label" for="point_name">Point Name</label>
-            <div class="control">
-                <input class="input" type="text" name="point_name" value="<?php echo htmlspecialchars($settings['point_name']); ?>" required>
+    <div class="columns is-desktop is-multiline box-container">
+        <form method="POST" action="">
+            <div class="column is-5 bot-box">
+                <div class="field">
+                    <label class="label" for="point_name">Point Name</label>
+                    <div class="control">
+                        <input class="input" type="text" name="point_name" value="<?php echo htmlspecialchars($settings['point_name']); ?>" required>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="field">
-            <label class="label" for="point_amount_chat">Points for Chat</label>
-            <div class="control">
-                <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required>
+            <div class="column is-5 bot-box">
+                <div class="field">
+                    <label class="label" for="point_amount_chat">Points for Chat</label>
+                    <div class="control">
+                        <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="field">
-            <label class="label" for="point_amount_follower">Points for Follower</label>
-            <div class="control">
-                <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_ammount_follower']); ?>" required>
+            <div class="column is-5 bot-box">
+                <div class="field">
+                    <label class="label" for="point_amount_follower">Points for Follower</label>
+                    <div class="control">
+                        <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_ammount_follower']); ?>" required>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="field">
-            <label class="label" for="point_amount_subscriber">Points for Subscriber</label>
-            <div class="control">
-                <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required>
+            <div class="column is-5 bot-box">
+                <div class="field">
+                    <label class="label" for="point_amount_subscriber">Points for Subscriber</label>
+                    <div class="control">
+                        <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="field">
-            <label class="label" for="point_amount_cheer">Points for Cheer</label>
-            <div class="control">
-                <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required>
+            <div class="column is-5 bot-box">
+                <div class="field">
+                    <label class="label" for="point_amount_cheer">Points for Cheer</label>
+                    <div class="control">
+                        <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="field">
-            <label class="label" for="point_amount_raid">Points for Raid</label>
-            <div class="control">
-                <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required>
+            <div class="column is-5 bot-box">
+                <div class="field">
+                    <label class="label" for="point_amount_raid">Points for Raid</label>
+                    <div class="control">
+                        <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="field">
-            <label class="label" for="subscriber_multiplier">Subscriber Multiplier</label>
-            <div class="control">
-                <input class="input" type="number" name="subscriber_multiplier" value="<?php echo htmlspecialchars($settings['subscriber_multiplier']); ?>" required>
+            <div class="column is-5 bot-box">
+                <div class="field">
+                    <label class="label" for="subscriber_multiplier">Subscriber Multiplier</label>
+                    <div class="control" style="display: flex; align-items: center; gap: 10px;">
+                        <input class="slider is-fullwidth" type="range" name="subscriber_multiplier" min="0" max="9" value="<?php echo $sliderValue; ?>" step="1" style="height: 2.5em; width: 100%;" oninput="updateMultiplierLabel(this.value)">
+                        <output id="multiplierLabel" style="font-size: 1.25em;"><?php echo ($settings['subscriber_multiplier'] == 0) ? '0' : $settings['subscriber_multiplier'] . 'x'; ?></output>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="field">
-            <div class="control">
-                <button class="button is-primary" type="submit">Update Settings</button>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Update Settings</button>
+                </div>
             </div>
-        </div>
-    </form>
+        </form>
+    </div>
 </div>
 
+<script>
+    function updateMultiplierLabel(value) {
+        const label = document.getElementById('multiplierLabel');
+        const multiplier = value == 0 ? 0 : parseInt(value) + 1;
+        label.textContent = multiplier == 0 ? '0' : multiplier + 'x';
+        document.querySelector("input[name='subscriber_multiplier']").value = multiplier;
+    }
+</script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
 </html>
