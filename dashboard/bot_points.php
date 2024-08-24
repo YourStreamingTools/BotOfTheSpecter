@@ -105,6 +105,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
     <br>
 
     <!-- Settings Button -->
+    <?php if ($status): ?>
+        <div class="notification is-success" style="background-color: #4CAF50; color: #ffffff;"><?php echo $status; ?></div>
+    <?php endif; ?>
     <button class="button is-primary" id="settingsButton">Settings</button>
 
     <!-- Points Table -->
@@ -131,57 +134,54 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
 <!-- Modal -->
 <div class="modal" id="settingsModal">
     <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head">
-            <p class="modal-card-title">Points System Settings</p>
-            <button class="delete" aria-label="close" id="closeModal"></button>
+    <div class="modal-card" style="background-color: #2b2b2b;">
+        <header class="modal-card-head" style="background-color: #1a1a1a; color: #ffffff;">
+            <p class="modal-card-title" style="color: #ffffff;">Points System Settings</p>
+            <button class="delete" aria-label="close" id="closeModal" style="color: #ffffff;"></button>
         </header>
-        <section class="modal-card-body">
-            <?php if ($status): ?>
-                <div class="notification is-success"><?php echo $status; ?></div>
-            <?php endif; ?>
+        <section class="modal-card-body" style="background-color: #2b2b2b; color: #ffffff;">
             <form method="POST" action="">
                 <div class="field">
-                    <label class="label" for="point_name">Points Name</label>
+                    <label class="label" for="point_name" style="color: #ffffff;">Points Name</label>
                     <div class="control">
-                        <input class="input" type="text" name="point_name" value="<?php echo $pointsName; ?>" required>
+                        <input class="input" type="text" name="point_name" value="<?php echo $pointsName; ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_chat"><?php echo $pointsName; ?> Earned per Chat Message</label>
+                    <label class="label" for="point_amount_chat" style="color: #ffffff;"><?php echo $pointsName; ?> Earned per Chat Message</label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required>
+                        <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_follower"><?php echo $pointsName; ?> Earned for Following</label>
+                    <label class="label" for="point_amount_follower" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Following</label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_ammount_follower']); ?>" required>
+                        <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_ammount_follower']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_subscriber"><?php echo $pointsName; ?> Earned for Subscribing</label>
+                    <label class="label" for="point_amount_subscriber" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Subscribing</label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required>
+                        <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_cheer"><?php echo $pointsName; ?> Earned Per Cheer</label>
+                    <label class="label" for="point_amount_cheer" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Cheer</label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required>
+                        <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_raid"><?php echo $pointsName; ?> Earned Per Raid</label>
+                    <label class="label" for="point_amount_raid" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Raid</label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required>
+                        <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="subscriber_multiplier">Subscriber Multiplier</label>
+                    <label class="label" for="subscriber_multiplier" style="color: #ffffff;">Subscriber Multiplier</label>
                     <div class="control">
-                        <div class="select is-fullwidth">
-                            <select name="subscriber_multiplier">
+                        <div class="select is-fullwidth" style="background-color: #3a3a3a; color: #ffffff; border: none;">
+                            <select name="subscriber_multiplier" style="background-color: #3a3a3a; color: #ffffff; border: none;">
                                 <option value="0" <?php echo $settings['subscriber_multiplier'] == 0 ? 'selected' : ''; ?>>None</option>
                                 <option value="2" <?php echo $settings['subscriber_multiplier'] == 2 ? 'selected' : ''; ?>>2x</option>
                                 <option value="3" <?php echo $settings['subscriber_multiplier'] == 3 ? 'selected' : ''; ?>>3x</option>
