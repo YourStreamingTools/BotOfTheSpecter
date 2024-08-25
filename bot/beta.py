@@ -935,7 +935,7 @@ class BotOfTheSpecter(commands.Bot):
         if messageAuthor is None:
             #chat_logger.error("messageAuthor is None")
             return
-        if messageAuthor is bannedUser:
+        if messageAuthor == bannedUser:
             return
         sqldb = await get_mysql_connection()
         channel = message.channel
