@@ -13,7 +13,7 @@ import ipaddress
 class BotOfTheSpecterWebsocketServer:
     def __init__(self, logger):
         # Set up Google Cloud credentials
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/var/www/websocket/service-account-file.json"
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/home/websocket/service-account-file.json"
         
         # Initialize the WebSocket server.
         self.logger = logger
@@ -369,7 +369,7 @@ class BotOfTheSpecterWebsocketServer:
     def create_ssl_context(self):
         # Create the SSL context for secure connections.
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(certfile='/etc/letsencrypt/live/botofthespecter.com-0001/fullchain.pem', keyfile='/etc/letsencrypt/live/botofthespecter.com-0001/privkey.pem')
+        ssl_context.load_cert_chain(certfile='/home/websocket/ssl/fullchain.pem', keyfile='/home/websocket/ssl/privkey.pem')
         return ssl_context
 
     @staticmethod
@@ -396,7 +396,7 @@ if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
     parser = argparse.ArgumentParser(prog='BotOfTheSpecter Websocket Server', description='A WebSocket server for handling notifications and real-time communication between the website and the bot itself.')
     parser.add_argument("-H", "--host", default="0.0.0.0", help="Specify the listener host. Default is 0.0.0.0")
-    parser.add_argument("-p", "--port", default=8080, type=int, help="Specify the listener port number. Default is 8080")
+    parser.add_argument("-p", "--port", default=443, type=int, help="Specify the listener port number. Default is 443")
     parser.add_argument("-l", "--loglevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Specify the log level. INFO is the default.")
     parser.add_argument("-f", "--logfile", help="Specify log file location. Production location should be <WEBROOT>/log/noti_server.log")
     args = parser.parse_args()
