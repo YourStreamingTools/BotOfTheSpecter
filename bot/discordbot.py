@@ -132,7 +132,7 @@ async def websocket_notice(event, member=None, api_token=None, logger=None):
         }
         # URL-encode the parameters
         encoded_params = urlencode(params)
-        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
         logger.info(f"Sending HTTP event '{event}' with URL: {url}")
         async with session.get(url) as response:
             if response.status == 200:
@@ -291,7 +291,7 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
 
     async def start_websocket(self):
         try:
-            await self.sio.connect('wss://websocket.botofthespecter.com:8080')
+            await self.sio.connect('wss://websocket.botofthespecter.com')
             await self.sio.wait()
         except Exception as e:
             self.logger.error(f"WebSocket connection error: {e}")
