@@ -7,7 +7,7 @@
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const socket = io('wss://websocket.botofthespecter.com:8080');
+            const socket = io('wss://websocket.botofthespecter.com');
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
