@@ -29,7 +29,7 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const socket = io('wss://websocket.botofthespecter.com:8080');
+            const socket = io('wss://websocket.botofthespecter.com');
             const apiKey = ''; // CHANGE TO MAKE THIS WORK
             const timezone = <?php echo json_encode($timezone); ?>;
             const urlParams = new URLSearchParams(window.location.search);
