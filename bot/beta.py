@@ -4317,7 +4317,7 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             return
         # URL-encode the parameters
         encoded_params = urlencode(params)
-        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
         # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
         # Send the HTTP request
         async with session.get(url) as response:
@@ -4341,7 +4341,7 @@ async def websocket_notice_tts(event, text=None):
             return
         # URL-encode the parameters
         encoded_params = urlencode(params)
-        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
         # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
         # Send the HTTP request
         async with session.get(url) as response:
