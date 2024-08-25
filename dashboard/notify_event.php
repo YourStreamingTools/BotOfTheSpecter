@@ -25,7 +25,7 @@ try {
         $ch = curl_init();
 
         // Set the URL
-        $url = "https://websocket.botofthespecter.com:8080/notify?code=$api_key&event=$event";
+        $url = "https://websocket.botofthespecter.com/notify?code=$api_key&event=$event";
         curl_setopt($ch, CURLOPT_URL, $url);
 
         // Return the transfer as a string
