@@ -39,7 +39,7 @@
                 discordOverlay.classList.add('show');
                 discordOverlay.style.display = 'block';
 
-                // Display for 10 seconds
+                // Display for 5 seconds
                 setTimeout(() => {
                     discordOverlay.classList.remove('show');
                     discordOverlay.classList.add('hide');
