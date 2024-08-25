@@ -11,21 +11,23 @@ import json
 import time
 import random
 import base64
+from urllib.parse import urlencode
 
 # Third-party imports
 import aiohttp
 from aiohttp import ClientSession
-import requests
+import socketio
 import aiomysql
 from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
-from twitchio.ext import commands
+from twitchio.ext import commands as commands
 import streamlink
 import pytz
+from geopy.geocoders import Nominatim
 from jokeapi import Jokes
-import openai
 import uuid
 import websockets
+from pint import UnitRegistry
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -47,7 +49,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.5.2"
+VERSION = "4.6"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -58,15 +60,15 @@ TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
-OPENAI_KEY = os.getenv('OPENAI_KEY')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "kill", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
 # Logs
 webroot = "/var/www/"
 logs_directory = os.path.join(webroot, "logs")
-log_types = ["bot", "chat", "twitch", "api", "chat_history"]
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log"]
 
 # Ensure directories exist
 for log_type in log_types:
@@ -93,15 +95,16 @@ for log_type in log_types:
 # Access individual loggers
 bot_logger = loggers['bot']
 chat_logger = loggers['chat']
-chat_history_logger = loggers['chat_history']
 twitch_logger = loggers['twitch']
 api_logger = loggers['api']
+chat_history_logger = loggers['chat_history']
+event_logger = loggers['event_log']
 
 # Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
 translator = GoogleTranslator
-shoutout_queue = asyncio.Queue()
 scheduled_tasks = asyncio.Queue()
-openai.api_key = OPENAI_KEY
+sio = socketio.AsyncClient()
+ureg = UnitRegistry()
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
@@ -110,28 +113,32 @@ last_poll_progress_update = 0
 global stream_online
 global current_game
 global stream_title
-global botstarted
-botstarted = datetime.now()
+global bot_started
+bot_started = datetime.now()
 stream_online = False
 current_game = None
 
+# Spam Messages
+spam_pattern = [
+    re.compile(r'cheap viewers on', re.IGNORECASE),
+    re.compile(r'best viewers on', re.IGNORECASE),
+    re.compile(r'ch̍eap viewers on', re.IGNORECASE),
+    re.compile(r'B͟est Viewers on', re.IGNORECASE),
+]
+
 # Setup Token Refresh
-async def refresh_token_every_day():
+async def token_refresh():
     global REFRESH_TOKEN
     # Initial sleep for 5 minutes before first token refresh
     initial_sleep_time = 300  # 5 minutes
     await asyncio.sleep(initial_sleep_time)
-
     # Perform the first token refresh after the initial sleep
     REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
-    
     # Calculate the next refresh time to be 4 hours minus 5 minutes from now
     next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes for refresh
-
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
-
         if current_time >= next_refresh_time:
             REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
         else:
@@ -141,7 +148,6 @@ async def refresh_token_every_day():
                 sleep_time = 300  # Check again in 5 minutes
             else:
                 sleep_time = 60  # Check every minute when close to expiration
-            
             # Log only when the check frequency changes or is about to refresh
             twitch_logger.info(f"Next token check in {sleep_time // 60} minutes. Token is still valid for {time_until_expiration // 60} minutes and {time_until_expiration % 60} seconds.")
             await asyncio.sleep(sleep_time)  # Wait before checking again, based on the time until expiration
@@ -164,17 +170,13 @@ async def refresh_token(current_refresh_token):
                     if new_access_token:
                         # Token refreshed successfully
                         new_refresh_token = response_json.get('refresh_token', current_refresh_token)
-
                         # Update the global variables with the new tokens
                         CHANNEL_AUTH = new_access_token
                         REFRESH_TOKEN = new_refresh_token
-
                         # Calculate the next refresh time to be 5 minutes before the 4-hour mark
                         next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes, so we refresh before actual expiration
-
                         log_message = "Refreshed token. New Access Token: {}, New Refresh Token: {}".format(new_access_token, new_refresh_token)
                         twitch_logger.info(log_message)
-
                         return new_refresh_token, next_refresh_time
                     else:
                         twitch_logger.error("Token refresh failed: 'access_token' not found in response")
@@ -195,26 +197,21 @@ async def twitch_eventsub():
                 # Receive and parse the welcome message
                 eventsub_welcome_message = await twitch_websocket.recv()
                 eventsub_welcome_data = json.loads(eventsub_welcome_message)
-
                 # Validate the message type
                 if eventsub_welcome_data.get('metadata', {}).get('message_type') == 'session_welcome':
                     session_id = eventsub_welcome_data['payload']['session']['id']
                     keepalive_timeout = eventsub_welcome_data['payload']['session']['keepalive_timeout_seconds']
-
-                    bot_logger.info(f"Connected with session ID: {session_id}")
-                    bot_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
-
+                    event_logger.info(f"Connected with session ID: {session_id}")
+                    event_logger.info(f"Keepalive timeout: {keepalive_timeout} seconds")
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
-
                     # Manage keepalive and listen for messages concurrently
                     await asyncio.gather(receive_messages(twitch_websocket, keepalive_timeout))
-
         except websockets.ConnectionClosedError as e:
-            bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
+            event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
             await asyncio.sleep(10)  # Wait before retrying
         except Exception as e:
-            bot_logger.error(f"An unexpected error occurred: {e}")
+            event_logger.error(f"An unexpected error occurred: {e}")
             await asyncio.sleep(10)  # Wait before reconnecting
 
 async def subscribe_to_events(session_id):
@@ -224,7 +221,6 @@ async def subscribe_to_events(session_id):
         "Client-Id": CLIENT_ID,
         "Content-Type": "application/json"
     }
-
     v1topics = [
         "channel.moderate",
         "stream.online",
@@ -244,7 +240,6 @@ async def subscribe_to_events(session_id):
         "channel.poll.progress",
         "channel.poll.end"
     ]
-
     v2topics = [
         "channel.follow",
         "channel.update",
@@ -280,7 +275,7 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    bot_logger.info(f"WebSocket subscription successful for {v1topic}")
+                    event_logger.info(f"WebSocket subscription successful for {v1topic}")
                     responses.append(await response.json())
 
     async with aiohttp.ClientSession() as session:
@@ -313,7 +308,7 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    bot_logger.info(f"WebSocket subscription successful for {v2topic}")
+                    event_logger.info(f"WebSocket subscription successful for {v2topic}")
                     responses.append(await response.json())
 
 async def receive_messages(twitch_websocket, keepalive_timeout):
@@ -321,30 +316,29 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
         try:
             message = await asyncio.wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
             message_data = json.loads(message)
-            # bot_logger.info(f"Received message: {message}")
-
+            # event_logger.info(f"Received message: {message}")
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
-                    bot_logger.info("Received session keepalive message")
+                    event_logger.info("Received session keepalive message")
                 else:
-                    # bot_logger.info(f"Received message type: {message_type}")
-                    bot_logger.info(f"Info from Twitch EventSub: {message_data}")
+                    # event_logger.info(f"Received message type: {message_type}")
+                    event_logger.info(f"Info from Twitch EventSub: {message_data}")
                     await process_eventsub_message(message_data)
             else:
-                bot_logger.error("Received unrecognized message format")
+                event_logger.error("Received unrecognized message format")
 
         except asyncio.TimeoutError:
-            bot_logger.error("Keepalive timeout exceeded, reconnecting...")
+            event_logger.error("Keepalive timeout exceeded, reconnecting...")
             await twitch_websocket.close()
             break  # Exit the loop to allow reconnection logic
 
         except websockets.ConnectionClosedError as e:
-            bot_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
+            event_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
             break  # Exit the loop for reconnection
 
         except Exception as e:
-            bot_logger.error(f"Error receiving message: {e}")
+            event_logger.error(f"Error receiving message: {e}")
             break  # Exit the loop on critical error
 
 async def connect_to_tipping_services():
@@ -354,22 +348,19 @@ async def connect_to_tipping_services():
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT StreamElements, StreamLabs FROM tipping_settings LIMIT 1")
             result = await cursor.fetchone()
-
             streamelements_token = result['StreamElements']
             streamlabs_token = result['StreamLabs']
-
             tasks = []
             if streamelements_token:
                 tasks.append(connect_to_streamelements())
             if streamlabs_token:
                 tasks.append(connect_to_streamlabs())
-
             if tasks:
                 await asyncio.gather(*tasks)
             else:
-                bot_logger.error("No valid token found for either StreamElements or StreamLabs.")
+                event_logger.error("No valid token found for either StreamElements or StreamLabs.")
     except aiomysql.MySQLError as err:
-        bot_logger.error(f"Database error: {err}")
+        event_logger.error(f"Database error: {err}")
     finally:
         await sqldb.ensure_closed()
 
@@ -380,24 +371,26 @@ async def connect_to_streamelements():
         async with websockets.connect(uri) as streamelements_websocket:
             # Send the authentication message
             nonce = str(uuid.uuid4())
-            await streamelements_websocket.send(json.dumps({
+            auth_message = {
                 'type': 'subscribe',
                 'nonce': nonce,
                 'data': {
-                    'topic': 'channel.tip',
+                    'topic': 'channel.activities',
                     'token': streamelements_token,
                     'token_type': 'jwt'
                 }
-            }))
+            }
+            await streamelements_websocket.send(json.dumps(auth_message))
+            event_logger.info(f"Sent auth message: {auth_message}")
             
             # Listen for messages
             while True:
                 message = await streamelements_websocket.recv()
                 await process_message(message, "StreamElements")
     except websockets.ConnectionClosed as e:
-        bot_logger.error(f"StreamElements WebSocket connection closed: {e}")
+        event_logger.error(f"StreamElements WebSocket connection closed: {e}")
     except Exception as e:
-        bot_logger.error(f"StreamElements WebSocket error: {e}")
+        event_logger.error(f"StreamElements WebSocket error: {e}")
 
 async def connect_to_streamlabs():
     global streamlabs_token
@@ -409,9 +402,9 @@ async def connect_to_streamlabs():
                 message = await streamlabs_websocket.recv()
                 await process_message(message, "StreamLabs")
     except websockets.ConnectionClosed as e:
-        bot_logger.error(f"StreamLabs WebSocket connection closed: {e}")
+        event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
     except Exception as e:
-        bot_logger.error(f"StreamLabs WebSocket error: {e}")
+        event_logger.error(f"StreamLabs WebSocket error: {e}")
 
 async def process_message(message, source):
     try:
@@ -421,11 +414,11 @@ async def process_message(message, source):
             if 'error' in data:
                 handle_streamelements_error(data['error'], data['data']['message'])
             else:
-                bot_logger.info(f"StreamElements subscription success: {data['data']['message']}")
+                event_logger.info(f"StreamElements subscription success: {data['data']['message']}")
         else:
             await process_tipping_message(data, source)
     except Exception as e:
-        bot_logger.error(f"Error processing message from {source}: {e}")
+        event_logger.error(f"Error processing message from {source}: {e}")
 
 def handle_streamelements_error(error, message):
     error_messages = {
@@ -436,7 +429,7 @@ def handle_streamelements_error(error, message):
         "invalid_message": "The message was invalid or could not be processed."
     }
     error_message = error_messages.get(error, "Unknown error occurred.")
-    bot_logger.error(f"StreamElements error: {error_message} - {message}")
+    event_logger.error(f"StreamElements error: {error_message} - {message}")
 
 async def process_tipping_message(data, source):
     try:
@@ -467,11 +460,11 @@ async def process_tipping_message(data, source):
                     )
                     await sqldb.commit()
             except aiomysql.MySQLError as err:
-                bot_logger.error(f"Database error: {err}")
+                event_logger.error(f"Database error: {err}")
             finally:
                 await sqldb.ensure_closed()
     except Exception as e:
-        bot_logger.error(f"Error processing tipping message: {e}")
+        event_logger.error(f"Error processing tipping message: {e}")
 
 async def process_eventsub_message(message):
     channel = bot.get_channel(CHANNEL_NAME)
@@ -502,7 +495,7 @@ async def process_eventsub_message(message):
                         event_data.get("cumulative_months", 1)
                     )
                 elif event_type == "channel.subscription.message":
-                    bot_logger.info(f"Subscription (Message) Event Data: {event_data}")
+                    event_logger.info(f"Subscription (Message) Event Data: {event_data}")
                     tier_mapping = {
                         "1000": "Tier 1",
                         "2000": "Tier 2",
@@ -540,18 +533,17 @@ async def process_eventsub_message(message):
                         event_data["bits"]
                     )
                 elif event_type == "channel.raid":
-                    bot_logger.info(f"Raid Event Data: {event_data}")
                     await process_raid_event(
                         event_data["from_broadcaster_user_id"],
                         event_data["from_broadcaster_user_name"],
                         event_data["viewers"]
                     )
                 elif event_type == "channel.hype_train.begin":
-                    bot_logger.info(f"Hype Train Start Event Data: {event_data}")
+                    event_logger.info(f"Hype Train Start Event Data: {event_data}")
                     level = event_data["level"]
                     await channel.send(f"The Hype Train has started! Starting at level: {level}")
                 elif event_type == "channel.hype_train.end":
-                    bot_logger.info(f"Hype Train End Event Data: {event_data}")
+                    event_logger.info(f"Hype Train End Event Data: {event_data}")
                     level = event_data["level"]
                     top_contributions = event_data.get("top_contributions", [])
                     message = f"The Hype Train has ended at level {level}! Top contributions:"
@@ -569,7 +561,7 @@ async def process_eventsub_message(message):
                     category_name = event_data["category_name"]
                     stream_title = title
                     current_game = category_name
-                    bot_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
+                    event_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 elif event_type == 'channel.ad_break.begin':
                     duration_seconds = event_data["duration_seconds"]
                     asyncio.create_task(handle_ad_break(duration_seconds))
@@ -612,45 +604,29 @@ async def process_eventsub_message(message):
                         discord_title = "New Unban!"
                         discord_image = "ban.png"
                     await send_to_discord_mod(discord_message, discord_title, discord_image)
-                elif event_type in ["channel.channel_points_automatic_reward_redemption.add", "channel.channel_points_custom_reward_redemption.add"]:
-                    if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                        bot_logger.info(f"Channel Point Automatic Reward Event Data: {event_data}")
-                        reward_id = event_data.get("id")
-                        reward_title = event_data["reward"].get("type")
-                        reward_cost = event_data["reward"].get("cost")
-                        await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                elif event_type in [
+                    "channel.channel_points_automatic_reward_redemption.add", 
+                    "channel.channel_points_custom_reward_redemption.add"
+                    ]:
+                    try:
+                        if event_type == "channel.channel_points_automatic_reward_redemption.add":
+                            reward_id = event_data.get("id")
+                            reward_title = event_data["reward"].get("type")
+                        elif event_type == "channel.channel_points_custom_reward_redemption.add":
+                            reward_id = event_data["reward"].get("id")
+                            reward_title = event_data["reward"].get("title")
+                            if "tts" in reward_title.lower():
+                                tts_message = event_data["user_input"]
+                                await websocket_notice_tts(event="TTS", text=tts_message)
+                                event_logger.info(f"TTS message sent: {tts_message}")
+                                return
+                        await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
                         result = await cursor.fetchone()
-                        if result is not None and len(result) == 2:
-                            if result[0] == 0:
-                                await cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
-                            else:
-                                existing_custom_message = result[1]
-                                if existing_custom_message:
-                                    message = existing_custom_message
-                                    await channel.send(message)
-                                else:
-                                    pass
-                        else:
-                            bot_logger.error("Error: Unexpected result from database query.")
-                    elif event_type == "channel.channel_points_custom_reward_redemption.add":
-                        bot_logger.info(f"Channel Point Custom Reward Event Data: {event_data}")
-                        reward_id = event_data["reward"].get("id")
-                        reward_title = event_data["reward"].get("title")
-                        reward_cost = event_data["reward"].get("cost")
-                        await cursor.execute("SELECT COUNT(*), custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                        result = await cursor.fetchone()
-                        if result is not None and len(result) == 2:
-                            if result[0] == 0:
-                                await cursor.execute("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost))
-                            else:
-                                existing_custom_message = result[1]
-                                if existing_custom_message:
-                                    message = existing_custom_message
-                                    await channel.send(message)
-                                else:
-                                    pass
-                        else:
-                            bot_logger.error("Error: Unexpected result from database query.")
+                        if result and result[0]:
+                            custom_message = result[0]
+                            await channel.send(custom_message)
+                    except Exception as e:
+                        event_logger.error(f"An error occurred while processing the reward: {str(e)}")
                 elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
@@ -680,11 +656,11 @@ async def process_eventsub_message(message):
                             is_minutes = False
                         if seconds > 0:
                             if is_minutes is not False:
-                                message += f" and {int(seconds)} seconds."
+                                message += f" and {int(seconds)} seconds. "
                             else:
-                                message += f"Poll ending in {int(seconds)} seconds."
+                                message += f"Poll ending in {int(seconds)} seconds. "
                         else:
-                            message += "."
+                            message += ". "
                         await channel.send(message)
                     elif event_type == "channel.poll.progress":
                         current_time = time.time()
@@ -755,9 +731,8 @@ async def process_eventsub_message(message):
                 # Logging for unknown event types
                 else:
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
-
     except Exception as e:
-        bot_logger.error(f"Error processing EventSub message: {e}")
+        event_logger.error(f"Error processing EventSub message: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -776,8 +751,11 @@ class BotOfTheSpecter(commands.Bot):
         await group_creation()
         await builtin_commands_creation()
         await known_users()
+        await channel_point_rewards()
         asyncio.get_event_loop().create_task(twitch_eventsub())
+        asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
+        asyncio.get_event_loop().create_task(midnight(channel))
         await channel.send(f"/me is connected and ready! Running V{VERSION}")
 
     # Function to check all messages and push out a custom command.
@@ -789,47 +767,44 @@ class BotOfTheSpecter(commands.Bot):
             messageAuthorID = None
             messageContent = None
             AuthorMessage = None
+            bannedUser = None
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
                     return
-
                 # Log the message content
                 chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-
                 # Check for a valid author before proceeding
                 if message.author is None:
                     bot_logger.error("Received a message without a valid author.")
                     return
-
                 # Handle commands
                 await self.handle_commands(message)
-
                 messageContent = message.content.strip().lower() if message.content else ""
                 messageAuthor = message.author.name if message.author else ""
                 messageAuthorID = message.author.id if message.author else ""
                 AuthorMessage = message.content if message.content else ""
-
+                # Check if the message matches the spam pattern
+                for pattern in spam_pattern:
+                    if pattern.search(messageContent):
+                        bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                        await ban_user(messageAuthor, messageAuthorID)
+                        bannedUser = messageAuthor
+                        return
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
                     command = command_parts[0][1:]  # Extract the command without '!'
-
-                    # Log all command usage
-                    chat_logger.info(f"{messageAuthor} used the command: {command}")
-
                     if command in builtin_commands or command in builtin_aliases:
                         chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                         return  # It's a built-in command or alias, do nothing more
-
                     # Check if the command exists in a hypothetical database and respond
                     await cursor.execute('SELECT response, status FROM custom_commands WHERE command = %s', (command,))
                     result = await cursor.fetchone()
                     if result:
                         if result[1] == 'Enabled':
                             response = result[0]
-                            switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', '(command.']
+                            switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', '(command.', '(call.']
                             responses_to_send = []
-
                             while any(switch in response for switch in switches):
                                 if '(customapi.' in response:
                                     url_match = re.search(r'\(customapi\.(\S+)\)', response)
@@ -837,7 +812,6 @@ class BotOfTheSpecter(commands.Bot):
                                         url = url_match.group(1)
                                         api_response = fetch_api_response(url)
                                         response = response.replace(f"(customapi.{url})", api_response)
-
                                 if '(count)' in response:
                                     try:
                                         await update_custom_count(command)
@@ -845,7 +819,6 @@ class BotOfTheSpecter(commands.Bot):
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
-
                                 if '(daysuntil.' in response:
                                     get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
                                     if get_date:
@@ -854,7 +827,6 @@ class BotOfTheSpecter(commands.Bot):
                                         current_date = datetime.now().date()
                                         days_left = (event_date - current_date).days
                                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
-
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
                                     if user_mention:
@@ -863,11 +835,9 @@ class BotOfTheSpecter(commands.Bot):
                                         # Default to message author's name
                                         user_name = messageAuthor
                                     response = response.replace('(user)', user_name)
-
                                 if '(author)' in response:
                                     user_name = messageAuthor
                                     response = response.replace('(author)', user_name)
-
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
                                     if command_match:
@@ -880,7 +850,13 @@ class BotOfTheSpecter(commands.Bot):
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
                                             await channel.send(f"The command {sub_command} is no longer available.")
-
+                                if '(call.' in response:
+                                    calling_match = re.search(r'\(call\.(\w+)\)', response)
+                                    if calling_match:
+                                        match_call = calling_match.group(1)
+                                        await self.call_command(match_call, message)
+                                    else:
+                                        pass
                             # Send the individual responses
                             if len(responses_to_send) > 1:
                                 for resp in responses_to_send:
@@ -892,7 +868,6 @@ class BotOfTheSpecter(commands.Bot):
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
                         chat_logger.info(f"{command} not found in the database.")
-
                 # Handle AI responses
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
@@ -900,7 +875,6 @@ class BotOfTheSpecter(commands.Bot):
                         await channel.send(f'Hello, {message.author.name}!')
                     else:
                         await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
-
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
@@ -910,7 +884,6 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         # If url_blocking not found in the database, default to False
                         url_blocking = False
-
                     # Check if url_blocking is enabled
                     if url_blocking:
                         # Check if the user is permitted to post links
@@ -920,7 +893,6 @@ class BotOfTheSpecter(commands.Bot):
                         if command_permissions(messageAuthor):
                             # User is a mod or is the broadcaster, they are by default permitted.
                             return
-
                         # Fetch link whitelist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
                         whitelisted_links = await cursor.fetchall()
@@ -928,7 +900,6 @@ class BotOfTheSpecter(commands.Bot):
                         await cursor.execute('SELECT link FROM link_blacklisting')
                         blacklisted_links = await cursor.fetchall()
                         blacklisted_links = [link[0] for link in blacklisted_links]
-
                         # Check if the message content contains any whitelisted or blacklisted link
                         contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
                         contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
@@ -958,11 +929,13 @@ class BotOfTheSpecter(commands.Bot):
             finally:
                 await cursor.close()
                 await sqldb.ensure_closed()
-                await self.message_counting(messageAuthor, messageAuthorID, message)
+                await self.message_counting(messageAuthor, messageAuthorID, bannedUser, message)
 
-    async def message_counting(self, messageAuthor, messageAuthorID, message):
+    async def message_counting(self, messageAuthor, messageAuthorID, bannedUser, message):
         if messageAuthor is None:
             #chat_logger.error("messageAuthor is None")
+            return
+        if messageAuthor == bannedUser:
             return
         sqldb = await get_mysql_connection()
         channel = message.channel
@@ -973,7 +946,6 @@ class BotOfTheSpecter(commands.Bot):
                 is_mod = await is_user_mod(messageAuthor)
                 is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
                 user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
-
                 # Insert into the database the number of chats during the stream
                 await cursor.execute(
                     'INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) '
@@ -981,19 +953,38 @@ class BotOfTheSpecter(commands.Bot):
                     (messageAuthor, user_level, user_level)
                 )
                 await sqldb.commit()
-
+                # Retrieve the bot settings to get the chat points amount
+                settings = await get_bot_settings()
+                chat_points = settings['chat_points']
+                # Fetch the excluded users from the settings
+                excluded_users = settings['excluded_users'].split(',')
+                # Convert message author to lowercase to check against excluded users
+                author_lower = messageAuthor.lower()
+                # Check if the user is in the excluded users list
+                if author_lower not in excluded_users:
+                    # Fetch current points for the user
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
+                    result = await cursor.fetchone()
+                    current_points = result[0] if result else 0
+                    # Update the user's points based on chat activity
+                    new_points = current_points + chat_points
+                    if result:
+                        await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
+                    else:
+                        await cursor.execute(
+                            "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                            (messageAuthorID, messageAuthor, new_points)
+                        )
+                    await sqldb.commit()
                 # Has the user been seen during this stream
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 temp_seen_users = await cursor.fetchone()
-
                 # Check if the user is in the list of already seen users
                 if temp_seen_users:
                     return
-
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
-
                 if user_data:
                     # Check if the user is the broadcaster
                     if messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -1001,8 +992,9 @@ class BotOfTheSpecter(commands.Bot):
                     user_status = True
                     welcome_message = user_data[2]
                     user_status_enabled = user_data[3]
-                    await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
+                    await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                     await sqldb.commit()
+                    await websocket_notice(event="WALKON", channel=CHANNEL_NAME, user=messageAuthor)
                 else:
                     # Check if the user is the broadcaster
                     if messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -1010,9 +1002,9 @@ class BotOfTheSpecter(commands.Bot):
                     user_status = False
                     welcome_message = None
                     user_status_enabled = 'True'
-                    await cursor.execute('INSERT INTO seen_today (user_id) VALUES (%s)', (messageAuthorID,))
+                    await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                     await sqldb.commit()
-
+                    await websocket_notice(event="WALKON", channel=CHANNEL_NAME, user=messageAuthor)
                 if user_status_enabled == 'True':
                     if is_vip:
                         # VIP user
@@ -1118,6 +1110,13 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
+    async def call_command(self, command_name, ctx):
+        command_method = getattr(self, f"{command_name}_command", None)
+        if command_method:
+            await command_method(ctx)
+        else:
+            await ctx.send(f"Command '{command_name}' not found.")
+
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id)
         # Split the response if it's longer than 500 characters
@@ -1152,31 +1151,28 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("commands",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result[0]
-                    if status == 'Disabled':
-                        return
-
-                is_mod = await command_permissions(ctx.author)
-                if is_mod:
-                    # If the user is a mod, include both custom_commands and builtin_commands
-                    all_commands = list(mod_commands) + list(builtin_commands)
-                else:
-                    # If the user is not a mod, only include builtin_commands
-                    all_commands = list(builtin_commands)
-
-                # Construct the list of available commands to the user
-                commands_list = ", ".join(sorted(f"!{command}" for command in all_commands))
-
-                # Construct the response messages
-                response_message = f"Available commands to you: {commands_list}"
-                custom_response_message = f"Available Custom Commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
-
-                # Sending the response messages to the chat
-                await ctx.send(response_message)
-                await ctx.send(custom_response_message)
+                try:
+                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("commands",))
+                    result = await cursor.fetchone()
+                    if result:
+                        status = result[0]
+                        if status == 'Disabled':
+                            chat_logger.warning(f"Command 'commands' is disabled and cannot be run by {ctx.author.name}.")
+                            return
+                    is_mod = await command_permissions(ctx.author)
+                    if is_mod:
+                        # If the user is a mod, include both mod_commands and builtin_commands
+                        mod_commands_list = ", ".join(sorted(f"!{command}" for command in mod_commands))
+                        await ctx.send(f"Moderator commands: {mod_commands_list}")
+                    # Include builtin commands for both mod and normal users
+                    builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
+                    await ctx.send(f"General commands: {builtin_commands_list}")
+                    # Custom commands link
+                    custom_response_message = f"Custom commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
+                    await ctx.send(custom_response_message)
+                except Exception as e:
+                    chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
+                    await ctx.send("An error occurred while fetching the commands. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1197,7 +1193,31 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='forceonline')
-    async def force_online_command(self, ctx):
+    async def forceonline_command(self, ctx):
+        if await command_permissions(ctx.author):
+            sqldb = await get_mysql_connection()
+            try:
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("version",))
+                    result = await cursor.fetchone()
+                    if result:
+                        status = result[0]
+                        if status == 'Disabled':
+                            return
+                    chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
+                    await ctx.send("Stream status has been forcibly set to online.")
+                    await process_stream_online()
+            except Exception as e:
+                chat_logger.error(f"Error in forceonline_command: {e}")
+                await ctx.send(f"An error occurred while executing the command. {e}")
+            finally:
+                await sqldb.ensure_closed()
+        else:
+            chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
+            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+
+    @commands.command(name='forceoffline')
+    async def forceoffline_command(self, ctx):
         global stream_online
         global current_game
         if await command_permissions(ctx.author):
@@ -1210,16 +1230,16 @@ class BotOfTheSpecter(commands.Bot):
                         status = result[0]
                         if status == 'Disabled':
                             return
-                    chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
-                    stream_online = True
-                    await ctx.send("Stream status has been forcibly set to online.")
+                    chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
+                    await ctx.send("Stream status has been forcibly set to offline.")
+                    await process_stream_offline()
             except Exception as e:
-                chat_logger.error(f"Error in force_online_command: {e}")
+                chat_logger.error(f"Error in forceoffline_command: {e}")
                 await ctx.send(f"An error occurred while executing the command. {e}")
             finally:
                 await sqldb.ensure_closed()
         else:
-            chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
+            chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='version')
@@ -1233,8 +1253,8 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                global botstarted
-                uptime = datetime.now() - botstarted
+                global bot_started
+                uptime = datetime.now() - bot_started
                 uptime_days = uptime.days
                 uptime_hours, remainder = divmod(uptime.seconds, 3600)
                 uptime_minutes, _ = divmod(remainder, 60)
@@ -1288,14 +1308,41 @@ class BotOfTheSpecter(commands.Bot):
                     location = await get_streamer_weather()
                     if location:
                         weather_info = await get_weather(location)
+                        if await command_permissions(ctx.author):
+                            chat_logger.info(f"Sending WEATHER event with location: {location}")
+                            await websocket_notice(event="WEATHER", weather=location)
                     else:
                         weather_info = "I'm sorry, something went wrong trying to get the current weather."
                 await ctx.send(weather_info)
         finally:
             await sqldb.ensure_closed()
 
+    @commands.command(name='points')
+    async def points_command(self, ctx):
+        user_id = str(ctx.author.id)
+        user_name = ctx.author.name
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Check if the user exists in the database
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                result = await cursor.fetchone()
+                if result:
+                    points = result[0]
+                else:
+                    points = 0
+                    await cursor.execute(
+                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                        (user_id, user_name, points)
+                    )
+                    await sqldb.commit()
+                await ctx.send(f'@{user_name}, you have {points} points.')
+        finally:
+            await cursor.close()
+            await sqldb.ensure_closed()
+
     @commands.command(name='time')
-    async def time_command(self, ctx, timezone: str = None) -> None:
+    async def time_command(self, ctx, *, timezone: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1306,13 +1353,33 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 if timezone:
-                    tz = pytz.timezone(timezone)
-                    chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                    geolocator = Nominatim(user_agent="BotOfTheSpecter")
+                    location_data = geolocator.geocode(timezone)
+                    if not location_data:
+                        await ctx.send(f"Could not find the time location that you requested.")
+                        chat_logger.info(f"Could not find the time location that you requested.")
+                        return
+                    timezone_api_key = os.getenv('TIMEZONE_API')
+                    timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(timezone_url) as response:
+                            if response.status != 200:
+                                await ctx.send(f"Could not retrieve time information from the API.")
+                                chat_logger.info(f"Failed to retrieve time information from the API, status code: {response.status}")
+                                return
+                            timezone_data = await response.json()
+                    if timezone_data['status'] != "OK":
+                        await ctx.send(f"Could not find the time location that you requested.")
+                        chat_logger.info(f"Could not find the time location that you requested.")
+                        return
+                    timezone_str = timezone_data["zoneName"]
+                    tz = pytz.timezone(timezone_str)
+                    chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str}")
                     current_time = datetime.now(tz)
                     time_format_date = current_time.strftime("%B %d, %Y")
                     time_format_time = current_time.strftime("%I:%M %p")
                     time_format_week = current_time.strftime("%A")
-                    time_format = f"For the timezone {timezone}, it is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+                    time_format = f"The time for {timezone} is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
                 else:
                     await cursor.execute("SELECT timezone FROM profile")
                     result = await cursor.fetchone()
@@ -1385,7 +1452,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='quoteadd')
-    async def quote_add_command(self, ctx, *, quote):
+    async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1402,7 +1469,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removequote')
-    async def quote_remove_command(self, ctx, number: int = None):
+    async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1446,7 +1513,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='settitle')
-    async def set_title_command(self, ctx, *, title: str = None) -> None:
+    async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1470,7 +1537,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='setgame')
-    async def set_game_command(self, ctx, *, game: str = None) -> None:
+    async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1484,12 +1551,8 @@ class BotOfTheSpecter(commands.Bot):
                     if game is None:
                         await ctx.send("You must provide a game for the stream.")
                         return
-                    # Get the game ID
                     try:
-                        game_id = await get_game_id(game)
-                        # Update the stream game/category
-                        await trigger_twitch_game_update(game_id)
-                        twitch_logger.info(f'Setting stream game to: {game}')
+                        await update_twitch_game(game)
                         await ctx.send(f'Stream game updated to: {game}')
                     except GameNotFoundException as e:
                         await ctx.send(str(e))
@@ -1503,7 +1566,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='song')
-    async def get_current_song_command(self, ctx):
+    async def song_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1519,7 +1582,7 @@ class BotOfTheSpecter(commands.Bot):
                     return
                 await ctx.send("Please stand by, checking what song is currently playing...")
                 try:
-                    song_info = await get_song_info_command()
+                    song_info = await get_current_song()
                     await ctx.send(song_info)
                     await delete_recorded_files()
                 except Exception as e:
@@ -1529,7 +1592,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='timer')
-    async def start_timer_command(self, ctx):
+    async def timer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1565,7 +1628,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='stoptimer')
-    async def stop_timer_command(self, ctx):
+    async def stoptimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1581,7 +1644,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='checktimer')
-    async def check_timer_command(self, ctx):
+    async def checktimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1747,19 +1810,20 @@ class BotOfTheSpecter(commands.Bot):
                 params = {
                     'count': 1
                 }
-                response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data['data']:
-                        top_cheerer = data['data'][0]
-                        score = "{:,}".format(top_cheerer['score'])
-                        await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
-                    else:
-                        await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
-                elif response.status_code == 401:
-                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
-                else:
-                    await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data['data']:
+                                top_cheerer = data['data'][0]
+                                score = "{:,}".format(top_cheerer['score'])
+                                await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
+                            else:
+                                await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
+                        elif response.status == 401:
+                            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                        else:
+                            await ctx.send("Sorry, I couldn't fetch the leaderboard.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1775,6 +1839,12 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 user_id = str(ctx.author.id)
+                await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
+                db_bits = await cursor.fetchone()
+                if db_bits:
+                    db_bits = db_bits[0]
+                else:
+                    db_bits = 0
                 headers = {
                     'Client-ID': CLIENT_ID,
                     'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -1782,19 +1852,33 @@ class BotOfTheSpecter(commands.Bot):
                 params = {
                     'user_id': user_id
                 }
-                response = requests.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data['data']:
-                        user_bits = data['data'][0]
-                        bits = "{:,}".format(user_bits['score'])
-                        await ctx.send(f"You have given {bits} bits in total.")
-                    else:
-                        await ctx.send("You haven't given any bits yet.")
-                elif response.status_code == 401:
-                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
-                else:
-                    await ctx.send("Sorry, I couldn't fetch your bits information.")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data['data']:
+                                user_bits = data['data'][0]
+                                api_bits = user_bits['score']
+                                # Compare API bits with the database bits and update if necessary
+                                if api_bits > db_bits:
+                                    # Update the database with the higher bits from the API
+                                    await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
+                                    await sqldb.commit()
+                                    bits = "{:,}".format(api_bits)
+                                    await ctx.send(f"You have given {bits} bits in total.")
+                                elif api_bits < db_bits:
+                                    # Inform the user that the local database has a higher value
+                                    bits = "{:,}".format(db_bits)
+                                    await ctx.send(f"Our records show you have given {bits} bits in total.")
+                                else:
+                                    bits = "{:,}".format(api_bits)
+                                    await ctx.send(f"You have given {bits} bits in total.")
+                            else:
+                                await ctx.send("You haven't given any bits yet.")
+                        elif response.status == 401:
+                            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                        else:
+                            await ctx.send("Sorry, I couldn't fetch your bits information.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1821,8 +1905,6 @@ class BotOfTheSpecter(commands.Bot):
                 if result:
                     # User was lurking before
                     previous_start_time = result[0]
-                    # Convert previous_start_time from string to datetime
-                    previous_start_time = datetime.strptime(previous_start_time, "%Y-%m-%d %H:%M:%S")
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
@@ -1911,7 +1993,6 @@ class BotOfTheSpecter(commands.Bot):
                     now = datetime.now()
                     for user_id, start_time in lurkers:
                         # Convert start_time from string to datetime
-                        start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
                         lurk_duration = now - start_time
                         if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
                             longest_lurk = lurk_duration
@@ -1941,7 +2022,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='unlurk', aliases=('back',))
+    @commands.command(name='unlurk', aliases=('back'))
     async def unlurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1962,7 +2043,7 @@ class BotOfTheSpecter(commands.Bot):
                     result = await cursor.fetchone()
                     if result:
                         time_now = datetime.now()
-                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        start_time = result[0]
                         elapsed_time = time_now - start_time
                         # Calculate the duration
                         days, seconds = divmod(elapsed_time.total_seconds(), 86400)
@@ -1981,8 +2062,8 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
                 except Exception as e:
-                    chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time}")
-                    await ctx.send(f"Oops, something went wrong with the unlurk command.")
+                    chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
+                    await ctx.send("Oops, something went wrong with the unlurk command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2010,34 +2091,35 @@ class BotOfTheSpecter(commands.Bot):
                     params = {
                         "broadcaster_id": CHANNEL_ID
                     }
-                    clip_response = requests.post('https://api.twitch.tv/helix/clips', headers=headers, params=params)
-                    if clip_response.status_code == 202:
-                        clip_data = clip_response.json()
-                        clip_id = clip_data['data'][0]['id']
-                        clip_url = f"http://clips.twitch.tv/{clip_id}"
-                        await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
-                        # Create a stream marker
-                        marker_description = f"Clip created by {ctx.author.name}"
-                        marker_payload = {
-                            "user_id": CHANNEL_ID,
-                            "description": marker_description
-                        }
-                        marker_headers = {
-                            "Client-ID": CLIENT_ID,
-                            "Authorization": f"Bearer {CHANNEL_AUTH}",
-                            "Content-Type": "application/json"
-                        }
-                        marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
-                        if marker_response.status_code == 200:
-                            marker_data = marker_response.json()
-                            marker_created_at = marker_data['data'][0]['created_at']
-                            twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
-                        else:
-                            twitch_logger.info("Failed to create a stream marker for the clip.")
-                    else:
-                        await ctx.send(f"Failed to create clip.")
-                        twitch_logger.error(f"Clip Error Code: {clip_response.status_code}")
-                except requests.exceptions.RequestException as e:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post('https://api.twitch.tv/helix/clips', headers=headers, params=params) as clip_response:
+                            if clip_response.status == 202:
+                                clip_data = await clip_response.json()
+                                clip_id = clip_data['data'][0]['id']
+                                clip_url = f"http://clips.twitch.tv/{clip_id}"
+                                await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
+                                # Create a stream marker
+                                marker_description = f"Clip created by {ctx.author.name}"
+                                marker_payload = {
+                                    "user_id": CHANNEL_ID,
+                                    "description": marker_description
+                                }
+                                marker_headers = {
+                                    "Client-ID": CLIENT_ID,
+                                    "Authorization": f"Bearer {CHANNEL_AUTH}",
+                                    "Content-Type": "application/json"
+                                }
+                                async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
+                                    if marker_response.status == 200:
+                                        marker_data = await marker_response.json()
+                                        marker_created_at = marker_data['data'][0]['created_at']
+                                        twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
+                                    else:
+                                        twitch_logger.info("Failed to create a stream marker for the clip.")
+                            else:
+                                await ctx.send(f"Failed to create clip.")
+                                twitch_logger.error(f"Clip Error Code: {clip_response.status}")
+                except aiohttp.ClientError as e:
                     twitch_logger.error(f"Error making clip: {e}")
                     await ctx.send("An error occurred while making the request. Please try again later.")
         finally:
@@ -2055,26 +2137,24 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 if await command_permissions(ctx.author):
-                    if description:
-                        marker_description = description
-                    else:
-                        marker_description = f"Marker made by {ctx.author.name}"
+                    marker_description = description if description else f"Marker made by {ctx.author.name}"
+                    marker_payload = {
+                        "user_id": CHANNEL_ID,
+                        "description": marker_description
+                    }
+                    marker_headers = {
+                        "Client-ID": CLIENT_ID,
+                        "Authorization": f"Bearer {CHANNEL_AUTH}",
+                        "Content-Type": "application/json"
+                    }
                     try:
-                        marker_payload = {
-                            "user_id": CHANNEL_ID,
-                            "description": marker_description
-                        }
-                        marker_headers = {
-                            "Client-ID": CLIENT_ID,
-                            "Authorization": f"Bearer {CHANNEL_AUTH}",
-                            "Content-Type": "application/json"
-                        }
-                        marker_response = requests.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload)
-                        if marker_response.status_code == 200:
-                            await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
-                        else:
-                            await ctx.send("Failed to create a stream marker.")
-                    except requests.exceptions.RequestException as e:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
+                                if marker_response.status == 200:
+                                    await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
+                                else:
+                                    await ctx.send("Failed to create a stream marker.")
+                    except aiohttp.ClientError as e:
                         twitch_logger.error(f"Error creating stream marker: {e}")
                 else:
                     await ctx.send("You must be a moderator or the broadcaster to use this command.")
@@ -2093,7 +2173,6 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 try:
-                    # Headers & Params for Twitch API
                     user_id = ctx.author.id
                     headers = {
                         "Client-ID": CLIENT_ID,
@@ -2108,30 +2187,28 @@ class BotOfTheSpecter(commands.Bot):
                         "2000": "Tier 2",
                         "3000": "Tier 3"
                     }
-                    subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
-                    if subscription_response.status_code == 200:
-                        subscription_data = subscription_response.json()
-                        subscriptions = subscription_data.get('data', [])
-                        if subscriptions:
-                            # Iterate over each subscription
-                            for subscription in subscriptions:
-                                user_name = subscription['user_name']
-                                tier = subscription['tier']
-                                is_gift = subscription['is_gift']
-                                gifter_name = subscription['gifter_name'] if is_gift else None
-                                tier_name = tier_mapping.get(tier, tier)
-                                # Prepare message based on subscription status
-                                if is_gift:
-                                    await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+                            if subscription_response.status == 200:
+                                subscription_data = await subscription_response.json()
+                                subscriptions = subscription_data.get('data', [])
+                                if subscriptions:
+                                    for subscription in subscriptions:
+                                        user_name = subscription['user_name']
+                                        tier = subscription['tier']
+                                        is_gift = subscription['is_gift']
+                                        gifter_name = subscription.get('gifter_name') if is_gift else None
+                                        tier_name = tier_mapping.get(tier, tier)
+                                        if is_gift:
+                                            await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                                        else:
+                                            await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
                                 else:
-                                    await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
-                        else:
-                            # If no subscriptions found for the provided user ID
-                            await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
-                    else:
-                        await ctx.send("Failed to retrieve subscription information. Please try again later.")
-                        twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status_code}")
-                except requests.exceptions.RequestException as e:
+                                    await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
+                            else:
+                                await ctx.send("Failed to retrieve subscription information. Please try again later.")
+                                twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
+                except aiohttp.ClientError as e:
                     twitch_logger.error(f"Error retrieving subscription information: {e}")
                     await ctx.send("An error occurred while making the request. Please try again later.")
         finally:
@@ -2215,7 +2292,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @commands.command(name='typos', aliases=('typocount',))
+    @commands.command(name='typos', aliases=('typocount'))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2247,8 +2324,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='edittypos', aliases=('edittypo',))
-    async def edit_typo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
+    @commands.command(name='edittypos', aliases=('edittypo'))
+    async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2303,8 +2380,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.command(name='removetypos', aliases=('removetypo',))
-    async def remove_typos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
+    @commands.command(name='removetypos', aliases=('removetypo'))
+    async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2404,17 +2481,21 @@ class BotOfTheSpecter(commands.Bot):
                         return
                 try:
                     global current_game
+                    if current_game is None:
+                        await ctx.send("Current game is not set. Can't see death count.")
+                        return
                     chat_logger.info("Deaths command ran.")
-                    # Retrieve the game-specific death count
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
                     game_death_count = game_death_count_result[0] if game_death_count_result else 0
-                    # Retrieve the total death count
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
                     total_death_count = total_death_count_result[0] if total_death_count_result else 0
                     chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                    if await command_permissions(ctx.author):
+                        chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {game_death_count}")
+                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deaths_command: {e}")
@@ -2431,29 +2512,28 @@ class BotOfTheSpecter(commands.Bot):
                 if result:
                     status = result[0]
                     if status == 'Disabled':
-                        chat_logger.info("Death Add Command is disabled.")
                         return
                 else:
                     chat_logger.info("No status found for Death Add Command.")
                 if await command_permissions(ctx.author):
                     global current_game
+                    if current_game is None:
+                        await ctx.send("Current game is not set. Can not add death to nothing.")
+                        return
                     try:
                         chat_logger.info("Death Add Command ran by a mod or broadcaster.")
-                        # Ensure there is exactly one row in total_deaths
                         await cursor.execute("SELECT COUNT(*) FROM total_deaths")
                         count_result = await cursor.fetchone()
                         if count_result is not None and count_result[0] == 0:
                             await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
                             await sqldb.commit()
                             chat_logger.info("Initialized total_deaths table.")
-                        # Increment game-specific death count & total death count
                         await cursor.execute(
                             'INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
                             (current_game,))
                         await cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
                         await sqldb.commit()
                         chat_logger.info("Updated death counts in game_deaths and total_deaths tables.")
-                        # Retrieve updated counts
                         await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                         game_death_count_result = await cursor.fetchone()
                         game_death_count = game_death_count_result[0] if game_death_count_result else 0
@@ -2463,6 +2543,7 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                         chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
                         await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                     except Exception as e:
                         await ctx.send(f"An error occurred while executing the command. {e}")
                         chat_logger.error(f"Error in deathadd_command: {e}")
@@ -2488,23 +2569,24 @@ class BotOfTheSpecter(commands.Bot):
                         return
                 if await command_permissions(ctx.author):
                     global current_game
+                    if current_game is None:
+                        await ctx.send("Current game is not set. Can't remove from nothing.")
+                        return
                     try:
                         chat_logger.info("Death Remove Command Ran")
-                        # Decrement game-specific death count & total death count (ensure it doesn't go below 0)
                         await cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s', (current_game,))
                         await cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
                         await sqldb.commit()
-                        # Retrieve updated counts
                         await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                         game_death_count_result = await cursor.fetchone()
                         game_death_count = game_death_count_result[0] if game_death_count_result else 0
                         await cursor.execute('SELECT death_count FROM total_deaths')
                         total_death_count_result = await cursor.fetchone()
                         total_death_count = total_death_count_result[0] if total_death_count_result else 0
-                        # Send the message
                         chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                         chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
                         await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                     except Exception as e:
                         await ctx.send(f"An error occurred while executing the command. {e}")
                         chat_logger.error(f"Error in deaths_command: {e}")
@@ -2698,7 +2780,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='checkupdate')
-    async def check_update_command(self, ctx):
+    async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2714,23 +2796,20 @@ class BotOfTheSpecter(commands.Bot):
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
                             data = await response.json()
-                            stable_version = data.get('stable_version', '').strip()
-
-                            if stable_version and stable_version != VERSION:
-                                remote_major, remote_minor, remote_patch = map(int, stable_version.split('.'))
+                            beta_version = data.get('beta_version', '').strip()
+                            if beta_version and beta_version != VERSION:
+                                remote_major, remote_minor, remote_patch = map(int, beta_version.split('.'))
                                 local_major, local_minor, local_patch = map(int, VERSION.split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new update (V{stable_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
-                                elif remote_patch > local_patch:
-                                    message = f"A new hotfix update (V{stable_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new beta update (V{beta_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
-                                    message = f"There is no update pending. You are currently running V{VERSION}."
-                                bot_logger.info(f"Bot update available. (V{stable_version})")
+                                    message = f"There is no beta update pending. You are currently running V{VERSION}."
+                                bot_logger.info(f"Bot beta update available. (V{beta_version})")
                                 await ctx.send(message)
                             else:
-                                message = f"There is no update pending. You are currently running V{VERSION}."
+                                message = f"There is no beta update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"{message}")
                                 await ctx.send(message)
             else:
@@ -2738,8 +2817,8 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
-
-    @commands.command(name='shoutout', aliases=('so',))
+    
+    @commands.command(name='shoutout', aliases=('so'))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2788,9 +2867,7 @@ class BotOfTheSpecter(commands.Bot):
                     chat_logger.info(shoutout_message)
                     await ctx.send(shoutout_message)
                     # Trigger the Twitch shoutout
-                    if not await trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
-                        chat_logger.error("Failed to trigger Twitch shoutout.")
-                        await ctx.send("An error occurred while triggering the Twitch shoutout.")
+                    asyncio.create_task(trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id))
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
@@ -2801,7 +2878,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='addcommand')
-    async def add_command_command(self, ctx):
+    async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2819,7 +2896,6 @@ class BotOfTheSpecter(commands.Bot):
                 except ValueError:
                     await ctx.send(f"Invalid command format. Use: !addcommand [command] [response]")
                     return
-
                 # Insert the command and response into the database
                 async with sqldb.cursor() as cursor:
                     await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
@@ -2832,7 +2908,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removecommand')
-    async def remove_command_command(self, ctx):
+    async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2861,7 +2937,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='disablecommand')
-    async def disable_command_command(self, ctx):
+    async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -2878,7 +2954,6 @@ class BotOfTheSpecter(commands.Bot):
                 except IndexError:
                     await ctx.send(f"Invalid command format. Use: !disablecommand [command]")
                     return
-
                 # Disable the command in the database
                 async with sqldb.cursor() as cursor:
                     await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
@@ -2924,16 +2999,19 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                response = requests.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}")
-                if response.status_code == 200:
-                    data = response.json()
-                    kill_message = data.get("killcommand", {})
-                    if not kill_message:
-                        await ctx.send("Error: No kill messages found.")
-                        return
-                else:
-                    await ctx.send("Error: Unable to retrieve kill messages.")
-                    return
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            kill_message = data.get("killcommand", {})
+                            if not kill_message:
+                                chat_logger.error("No 'killcommand' found in the API response.")
+                                await ctx.send("Error: No kill messages found.")
+                                return
+                        else:
+                            chat_logger.error(f"Failed to fetch kill messages from API. Status code: {response.status}")
+                            await ctx.send("Error: Unable to retrieve kill messages.")
+                            return
                 if mention:
                     mention = mention.lstrip('@')
                     target = mention
@@ -2943,6 +3021,7 @@ class BotOfTheSpecter(commands.Bot):
                         result = message.replace("$1", ctx.author.name).replace("$2", target)
                     else:
                         result = f"{ctx.author.name} tried to kill {target}, but something went wrong."
+                        chat_logger.error("No 'other' kill message found.")
                 else:
                     message_key = [key for key in kill_message if "self" in key]
                     if message_key:
@@ -2950,7 +3029,12 @@ class BotOfTheSpecter(commands.Bot):
                         result = message.replace("$1", ctx.author.name)
                     else:
                         result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
+                        chat_logger.error("No 'self' kill message found.")
                 await ctx.send(result)
+                chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
+        except Exception as e:
+            chat_logger.exception("An error occurred during the execution of the kill command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3007,11 +3091,11 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name="story")
-    async def command(self, ctx):
+    async def story_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("rps",))
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("story",))
                 result = await cursor.fetchone()
                 if result:
                     status = result[0]
@@ -3023,13 +3107,49 @@ class BotOfTheSpecter(commands.Bot):
                         return
                     template = f"Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
                     story = template.format(*words)
-                    response = openai.Completion.create(
-                        engine="gpt-3.5-turbo",
-                        prompt=story,
-                        max_tokens=100
-                    )
-                    generated = response.choices[0].text.strip()
-                    await ctx.send(generated)
+                    response = await self.handle_ai_response(story, ctx.user.id, ctx.user.name)
+                    await ctx.send(response)
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.command(name="convert")
+    async def convert_command(self, ctx, *args):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Check if the 'convert' command is enabled
+                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("convert",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result[0]
+                    if status == 'Disabled':
+                        return
+                try:
+                    if len(args) == 3 and args[0].startswith('$'):
+                        # Handle currency conversion
+                        amount_str = args[0]
+                        amount = float(amount_str[1:])
+                        from_currency = args[1].upper()
+                        to_currency = args[2].upper()
+                        converted_amount = await convert_currency(amount, from_currency, to_currency)
+                        formatted_converted_amount = f"{converted_amount:,.2f}"
+                        await ctx.send(f"The currency exchange for {amount_str} {from_currency} is ${formatted_converted_amount} {to_currency}")
+                    elif len(args) == 3:
+                        # Handle unit conversion
+                        amount_str = args[0]
+                        amount = float(amount_str)
+                        from_unit = args[1]
+                        to_unit = args[2]
+                        quantity = amount * ureg(from_unit)
+                        converted_quantity = quantity.to(to_unit)
+                        formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
+                        await ctx.send(f"{amount_str} {from_unit} in {to_unit} is {formatted_converted_quantity} {converted_quantity.units}")
+                    else:
+                        await ctx.send("Invalid format. Please use the format: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
+                except Exception as e:
+                    await ctx.send("Failed to convert, please try again. Please ensure the format is: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
+                    sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[API_KEY]')
+                    api_logger.error(f"An error occurred: {sanitized_error}")
         finally:
             await sqldb.ensure_closed()
 
@@ -3037,28 +3157,22 @@ class BotOfTheSpecter(commands.Bot):
 ##
 # Function  to check if the user is a real user on Twitch
 async def is_valid_twitch_user(user_to_shoutout):
-    # Twitch API endpoint to check if a user exists
     url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
-
-    # Headers including the Twitch Client ID
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
-
-    # Send a GET request to the Twitch API
-    response = requests.get(url, headers=headers)
-
-    # Check if the response is successful and if the user exists
-    if response.status_code == 200:
-        data = response.json()
-        if data['data']:
-            return True  # User exists
-        else:
-            return False  # User does not exist
-    else:
-        # If there's an error with the request or response, return False
-        return False
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data['data']:
+                    return True  # User exists
+                else:
+                    return False  # User does not exist
+            else:
+                # If there's an error with the request or response, return False
+                return False
 
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
@@ -3068,7 +3182,6 @@ async def get_display_name(user_id):
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
-
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
@@ -3083,17 +3196,14 @@ async def command_permissions(user):
     if user.name == 'gfaundead':
         twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
         return True
-
     # Check if the user is the broadcaster
     elif user.name == CHANNEL_NAME:
         twitch_logger.info(f"User {user.name} is the Broadcaster")
         return True
-
     # Check if the user is a moderator
     is_mod = await is_user_mod(user.name)
     if is_mod:
         return True
-
     # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
     twitch_logger.info(f"User {user.name} does not have required permissions.")
     return False
@@ -3137,9 +3247,8 @@ async def is_user_vip(username):
         finally:
             await sqldb.ensure_closed()
 
-
 # Function to check if a user is a subscriber of the channel
-def is_user_subscribed(user_id):
+async def is_user_subscribed(user_id):
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -3153,16 +3262,16 @@ def is_user_subscribed(user_id):
         "2000": "Tier 2",
         "3000": "Tier 3"
     }
-    subscription_response = requests.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params)
-    if subscription_response.status_code == 200:
-        subscription_data = subscription_response.json()
-        subscriptions = subscription_data.get('data', [])
-        if subscriptions:
-            # Iterate over each subscription
-            for subscription in subscriptions:
-                tier = subscription['tier']
-                tier_name = tier_mapping.get(tier, tier)
-                return tier_name
+    async with aiohttp.ClientSession() as session:
+        async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+            if subscription_response.status == 200:
+                subscription_data = await subscription_response.json()
+                subscriptions = subscription_data.get('data', [])
+                if subscriptions:
+                    for subscription in subscriptions:
+                        tier = subscription['tier']
+                        tier_name = tier_mapping.get(tier, tier)
+                        return tier_name
     return None
 
 # Function to add user to the table of known users
@@ -3178,13 +3287,14 @@ async def user_is_seen(username):
         await sqldb.ensure_closed()
 
 # Function to fetch custom API responses
-def fetch_api_response(url):
+async def fetch_api_response(url):
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.text
-        else:
-            return f"Status Error: {response.status_code}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    return await response.text()
+                else:
+                    return f"Status Error: {response.status}"
     except Exception as e:
         return f"Exception Error: {str(e)}"
 
@@ -3321,95 +3431,71 @@ async def trigger_twitch_title_update(new_title):
         "broadcaster_id": CHANNEL_ID,
         "title": new_title
     }
-    response = requests.patch(url, headers=headers, json=params)
-    if response.status_code == 200:
-        twitch_logger.info(f'Stream title updated to: {new_title}')
-    else:
-        twitch_logger.error(f'Failed to update stream title: {response.text}')
+    async with aiohttp.ClientSession() as session:
+        async with session.patch(url, headers=headers, json=params) as response:
+            if response.status == 200:
+                twitch_logger.info(f'Stream title updated to: {new_title}')
+            else:
+                twitch_logger.error(f'Failed to update stream title: {await response.text()}')
 
-async def trigger_twitch_game_update(new_game_id):
-    # Twitch API
-    url = "https://api.twitch.tv/helix/channels"
+async def update_twitch_game(game_name):
+    # Twitch API to retrieve game ID and update stream game/category
+    url_get_game = "https://api.twitch.tv/helix/games"
+    url_update_game = "https://api.twitch.tv/helix/channels"
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": CLIENT_ID,
     }
-    params = {
-        "broadcaster_id": CHANNEL_ID,
-        "game_id": new_game_id
-    }
-    response = requests.patch(url, headers=headers, json=params)
-    if response.status_code == 200:
-        twitch_logger.info(f'Stream game updated to: {new_game_id}')
-    else:
-        twitch_logger.error(f'Failed to update stream game: {response.text}')
-        raise GameUpdateFailedException(f'Failed to update stream game')
-
-async def get_game_id(game_name):
-    # Twitch API
-    url = "https://api.twitch.tv/helix/games/top"
-    headers = {
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": CLIENT_ID,
-    }
-    params = {
+    params_get_game = {
         "name": game_name
     }
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        if data and 'data' in data and len(data['data']) > 0:
-            return data['data'][0]['id']
-    twitch_logger.error(f"Game '{game_name}' not found.")
-    raise GameNotFoundException(f"Game '{game_name}' not found.")
+    async with aiohttp.ClientSession() as session:
+        # Get the game ID from Twitch API
+        async with session.get(url_get_game, headers=headers, params=params_get_game) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data and 'data' in data and len(data['data']) > 0:
+                    game_id = data['data'][0]['id']
+                else:
+                    twitch_logger.error(f"Game '{game_name}' not found.")
+                    raise GameNotFoundException(f"Game '{game_name}' not found.")
+            else:
+                twitch_logger.error(f"Failed to retrieve game ID: {await response.text()}")
+                raise GameNotFoundException(f"Game '{game_name}' not found.")
+        params_update_game = {
+            "broadcaster_id": CHANNEL_ID,
+            "game_id": game_id
+        }
+        async with session.patch(url_update_game, headers=headers, json=params_update_game) as response:
+            if response.status == 200:
+                twitch_logger.info(f'Stream game updated to: {game_name}')
+            else:
+                twitch_logger.error(f'Failed to update stream game: {await response.text()}')
+                raise GameUpdateFailedException('Failed to update stream game')
 
-# Function to trigger a twitch shoutout via Twitch API
-async def trigger_twitch_shoutout(shoutout_queue, user_to_shoutout, mentioned_user_id):
+# Function to trigger a Twitch shoutout via Twitch API
+async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
+    url = 'https://api.twitch.tv/helix/chat/shoutouts'
+    headers = {
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Client-ID": CLIENT_ID,
+    }
+    payload = {
+        "from_broadcaster_id": CHANNEL_ID,
+        "to_broadcaster_id": mentioned_user_id,
+        "moderator_id": CHANNEL_ID
+    }
     try:
-        # Add the shoutout request to the queue
-        await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
-        # Check if the queue is empty and no shoutout is currently being processed
-        if shoutout_queue.qsize() == 1:
-            await process_shoutouts(shoutout_queue)
-        return True
-    except Exception as e:
-        twitch_logger.error(f"Error in trigger_twitch_shoutout: {e}")
-        return False
-
-async def process_shoutouts(shoutout_queue):
-    while not shoutout_queue.empty():
-        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
-        twitch_logger.info(f"Processing Shoutout via Twitch for {user_to_shoutout}={mentioned_user_id}")
-        url = 'https://api.twitch.tv/helix/chat/shoutouts'
-        headers = {
-            "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-ID": CLIENT_ID,
-        }
-        payload = {
-            "from_broadcaster_id": CHANNEL_ID,
-            "to_broadcaster_id": mentioned_user_id,
-            "moderator_id": CHANNEL_ID
-        }
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status == 429:
-                        # Rate limit exceeded, wait for cooldown period (3 minutes) before retrying
-                        retry_after = 180  # 3 minutes in seconds
-                        twitch_logger.error(f"Rate limit exceeded. Retrying after {retry_after} seconds.")
-                        await asyncio.sleep(retry_after)
-                        continue  # Retry the request
-                    elif response.status in (200, 204):
-                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
-                        await asyncio.sleep(180)  # Wait for 3 minutes before processing the next shoutout
-                    else:
-                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-                        # Retry the request (exponential backoff can be implemented here)
-                        await asyncio.sleep(5)  # Wait for 5 seconds before retrying
-                        continue
-                    await shoutout_queue.task_done()
-        except aiohttp.ClientError as e:
-            twitch_logger.error(f"Error triggering shoutout: {e}")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status in (200, 204):
+                    twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                else:
+                    twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+        # Wait for 3 minutes before ending the task
+        await asyncio.sleep(180)
+    except aiohttp.ClientError as e:
+        twitch_logger.error(f"Error triggering shoutout: {e}")
 
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     headers = {
@@ -3459,7 +3545,6 @@ async def process_stream_online():
     stream_online = True
     bot_logger.info(f"Stream is now online!")
     asyncio.get_event_loop().create_task(timed_message())
-
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
         headers = {
@@ -3472,7 +3557,6 @@ async def process_stream_online():
         }
         async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
             data = await response.json()
-
     # Extract necessary data from the API response
     if data.get('data'):
         current_game = data['data'][0].get('game_name', None)
@@ -3480,15 +3564,14 @@ async def process_stream_online():
     else:
         current_game = None
         image_data = None
-
     if image_data:
         image = image_data.replace("{width}", "1280").replace("{height}", "720")
     else:
         image = ""
-
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_online_message(message)
+    await websocket_notice(event="STREAM_ONLINE")
     await send_to_discord_stream_online(message, image)
 
 async def process_stream_offline():
@@ -3496,6 +3579,7 @@ async def process_stream_offline():
     stream_online = False  # Update the stream status
     await clear_seen_today()
     await clear_credits_data()
+    await websocket_notice(event="STREAM_OFFLINE")
     bot_logger.info(f"Stream is now offline.")
 
 # Function to send the online message to channel
@@ -3544,16 +3628,13 @@ async def timed_message():
             await cursor.execute('SELECT interval_count, message FROM timed_messages')
             messages = await cursor.fetchall()
             bot_logger.info(f"Timed Messages: {messages}")
-
             # Store the messages currently scheduled
             current_messages = [task.get_name() for task in scheduled_tasks]
-
             # Check for messages to add or remove
             for interval, message in messages:
                 if message in current_messages:
                     # Message already scheduled, continue to next message
                     continue
-
                 bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
                 time_now = datetime.now()
                 send_time = time_now + timedelta(minutes=int(interval))
@@ -3562,7 +3643,6 @@ async def timed_message():
                 task = asyncio.create_task(send_timed_message(message, wait_time))
                 task.set_name(message)  # Set a name for the task
                 scheduled_tasks.append(task)  # Keep track of the task
-
             # Check for messages to remove
             for task in scheduled_tasks:
                 if task.get_name() not in [message for _, message in messages]:
@@ -3590,7 +3670,7 @@ async def send_timed_message(message, delay):
         bot_logger.info(f"Task cancelled for {message}")
 
 # Function to get the current playing song
-async def get_song_info_command():
+async def get_current_song():
     try:
         song_info = await get_song_info()
         if "error" in song_info:
@@ -3613,33 +3693,26 @@ async def get_song_info():
         # Test validity of GQL OAuth token
         if not await twitch_gql_token_valid():
             return {"error": "Twitch GQL Token Expired"}
-
         # Record stream audio
         random_file_name = str(random.randint(10000000, 99999999))
         working_dir = "/var/www/logs/songs"
         stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
         raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
         outfile = os.path.join(working_dir, f"{random_file_name}.acc")
-        
         # Assign filenames to global variables
         stream_recording_file_global = stream_recording_file
         raw_recording_file_global = raw_recording_file
-        
         if not await record_stream(outfile):
             return {"error": "Stream is not available"}
-
         # Convert Stream Audio into Raw Format for Shazam
         if not await convert_to_raw_audio(stream_recording_file, raw_recording_file):
             return {"error": "Error converting stream audio from ACC to raw PCM s16le"}
-
         # Encode raw audio to base64
         with open(raw_recording_file, "rb") as song:
             songBytes = song.read()
             songb64 = base64.b64encode(songBytes)
-
             # Detect the song
             matches = await detect_song(songb64)
-
             if "track" in matches.keys():
                 artist = matches["track"].get("subtitle", "")
                 song_title = matches["track"].get("title", "")
@@ -3675,7 +3748,6 @@ async def twitch_gql_token_valid():
             async with session.post(url, headers=headers, json=data, timeout=10) as response:
                 # Log the status code received
                 api_logger.info(f"Twitch GQL token validation response status code: {response.status}")
-
                 if response.status == 200:
                     return True
                 else:
@@ -3696,14 +3768,16 @@ async def detect_song(raw_audio_b64):
         }
         # Convert base64 encoded audio to bytes
         audio_bytes = raw_audio_b64
-        response = requests.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15)
-        # Check requests remaining for the API
-        if "x-ratelimit-requests-remaining" in response.headers:
-            requests_left = response.headers['x-ratelimit-requests-remaining']
-            api_logger.info(f"There are {requests_left} requests lefts for the song command.")
-            if requests_left == 0:
-                return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
-        return response.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=audio_bytes, headers=headers, params=querystring, timeout=15) as response:
+                # Check requests remaining for the API
+                if "x-ratelimit-requests-remaining" in response.headers:
+                    requests_left = response.headers['x-ratelimit-requests-remaining']
+                    api_logger.info(f"There are {requests_left} requests lefts for the song command.")
+                    if int(requests_left) == 0:
+                        return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
+                
+                return await response.json()
     except Exception as e:
         api_logger.error(f"An error occurred while detecting song: {e}")
         return {}
@@ -3779,8 +3853,10 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
+            # Check existing raid data
             await cursor.execute('SELECT raid_count, viewers FROM raid_data WHERE raider_id = %s', (from_broadcaster_id,))
             existing_data = await cursor.fetchone()
+            # Update or insert raid data
             if existing_data:
                 existing_raid_count, existing_viewer_count = existing_data
                 raid_count = existing_raid_count + 1
@@ -3788,12 +3864,37 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 await cursor.execute('UPDATE raid_data SET raid_count = %s, viewers = %s WHERE raider_id = %s', (raid_count, viewers, from_broadcaster_id))
             else:
                 await cursor.execute('INSERT INTO raid_data (raider_id, raider_name, raid_count, viewers) VALUES (%s, %s, %s, %s)', (from_broadcaster_id, from_broadcaster_name, 1, viewer_count))
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (from_broadcaster_name, "raid", viewer_count))
+            # Retrieve the bot settings to get the raid points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            raid_points = int(settings['point_amount_raid'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Check if the user is a subscriber and apply the multiplier
+            if await is_user_subscribed(from_broadcaster_id) is not None:
+                raid_points *= subscriber_multiplier
+            # Calculate and award points based on the raid event
+            total_awarded_points = raid_points * viewer_count
+            # Fetch current points for the raider
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (from_broadcaster_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the raider's points
+            new_points = current_points + total_awarded_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, from_broadcaster_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (from_broadcaster_id, from_broadcaster_name, new_points)
+                )
             await sqldb.commit()
-        discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
-        await send_to_discord(discord_message, "New Raid!", "raid.png")
-        channel = bot.get_channel(CHANNEL_NAME)
-        await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
+            # Send raid notification to Discord Logs, Twitch Chat, and Websocket
+            discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
+            await send_to_discord(discord_message, "New Raid!", "raid.png")
+            await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
+            channel = bot.get_channel(CHANNEL_NAME)
+            await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
     finally:
         await sqldb.ensure_closed()
 
@@ -3802,9 +3903,11 @@ async def process_cheer_event(user_id, user_name, bits):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
+            # Check existing bits data
             await cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (user_id, user_name))
             existing_bits = await cursor.fetchone()
             channel = bot.get_channel(CHANNEL_NAME)
+            # Update or insert bits data
             if existing_bits:
                 total_bits = existing_bits[0] + bits
                 await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (total_bits, user_id, user_name))
@@ -3818,10 +3921,33 @@ async def process_cheer_event(user_id, user_name, bits):
                     image = "cheer100.png"
                 else:
                     image = "cheer1000.png"
-                await send_to_discord(discord_message, "New Cheer!", image)
-                await channel.send(f"Thank you {user_name} for {bits} bits!")
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
+            # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            cheer_points = int(settings['point_amount_cheer'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Check if the user is a subscriber and apply the multiplier
+            if await is_user_subscribed(user_id) is not None:
+                cheer_points *= subscriber_multiplier
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Award points based on the cheer event
+            new_points = current_points + cheer_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
             await sqldb.commit()
+            # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
+            await send_to_discord(discord_message, "New Cheer!", image)
+            await channel.send(f"Thank you {user_name} for {bits} bits!")
+            await websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits)
     finally:
         await sqldb.ensure_closed()
 
@@ -3832,6 +3958,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
         async with sqldb.cursor() as cursor:
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
             existing_subscription = await cursor.fetchone()
+            # Update or insert subscription data
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription
                 if existing_sub_plan != sub_plan:
@@ -3840,12 +3967,33 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                     await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
+            # Retrieve the bot settings to get the subscriber points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            subscriber_points = int(settings['point_amount_subscriber'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Apply the multiplier since this is a subscription event
+            subscriber_points *= subscriber_multiplier
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the user's points based on the subscription event
+            new_points = current_points + subscriber_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
             await sqldb.commit()
+            # Send notification messages
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
             await send_to_discord(discord_message, "New Subscriber!", "sub.png")
-            # Send the message to the channel
+            await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
     finally:
@@ -3858,6 +4006,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
         async with sqldb.cursor() as cursor:
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
             existing_subscription = await cursor.fetchone()
+            # Update or insert subscription data
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription
                 if existing_sub_plan != sub_plan:
@@ -3866,13 +4015,35 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                     await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
+            # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", event_months))
-            await sqldb.commit()
-            if subscriber_message.strip():
-                message = f"Thank you {user_name} for subscribing at {sub_plan}! Your message: '{subscriber_message}'"
+            # Retrieve the bot settings to get the subscriber points amount and subscriber multiplier
+            settings = await get_bot_settings()
+            subscriber_points = int(settings['point_amount_subscriber'])
+            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            # Apply the multiplier since this is a subscription event
+            subscriber_points *= subscriber_multiplier
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the user's points based on the subscription event
+            new_points = current_points + subscriber_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
             else:
-                message = f"Thank you {user_name} for subscribing at {sub_plan}!"
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
+            await sqldb.commit()
+            # Send notification messages
+            if subscriber_message.strip():
+                message = f'Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: "{subscriber_message}" '
+            else:
+                message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
+            await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
             await send_to_discord(discord_message, "New Subscriber!", "sub.png")
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
@@ -3915,16 +4086,62 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         time_now = datetime.now()
         followed_at = time_now.strftime("%Y-%m-%d %H:%M:%S")
         async with sqldb.cursor() as cursor:
-            await cursor.execute('INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (%s, %s, %s)', (user_id, user_name, followed_at))
-            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "follow", 0))
+            # Insert follower data
+            await cursor.execute(
+                'INSERT INTO followers_data (user_id, user_name, followed_at) VALUES (%s, %s, %s)',
+                (user_id, user_name, followed_at)
+            )
+            await cursor.execute(
+                'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
+                (user_name, "follow", 0)
+            )
+            # Retrieve the bot settings to get the follower points amount
+            settings = await get_bot_settings()
+            follower_points = settings['follower_points']
+            # Fetch current points for the user
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+            result = await cursor.fetchone()
+            current_points = result[0] if result else 0
+            # Update the user's points based on the follow event
+            new_points = current_points + follower_points
+            if result:
+                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+            else:
+                await cursor.execute(
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                    (user_id, user_name, new_points)
+                )
             await sqldb.commit()
+        # Send follow notification to Discord Logs, Twitch Chat and Websocket
         message = f"Thank you {user_name} for following! Welcome to the channel!"
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
+        await websocket_notice("TWITCH_FOLLOW", user=user_name)
         channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
     finally:
         await sqldb.ensure_closed()
+
+# Function to ban a user
+async def ban_user(username, user_id):
+    ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={CHANNEL_ID}"
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        'Content-Type': "application/json",
+    }
+    data = {
+        'data': {
+            'user_id': user_id,
+            'reason': "Spam/Bot Account"
+        }
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(ban_url, headers=headers, json=data) as response:
+            if response.status == 200:
+                twitch_logger.info(f"{username} has been banned for sending a spam message in chat.")
+            else:
+                twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}")
 
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
@@ -3955,14 +4172,12 @@ async def send_to_discord(message, title, image):
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
-            try:
-                response = requests.post(discord_url, json=payload)
-                if response.status_code in [200, 204]:
-                    return
-                else:
-                    bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                bot_logger.error(f"Request to Discord failed: {e}")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(discord_url, json=payload) as response:
+                    if response.status not in [200, 204]:
+                        bot_logger.error(f"Failed to send to Discord - Error: {response.status}")
+    except Exception as e:
+        bot_logger.error(f"Request to Discord failed: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -3995,14 +4210,12 @@ async def send_to_discord_mod(message, title, image):
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
-            try:
-                response = requests.post(discord_url, json=payload)
-                if response.status_code in [200, 204]:
-                    return
-                else:
-                    bot_logger.error(f"Failed to send to Discord - Error: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                bot_logger.error(f"Request to Discord failed: {e}")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(discord_url, json=payload) as response:
+                    if response.status not in [200, 204]:
+                        bot_logger.error(f"Failed to send to Discord - Error: {response.status}")
+    except Exception as e:
+        bot_logger.error(f"Request to Discord failed: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -4011,55 +4224,137 @@ async def send_to_discord_stream_online(message, image):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
-            await cursor.execute("SELECT timezone FROM profile")
-            timezone_result = await cursor.fetchone()
-            timezone = timezone_result[0] if timezone_result else 'UTC'
+            await cursor.execute("SELECT timezone, discord_alert_online FROM profile")
+            result = await cursor.fetchone()
+            if not result:
+                bot_logger.error("Required profile information not found.")
+                return
+            timezone = result[0] if result[0] else 'UTC'
+            discord_url = result[1]
+            if not discord_url:
+                bot_logger.error("Discord URL not found.")
+                return
+            # Generate the current time based on the fetched timezone
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz)
             time_format_date = current_time.strftime("%B %d, %Y")
             time_format_time = current_time.strftime("%I:%M %p")
             time_format = f"{time_format_date} at {time_format_time}"
-            await cursor.execute("SELECT discord_alert_online FROM profile")
-            discord_url_result = await cursor.fetchone()
-            if discord_url_result:
-                discord_url = discord_url_result[0]
-                title = f"{CHANNEL_NAME} is now live on Twitch!"
-                payload = {
-                    "username": "BotOfTheSpecter",
-                    "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
-                    "content": "@everyone",
-                    "embeds": [{
-                        "description": message,
-                        "title": title,
-                        "url": f"https://twitch.tv/{CHANNEL_NAME}",
-                        "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
-                    }]
+            title = f"{CHANNEL_NAME} is now live on Twitch!"
+            payload = {
+                "username": "BotOfTheSpecter",
+                "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
+                "content": "@everyone",
+                "embeds": [{
+                    "description": message,
+                    "title": title,
+                    "url": f"https://twitch.tv/{CHANNEL_NAME}",
+                    "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
+                }]
+            }
+            if image:
+                payload["embeds"][0]["image"] = {
+                    "url": image,
+                    "height": 720,
+                    "width": 1280
                 }
-                if image:
-                    payload["embeds"][0]["image"] = {
-                        "url": image,
-                        "height": 720,
-                        "width": 1280
-                    }
-                else:
-                    bot_logger.warning("No image URL provided; sending message without image.")
-                response = requests.post(discord_url, json=payload)
-                if response.status_code in (200, 204):
-                    bot_logger.info(f"Message sent to Discord successfully - Status Code: {response.status_code}")
-                else:
-                    bot_logger.error(f"Failed to send to Discord - Status Code: {response.status_code}, Response: {response.text}")
             else:
-                bot_logger.error("Discord URL not found.")
+                bot_logger.warning("No image URL provided; sending message without image.")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(discord_url, json=payload) as response:
+                    if response.status in (200, 204):
+                        bot_logger.info(f"Message sent to Discord successfully - Status Code: {response.status}")
+                    else:
+                        bot_logger.error(f"Failed to send to Discord - Status Code: {response.status}, Response: {await response.text()}")
     except Exception as e:
         bot_logger.error(f"An error occurred while sending a message to Discord: {e}")
     finally:
         await sqldb.ensure_closed()
 
+# Function to connect to the websocket server and push a notice
+async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None, weather=None, cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None):
+    async with ClientSession() as session:
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
+        # Handling different event types and their specific parameters
+        if event == "TTS" and text:
+            params['text'] = text
+        elif event == "WALKON" and channel and user:
+            walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
+            if os.path.exists(walkon_file_path):
+                params['channel'] = channel
+                params['user'] = user
+            else:
+                bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
+                return
+        elif event == "DEATHS" and death and game:
+            params['death-text'] = death
+            params['game'] = game
+        elif event == "STREAM_ONLINE":
+            # No additional parameters required for STREAM_ONLINE
+            pass
+        elif event == "STREAM_OFFLINE":
+            # No additional parameters required for STREAM_OFFLINE
+            pass
+        elif event == "WEATHER" and weather:
+            params['location'] = weather
+        elif event == "TWITCH_FOLLOW" and user:
+            params['twitch-username'] = user
+        elif event == "TWITCH_CHEER" and user and cheer_amount:
+            params['twitch-username'] = user
+            params['twitch-cheer-amount'] = cheer_amount
+        elif event == "TWITCH_SUB" and user and sub_tier and sub_months:
+            params['twitch-username'] = user
+            params['twitch-tier'] = sub_tier
+            params['twitch-sub-months'] = sub_months
+        elif event == "TWITCH_RAID" and user and raid_viewers:
+            params['twitch-username'] = user
+            params['twitch-raid'] = raid_viewers
+        else:
+            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
+            return
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
+        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        # Send the HTTP request
+        async with session.get(url) as response:
+            if response.status == 200:
+                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+            else:
+                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+
+# Function to connect to the websocket server and push a notice
+async def websocket_notice_tts(event, text=None):
+    async with ClientSession() as session:
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
+        # Handling TTS event
+        if event == "TTS" and text:
+            params['text'] = text
+        else:
+            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
+            return
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
+        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        # Send the HTTP request
+        async with session.get(url) as response:
+            if response.status == 200:
+                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+            else:
+                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+
 # Function to create a new group if it doesn't exist
 async def group_creation():
     sqldb = await get_mysql_connection()
     try:
-        group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3"]
+        group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3", "Normal"]
         try:
             async with sqldb.cursor() as cursor:
                 # Create placeholders for each group name
@@ -4123,7 +4418,7 @@ async def update_version_control():
         if not os.path.exists(directory):
             os.makedirs(directory)
         # Define the file path with the channel name
-        file_path = os.path.join(directory, f"{CHANNEL_NAME}_version_control.txt")
+        file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
         # Delete the file if it exists
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -4160,6 +4455,138 @@ async def check_stream_online():
                 bot_logger.info(f"Bot Restarted, Stream is online. Game: {current_game}")
     return
 
+async def convert_currency(amount, from_currency, to_currency):
+    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API}/pair/{from_currency}/{to_currency}/{amount}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if data['result'] == "success":
+                    converted_amount = data['conversion_result']
+                    api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency}")
+                    return converted_amount
+                else:
+                    error_message = data.get('error-type', 'Unknown error')
+                    api_logger.error(f"Error: {error_message}")
+                    return f"Error: {error_message}"
+    except aiohttp.ClientError as e:
+        api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {str(e)}")
+        raise
+
+async def channel_point_rewards():
+    # Check the broadcaster's type
+    user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
+    headers = {
+        "Client-Id": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    try:
+        # Get MySQL connection
+        sqldb = await get_mysql_connection()
+        async with sqldb.cursor() as cursor:
+            async with aiohttp.ClientSession() as session:
+                # Fetch broadcaster info
+                async with session.get(user_api_url, headers=headers) as user_response:
+                    if user_response.status == 200:
+                        user_data = await user_response.json()
+                        broadcaster_type = user_data["data"][0].get("broadcaster_type", "")
+                        if broadcaster_type not in ["affiliate", "partner"]:
+                            api_logger.info(f"Broadcaster type '{broadcaster_type}' does not support channel points. Exiting.")
+                            return
+                    else:
+                        api_logger.error(f"Failed to fetch broadcaster info: {user_response.status} {user_response.reason}")
+                        return
+                # If the broadcaster is an affiliate or partner, proceed with fetching rewards
+                api_url = f"https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={CHANNEL_ID}"
+                async with session.get(api_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        rewards = data.get("data", [])
+                        for reward in rewards:
+                            reward_id = reward.get("id")
+                            reward_title = reward.get("title")
+                            reward_cost = reward.get("cost")
+                            # Check if the reward already exists in the database
+                            await cursor.execute("SELECT COUNT(*) FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+                            count_result = await cursor.fetchone()
+                            if count_result[0] == 0:
+                                # Insert new reward
+                                api_logger.info(f"Inserting new reward: {reward_id}, {reward_title}, {reward_cost}")
+                                await cursor.execute(
+                                    "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) "
+                                    "VALUES (%s, %s, %s)",
+                                    (reward_id, reward_title, reward_cost)
+                                )
+                            else:
+                                # Update existing reward
+                                api_logger.info(f"Updating existing reward: {reward_id}, {reward_title}, {reward_cost}")
+                                await cursor.execute(
+                                    "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
+                                    "WHERE reward_id = %s",
+                                    (reward_title, reward_cost, reward_id)
+                                )
+                        api_logger.info("Rewards processed successfully.")
+                    else:
+                        api_logger.error(f"Failed to fetch rewards: {response.status} {response.reason}")
+                        
+        await sqldb.commit()
+    except Exception as e:
+        api_logger.error(f"An error occurred: {str(e)}")
+    finally:
+        if sqldb:
+            sqldb.close()
+
+async def midnight(channel):
+    # Get the timezone once outside the loop
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor() as cursor:
+        await cursor.execute("SELECT timezone FROM profile")
+        result = await cursor.fetchone()
+        if result and result[0]:
+            timezone = result[0]
+            tz = pytz.timezone(timezone)
+        else:
+            # If no timezone is set, stop the function
+            chat_logger.info("No timezone set for the user. Stopping the midnight check.")
+            return
+    while True:
+        # Get the current time in the user's timezone
+        current_time = datetime.now(tz)
+        # Check if the current time in the user's timezone is exactly midnight
+        if current_time.hour == 0 and current_time.minute == 0:
+            cur_date = current_time.strftime("%d %B %Y")
+            cur_time = current_time.strftime("%I %p")
+            cur_day = current_time.strftime("%A")
+            message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
+            await channel.send(message)
+            # Sleep for 120 seconds to avoid sending the message multiple times
+            await asyncio.sleep(120)
+        else:
+            # Sleep for 10 seconds before checking again
+            await asyncio.sleep(10)
+
+async def get_bot_settings():
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            await cursor.execute("SELECT point_name, point_amount_chat, point_ammount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid FROM bot_settings LIMIT 1")
+            result = await cursor.fetchone()
+            if result:
+                return {
+                    'point_name': result[0],
+                    'chat_points': int(result[1]),
+                    'follower_points': int(result[2]),
+                    'subscriber_points': int(result[3]),
+                    'cheer_points': int(result[4]),
+                    'raid_points': int(result[5])
+                }
+            else:
+                return None
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
 async def known_users():
     sqldb = await get_mysql_connection()
     try:
@@ -4180,10 +4607,9 @@ async def known_users():
                         for mod in mod_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (mod, "MOD", "MOD"))
                         await sqldb.commit()
-                    bot_logger.info(f"Added moderators to the database: {mod_list}")
+                    api_logger.info(f"Added moderators to the database: {mod_list}")
                 else:
-                    bot_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
-
+                    api_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
             # Get all the VIPs and put them into the database
             url_vips = f'https://api.twitch.tv/helix/channels/vips?broadcaster_id={CHANNEL_ID}'
             async with session.get(url_vips, headers=headers) as response:
@@ -4195,9 +4621,9 @@ async def known_users():
                         for vip in vip_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "VIP", "VIP"))
                         await sqldb.commit()
-                    bot_logger.info(f"Added VIPs to the database: {vip_list}")
+                    api_logger.info(f"Added VIPs to the database: {vip_list}")
                 else:
-                    bot_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
+                    api_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
     except Exception as e:
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
@@ -4222,7 +4648,6 @@ async def setup_database():
             # Create MySQL database named after the channel, if it doesn't exist
             await cursor.execute("CREATE DATABASE IF NOT EXISTS `{}`".format(CHANNEL_NAME))
             await cursor.execute("USE `{}`".format(CHANNEL_NAME))
-
             # List of table creation statements
             tables = {
                 'everyone': '''
@@ -4355,6 +4780,7 @@ async def setup_database():
                 'seen_today': '''
                     CREATE TABLE IF NOT EXISTS seen_today (
                         user_id VARCHAR(255),
+                        username VARCHAR(255),
                         PRIMARY KEY (user_id)
                     ) ENGINE=InnoDB
                 ''',
@@ -4398,7 +4824,7 @@ async def setup_database():
                         id INT PRIMARY KEY AUTO_INCREMENT,
                         username VARCHAR(255),
                         event VARCHAR(255),
-                        data INT
+                        data VARCHAR(255)
                     ) ENGINE=InnoDB
                 ''',
                 'message_counts': '''
@@ -4407,6 +4833,27 @@ async def setup_database():
                         message_count INT NOT NULL,
                         user_level VARCHAR(255) NOT NULL,
                         PRIMARY KEY (username)
+                    ) ENGINE=InnoDB
+                ''',
+                'bot_points': '''
+                    CREATE TABLE IF NOT EXISTS bot_points (
+                        user_id VARCHAR(50),
+                        user_name VARCHAR(50),
+                        points INT DEFAULT 0,
+                        PRIMARY KEY (user_id)
+                    ) ENGINE=InnoDB
+                ''',
+                'bot_settings': '''
+                    CREATE TABLE IF NOT EXISTS bot_settings (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        point_name TEXT,
+                        point_amount_chat VARCHAR(50),
+                        point_ammount_follower VARCHAR(50),
+                        point_amount_subscriber VARCHAR(50),
+                        point_amount_cheer VARCHAR(50),
+                        point_amount_raid VARCHAR(50),
+                        subscriber_multiplier VARCHAR(50),
+                        excluded_users TEXT
                     ) ENGINE=InnoDB
                 ''',
                 'channel_point_rewards': '''
@@ -4447,8 +4894,8 @@ async def setup_database():
                 ''',
                 'tipping_settings': '''
                     CREATE TABLE IF NOT EXISTS tipping_settings (
-                        StreamElements VARCHAR(255) DEFAULT NULL,
-                        StreamLabs VARCHAR(255) DEFAULT NULL
+                        StreamElements TEXT DEFAULT NULL,
+                        StreamLabs TEXT DEFAULT NULL
                     ) ENGINE=InnoDB
                 ''',
                 'tipping': '''
@@ -4460,19 +4907,61 @@ async def setup_database():
                         source VARCHAR(255),
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                     ) ENGINE=InnoDB
+                ''',
+                'categories': '''
+                    CREATE TABLE IF NOT EXISTS categories (
+                        id INT(11) NOT NULL AUTO_INCREMENT,
+                        category VARCHAR(255) NOT NULL,
+                        PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ''',
+                'showobs': '''
+                    CREATE TABLE IF NOT EXISTS showobs (
+                        id INT(11) NOT NULL AUTO_INCREMENT,
+                        font VARCHAR(50) NOT NULL DEFAULT 'Arial',
+                        color VARCHAR(50) NOT NULL DEFAULT 'Black',
+                        list VARCHAR(10) NOT NULL DEFAULT 'Bullet',
+                        shadow TINYINT(1) NOT NULL DEFAULT 0,
+                        bold TINYINT(1) NOT NULL DEFAULT 0,
+                        font_size INT(11) NOT NULL DEFAULT 22,
+                        PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'todos': '''
+                    CREATE TABLE IF NOT EXISTS todos (
+                        id INT(255) NOT NULL AUTO_INCREMENT,
+                        objective VARCHAR(255) NOT NULL,
+                        category VARCHAR(255) DEFAULT NULL,
+                        completed VARCHAR(3) NOT NULL DEFAULT 'No',
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
             }
-
             # Create tables
             for table_name, table_schema in tables.items():
                 try:
                     await cursor.execute(table_schema)
                 except aiomysql.Error as err:
-                    if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
-                        bot_logger.info(f"Table {table_name} already exists.")
-                    else:
+                    if err.errno != errorcode.ER_TABLE_EXISTS_ERROR:
                         bot_logger.error(f"Error creating table {table_name}: {err}")
-
+            await conn.commit()
+            # Ensure 'Default' category exists
+            await cursor.execute("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')")
+            await conn.commit()
+            # Ensure default options for showobs exist
+            await cursor.execute('''
+                INSERT INTO showobs (font, color, list, shadow, bold, font_size)
+                SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22
+                WHERE NOT EXISTS (SELECT 1 FROM showobs)
+            ''')
+            await conn.commit()
+            await cursor.execute('''
+                INSERT INTO bot_settings (point_name, point_amount_chat, point_ammount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users)
+                SELECT 'Points', '10', '300', '500', '350', '250', '2', CONCAT('botofthespecter,', %s)
+                WHERE NOT EXISTS (SELECT 1 FROM bot_settings)
+            ''', (CHANNEL_NAME,))
             await conn.commit()
     except aiomysql.Error as err:
         bot_logger.error(err)
@@ -4494,7 +4983,7 @@ async def event_command_error(error):
 # Run the bot
 def start_bot():
     # Schedule bot tasks
-    asyncio.get_event_loop().create_task(refresh_token_every_day())
+    asyncio.get_event_loop().create_task(token_refresh())
 
     # Start the bot
     bot.run()
