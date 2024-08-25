@@ -101,7 +101,7 @@ async def websocket_notice(event, params, api_key):
     async with aiohttp.ClientSession() as session:
         params['code'] = api_key  # Pass the verified API key to the websocket server
         encoded_params = urlencode(params)
-        url = f'https://websocket.botofthespecter.com:8080/notify?{encoded_params}'
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
         async with session.get(url) as response:
             if response.status != 200:
                 raise HTTPException(
@@ -273,7 +273,7 @@ async def versions():
     tags=["BotOfTheSpecter", "Websocket"]
 )
 async def websocket_heartbeat():
-    url = "https://websocket.botofthespecter.com:8080/heartbeat"
+    url = "https://websocket.botofthespecter.com/heartbeat"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
