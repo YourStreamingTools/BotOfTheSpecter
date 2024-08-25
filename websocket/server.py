@@ -39,7 +39,7 @@ class BotOfTheSpecterWebsocketServer:
         self.processing_task = None
 
         # Allowed IPs for secure routes
-        ips_file = "/var/www/websocket/ips.txt"
+        ips_file = "/home/websocket/ips.txt"
         self.allowed_ips = self.load_ips(ips_file)
 
     def load_ips(self, ips_file):
