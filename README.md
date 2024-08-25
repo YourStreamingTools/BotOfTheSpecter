@@ -3,6 +3,9 @@
 ## Overview
 BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming experience on Twitch. With a wide array of features ranging from chat interaction and moderation to detailed analytics and user management, it's your all-in-one solution for managing your Twitch channel.
 
+### Version 4.6
+[View Full Changelog for Version 4.6](/bot/changelog/4.6.md)
+
 ## Features
 
 ### Twitch Integration
@@ -23,35 +26,6 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 ### Logging System
 - **Comprehensive Logs**: Review detailed logs covering bot activities, chat messages, Twitch events, and script errors.
 - **Easy Log Management**: Access and manage different log types conveniently through the dashboard.
-
-## Coming Soon!
-
-- **Enhanced Chat Protection**: Elevate your chat experience with Specter's Dashboard. Soon, you'll have the power to activate advanced protection measures such as ``URL Blocking``, ensuring unwanted links stay out. With the `!permit` command, grant temporary exemptions for approved links. Additionally, ``Caps Lock Usage`` Protection will maintain a calm chat environment by preventing excessive capitalization, while still allowing designated members to bypass this restriction and finally a ``Profanity Filter`` keep those unwanted bad words out of chat, Specter will delete the message and provide back a clean message to read for the user.
-- **User Groups**: Introducing a convenient feature to organize and manage your Twitch community effortlessly. Create user groups and assign Twitch usernames, facilitating swift access management.
-
-Stay tuned for updates on the release of these exciting features!
-
-## Versions
-
-### Version 4.5 - BotOfTheSpecter
-
-- Added tipping support via StreamElements and StreamLabs.
-- Integrated WebSocket connections for real-time tipping updates.
-- Introduced AI support for chat mentions and responses.
-- Added `connect_to_tipping_services` function for managing tipping connections.
-- Created `process_message` and `process_tipping_message` functions for handling tipping data.
-- Improved message parsing for multiple mentions in chat.
-- Updated Twitch WebSocket connection to support simultaneous connections.
-- Added `uuid` import for WebSocket connections.
-- Created `tipping_settings` table for storing tipping tokens.
-- Created `tipping` table for recording tip details.
-- Enhanced error handling for StreamElements WebSocket connections.
-- Improved AI response integration for chat interactions.
-- Streamlined WebSocket connections to handle tipping events.
-- Enhanced logging for tipping and AI-related events.
-- Optimized database operations for tipping data storage.
-
-[View Full Changelog for Version 4.5](/bot/changelog/4.5.md)
 
 ## Contributing Guidelines
 
