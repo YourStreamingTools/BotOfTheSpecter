@@ -4597,7 +4597,8 @@ async def get_bot_settings():
                     point_amount_follower,
                     point_amount_subscriber, 
                     point_amount_cheer, 
-                    point_amount_raid 
+                    point_amount_raid,
+                    excluded_users
                 FROM bot_settings 
                 LIMIT 1
             """)
@@ -4609,7 +4610,8 @@ async def get_bot_settings():
                     'follower_points': int(result[2]),
                     'subscriber_points': int(result[3]),
                     'cheer_points': int(result[4]),
-                    'raid_points': int(result[5])
+                    'raid_points': int(result[5]),
+                    'excluded_users': result[6]
                 }
             else:
                 return None
