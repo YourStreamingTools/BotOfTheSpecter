@@ -4582,7 +4582,7 @@ async def get_bot_settings():
                 SELECT 
                     point_name, 
                     point_amount_chat, 
-                    point_amount_follower,
+                    point_ammount_follower,
                     point_amount_subscriber, 
                     point_amount_cheer, 
                     point_amount_raid 
