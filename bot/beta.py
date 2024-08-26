@@ -4582,7 +4582,7 @@ async def get_bot_settings():
                 SELECT 
                     point_name, 
                     point_amount_chat, 
-                    point_ammount_follower,
+                    point_amount_follower,
                     point_amount_subscriber, 
                     point_amount_cheer, 
                     point_amount_raid 
@@ -4869,7 +4869,7 @@ async def setup_database():
                         id INT PRIMARY KEY AUTO_INCREMENT,
                         point_name TEXT,
                         point_amount_chat VARCHAR(50),
-                        point_ammount_follower VARCHAR(50),
+                        point_amount_follower VARCHAR(50),
                         point_amount_subscriber VARCHAR(50),
                         point_amount_cheer VARCHAR(50),
                         point_amount_raid VARCHAR(50),
@@ -4979,7 +4979,7 @@ async def setup_database():
             ''')
             await conn.commit()
             await cursor.execute('''
-                INSERT INTO bot_settings (point_name, point_amount_chat, point_ammount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users)
+                INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users)
                 SELECT 'Points', '10', '300', '500', '350', '250', '2', CONCAT('botofthespecter,', %s)
                 WHERE NOT EXISTS (SELECT 1 FROM bot_settings)
             ''', (CHANNEL_NAME,))
