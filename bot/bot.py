@@ -4578,7 +4578,17 @@ async def get_bot_settings():
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
-            await cursor.execute("SELECT point_name, point_amount_chat, point_ammount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid FROM bot_settings LIMIT 1")
+            await cursor.execute("""
+                SELECT 
+                    point_name, 
+                    point_amount_chat, 
+                    point_amount_follower,
+                    point_amount_subscriber, 
+                    point_amount_cheer, 
+                    point_amount_raid 
+                FROM bot_settings 
+                LIMIT 1
+            """)
             result = await cursor.fetchone()
             if result:
                 return {
@@ -4591,6 +4601,9 @@ async def get_bot_settings():
                 }
             else:
                 return None
+    except Exception as e:
+        bot_logger.error(f"Error fetching bot settings: {e}")
+        return None
     finally:
         await cursor.close()
         await sqldb.ensure_closed()
