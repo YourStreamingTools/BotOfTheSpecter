@@ -12,6 +12,7 @@ import time
 import random
 import base64
 from urllib.parse import urlencode
+from enum import Enum
 
 # Third-party imports
 import aiohttp
@@ -49,7 +50,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.6"
+VERSION = "4.7"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -736,6 +737,33 @@ async def process_eventsub_message(message):
     finally:
         await sqldb.ensure_closed()
 
+class Level(Enum):
+    ANY = 0
+    VIP = 1
+    SUB = 2
+    SUBT2 = 3
+    SUBT3 = 4
+    MOD = 5
+    BROADCASTER = 6
+    TESTER = 7
+
+    @staticmethod
+    def from_badges(badges):
+        levels = [Level.ANY]
+        if badges is None:
+            return levels
+        if badges.get('broadcaster', '0') == '1':
+            levels.append(Level.BROADCASTER)
+        if badges.get('vip', '0') == '1':
+            levels.append(Level.VIP)
+        if badges.get('subscriber', '0')[0] == '3':
+            levels.append(Level.SUBT3)
+        elif badges.get('subscriber', '0')[0] == '2':
+            levels.append(Level.SUBT2)
+        elif badges.get('subscriber', '0') == '1':
+            levels.append(Level.SUB)
+        return levels
+
 class BotOfTheSpecter(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
@@ -1165,6 +1193,30 @@ class BotOfTheSpecter(commands.Bot):
         except aiohttp.ClientError as e:
             bot_logger.error(f"Error getting AI response: {e}")
             return "Sorry, I could not understand your request."
+
+    @commands.command(name='userinfo')
+    async def userinfo_command(self, ctx, *, mentioned_user: str = None):
+        if mentioned_user is None:
+            user_obj = ctx.author
+        else:
+            mentioned_user = mentioned_user.lstrip('@').lower()  # Convert to lowercase
+            user_obj = await self.get_user_by_name(mentioned_user)
+            if user_obj is None:
+                await ctx.send(f"User {mentioned_user} not found.")
+                return
+        prefix = await get_author_prefix(user_obj)
+        await ctx.send(f"{prefix} User Info: {user_obj.name}")
+
+    async def get_user_by_name(self, username):
+        try:
+            response = await self.http.get_users(logins=[username])
+            if response['data']:
+                user_data = response['data'][0]
+                return self.get_user(user_data['id'])  # Retrieve a user object
+            return None
+        except Exception as e:
+            bot_logger.error(f"Error fetching user: {e}")
+            return None
 
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
@@ -3209,6 +3261,36 @@ async def get_display_name(user_id):
                 return data['data'][0]['display_name'] if data['data'] else None
             else:
                 return None
+
+# Get Prefix for Users
+async def get_author_prefix(user):
+    levels = await get_user_level(user)  # Ensure this is awaited
+    user_prefix = ''
+    if Level.BROADCASTER in levels:
+        user_prefix = '[Streamer] '
+    elif Level.MOD in levels:
+        user_prefix = '[Mod] '
+    elif Level.SUBT3 in levels:
+        user_prefix = '[SubT3] '
+    elif Level.SUBT2 in levels:
+        user_prefix = '[SubT2] '
+    elif Level.SUB in levels:
+        user_prefix = '[SubT1] '
+    elif Level.VIP in levels:
+        user_prefix = '[VIP] '
+    elif user.lower() == BOT_USERNAME:
+        user_prefix = '[Bot] '
+    return user_prefix
+
+async def get_user_level(user):
+    levels = [Level.ANY]
+    if user is None:
+        return levels
+    if user.is_mod:
+        levels.append(Level.MOD)
+    if user.is_subscriber:
+        levels.extend(Level.from_badges(user.badges))
+    return levels
 
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
 async def command_permissions(user):
