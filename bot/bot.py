@@ -1038,39 +1038,28 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                # Retrieve the bot settings to get the points settings
                 settings = await get_bot_settings()
                 chat_points = settings['chat_points']
-                # Log the points name for the entire system
-                chat_logger.info(f"System points name: {settings['point_name']}")
-                # Fetch the excluded users from the settings
                 excluded_users = settings['excluded_users'].split(',')
-                chat_logger.info(f"Excluded users: {excluded_users}")
-                # Convert message author to lowercase to check against excluded users
+                bot_logger.info(f"Excluded users: {excluded_users}")
                 author_lower = messageAuthor.lower()
-                # Check if the user is in the excluded users list
                 if author_lower not in excluded_users:
-                    chat_logger.info(f"User {messageAuthor} is not in the excluded users list.")
-                    # Fetch current points for the user
                     await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
                     result = await cursor.fetchone()
                     current_points = result[0] if result else 0
-                    chat_logger.info(f"Current {settings['point_name']} for {messageAuthor}: {current_points}")
-                    # Update the user's points based on chat activity
                     new_points = current_points + chat_points
-                    chat_logger.info(f"New {settings['point_name']} for {messageAuthor}: {new_points}")
                     if result:
                         await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
-                        chat_logger.info(f"Updated {settings['point_name']} for {messageAuthor} in the database.")
+                        bot_logger.info(f"Updated {settings['point_name']} for {messageAuthor} in the database.")
                     else:
                         await cursor.execute(
                             "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
                             (messageAuthorID, messageAuthor, new_points)
                         )
-                        chat_logger.info(f"Inserted new user {messageAuthor} with {settings['point_name']} {new_points} into the database.")
+                        bot_logger.info(f"Inserted new user {messageAuthor} with {settings['point_name']} {new_points} into the database.")
                     await sqldb.commit()
                 else:
-                    chat_logger.info(f"User {messageAuthor} is in the excluded users list, no {settings['point_name']} awarded.")
+                    return
         except Exception as e:
             chat_logger.error(f"Error in user_points: {e}")
         finally:
