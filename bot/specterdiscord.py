@@ -46,7 +46,6 @@ class BotOfTheSpecter(commands.Bot):
         self.discord_token = discord_token
         self.logger = discord_logger
         self.typing_speed = 50
-        self.http._HTTPClient__session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False))
         self.processed_messages_file = f"/var/www/logs/discord/messages.txt"
         # Ensure the log file exists
         if not os.path.exists(self.processed_messages_file):
