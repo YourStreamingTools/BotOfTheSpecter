@@ -4,7 +4,7 @@ import os
 import signal
 import aiohttp
 import discord
-from discord.ext import commands
+from discord.ext import commands as commands
 from enum import Enum
 import argparse
 import aiomysql
@@ -194,7 +194,6 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         self.logger.info(f'Setting channel {config.live_channel_id} to offline status on bot start.')
         await self.add_cog(WebSocketCog(self, config.api_token, self.logger))
-        await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.update_channel_status(config.live_channel_id, "offline")
 
     async def on_member_join(self, member):
@@ -300,41 +299,6 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
 
     def cog_unload(self):
         self.bot.loop.create_task(self.sio.disconnect())
-
-class QuoteCog(commands.Cog, name='Quote'):
-    def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
-        self.bot = bot
-        self.api_token = api_token
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.typing_speed = 50
-
-    @commands.command(name="quote")
-    async def get_quote(self, ctx):
-        if ctx.guild is None:
-            return
-        url = f"https://api.botofthespecter.com/quotes?api_key={self.api_token}"
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with ctx.typing():
-                    async with session.get(url) as response:
-                        if response.status == 200:
-                            quote_data = await response.json()
-                            if "quote" in quote_data and "author" in quote_data:
-                                quote = quote_data["quote"]
-                                author = quote_data["author"]
-                                message = f'📜 **Quote:** "{quote}" — *{author}*'
-                                # Calculate delay based on message length
-                                typing_delay = len(message) / self.typing_speed
-                                await asyncio.sleep(typing_delay)
-                                await ctx.send(message)
-                            else:
-                                await ctx.send("Sorry, I couldn't fetch a quote at this time.")
-                        else:
-                            self.logger.error(f"Failed to fetch quote. Status code: {response.status}")
-                            await ctx.send("Sorry, I couldn't fetch a quote at this time.")
-        except Exception as e:
-            self.logger.error(f"Error fetching quote: {e}")
-            await ctx.send("An error occurred while fetching the quote.")
 
 class DiscordBotRunner:
     def __init__(self, discord_token, channel_name, discord_logger):
