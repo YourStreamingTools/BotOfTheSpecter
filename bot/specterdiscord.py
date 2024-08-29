@@ -150,13 +150,12 @@ class DiscordBotRunner:
     def stop(self):
         if self.bot is not None:
             self.logger.info("Stopping BotOfTheSpecter Discord Bot")
-            future = asyncio.run_coroutine_threadsafe(self.bot.close(), self.loop)
+            for task in asyncio.all_tasks(self.loop):
+                task.cancel()
             try:
-                future.result(5)
-            except TimeoutError:
-                self.logger.error("Timeout error - Bot didn't respond. Forcing close.")
+                self.loop.run_until_complete(self.bot.close())
             except asyncio.CancelledError:
-                self.logger.error("Bot task was cancelled. Forcing close.")
+                self.logger.error("Bot task was cancelled.")
 
     def run(self):
         self.loop = asyncio.new_event_loop()
