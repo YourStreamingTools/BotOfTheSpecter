@@ -68,8 +68,12 @@ class BotOfTheSpecter(commands.Bot):
                     ai_response = await response.text()  # Read response as plain text
                     self.logger.info(f"AI response received: {ai_response}")
                     # Split the response into chunks of 2000 characters
-                    chunks = [ai_response[i:i + 2000] for i in range(0, len(ai_response), 2000)]
-                    return chunks
+                    if ai_response:  # Ensure response is not empty
+                        chunks = [ai_response[i:i + 2000] for i in range(0, len(ai_response), 2000)]
+                        return chunks
+                    else:
+                        self.logger.error("Received empty AI response")
+                        return ["Sorry, I could not understand your request."]
         except aiohttp.ClientError as e:
             self.logger.error(f"Error getting AI response: {e}")
             return ["Sorry, I could not understand your request."]
@@ -88,11 +92,16 @@ class BotOfTheSpecter(commands.Bot):
         # Process the message
         if isinstance(message.channel, discord.DMChannel):
             async with message.channel.typing():
-                ai_responses = await self.get_ai_response(message.content)
-                for ai_response in ai_responses:
-                    typing_delay = len(ai_response) / self.typing_speed
-                    await asyncio.sleep(typing_delay)
-                    await message.author.send(ai_response)
+                try:
+                    ai_responses = await self.get_ai_response(message.content)
+                    for ai_response in ai_responses:
+                        typing_delay = len(ai_response) / self.typing_speed
+                        await asyncio.sleep(typing_delay)
+                        await message.author.send(ai_response)
+                    self.logger.info(f"Sent AI response to {message.author}")
+                except discord.HTTPException as e:
+                    self.logger.error(f"Failed to send message: {e}")
+            # Mark the message as processed by appending the message ID to the file
             with open(self.processed_messages_file, 'a') as file:
                 file.write(message_id + '\n')
         # If the message is in a server channel, process commands
