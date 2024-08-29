@@ -89,6 +89,7 @@ class BotOfTheSpecterWebsocketServer:
             ("STREAM_ONLINE", self.stream_online),
             ("STREAM_OFFLINE", self.stream_offline),
             ("DISCORD_JOIN", self.discord_join),
+            ("FOURTHWALL", self.fourthwall_event),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -185,14 +186,32 @@ class BotOfTheSpecterWebsocketServer:
         if event == "TTS" and text:
             await self.tts_queue.put((text, code))
             self.logger.info(f"TTS request added to queue: {text}")
+        elif event == "FOURTHWALL":
+            await self.handle_fourthwall_event(code, data)
+        else:
+            count = 0
+            for sid, registered_code in self.registered_clients.items():
+                if registered_code == code:
+                    count += 1
+                    await self.sio.emit(event, data, sid)
+                    self.logger.info(f"Emitted event '{event}' to client {sid}")
+            self.logger.info(f"Broadcasted event to {count} clients")
+        return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
+
+    async def handle_fourthwall_event(self, code, data):
+        # Log and broadcast the FOURTHWALL event to the clients
+        self.logger.info(f"Handling FOURTHWALL event with data: {data}")
         count = 0
         for sid, registered_code in self.registered_clients.items():
             if registered_code == code:
                 count += 1
-                await self.sio.emit(event, data, sid)
-                self.logger.info(f"Emitted event '{event}' to client {sid}")
-        self.logger.info(f"Broadcasted event to {count} clients")
-        return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
+                await self.sio.emit("FOURTHWALL", data, sid)
+                self.logger.info(f"Emitted FOURTHWALL event to client {sid}")
+        self.logger.info(f"Broadcasted FOURTHWALL event to {count} clients")
+
+    async def notify(self, sid, data):
+        self.logger.info(f"Notify event from SID [{sid}]: {data}")
+        event = data.get('event')
 
     async def notify(self, sid, data):
         self.logger.info(f"Notify event from SID [{sid}]: {data}")
