@@ -67,10 +67,12 @@ class BotOfTheSpecter(commands.Bot):
                     response.raise_for_status()  # Raise an exception for bad responses
                     ai_response = await response.text()  # Read response as plain text
                     self.logger.info(f"AI response received: {ai_response}")
-                    return ai_response
+                    # Split the response into chunks of 2000 characters
+                    chunks = [ai_response[i:i + 2000] for i in range(0, len(ai_response), 2000)]
+                    return chunks
         except aiohttp.ClientError as e:
             self.logger.error(f"Error getting AI response: {e}")
-            return "Sorry, I could not understand your request."
+            return ["Sorry, I could not understand your request."]
 
     async def on_message(self, message):
         # Ignore bot's own messages
@@ -78,7 +80,6 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Use the message ID to track if it's already been processed
         message_id = str(message.id)
-        # Check if the message ID is already in the file
         with open(self.processed_messages_file, 'r') as file:
             processed_messages = file.read().splitlines()
         if message_id in processed_messages:
@@ -87,11 +88,11 @@ class BotOfTheSpecter(commands.Bot):
         # Process the message
         if isinstance(message.channel, discord.DMChannel):
             async with message.channel.typing():
-                ai_response = await self.get_ai_response(message.content)
-                typing_delay = len(ai_response) / self.typing_speed
-                await asyncio.sleep(typing_delay)
-                await message.author.send(ai_response)
-            # Mark the message as processed by appending the message ID to the file
+                ai_responses = await self.get_ai_response(message.content)
+                for ai_response in ai_responses:
+                    typing_delay = len(ai_response) / self.typing_speed
+                    await asyncio.sleep(typing_delay)
+                    await message.author.send(ai_response)
             with open(self.processed_messages_file, 'a') as file:
                 file.write(message_id + '\n')
         # If the message is in a server channel, process commands
