@@ -5,7 +5,7 @@ import os
 import signal
 import aiohttp
 import discord
-from discord.ext import commands
+from discord.ext import commands as commands
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -30,6 +30,13 @@ def setup_logger(name, log_file, level=logging.INFO):
     logger.addHandler(handler)
     return logger
 
+# Global configuration class
+class Config:
+    def __init__(self):
+        self.api_token = None
+
+config = Config()
+
 # Bot class
 class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, discord_logger, **kwargs):
@@ -47,6 +54,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
+        await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
 
     async def get_ai_response(self, user_message):
@@ -89,6 +97,41 @@ class BotOfTheSpecter(commands.Bot):
                 file.write(message_id + '\n')
         # If the message is in a server channel, process commands
         await self.process_commands(message)
+
+class QuoteCog(commands.Cog, name='Quote'):
+    def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
+        self.bot = bot
+        self.api_token = api_token
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.typing_speed = 50
+
+    @commands.command(name="quote")
+    async def get_quote(self, ctx):
+        if ctx.guild is None:
+            return
+        url = f"https://api.botofthespecter.com/quotes?api_key={self.api_token}"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with ctx.typing():
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            quote_data = await response.json()
+                            if "quote" in quote_data and "author" in quote_data:
+                                quote = quote_data["quote"]
+                                author = quote_data["author"]
+                                message = f'📜 **Quote:** "{quote}" — *{author}*'
+                                # Calculate delay based on message length
+                                typing_delay = len(message) / self.typing_speed
+                                await asyncio.sleep(typing_delay)
+                                await ctx.send(message)
+                            else:
+                                await ctx.send("Sorry, I couldn't fetch a quote at this time.")
+                        else:
+                            self.logger.error(f"Failed to fetch quote. Status code: {response.status}")
+                            await ctx.send("Sorry, I couldn't fetch a quote at this time.")
+        except Exception as e:
+            self.logger.error(f"Error fetching quote: {e}")
+            await ctx.send("An error occurred while fetching the quote.")
 
 class DiscordBotRunner:
     def __init__(self, discord_token, discord_logger):
