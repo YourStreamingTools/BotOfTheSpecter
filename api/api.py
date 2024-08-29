@@ -3,7 +3,7 @@ import aiohttp
 import aiomysql
 import random
 import json
-from fastapi import FastAPI, HTTPException, Depends, Body
+from fastapi import FastAPI, HTTPException, Depends, Body, Request, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -226,6 +226,33 @@ class HeartbeatControlResponse(BaseModel):
                 "status": "OK",
             }
         }
+
+# Define the /fourthwall endpoint for handling webhook data
+@app.post("/fourthwall")
+async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...)):
+    # Extract JSON data from the Fourthwall webhook
+    try:
+        webhook_data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    # Define the payload to send to the WebSocket server
+    params = {
+        "event": "FOURTHWALL",
+        "data": webhook_data
+    }
+    # Send the data to the WebSocket server
+    async with aiohttp.ClientSession() as session:
+        params['code'] = api_key  # Include the API key in the request
+        encoded_params = urlencode(params)
+        url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+        async with session.get(url) as response:
+            if response.status != 200:
+                raise HTTPException(
+                    status_code=response.status,
+                    detail=f"Failed to send HTTP event 'FOURTHWALL' to websocket server."
+                )
+    return {"message": "Webhook received and processed successfully"}
+
 # Quotes endpoint
 @app.get(
     "/quotes",
