@@ -31,6 +31,10 @@ tags_metadata = [
         "description": "Endpoints for managing and retrieving command responses.",
     },
     {
+        "name": "Webhooks",
+        "description": "Endpoints for interacting with external webhook requests.",
+    },
+    {
         "name": "Websocket",
         "description": "Endpoints for interacting with the internal WebSocket server.",
     },
@@ -228,7 +232,11 @@ class HeartbeatControlResponse(BaseModel):
         }
 
 # Define the /fourthwall endpoint for handling webhook data
-@app.post("/fourthwall")
+@app.post(
+    "/fourthwall",
+    summary="Get FOURTHWALL Webhook Requests",
+    tags=["Webhooks"]
+)
 async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...)):
     # Extract JSON data from the Fourthwall webhook
     try:
