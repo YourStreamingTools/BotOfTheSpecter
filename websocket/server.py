@@ -89,7 +89,7 @@ class BotOfTheSpecterWebsocketServer:
             ("STREAM_ONLINE", self.stream_online),
             ("STREAM_OFFLINE", self.stream_offline),
             ("DISCORD_JOIN", self.discord_join),
-            ("FOURTHWALL", self.fourthwall_event),
+            ("FOURTHWALL", self.handle_fourthwall_event),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
