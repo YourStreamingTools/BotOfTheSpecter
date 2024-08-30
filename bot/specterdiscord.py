@@ -63,7 +63,9 @@ class BotOfTheSpecter(commands.Bot):
                     "message": user_message,
                     "channel": self.channel_name,
                 }
+                self.logger.info(f"Sending payload to AI: {payload}")
                 async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
+                    self.logger.info(f"AI server response status: {response.status}")
                     response.raise_for_status()  # Raise an exception for bad responses
                     ai_response = await response.text()  # Read response as plain text
                     self.logger.info(f"AI response received: {ai_response}")
@@ -77,6 +79,9 @@ class BotOfTheSpecter(commands.Bot):
         except aiohttp.ClientError as e:
             self.logger.error(f"Error getting AI response: {e}")
             return ["Sorry, I could not understand your request."]
+        except Exception as e:
+            self.logger.error(f"Unexpected error in get_ai_response: {e}")
+            return ["Sorry, I encountered an error processing your request."]
 
     async def on_message(self, message):
         # Ignore bot's own messages
@@ -95,12 +100,17 @@ class BotOfTheSpecter(commands.Bot):
                 try:
                     ai_responses = await self.get_ai_response(message.content)
                     for ai_response in ai_responses:
-                        typing_delay = len(ai_response) / self.typing_speed
-                        await asyncio.sleep(typing_delay)
-                        await message.author.send(ai_response)
-                    self.logger.info(f"Sent AI response to {message.author}")
+                        if ai_response:  # Ensure we're not trying to send an empty message
+                            typing_delay = len(ai_response) / self.typing_speed
+                            await asyncio.sleep(typing_delay)
+                            await message.author.send(ai_response)
+                            self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
+                        else:
+                            self.logger.error("AI response chunk was empty, not sending")
                 except discord.HTTPException as e:
                     self.logger.error(f"Failed to send message: {e}")
+                except Exception as e:
+                    self.logger.error(f"Unexpected error in on_message: {e}")
             # Mark the message as processed by appending the message ID to the file
             with open(self.processed_messages_file, 'a') as file:
                 file.write(message_id + '\n')
