@@ -1132,7 +1132,7 @@ class BotOfTheSpecter(commands.Bot):
         messages = [ai_response[i:i+490] for i in range(0, len(ai_response), 490)]
         # Send each part of the response as a separate message
         for part in messages:
-            await self.send_message_to_channel(f"@{message_author_name} {part}")
+            await self.send_message_to_channel(f"{part}")
 
     async def send_message_to_channel(self, message):
         channel = bot.get_channel(CHANNEL_NAME)
