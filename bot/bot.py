@@ -2052,7 +2052,8 @@ class BotOfTheSpecter(commands.Bot):
                     result = await cursor.fetchone()
                     if result:
                         time_now = datetime.now()
-                        start_time = result[0]
+                        # Convert start_time from string to datetime
+                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = time_now - start_time
                         # Calculate the duration
                         days, seconds = divmod(elapsed_time.total_seconds(), 86400)
