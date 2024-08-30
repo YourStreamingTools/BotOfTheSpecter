@@ -44,14 +44,6 @@ export default {
         .replace(/\n/g, ' ');    // Replace line breaks with spaces
     }
 
-    // Function to truncate the response to fit within the character limit
-    function truncateResponse(response, limit = 500) {
-      if (response.length <= limit) {
-        return response;
-      }
-      return response.substring(0, limit) + '...';
-    }
-
     // Normalize the user message
     function normalizeMessage(message) {
       return message.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
@@ -342,11 +334,10 @@ export default {
 
         const chatPrompt = {
           messages: [
-            { role: 'system', content: "Keep your responses concise and no longer than 500 characters. You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Your main tasks are to answer questions and provide information. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information while maintaining privacy and confidentiality." },
+            { role: 'system', content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Your main tasks are to answer questions and provide information. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information while maintaining privacy and confidentiality." },
             { role: 'user', content: body.message }
           ]
         };
-
         try {
           let aiMessage;
           do {
@@ -356,12 +347,9 @@ export default {
             aiMessage = removeFormatting(aiMessage);
             aiMessage = truncateResponse(aiMessage);
           } while (isRecentResponse(aiMessage));
-
           conversationHistory.push({ role: 'assistant', content: aiMessage });
           await saveConversationHistory(env, channel, message_user, conversationHistory);
-
-          console.log('Formatted and truncated response:', aiMessage);
-
+          console.log('Formatted response:', aiMessage);
           return new Response(aiMessage, {
             headers: { 'content-type': 'text/plain' },
           });
@@ -373,7 +361,6 @@ export default {
           });
         }
       }
-
       return new Response('Method Not Allowed', { status: 405 });
     }
 
