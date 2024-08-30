@@ -345,7 +345,6 @@ export default {
             console.log('AI response:', chatResponse);
             aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             aiMessage = removeFormatting(aiMessage);
-            aiMessage = truncateResponse(aiMessage);
           } while (isRecentResponse(aiMessage));
           conversationHistory.push({ role: 'assistant', content: aiMessage });
           await saveConversationHistory(env, channel, message_user, conversationHistory);
