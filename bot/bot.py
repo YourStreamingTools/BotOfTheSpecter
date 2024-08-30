@@ -2806,17 +2806,17 @@ class BotOfTheSpecter(commands.Bot):
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
                             data = await response.json()
-                            beta_version = data.get('beta_version', '').strip()
-                            if beta_version and beta_version != VERSION:
-                                remote_major, remote_minor, remote_patch = map(int, beta_version.split('.'))
+                            stable_version = data.get('stable_version', '').strip()
+                            if stable_version and stable_version != VERSION:
+                                remote_major, remote_minor, remote_patch = map(int, stable_version.split('.'))
                                 local_major, local_minor, local_patch = map(int, VERSION.split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new beta update (V{beta_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new beta update (V{stable_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
                                     message = f"There is no beta update pending. You are currently running V{VERSION}."
-                                bot_logger.info(f"Bot beta update available. (V{beta_version})")
+                                bot_logger.info(f"Bot beta update available. (V{stable_version})")
                                 await ctx.send(message)
                             else:
                                 message = f"There is no beta update pending. You are currently running V{VERSION}."
@@ -4428,7 +4428,7 @@ async def update_version_control():
         if not os.path.exists(directory):
             os.makedirs(directory)
         # Define the file path with the channel name
-        file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
+        file_path = os.path.join(directory, f"{CHANNEL_NAME}_version_control.txt")
         # Delete the file if it exists
         if os.path.exists(file_path):
             os.remove(file_path)
