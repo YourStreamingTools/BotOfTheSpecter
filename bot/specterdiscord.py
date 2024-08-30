@@ -13,7 +13,7 @@ load_dotenv()
 
 # Define logging directory
 logs_directory = "/var/www/logs"
-discord_logs = os.path.join(logs_directory, "discord")
+discord_logs = os.path.join(logs_directory, "specterdiscord")
 
 # Ensure directory exists
 for directory in [logs_directory, discord_logs]:
