@@ -1913,7 +1913,7 @@ class BotOfTheSpecter(commands.Bot):
                 result = await cursor.fetchone()
                 if result:
                     # User was lurking before
-                    previous_start_time = datetime.strftime(result[0], "%Y-%m-%d %H:%M:%S")
+                    previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
