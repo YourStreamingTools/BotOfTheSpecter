@@ -1129,7 +1129,7 @@ class BotOfTheSpecter(commands.Bot):
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id)
         # Split the response if it's longer than 500 characters
-        messages = [ai_response[i:i+400] for i in range(0, len(ai_response), 400)]
+        messages = [ai_response[i:i+490] for i in range(0, len(ai_response), 490)]
         # Send each part of the response as a separate message
         for part in messages:
             await self.send_message_to_channel(f"@{message_author_name} {part}")
