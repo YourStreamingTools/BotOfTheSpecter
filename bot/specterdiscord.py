@@ -56,12 +56,12 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
 
-    async def get_ai_response(self, user_message):
+    async def get_ai_response(self, user_message, channel_name):
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
                     "message": user_message,
-                    "channel": self.channel_name,
+                    "channel": channel_name,
                 }
                 self.logger.info(f"Sending payload to AI: {payload}")
                 async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
@@ -87,6 +87,11 @@ class BotOfTheSpecter(commands.Bot):
         # Ignore bot's own messages
         if message.author == self.user:
             return
+        # Determine the "channel_name" based on the source of the message
+        if isinstance(message.channel, discord.DMChannel):
+            channel_name = str(message.author.id)  # Use user ID for DMs
+        else:
+            channel_name = str(message.guild.name)  # Use guild name for server messages
         # Use the message ID to track if it's already been processed
         message_id = str(message.id)
         with open(self.processed_messages_file, 'r') as file:
@@ -98,7 +103,7 @@ class BotOfTheSpecter(commands.Bot):
         if isinstance(message.channel, discord.DMChannel):
             async with message.channel.typing():
                 try:
-                    ai_responses = await self.get_ai_response(message.content)
+                    ai_responses = await self.get_ai_response(message.content, channel_name)
                     for ai_response in ai_responses:
                         if ai_response:  # Ensure we're not trying to send an empty message
                             typing_delay = len(ai_response) / self.typing_speed
