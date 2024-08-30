@@ -4,13 +4,14 @@ import re
 import asyncio
 import argparse
 import datetime
-from datetime import datetime, timezone, timedelta
+from datetime import timezone, timedelta
 import logging
 import subprocess
 import json
 import time
 import random
 import base64
+import uuid
 from urllib.parse import urlencode
 
 # Third-party imports
@@ -25,7 +26,6 @@ import streamlink
 import pytz
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
-import uuid
 import websockets
 from pint import UnitRegistry
 
