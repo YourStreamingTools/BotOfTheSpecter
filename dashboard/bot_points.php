@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $updateStmt = $db->prepare("UPDATE bot_settings SET 
         point_name = ?, 
         point_amount_chat = ?, 
-        point_ammount_follower = ?, 
+        point_amount_follower = ?, 
         point_amount_subscriber = ?, 
         point_amount_cheer = ?, 
         point_amount_raid = ?, 
@@ -160,7 +160,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                 <div class="field">
                     <label class="label" for="point_amount_follower" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Following</label>
                     <div class="control">
-                        <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_ammount_follower']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
+                        <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_amount_follower']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
