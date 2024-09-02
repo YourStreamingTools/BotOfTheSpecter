@@ -101,21 +101,22 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Process the message
         if isinstance(message.channel, discord.DMChannel):
-            async with message.channel.typing():
-                try:
+            try:
+                async with message.channel.typing():
                     ai_responses = await self.get_ai_response(message.content, channel_name)
-                    for ai_response in ai_responses:
-                        if ai_response:  # Ensure we're not trying to send an empty message
-                            typing_delay = len(ai_response) / self.typing_speed
-                            await asyncio.sleep(typing_delay)
-                            await message.author.send(ai_response)
-                            self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
-                        else:
-                            self.logger.error("AI response chunk was empty, not sending")
-                except discord.HTTPException as e:
-                    self.logger.error(f"Failed to send message: {e}")
-                except Exception as e:
-                    self.logger.error(f"Unexpected error in on_message: {e}")
+                # Now stop typing and simulate typing speed
+                for ai_response in ai_responses:
+                    if ai_response:  # Ensure we're not trying to send an empty message
+                        typing_delay = len(ai_response) / self.typing_speed
+                        await asyncio.sleep(typing_delay)
+                        await message.author.send(ai_response)
+                        self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
+                    else:
+                        self.logger.error("AI response chunk was empty, not sending")
+            except discord.HTTPException as e:
+                self.logger.error(f"Failed to send message: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error in on_message: {e}")
             # Mark the message as processed by appending the message ID to the file
             with open(self.processed_messages_file, 'a') as file:
                 file.write(message_id + '\n')
