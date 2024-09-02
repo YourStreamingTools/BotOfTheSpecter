@@ -113,17 +113,19 @@ if ($username) {
                 return 'N/A';
             }
 
-            function updateWeatherOverlay(weather) {
+            function updateWeatherOverlay(weather, location) {
                 console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
                 weatherOverlay.innerHTML = `
                     <div class="overlay-content">
                         <div class="overlay-header">
                             <div id="currentTime" class="time"></div>
+                            <div class="location">${location}</div>
                             <div class="temperature">${weather.temperature}</div>
                         </div>
                         <div class="weather-details">
                             <img src="${weather.icon}" alt="${weather.status}" class="weather-icon">
+                            <div class="status">${weather.status}</div>
                             <div class="wind">${weather.wind}</div>
                             <div class="humidity">${weather.humidity}</div>
                         </div>
@@ -249,7 +251,7 @@ if ($username) {
                 if (data.location) {
                     const weather = await getWeather(data.location);
                     if (weather) {
-                        updateWeatherOverlay(weather);
+                        updateWeatherOverlay(weather, data.location);
                     }
                 } else {
                     console.error('No location provided in WEATHER event data');
