@@ -33,7 +33,8 @@ def setup_logger(name, log_file, level=logging.INFO):
 # Global configuration class
 class Config:
     def __init__(self):
-        self.api_token = None
+        self.discord_token = os.getenv("DISCORD_TOKEN")
+        self.api_token = os.getenv("API_KEY")
 
 config = Config()
 
@@ -159,9 +160,9 @@ class QuoteCog(commands.Cog, name='Quote'):
             await ctx.send("An error occurred while fetching the quote.")
 
 class DiscordBotRunner:
-    def __init__(self, discord_token, discord_logger):
+    def __init__(self, discord_logger):
         self.logger = discord_logger
-        self.discord_token = discord_token
+        self.discord_token = config.discord_token
         self.bot = None
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
@@ -204,8 +205,7 @@ class DiscordBotRunner:
 def main():
     bot_log_file = os.path.join(discord_logs, f"discordbot.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
-    discord_token = os.getenv("DISCORD_TOKEN")
-    bot_runner = DiscordBotRunner(discord_token, discord_logger)
+    bot_runner = DiscordBotRunner(discord_logger)
     bot_runner.run()
 
 if __name__ == "__main__":
