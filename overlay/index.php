@@ -5,20 +5,23 @@ $db_password = ''; // CHANGE TO MAKE THIS WORK
 $primary_db_name = 'website';
 
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
-$api_key = $_GET['code'];
+$api_key = $_GET['code'] ?? '';
 
 $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
 $stmt->bind_param("s", $api_key);
 $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
-$username = $user['username'];
-
-$db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
-$stmt = $db->prepare("SELECT * FROM profile");
-$stmt->execute();
-$profile = $stmt->fetch(PDO::FETCH_ASSOC);
-$timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
+$username = $user['username'] ?? '';
+if ($username) {
+    $db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
+    $stmt = $db->prepare("SELECT * FROM profile");
+    $stmt->execute();
+    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
+    $timezone = $profile['timezone'] ?? null;
+} else {
+    $timezone = null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
