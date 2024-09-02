@@ -33,15 +33,16 @@
                 alert(data.message);
             });
 
-            // Listen for TTS audio events
-            socket.on('TTS', (data) => {
-                console.log('TTS Audio file path:', data.audio_file);
-                const audio = new Audio(data.audio_file);
+            // Function to play audio with error handling
+            const playAudio = (audioFile) => {
+                const audio = new Audio(audioFile);
                 audio.volume = 0.8;
                 audio.autoplay = true;
+
                 audio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
                 });
+
                 audio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
@@ -53,30 +54,25 @@
                         alert('Click to play audio');
                     });
                 }, 100); // 100ms delay
+            };
+
+            // Listen for TTS audio events
+            socket.on('TTS', (data) => {
+                console.log('TTS Audio file path:', data.audio_file);
+                playAudio(data.audio_file);
             });
 
             // Listen for WALKON events
             socket.on('WALKON', (data) => {
                 console.log('Walkon:', data);
                 const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
-                const audio = new Audio(audioFile);
-                audio.volume = 0.8;
-                audio.autoplay = true;
-                audio.addEventListener('canplaythrough', () => {
-                    console.log('Walkon audio can play through without buffering');
-                });
-                audio.addEventListener('error', (e) => {
-                    console.error('Error occurred while loading the Walkon audio file:', e);
-                    alert('Failed to load Walkon audio file');
-                });
-
-                setTimeout(() => {
-                    audio.play().catch(error => {
-                        console.error('Error playing Walkon audio:', error);
-                        alert('Click to play Walkon audio');
-                    });
-                }, 100); // 100ms delay
+                playAudio(audioFile);
             });
+
+            // Handle user interaction to allow audio playback if blocked
+            document.body.addEventListener('click', () => {
+                playAudio();  // Pass the file path as needed
+            }, { once: true });
         });
     </script>
 </head>
