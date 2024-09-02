@@ -5,7 +5,8 @@ import os
 import signal
 import aiohttp
 import discord
-from discord.ext import commands as commands
+from discord.ext import commands
+from discord import app_commands
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -43,7 +44,7 @@ class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, discord_logger, **kwargs):
         intents = discord.Intents.default()
         intents.message_content = True
-        super().__init__("!", intents=intents, **kwargs)
+        super().__init__(command_prefix="!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.logger = discord_logger
         self.typing_speed = 50
@@ -56,6 +57,11 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
+
+    async def setup_hook(self):
+        # Sync the slash commands when the bot starts
+        self.tree.copy_global_to(guild=None)
+        await self.tree.sync()
 
     async def get_ai_response(self, user_message, channel_name):
         try:
@@ -131,10 +137,28 @@ class QuoteCog(commands.Cog, name='Quote'):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.typing_speed = 50
 
+        # Register the slash command
+        self.bot.tree.add_command(
+            app_commands.Command(
+                name="quote",
+                description="Get a random quote",
+                callback=self.slash_quote,
+            )
+        )
+
     @commands.command(name="quote")
     async def get_quote(self, ctx):
-        if ctx.guild is None:
-            return
+        await self.fetch_and_send_quote(ctx)
+
+    async def slash_quote(self, interaction: discord.Interaction):
+        await self.fetch_and_send_quote(interaction)
+
+    async def fetch_and_send_quote(self, ctx_or_interaction):
+        if isinstance(ctx_or_interaction, commands.Context):
+            ctx = ctx_or_interaction
+        else:
+            ctx = await commands.Context.from_interaction(ctx_or_interaction)
+
         url = f"https://api.botofthespecter.com/quotes?api_key={self.api_token}"
         try:
             async with aiohttp.ClientSession() as session:
