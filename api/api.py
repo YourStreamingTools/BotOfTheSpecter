@@ -373,15 +373,16 @@ async def joke(api_key):
     "/websocket/tts",
     summary="Trigger TTS via API",
     tags=["Websocket"],
+    response_model=dict,
 )
-async def websocket_tts(request: TTSRequest, api_key):
+async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
     valid = await verify_api_key(api_key)  # Validate the API key before proceeding
     if not valid:  # Check if the API key is valid
         raise HTTPException(
             status_code=401,
             detail="Invalid API Key",
         )
-    params = {"event": "TTS", "text": request.text}
+    params = {"event": "TTS", "text": text}
     await websocket_notice("TTS", params, api_key)
     return {"status": "success"}
 
@@ -430,14 +431,14 @@ async def websocket_deaths(request: DeathsRequest, api_key):
     summary="Trigger WEATHER via API",
     tags=["Websocket"]
 )
-async def websocket_weather(request: WeatherRequest, api_key):
+async def websocket_weather(api_key: str = Query(...), location: str = Query(...)):
     valid = await verify_api_key(api_key)  # Validate the API key before proceeding
     if not valid:  # Check if the API key is valid
         raise HTTPException(
             status_code=401,
             detail="Invalid API Key",
         )
-    params = {"event": "WEATHER", "location": request.location}
+    params = {"event": "WEATHER", "location": location}
     await websocket_notice("WEATHER", params, api_key)
     return {"status": "success"}
 
