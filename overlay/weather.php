@@ -5,20 +5,23 @@ $db_password = ''; // CHANGE TO MAKE THIS WORK
 $primary_db_name = 'website';
 
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
-$api_key = $_GET['code'];
+$api_key = $_GET['code'] ?? '';
 
 $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
 $stmt->bind_param("s", $api_key);
 $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
-$username = $user['username'];
-
-$db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
-$stmt = $db->prepare("SELECT * FROM profile");
-$stmt->execute();
-$profile = $stmt->fetch(PDO::FETCH_ASSOC);
-$timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
+$username = $user['username'] ?? '';
+if ($username) {
+    $db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
+    $stmt = $db->prepare("SELECT * FROM profile");
+    $stmt->execute();
+    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
+    $timezone = $profile['timezone'] ?? null;
+} else {
+    $timezone = null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,17 +113,19 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 return 'N/A';
             }
 
-            function updateWeatherOverlay(weather) {
+            function updateWeatherOverlay(weather, location) {
                 console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
                 weatherOverlay.innerHTML = `
                     <div class="overlay-content">
                         <div class="overlay-header">
                             <div id="currentTime" class="time"></div>
+                            <div class="location">${location}</div>
                             <div class="temperature">${weather.temperature}</div>
                         </div>
                         <div class="weather-details">
                             <img src="${weather.icon}" alt="${weather.status}" class="weather-icon">
+                            <div class="status">${weather.status}</div>
                             <div class="wind">${weather.wind}</div>
                             <div class="humidity">${weather.humidity}</div>
                         </div>
@@ -175,7 +180,7 @@ $timezone = isset($profile['timezone']) ? $profile['timezone'] : null;
                 if (data.location) {
                     const weather = await getWeather(data.location);
                     if (weather) {
-                        updateWeatherOverlay(weather);
+                        updateWeatherOverlay(weather, data.location);
                     }
                 } else {
                     console.error('No location provided in WEATHER event data');
