@@ -130,7 +130,7 @@ class BotOfTheSpecterWebsocketServer:
         await self.sftp_transfer(audio_file)
         
         # Emit the TTS audio to the client
-        await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=session_id)
+        await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=session_id)
         
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_duration(response)
