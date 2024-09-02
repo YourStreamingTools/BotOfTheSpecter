@@ -133,16 +133,15 @@ class BotOfTheSpecterWebsocketServer:
             self.logger.info(f'Audio content written to file "{audio_file}"')
         # Transfer the file via SFTP
         await self.sftp_transfer(audio_file)
-        # Emit the TTS audio to the client using the API code
-        self.logger.info(f"Emitting TTS event to code {code} with audio file: {audio_file}")
-        # Send the TTS event to the client using the API code
-        params = {
-            'code': code,  # API key of the user
-            'event': 'TTS',  # Event type
-            'audio_file': f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"  # Audio file URL
-        }
-        # Send the TTS event via WebSocket
-        await self.sio.emit("TTS", params)
+        # Emit the TTS audio to all clients associated with the API code
+        sids = self.registered_clients.get(code, [])
+        if sids:
+            self.logger.info(f"Emitting TTS event to clients with code {code}")
+            for sid in sids:
+                self.logger.info(f"Emitting TTS event to SID {sid}")
+                await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=sid)
+        else:
+            self.logger.error(f"No clients found with code {code}. Unable to emit TTS event.")
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_duration(response)
         self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
@@ -311,11 +310,13 @@ class BotOfTheSpecterWebsocketServer:
         code = data.get("code")
         self.logger.info(f"Register event received from SID {sid} with code: {code}")
         if code:
+            if code not in self.registered_clients:
+                self.registered_clients[code] = []
+            self.registered_clients[code].append(sid)
             self.logger.info(f"Client [{sid}] registered with code: {code}")
-            self.registered_clients[sid] = code
-            self.logger.info(f"Total registered clients: {len(self.registered_clients)}")
+            self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
-            self.logger.info("Code not provided")
+            self.logger.warning("Code not provided during registration")
 
     async def deaths(self, sid, data):
         self.logger.info(f"Death event from SID [{sid}]: {data}")
