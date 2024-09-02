@@ -120,22 +120,32 @@ class BotOfTheSpecterWebsocketServer:
             asyncio.create_task(self.process_tts_request(text, session_id))
             self.tts_queue.task_done()
 
-    async def process_tts_request(self, text, session_id):
+    async def process_tts_request(self, text, code):
         # Generate the TTS audio
+        self.logger.info(f"Processing TTS request for code {code} with text: {text}")
         response = self.generate_speech(text)
         if response is None:
             self.logger.error(f"Failed to generate speech for text: {text}")
             return
-        audio_file = os.path.join(self.tts_dir, f'tts_output_{session_id}.mp3')
+        audio_file = os.path.join(self.tts_dir, f'tts_output_{code}.mp3')
         with open(audio_file, 'wb') as out:
             out.write(response.audio_content)
             self.logger.info(f'Audio content written to file "{audio_file}"')
         # Transfer the file via SFTP
         await self.sftp_transfer(audio_file)
-        # Emit the TTS audio to the client
-        await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=session_id)
+        # Emit the TTS audio to the client using the API code
+        self.logger.info(f"Emitting TTS event to code {code} with audio file: {audio_file}")
+        # Send the TTS event to the client using the API code
+        params = {
+            'code': code,  # API key of the user
+            'event': 'TTS',  # Event type
+            'audio_file': f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"  # Audio file URL
+        }
+        # Send the TTS event via WebSocket
+        await self.sio.emit("TTS", params)
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_duration(response)
+        self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
         await asyncio.sleep(duration)
 
     async def sftp_transfer(self, local_file_path):
