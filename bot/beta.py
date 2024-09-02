@@ -1042,7 +1042,7 @@ class BotOfTheSpecter(commands.Bot):
                 settings = await get_bot_settings()
                 chat_points = settings['chat_points']
                 excluded_users = settings['excluded_users'].split(',')
-                bot_logger.info(f"Excluded users: {excluded_users}")
+                #bot_logger.info(f"Excluded users: {excluded_users}")
                 author_lower = messageAuthor.lower()
                 if author_lower not in excluded_users:
                     await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
@@ -1051,7 +1051,7 @@ class BotOfTheSpecter(commands.Bot):
                     new_points = current_points + chat_points
                     if result:
                         await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
-                        bot_logger.info(f"Updated {settings['point_name']} for {messageAuthor} in the database.")
+                        #bot_logger.info(f"Updated {settings['point_name']} for {messageAuthor} in the database.")
                     else:
                         await cursor.execute(
                             "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
@@ -1110,7 +1110,7 @@ class BotOfTheSpecter(commands.Bot):
                                 (messageAuthor, name, name)
                             )
                             await sqldb.commit()
-                            bot_logger.info(f"User '{messageAuthor}' assigned to group '{name}' successfully.")
+                            #bot_logger.info(f"User '{messageAuthor}' assigned to group '{name}' successfully.")
                         except aiomysql.IntegrityError:
                             bot_logger.error(f"Failed to assign user '{messageAuthor}' to group '{name}'.")
                     else:
@@ -1965,7 +1965,7 @@ class BotOfTheSpecter(commands.Bot):
                 result = await cursor.fetchone()
                 if result:
                     # User was lurking before
-                    previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                    previous_start_time = result[0]
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
@@ -2013,7 +2013,7 @@ class BotOfTheSpecter(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        start_time = result[0]
                         elapsed_time = datetime.now() - start_time
                         # Calculate the duration
                         days = elapsed_time.days
@@ -2054,8 +2054,9 @@ class BotOfTheSpecter(commands.Bot):
                     longest_lurk = None
                     longest_lurk_user_id = None
                     now = datetime.now()
-                    for user_id, start_time in lurkers:
+                    for user_id, start_time_str in lurkers:
                         # Convert start_time from string to datetime
+                        start_time = start_time_str
                         lurk_duration = now - start_time
                         if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
                             longest_lurk = lurk_duration
