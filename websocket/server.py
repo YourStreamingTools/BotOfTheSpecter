@@ -217,11 +217,6 @@ class BotOfTheSpecterWebsocketServer:
         code = request.query.get("code")
         event = request.query.get("event")
         text = request.query.get("text")
-        channel = request.query.get("channel")
-        user = request.query.get("user")
-        death = request.query.get("death-text")
-        game = request.query.get("game")
-        self.logger.info(f"Received notify request with code: {code}, event: {event}, text: {text}, channel: {channel}, user: {user}, death: {death}, game: {game}")
         if not code or not event:
             raise web.HTTPBadRequest(text="400 Bad Request: code or event is missing")
         data = {k: v for k, v in request.query.items()}
@@ -234,8 +229,8 @@ class BotOfTheSpecterWebsocketServer:
         elif event == "FOURTHWALL":
             await self.handle_fourthwall_event(code, data)
         else:
-            for sid, registered_code in self.registered_clients.items():
-                if registered_code == code:
+            if code in self.registered_clients:
+                for sid in self.registered_clients[code]:
                     count += 1
                     await self.sio.emit(event, data, sid)
                     self.logger.info(f"Emitted event '{event}' to client {sid}")
