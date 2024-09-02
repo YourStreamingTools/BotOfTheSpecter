@@ -1229,7 +1229,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='forceonline')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def forceonline_command(self, ctx):
         if await command_permissions(ctx.author):
             sqldb = await get_mysql_connection()
@@ -1254,7 +1254,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send("You must be a moderator or the broadcaster to use this command.")
 
     @commands.command(name='forceoffline')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def forceoffline_command(self, ctx):
         global stream_online
         global current_game
@@ -1359,7 +1359,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='points')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def points_command(self, ctx):
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -1497,7 +1497,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='quoteadd')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
         try:
@@ -1515,7 +1515,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removequote')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1536,7 +1536,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='permit')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def permit_command(ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1561,7 +1561,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='settitle')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1586,7 +1586,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='setgame')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1643,7 +1643,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='timer')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def timer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1680,7 +1680,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='stoptimer')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def stoptimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1697,7 +1697,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='checktimer')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def checktimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1716,7 +1716,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='hug')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def hug_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1757,7 +1757,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='kiss')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1887,7 +1887,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='mybits')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def mybits_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1943,7 +1943,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='lurk')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def lurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1993,7 +1993,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='lurking')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def lurking_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2087,7 +2087,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='unlurk', aliases=('back',))
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def unlurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2193,7 +2193,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='marker')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def marker_command(self, ctx, *, description: str):
         sqldb = await get_mysql_connection()
         try:
@@ -2329,7 +2329,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
     
     @commands.command(name='typo')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def typo_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2364,7 +2364,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
     
     @commands.command(name='typos', aliases=('typocount',))
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2397,7 +2397,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='edittypos', aliases=('edittypo',))
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2454,7 +2454,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removetypos', aliases=('removetypo',))
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         try:
@@ -2579,7 +2579,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='deathadd', aliases=['death+'])
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def deathadd_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2634,7 +2634,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='deathremove', aliases=['death-',])
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def deathremove_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2698,7 +2698,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='followage')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2861,7 +2861,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='checkupdate')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2901,7 +2901,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
     
     @commands.command(name='shoutout', aliases=('so',))
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2961,7 +2961,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='addcommand')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2992,7 +2992,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='removecommand')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3022,7 +3022,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='disablecommand')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3052,7 +3052,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='slots')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def slots_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3076,7 +3076,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name='kill')
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def kill_command(self, ctx, mention: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3127,7 +3127,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name="roulette")
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def roulette_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3149,7 +3149,7 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.command(name="rps")
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     async def rps_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -5085,12 +5085,19 @@ bot = BotOfTheSpecter(
 # Errors
 @bot.event
 async def event_command_error(ctx, error):
+    # List of commands for which you want to show cooldown messages
+    cooldown_notify_commands = ['song', 'commands']
     if isinstance(error, commands.CommandOnCooldown):
-        # Handle the cooldown error
-        retry_after = round(error.retry_after, 2)
-        await ctx.send(f"This command is on cooldown. Please try again in {retry_after} seconds.")
+        command_name = ctx.command.name
+        if command_name in cooldown_notify_commands:
+            # Notify the user about the cooldown
+            retry_after = round(error.retry_after, 2)
+            await ctx.send(f'The "{command_name}" command is on cooldown. Please try again in {retry_after} seconds.')
+        else:
+            # Optionally, log the cooldown occurrence without notifying the user
+            chat_logger.info(f"{command_name} command used by {ctx.author.name} is on cooldown.")
     else:
-        # Log other errors
+        # Handle other errors
         bot_logger.error(f"Error occurred: {error}")
 
 # Run the bot
