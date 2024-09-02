@@ -39,13 +39,22 @@
                 const audio = new Audio(data.audio_file);
                 audio.volume = 0.8;
                 audio.autoplay = true;
+
                 audio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
                 });
+
                 audio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
                 });
+
+                document.body.addEventListener('click', () => {
+                    audio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                        alert('Click to play audio');
+                    });
+                }, { once: true });
 
                 setTimeout(() => {
                     audio.play().catch(error => {
