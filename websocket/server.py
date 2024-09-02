@@ -9,6 +9,11 @@ import socketio
 from aiohttp import web
 from google.cloud import texttospeech
 import ipaddress
+import paramiko
+from dotenv import load_dotenv, find_dotenv
+
+# Load ENV file
+load_dotenv(find_dotenv("/home/websocket/.env"))
 
 class BotOfTheSpecterWebsocketServer:
     def __init__(self, logger):
@@ -19,7 +24,7 @@ class BotOfTheSpecterWebsocketServer:
         self.logger = logger
         self.ip = self.get_own_ip()
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
-        self.tts_dir = "/var/www/tts"
+        self.tts_dir = "/home/websocket/tts"
         self.registered_clients = {}
         self.sio = socketio.AsyncServer(logger=logger, engineio_logger=logger, cors_allowed_origins='*')
         self.app = web.Application(middlewares=[self.ip_restriction_middleware])
@@ -110,7 +115,7 @@ class BotOfTheSpecterWebsocketServer:
     async def process_tts_queue(self):
         while True:
             text, session_id = await self.tts_queue.get()
-            await self.process_tts_request(text, session_id)
+            asyncio.create_task(self.process_tts_request(text, session_id))
             self.tts_queue.task_done()
 
     async def process_tts_request(self, text, session_id):
@@ -120,11 +125,39 @@ class BotOfTheSpecterWebsocketServer:
         with open(audio_file, 'wb') as out:
             out.write(response.audio_content)
             self.logger.info(f'Audio content written to file "{audio_file}"')
+        
+        # Transfer the file via SFTP
+        await self.sftp_transfer(audio_file)
+        
         # Emit the TTS audio to the client
-        await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/{audio_file}"}, to=session_id)
+        await self.sio.emit("TTS_AUDIO", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=session_id)
+        
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_duration(response)
         await asyncio.sleep(duration)
+
+    async def sftp_transfer(self, local_file_path):
+        # Set up the SFTP connection details from .env file
+        hostname = "10.240.0.169"
+        username = os.getenv("SFPT_USERNAME")
+        password = os.getenv("SFPT_PASSWORD")
+        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
+
+        try:
+            # Establish an SFTP session
+            transport = paramiko.Transport((hostname, 22))
+            transport.connect(username=username, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+
+            # Upload the file
+            sftp.put(local_file_path, remote_file_path)
+            self.logger.info(f"File {local_file_path} transferred to {remote_file_path} on webserver {hostname}")
+
+            # Close the SFTP session
+            sftp.close()
+            transport.close()
+        except Exception as e:
+            self.logger.error(f"Failed to transfer file via SFTP: {e}")
 
     def estimate_duration(self, response):
         # Calculate the duration based on the audio content length and bitrate
