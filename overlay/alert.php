@@ -10,6 +10,7 @@
             const socket = io('wss://websocket.botofthespecter.com');
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+
             if (!code) {
                 alert('No code provided in the URL');
                 return;
@@ -42,19 +43,16 @@
 
                 audio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
+                    audio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                        alert('Click to play audio');
+                    });
                 });
 
                 audio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
                 });
-
-                setTimeout(() => {
-                    audio.play().catch(error => {
-                        console.error('Error playing audio:', error);
-                        alert('Click to play audio');
-                    });
-                }, 100); // 100ms delay
             };
 
             // Listen for TTS audio events
@@ -72,7 +70,7 @@
 
             // Handle user interaction to allow audio playback if blocked
             document.body.addEventListener('click', () => {
-                playAudio();  // Pass the file path as needed
+                playAudio();  // Trigger playback on user interaction if needed
             }, { once: true });
         });
     </script>
