@@ -123,26 +123,17 @@ class BotOfTheSpecterWebsocketServer:
     async def process_tts_request(self, text, session_id):
         # Generate the TTS audio
         response = self.generate_speech(text)
+        if response is None:
+            self.logger.error(f"Failed to generate speech for text: {text}")
+            return
         audio_file = os.path.join(self.tts_dir, f'tts_output_{session_id}.mp3')
         with open(audio_file, 'wb') as out:
             out.write(response.audio_content)
             self.logger.info(f'Audio content written to file "{audio_file}"')
         # Transfer the file via SFTP
         await self.sftp_transfer(audio_file)
-        # Send the notification via HTTP GET request
-        params = {
-            'code': session_id,
-            'event': 'TTS',
-            'text': text
-        }
-        encoded_params = urlencode(params)
-        notify_url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
-        async with aiohttp.ClientSession() as session:
-            async with session.get(notify_url) as response:
-                if response.status == 200:
-                    self.logger.info(f"TTS notification sent successfully with params: {params}")
-                else:
-                    self.logger.error(f"Failed to send TTS notification. Status: {response.status}")
+        # Emit the TTS audio to the client
+        await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=session_id)
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_duration(response)
         await asyncio.sleep(duration)
@@ -273,10 +264,16 @@ class BotOfTheSpecterWebsocketServer:
             ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
         )
         audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
-        response = self.tts_client.synthesize_speech(
-            input=input_text, voice=voice, audio_config=audio_config
-        )
-        return response
+        try:
+            response = self.tts_client.synthesize_speech(
+                input=input_text, voice=voice, audio_config=audio_config
+            )
+            if not hasattr(response, 'audio_content'):
+                raise ValueError("TTS API response does not contain audio content.")
+            return response
+        except Exception as e:
+            self.logger.error(f"Failed to generate speech: {e}")
+            return None
 
     async def event(self, sid, event, data):
         # Handle generic events for SocketIO.
