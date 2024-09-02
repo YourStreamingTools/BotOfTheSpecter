@@ -42,26 +42,36 @@ if ($username) {
                 return;
             }
 
+            // Function to fetch coordinates based on location
             async function getLatLon(location) {
                 console.log(`Fetching coordinates for location: ${location}`);
-                const response = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=1&appid=${apiKey}`);
-                const data = await response.json();
-                if (data.length > 0) {
-                    console.log(`Coordinates for ${location}:`, data[0]);
-                    return { lat: data[0].lat, lon: data[0].lon };
+                try {
+                    const response = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=1&appid=${apiKey}`);
+                    const data = await response.json();
+                    if (data.length > 0) {
+                        console.log(`Coordinates for ${location}:`, data[0]);
+                        return { lat: data[0].lat, lon: data[0].lon };
+                    }
+                    console.error(`Coordinates not found for location: ${location}`);
+                } catch (error) {
+                    console.error(`Error fetching coordinates: ${error}`);
                 }
-                console.error(`Coordinates not found for location: ${location}`);
                 return null;
             }
 
+            // Function to fetch weather data
             async function fetchWeatherData(lat, lon, units = 'metric') {
                 console.log(`Fetching weather data for coordinates: (${lat}, ${lon}), units: ${units}`);
-                const response = await fetch(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,daily,alerts&units=${units}&appid=${apiKey}`);
-                const data = await response.json();
-                console.log(`Weather data:`, data);
-                return data;
+                try {
+                    const response = await fetch(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,daily,alerts&units=${units}&appid=${apiKey}`);
+                    return await response.json();
+                } catch (error) {
+                    console.error(`Error fetching weather data: ${error}`);
+                    return null;
+                }
             }
 
+            // Function to retrieve and format weather data
             async function getWeather(location) {
                 const coords = await getLatLon(location);
                 if (!coords) {
@@ -75,6 +85,7 @@ if ($username) {
                 return formatWeatherData(weatherDataMetric.current, weatherDataImperial.current);
             }
 
+            // Function to format weather data
             function formatWeatherData(currentWeatherMetric, currentWeatherImperial) {
                 const status = currentWeatherMetric.weather[0].description;
                 const temperatureC = currentWeatherMetric.temp.toFixed(1);
@@ -93,6 +104,7 @@ if ($username) {
                 };
             }
 
+            // Function to get wind direction
             function getWindDirection(deg) {
                 const cardinalDirections = {
                     'N': [337.5, 22.5],
@@ -113,6 +125,7 @@ if ($username) {
                 return 'N/A';
             }
 
+            // Function to update weather overlay
             function updateWeatherOverlay(weather, location) {
                 console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
@@ -147,6 +160,7 @@ if ($username) {
                 }, 11000);
             }
 
+            // Function to start the timer for current time
             function startTimer(timezone) {
                 function updateTime() {
                     const currentTimeElement = document.getElementById('currentTime');
