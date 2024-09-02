@@ -35,6 +35,7 @@
 
             // Function to play audio with error handling
             const playAudio = (audioFile) => {
+                if (!audioFile) return;
                 const audio = new Audio(audioFile);
                 audio.volume = 0.8;
                 audio.autoplay = true;
