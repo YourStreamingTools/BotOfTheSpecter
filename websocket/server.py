@@ -183,13 +183,13 @@ class BotOfTheSpecterWebsocketServer:
         data = {k: v for k, v in request.query.items()}
         self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
+        count = 0
         if event == "TTS" and text:
             await self.tts_queue.put((text, code))
             self.logger.info(f"TTS request added to queue: {text}")
         elif event == "FOURTHWALL":
             await self.handle_fourthwall_event(code, data)
         else:
-            count = 0
             for sid, registered_code in self.registered_clients.items():
                 if registered_code == code:
                     count += 1
