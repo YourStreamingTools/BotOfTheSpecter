@@ -169,17 +169,20 @@ class DiscordBotRunner:
     def sig_handler(self, signum, frame):
         signame = signal.Signals(signum).name
         self.logger.error(f'Caught Signal {signame} ({signum})')
-        self.stop()
+        self.loop.create_task(self.stop_bot())
 
-    def stop(self):
+    async def stop_bot(self):
         if self.bot is not None:
             self.logger.info("Stopping BotOfTheSpecter Discord Bot")
-            for task in asyncio.all_tasks(self.loop):
-                task.cancel()
+            tasks = [t for t in asyncio.all_tasks(self.loop) if not t.done()]
+            list(map(lambda task: task.cancel(), tasks))
             try:
-                self.loop.run_until_complete(self.bot.close())
-            except asyncio.CancelledError:
-                self.logger.error("Bot task was cancelled.")
+                await asyncio.gather(*tasks, return_exceptions=True)
+                await self.bot.close()
+            except asyncio.CancelledError as e:
+                self.logger.error(f"Bot task was cancelled. Error: {e}")
+            finally:
+                self.loop.stop()
 
     def run(self):
         self.loop = asyncio.new_event_loop()
@@ -190,6 +193,7 @@ class DiscordBotRunner:
         except asyncio.CancelledError:
             self.logger.error("BotRunner task was cancelled.")
         finally:
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
             self.loop.close()
 
     async def initialize_bot(self):
