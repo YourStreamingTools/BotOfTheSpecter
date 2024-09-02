@@ -60,7 +60,6 @@ class BotOfTheSpecter(commands.Bot):
 
     async def setup_hook(self):
         # Sync the slash commands when the bot starts
-        self.tree.copy_global_to(guild=None)
         await self.tree.sync()
 
     async def get_ai_response(self, user_message, channel_name):
