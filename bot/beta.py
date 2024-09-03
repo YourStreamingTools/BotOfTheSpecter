@@ -5084,7 +5084,7 @@ bot = BotOfTheSpecter(
 
 # Errors
 @bot.event
-async def event_command_error(ctx, error):
+async def event_command_error(self, ctx, error: Exception) -> None:
     # List of commands for which you want to show cooldown messages
     cooldown_notify_commands = ['song', 'commands']
     if isinstance(error, commands.CommandOnCooldown):
@@ -5092,7 +5092,7 @@ async def event_command_error(ctx, error):
         if command_name in cooldown_notify_commands:
             # Notify the user about the cooldown
             retry_after = round(error.retry_after, 2)
-            await ctx.send(f'The "{command_name}" command is on cooldown. Please try again in {retry_after} seconds.')
+            await ctx.send(f'!{command_name} is on cooldown. Please wait {retry_after} seconds before using the command again.')
         else:
             # Optionally, log the cooldown occurrence without notifying the user
             chat_logger.info(f"{command_name} command used by {ctx.author.name} is on cooldown.")
