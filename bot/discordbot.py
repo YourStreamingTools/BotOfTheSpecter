@@ -270,7 +270,7 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         @self.sio.event
         async def connect():
             self.logger.info("Connected to WebSocket server")
-            await self.sio.emit('REGISTER', {'code': self.api_token})
+            await self.sio.emit('REGISTER', {'code': self.api_token, 'name': 'DiscordBot'})
 
         @self.sio.event
         async def disconnect():
