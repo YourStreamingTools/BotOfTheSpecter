@@ -29,7 +29,6 @@ def setup_logger(name, log_file, level=logging.INFO):
     log_dir = os.path.dirname(log_file)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    
     handler = logging.FileHandler(log_file)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
@@ -55,11 +54,9 @@ async def get_mysql_connection(logger):
     sql_host = os.getenv('SQL_HOST')
     sql_user = os.getenv('SQL_USER')
     sql_password = os.getenv('SQL_PASSWORD')
-
     if not sql_host or not sql_user or not sql_password:
         logger.error("Missing SQL connection parameters. Please check the .env file.")
         return None
-
     try:
         conn = await aiomysql.connect(
             host=sql_host,
@@ -77,7 +74,6 @@ async def fetch_discord_details(username, logger):
     connection = await get_mysql_connection(logger)
     if connection is None:
         return
-
     try:
         async with connection.cursor() as cursor:
             await cursor.execute("""
@@ -105,7 +101,6 @@ async def fetch_api_token(username, logger):
     connection = await get_mysql_connection(logger)
     if connection is None:
         return
-
     try:
         async with connection.cursor() as cursor:
             await cursor.execute("""
@@ -353,7 +348,6 @@ def main():
     parser = argparse.ArgumentParser(description="BotOfTheSpecter Discord Bot")
     parser.add_argument("-channel", dest="channel_name", required=True, help="Target Twitch channel name")
     args = parser.parse_args()
-
     bot_log_file = os.path.join(discord_logs, f"{args.channel_name}.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
     discord_token = os.getenv("DISCORD_TOKEN")
