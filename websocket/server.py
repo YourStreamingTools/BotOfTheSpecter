@@ -226,7 +226,7 @@ class BotOfTheSpecterWebsocketServer:
             if code in self.registered_clients:
                 for sid in self.registered_clients[code]:
                     count += 1
-                    await self.sio.emit(event, data, sid)
+                    await self.sio.emit(event, data, to=sid)
                     self.logger.info(f"Emitted event '{event}' to client {sid}")
             self.logger.info(f"Broadcasted event to {count} clients")
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
@@ -253,7 +253,7 @@ class BotOfTheSpecterWebsocketServer:
             self.logger.error('Missing event information for NOTIFY event')
             return
         # Broadcast the event to all clients
-        await self.sio.emit(event, data)
+        await self.sio.emit(event, data, sid)
 
     def generate_speech(self, text):
         input_text = texttospeech.SynthesisInput(text=text)
