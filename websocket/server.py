@@ -299,6 +299,8 @@ class BotOfTheSpecterWebsocketServer:
                 break
         else:
             self.logger.info(f"SID [{sid}] not found in registered clients.")
+        # Log the current state of registered clients after disconnect
+        self.logger.info(f"Current registered clients: {self.registered_clients}")
 
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
@@ -319,6 +321,8 @@ class BotOfTheSpecterWebsocketServer:
         else:
             self.logger.warning("Code not provided during registration")
             await self.sio.emit("ERROR", {"message": "Registration failed: code missing"}, to=sid)
+        # Log the current state of registered clients after registration
+        self.logger.info(f"Current registered clients: {self.registered_clients}")
 
     async def deaths(self, sid, data):
         self.logger.info(f"Death event from SID [{sid}]: {data}")
