@@ -224,10 +224,11 @@ class BotOfTheSpecterWebsocketServer:
             await self.handle_fourthwall_event(code, data)
         else:
             if code in self.registered_clients:
-                for sid in self.registered_clients[code]:
-                    count += 1
+                for client in self.registered_clients[code]:
+                    sid = client['sid']
                     await self.sio.emit(event, data, to=sid)
                     self.logger.info(f"Emitted event '{event}' to client {sid}")
+                    count += 1
             self.logger.info(f"Broadcasted event to {count} clients")
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
 
