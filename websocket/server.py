@@ -305,17 +305,13 @@ class BotOfTheSpecterWebsocketServer:
         code = data.get("code")
         self.logger.info(f"Register event received from SID {sid} with code: {code}")
         if code:
-            # Remove the old SID if the code is already registered
-            if code in self.registered_clients:
-                old_sids = self.registered_clients[code]
-                if sid not in old_sids:
-                    self.logger.info(f"Clearing old SIDs: {old_sids}")
-                    for old_sid in old_sids:
-                        self.logger.info(f"Disconnecting old SID: {old_sid}")
-                        await self.sio.disconnect(old_sid)
-            # Register the new SID
-            self.registered_clients[code] = [sid]
-            self.logger.info(f"Client [{sid}] registered with code: {code}")
+            if code not in self.registered_clients:
+                self.registered_clients[code] = []
+            if sid not in self.registered_clients[code]:
+                self.registered_clients[code].append(sid)
+                self.logger.info(f"Client [{sid}] registered with code: {code}")
+            else:
+                self.logger.info(f"Client [{sid}] is already registered with code: {code}")
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
             self.logger.warning("Code not provided during registration")
