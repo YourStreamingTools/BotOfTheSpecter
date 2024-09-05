@@ -18,7 +18,7 @@
 
             socket.on('connect', () => {
                 console.log('Connected to WebSocket server');
-                socket.emit('REGISTER', { code: code });
+                socket.emit('REGISTER', { code: code, name: 'TTS Overlay' });
             });
 
             socket.on('disconnect', () => {
