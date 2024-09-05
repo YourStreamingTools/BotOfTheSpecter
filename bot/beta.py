@@ -125,6 +125,7 @@ spam_pattern = [
     re.compile(r'best viewers on', re.IGNORECASE),
     re.compile(r'ch̍eap viewers on', re.IGNORECASE),
     re.compile(r'B͟est Viewers on', re.IGNORECASE),
+    re.compile(r'B̟est viewers', re.IGNORECASE),
 ]
 
 # Setup Token Refresh
