@@ -11,8 +11,6 @@ from google.cloud import texttospeech
 import ipaddress
 import paramiko
 from dotenv import load_dotenv, find_dotenv
-from urllib.parse import urlencode
-import aiohttp
 
 # Load ENV file
 load_dotenv(find_dotenv("/home/websocket/.env"))
@@ -21,7 +19,6 @@ class BotOfTheSpecterWebsocketServer:
     def __init__(self, logger):
         # Set up Google Cloud credentials
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/home/websocket/service-account-file.json"
-        
         # Initialize the WebSocket server.
         self.logger = logger
         self.ip = self.get_own_ip()
@@ -37,15 +34,9 @@ class BotOfTheSpecterWebsocketServer:
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
-
-        # Initialize Google Text-to-Speech client
         self.tts_client = texttospeech.TextToSpeechClient()
-
-        # Initialize the TTS queue
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
-
-        # Allowed IPs for secure routes
         ips_file = "/home/websocket/ips.txt"
         self.allowed_ips = self.load_ips(ips_file)
 
@@ -153,17 +144,14 @@ class BotOfTheSpecterWebsocketServer:
         username = os.getenv("SFPT_USERNAME")
         password = os.getenv("SFPT_PASSWORD")
         remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
-
         try:
             # Establish an SFTP session
             transport = paramiko.Transport((hostname, 22))
             transport.connect(username=username, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
-
             # Upload the file
             sftp.put(local_file_path, remote_file_path)
             self.logger.info(f"File {local_file_path} transferred to {remote_file_path} on webserver {hostname}")
-
             # Close the SFTP session
             sftp.close()
             transport.close()
@@ -204,11 +192,11 @@ class BotOfTheSpecterWebsocketServer:
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response
 
-    async def list_clients(self, request):
+    async def list_clients(self):
         # List the registered clients.
         return web.json_response(self.registered_clients)
 
-    async def list_clients_event(self, sid, data):
+    async def list_clients_event(self, sid):
         # Handle the LIST_CLIENTS event for SocketIO.
         self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
         await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
@@ -305,9 +293,16 @@ class BotOfTheSpecterWebsocketServer:
         code = data.get("code")
         self.logger.info(f"Register event received from SID {sid} with code: {code}")
         if code:
-            if code not in self.registered_clients:
-                self.registered_clients[code] = []
-            self.registered_clients[code].append(sid)
+            # Remove the old SID if the code is already registered
+            if code in self.registered_clients:
+                old_sids = self.registered_clients[code]
+                if sid not in old_sids:
+                    self.logger.info(f"Clearing old SIDs: {old_sids}")
+                    for old_sid in old_sids:
+                        self.logger.info(f"Disconnecting old SID: {old_sid}")
+                        await self.sio.disconnect(old_sid)
+            # Register the new SID
+            self.registered_clients[code] = [sid]
             self.logger.info(f"Client [{sid}] registered with code: {code}")
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
