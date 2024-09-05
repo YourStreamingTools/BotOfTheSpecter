@@ -303,15 +303,17 @@ class BotOfTheSpecterWebsocketServer:
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
         code = data.get("code")
-        self.logger.info(f"Register event received from SID {sid} with code: {code}")
+        name = data.get("name", f"Unnamed-{sid}")
+        self.logger.info(f"Register event received from SID {sid} with code: {code} and name: {name}")
         if code:
             if code not in self.registered_clients:
                 self.registered_clients[code] = []
-            if sid not in self.registered_clients[code]:
-                self.registered_clients[code].append(sid)
-                self.logger.info(f"Client [{sid}] registered with code: {code}")
+            client_data = {"sid": sid, "name": name}
+            if not any(client['sid'] == sid for client in self.registered_clients[code]):
+                self.registered_clients[code].append(client_data)
+                self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
             else:
-                self.logger.info(f"Client [{sid}] is already registered with code: {code}")
+                self.logger.info(f"Client [{sid}] with name [{name}] is already registered with code: {code}")
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
             self.logger.warning("Code not provided during registration")
