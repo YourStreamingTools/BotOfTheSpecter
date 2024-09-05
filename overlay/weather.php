@@ -160,7 +160,7 @@ if ($username) {
 
             socket.on('connect', () => {
                 console.log('Connected to WebSocket server');
-                socket.emit('REGISTER', { code: code });
+                socket.emit('REGISTER', { code: code, name: 'Weather Overlay' });
             });
 
             socket.on('disconnect', () => {
