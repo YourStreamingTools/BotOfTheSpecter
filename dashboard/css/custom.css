@@ -105,9 +105,22 @@ a {
     margin-top: 10px;
 }
 
+.bot-box {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.bot-box .buttons {
+    display: flex;
+    justify-content: space-around;
+    margin-top: auto;
+}
+
 .bot-button {
-    background-color: #4CAF50;
-    color: #FFFFFF;
     padding: 10px 20px;
     border: none;
     border-radius: 5px;
@@ -119,9 +132,11 @@ a {
     text-align: center;
 }
 
-.bot-button:hover {
-    background-color: #3E8E41;
-}
+.button.is-danger:hover,
+.button.is-success:hover,
+.button.is-warning:hover {
+    opacity: 0.8;
+}  
 
 /* New Bot Table */
 .bot-table {
