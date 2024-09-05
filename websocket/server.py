@@ -192,7 +192,7 @@ class BotOfTheSpecterWebsocketServer:
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response
 
-    async def list_clients(self):
+    async def list_clients(self, request):
         # List the registered clients.
         return web.json_response(self.registered_clients)
 
