@@ -25,7 +25,13 @@ class BotOfTheSpecterWebsocketServer:
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
         self.tts_dir = "/home/websocket/tts"
         self.registered_clients = {}
-        self.sio = socketio.AsyncServer(logger=logger, engineio_logger=logger, cors_allowed_origins='*')
+        self.sio = socketio.AsyncServer(
+            logger=logger, 
+            engineio_logger=logger, 
+            cors_allowed_origins='*', 
+            ping_timeout=30,
+            ping_interval=25
+        )
         self.app = web.Application(middlewares=[self.ip_restriction_middleware])
         self.app.on_shutdown.append(self.on_shutdown)
         self.setup_routes()
@@ -282,11 +288,17 @@ class BotOfTheSpecterWebsocketServer:
     async def disconnect(self, sid):
         # Handle the disconnect event for SocketIO.
         self.logger.info(f"Disconnect event: {sid}")
-        code = self.registered_clients.pop(sid, None)
-        if code:
-            self.logger.info(f"Unregistered SID [{sid}] successfully")
+        # Iterate through all registered clients and remove the disconnected SID
+        for code, sids in list(self.registered_clients.items()):
+            if sid in sids:
+                sids.remove(sid)
+                self.logger.info(f"Unregistered SID [{sid}] from code [{code}]")
+                if not sids:
+                    del self.registered_clients[code]
+                    self.logger.info(f"No more clients for code [{code}]. Removed code from registered clients.")
+                break
         else:
-            self.logger.info(f"Unregistering SID [{sid}] failed. Code not found.")
+            self.logger.info(f"SID [{sid}] not found in registered clients.")
 
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
