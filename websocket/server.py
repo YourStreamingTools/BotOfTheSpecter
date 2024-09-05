@@ -308,15 +308,26 @@ class BotOfTheSpecterWebsocketServer:
         name = data.get("name", f"Unnamed-{sid}")
         self.logger.info(f"Register event received from SID {sid} with code: {code} and name: {name}")
         if code:
+            # Initialize the list for the code if it doesn't exist
             if code not in self.registered_clients:
                 self.registered_clients[code] = []
+            # Check if there's already a client with the same name
+            for client in self.registered_clients[code]:
+                if client['name'] == name:
+                    # Disconnect the old session
+                    old_sid = client['sid']
+                    self.logger.info(f"Disconnecting old session [{old_sid}] for name [{name}] before registering new session [{sid}]")
+                    await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate session for name {name}"}, to=old_sid)
+                    await self.sio.disconnect(old_sid)
+                    # Remove the old client
+                    self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
+                    break
+            # Register the new client
             client_data = {"sid": sid, "name": name}
-            if not any(client['sid'] == sid for client in self.registered_clients[code]):
-                self.registered_clients[code].append(client_data)
-                self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
-                await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
-            else:
-                self.logger.info(f"Client [{sid}] with name [{name}] is already registered with code: {code}")
+            self.registered_clients[code].append(client_data)
+            self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
+            # Send success message to the new client
+            await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
             self.logger.warning("Code not provided during registration")
