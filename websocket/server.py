@@ -184,9 +184,8 @@ class BotOfTheSpecterWebsocketServer:
         await self.sio.emit("WALKON", walkon_data)
 
     async def index(self, request):
-        # Handle the index route.
-        with open(os.path.join(self.script_dir, 'static', 'index.html'), "r", encoding="utf8") as f:
-            return web.Response(text=f.read(), content_type='text/html')
+        # Redirect to the main page
+        raise web.HTTPFound(location="https://botofthespecter.com")
     
     async def heartbeat(self, request):
         if request.method == 'OPTIONS':
@@ -426,8 +425,9 @@ class BotOfTheSpecterWebsocketServer:
             await self.sio.emit("NOTIFY", {"message": message}, to=sid)
 
     async def on_shutdown(self, app):
-        # Handle the shutdown event for the web application.
-        self.logger.info("Received shutdown signal")
+        self.logger.info("Shutting down...")
+        await self.sio.disconnect()
+        self.logger.info("WebSocket disconnected.")
 
     def sig_handler(self, signum, frame):
         # Handle system signals for graceful shutdown.
