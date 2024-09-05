@@ -121,23 +121,24 @@ if ($ModStatusOutput) {
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
+    <!-- Stable Bot Section -->
     <div class="column is-5 bot-box" id="bot-status">
       <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?><br>
       <div class="buttons">
         <form action="" method="post">
-          <button class="button is-danger" type="submit" name="killBot">Stop Bot</button>
+          <button class="button is-danger bot-button" type="submit" name="killBot">Stop Bot</button>
         </form>
         <form action="" method="post">
-          <button class="button is-success" type="submit" name="runBot">Run Bot</button>
+          <button class="button is-success bot-button" type="submit" name="runBot">Run Bot</button>
         </form>
         <form action="" method="post">
-          <button class="button is-warning" type="submit" name="restartBot">Restart Bot</button>
+          <button class="button is-warning bot-button" type="submit" name="restartBot">Restart Bot</button>
         </form>
-        <br>
       </div>
     </div>
+    <!-- Beta Bot Section -->
     <?php if ($betaAccess) { ?>
     <div class="column is-5 bot-box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
@@ -145,36 +146,36 @@ if ($ModStatusOutput) {
       <?php echo $betaVersionRunning; ?><br>
       <div class="buttons">
         <form action="" method="post">
-          <button class="button is-danger" type="submit" name="killBetaBot">Stop Beta Bot</button>
+          <button class="button is-danger bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button>
         </form>
         <form action="" method="post">
-          <button class="button is-success" type="submit" name="runBetaBot">Run Beta Bot</button>
+          <button class="button is-success bot-button" type="submit" name="runBetaBot">Run Beta Bot</button>
         </form>
         <form action="" method="post">
-          <button class="button is-warning" type="submit" name="restartBetaBot">Restart Beta Bot</button>
+          <button class="button is-warning bot-button" type="submit" name="restartBetaBot">Restart Beta Bot</button>
         </form>
-        <br>
       </div>
     </div>
     <?php } ?>
+    <!-- Discord Bot Section -->
     <?php if ($guild_id && $live_channel_id) { ?>
     <div class="column is-5 bot-box" id="discord-bot-status">
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?><br>
       <div class="buttons">
         <form action="" method="post">
-          <button class="button is-danger" type="submit" name="killDiscordBot">Stop Discord Bot</button>
+          <button class="button is-danger bot-button" type="submit" name="killDiscordBot">Stop Discord Bot</button>
         </form>
         <form action="" method="post">
-          <button class="button is-success" type="submit" name="runDiscordBot">Run Discord Bot</button>
+          <button class="button is-success bot-button" type="submit" name="runDiscordBot">Run Discord Bot</button>
         </form>
         <form action="" method="post">
-          <button class="button is-warning" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
+          <button class="button is-warning bot-button" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
         </form>
-        <br>
       </div>
     </div>
     <?php } ?>
+    <!-- Websocket Notices Section -->
     <div class="column is-5 bot-box">
       <h4 class="title is-4" style="text-align: center;">Websocket Notices
         <span id="heartbeatIcon" style="margin-left: 10px;">
@@ -183,13 +184,13 @@ if ($ModStatusOutput) {
       </h4>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
         <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-          <button class="button is-primary" onclick="sendStreamEvent('STREAM_ONLINE')">Mark Stream as Online</button>
+          <button class="button is-primary bot-button" onclick="sendStreamEvent('STREAM_ONLINE')">Mark Stream as Online</button>
           <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
         </div>
       </div>
       <div style="display: flex; align-items: center;">
         <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-          <button class="button is-danger" onclick="sendStreamEvent('STREAM_OFFLINE')">Mark Stream as Offline</button>
+          <button class="button is-danger bot-button" onclick="sendStreamEvent('STREAM_OFFLINE')">Mark Stream as Offline</button>
           <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
         </div>
       </div>
