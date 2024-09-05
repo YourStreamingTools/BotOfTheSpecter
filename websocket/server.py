@@ -312,11 +312,13 @@ class BotOfTheSpecterWebsocketServer:
             if not any(client['sid'] == sid for client in self.registered_clients[code]):
                 self.registered_clients[code].append(client_data)
                 self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
+                await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
             else:
                 self.logger.info(f"Client [{sid}] with name [{name}] is already registered with code: {code}")
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
             self.logger.warning("Code not provided during registration")
+            await self.sio.emit("ERROR", {"message": "Registration failed: code missing"}, to=sid)
 
     async def deaths(self, sid, data):
         self.logger.info(f"Death event from SID [{sid}]: {data}")
