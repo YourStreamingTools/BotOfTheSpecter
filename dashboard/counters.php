@@ -155,11 +155,11 @@ if (isset($userData['data']) && is_array($userData['data'])) {
   <div class="content">
     <div class="box">
       <h3 id="table-title" class="title" style="color: white;">Currently Lurking Users</h3>
-      <table class="table is-striped is-fullwidth">
+      <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            <th id="info-column-data" style="color: white;"></th>
-            <th id="data-column-info" style="color: white;"></th>
+            <th id="info-column-data" style="color: white; width: 50%;"></th>
+            <th id="data-column-info" style="color: white; width: 50%;"></th>
           </tr>
         </thead>
         <tbody id="table-body">
