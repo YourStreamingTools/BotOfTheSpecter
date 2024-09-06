@@ -419,62 +419,62 @@ pre {
 .dark-mode-table {
     background-color: #444444;
     color: #ffffff;
-  }
-  
-  .dark-mode-table thead,
-  .dark-mode-table tbody,
-  .dark-mode-table tfoot {
+}
+
+.dark-mode-table thead,
+.dark-mode-table tbody,
+.dark-mode-table tfoot {
     border: 1px solid #444444;
     background-color: #555555;
-  }
-  
-  .dark-mode-table caption {
+}
+
+.dark-mode-table caption {
     padding: 0.5rem 0.625rem 0.625rem;
     font-weight: bold;
-  }
-  
-  .dark-mode-table thead {
+}
+
+.dark-mode-table thead {
     background: #666666;
     color: #dddddd;
-  }
-  
-  .dark-mode-table tfoot {
+}
+
+.dark-mode-table tfoot {
     background: #555555;
     color: #dddddd;
-  }
-  
-  .dark-mode-table thead tr,
-  .dark-mode-table tfoot tr {
+}
+
+.dark-mode-table thead tr,
+.dark-mode-table tfoot tr {
     background: transparent;
-  }
-  
-  .dark-mode-table thead th,
-  .dark-mode-table thead td,
-  .dark-mode-table tfoot th,
-  .dark-mode-table tfoot td {
+}
+
+.dark-mode-table thead th,
+.dark-mode-table thead td,
+.dark-mode-table tfoot th,
+.dark-mode-table tfoot td {
     padding: 0.5rem 0.625rem 0.625rem;
     font-weight: bold;
     text-align: left;
-  }
-  
-  .dark-mode-table tbody th,
-  .dark-mode-table tbody td {
+}
+
+.dark-mode-table tbody th,
+.dark-mode-table tbody td {
     padding: 0.5rem 0.625rem 0.625rem;
-  }
-  
-  .dark-mode-table tbody tr:nth-child(even) {
+}
+
+.dark-mode-table tbody tr:nth-child(even) {
     border-bottom: 0;
     background-color: #666666;
-  }
-  
-  .dark-mode-table.unstriped tbody {
+}
+
+.dark-mode-table.unstriped tbody {
     background-color: #555555;
-  }
-  
-  .dark-mode-table.unstriped tbody tr {
+}
+
+.dark-mode-table.unstriped tbody tr {
     border-bottom: 1px solid #444444;
     background-color: #555555;
-  }
+}
 
 /* Font Awesome Fixes */
 .fa-solid {
