@@ -42,5 +42,7 @@ footer {
 
 .box {
     background-color: #222222;
+    color: #ffffff;
     border-radius: 8px;
+    width: auto;
 }
