@@ -24,7 +24,14 @@ body {
     background-color: #333333;
     color: #ffffff;
     justify-content: center;
-    vertical-align: middle;
+    display: flex;
+    align-items: center;
+}
+
+.hero-body .title {
+    display: flex;
+    align-items: center;
+    gap: 15px;
 }
 
 .button {
