@@ -159,7 +159,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
         <thead>
           <tr>
             <th style="color: white;">Username</th>
-            <th style="color: white;">Detail</th>
+            <th id="detail-header" style="color: white;">Detail</th>
           </tr>
         </thead>
         <tbody id="table-body">
@@ -174,32 +174,40 @@ if (isset($userData['data']) && is_array($userData['data'])) {
   function loadData(type) {
     let data;
     let title;
+    let detailColumn;
     switch(type) {
       case 'lurkers':
         data = <?php echo json_encode($lurkers); ?>;
         title = 'Currently Lurking Users';
+        detailColumn = 'Time';
         break;
       case 'typos':
         data = <?php echo json_encode($typos); ?>;
         title = 'Typo Counts';
+        detailColumn = 'Typo Count';
         break;
       case 'deaths':
         data = <?php echo json_encode($gameDeaths); ?>;
         title = 'Deaths Overview';
+        detailColumn = 'Death Count';
         break;
       case 'hugs':
         data = <?php echo json_encode($hugCounts); ?>;
         title = 'Hug Counts';
+        detailColumn = 'Hug Count';
         break;
       case 'kisses':
         data = <?php echo json_encode($kissCounts); ?>;
         title = 'Kiss Counts';
+        detailColumn = 'Kiss Count';
         break;
       case 'custom':
         data = <?php echo json_encode($customCounts); ?>;
         title = 'Custom Counts';
+        detailColumn = 'Used';
         break;
     }
+    document.getElementById('detail-header').innerText = detailColumn;
     let output = '';
     data.forEach(function(item) {
       output += `<tr>`;
