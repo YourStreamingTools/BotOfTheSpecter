@@ -9,8 +9,8 @@ session_start();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page title
@@ -44,51 +44,45 @@ include 'bot_control.php';
 include 'sqlite.php';
 
 try {
-    // Fetch lurkers
-    $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
-    $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
-
-    // Calculate lurk durations for each user
-    foreach ($lurkers as $key => $lurker) {
-        $startTime = new DateTime($lurker['start_time']);
-        $currentTime = new DateTime();
-        $interval = $currentTime->diff($startTime);
-
-        // Calculate total duration in seconds for sorting
-        $totalDuration = ($interval->y * 365 * 24 * 3600) + 
-                        ($interval->m * 30 * 24 * 3600) + 
-                        ($interval->d * 24 * 3600) + 
-                        ($interval->h * 3600) + 
-                        ($interval->i * 60);
-
-        $lurkers[$key]['total_duration'] = $totalDuration; // Store for sorting
-
-        $timeStringParts = [];
-        if ($interval->y > 0) {
-            $timeStringParts[] = "{$interval->y} year(s)";
-        }
-        if ($interval->m > 0) {
-            $timeStringParts[] = "{$interval->m} month(s)";
-        }
-        if ($interval->d > 0) {
-            $timeStringParts[] = "{$interval->d} day(s)";
-        }
-        if ($interval->h > 0) {
-            $timeStringParts[] = "{$interval->h} hour(s)";
-        }
-        if ($interval->i > 0) {
-            $timeStringParts[] = "{$interval->i} minute(s)";
-        }
-        $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
+  // Fetch lurkers
+  $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
+  $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+  // Calculate lurk durations for each user
+  foreach ($lurkers as $key => $lurker) {
+    $startTime = new DateTime($lurker['start_time']);
+    $currentTime = new DateTime();
+    $interval = $currentTime->diff($startTime);
+    // Calculate total duration in seconds for sorting
+    $totalDuration = ($interval->y * 365 * 24 * 3600) + 
+                     ($interval->m * 30 * 24 * 3600) + 
+                     ($interval->d * 24 * 3600) + 
+                     ($interval->h * 3600) + 
+                     ($interval->i * 60);
+    $lurkers[$key]['total_duration'] = $totalDuration; // Store for sorting
+    $timeStringParts = [];
+    if ($interval->y > 0) {
+      $timeStringParts[] = "{$interval->y} year(s)";
     }
-
-    // Sort the lurkers array by total_duration (longest to shortest)
-    usort($lurkers, function ($a, $b) {
-        return $b['total_duration'] - $a['total_duration'];
-    });
-    
+    if ($interval->m > 0) {
+      $timeStringParts[] = "{$interval->m} month(s)";
+    }
+    if ($interval->d > 0) {
+      $timeStringParts[] = "{$interval->d} day(s)";
+    }
+    if ($interval->h > 0) {
+      $timeStringParts[] = "{$interval->h} hour(s)";
+    }
+    if ($interval->i > 0) {
+      $timeStringParts[] = "{$interval->i} minute(s)";
+    }
+    $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
+  }
+  // Sort the lurkers array by total_duration (longest to shortest)
+  usort($lurkers, function ($a, $b) {
+    return $b['total_duration'] - $a['total_duration'];
+  });
 } catch (PDOException $e) {
-    echo 'Error: ' . $e->getMessage();
+  echo 'Error: ' . $e->getMessage();
 }
 
 // Prepare the Twitch API request for user data
@@ -97,8 +91,8 @@ $userIdParams = implode('&id=', $userIds);
 $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 $headers = [
-    "Client-ID: $clientID",
-    "Authorization: Bearer $authToken",
+  "Client-ID: $clientID",
+  "Authorization: Bearer $authToken",
 ];
 
 // Execute the Twitch API request
@@ -113,13 +107,21 @@ $userData = json_decode($response, true);
 
 // Check if data exists and is not null
 if (isset($userData['data']) && is_array($userData['data'])) {
-    // Map user IDs to usernames
-    $usernames = [];
-    foreach ($userData['data'] as $user) {
-        $usernames[$user['id']] = $user['display_name'];
+  // Map user IDs to usernames
+  $usernames = [];
+  foreach ($userData['data'] as $user) {
+      $usernames[$user['id']] = $user['display_name'];
+  }
+  // Map the Twitch usernames to the lurkers based on their user_id
+  foreach ($lurkers as $key => $lurker) {
+    if (isset($usernames[$lurker['user_id']])) {
+      $lurkers[$key]['username'] = $usernames[$lurker['user_id']];
+    } else {
+      $lurkers[$key]['username'] = 'Unknown'; // Fallback if username not found
     }
+  }
 } else {
-    $usernames = [];
+  $usernames = [];
 }
 ?>
 <!DOCTYPE html>
@@ -142,7 +144,6 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     alt='" . htmlspecialchars($twitchDisplayName) . " Profile Image'>"; ?>
   </h1>
   <br>
-
   <div class="buttons">
     <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
     <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
@@ -151,7 +152,6 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
     <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
   </div>
-
   <div class="content">
     <div class="box">
       <h3 id="table-title" class="title" style="color: white;">Currently Lurking Users</h3>
@@ -174,7 +174,6 @@ if (isset($userData['data']) && is_array($userData['data'])) {
   function loadData(type) {
     let data;
     let title;
-
     switch(type) {
       case 'lurkers':
         data = <?php echo json_encode($lurkers); ?>;
@@ -201,7 +200,6 @@ if (isset($userData['data']) && is_array($userData['data'])) {
         title = 'Custom Counts';
         break;
     }
-
     let output = '';
     data.forEach(function(item) {
       output += `<tr>`;
@@ -220,11 +218,9 @@ if (isset($userData['data']) && is_array($userData['data'])) {
       }
       output += `</tr>`;
     });
-
     document.getElementById('table-title').innerText = title;
     document.getElementById('table-body').innerHTML = output;
   }
-
   // Load Lurkers by default on page load
   document.addEventListener('DOMContentLoaded', function () {
     loadData('lurkers');
