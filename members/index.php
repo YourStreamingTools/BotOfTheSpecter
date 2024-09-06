@@ -82,11 +82,7 @@ if ($username) {
 </head>
 <body>
 <section class="hero is-primary">
-    <div class="hero-body">
-        <p class="title">
-            BotOfTheSpecter
-        </p>
-    </div>
+    <div class="hero-body"><p class="title"><img class='round-image' src='https://cdn.botofthespecter.com/logo.png' width='50px' height='50px' alt='BotOfTheSpecter Logo Image'> BotOfTheSpecter</p></div>
 </section>
 <div class="container">
     <div class="columns is-centered">
