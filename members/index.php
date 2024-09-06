@@ -213,8 +213,9 @@ if ($username) {
                     <button class="modal-close is-large" aria-label="close"></button>
                 </div>
             <?php else: ?>
+                <br>
                 <div class="box">
-                    <h2 class="title">Search for User Commands:</h2>
+                    <h2 class="title">Enter the Twitch Username:</h2>
                     <form method="get" action="<?php echo $_SERVER['PHP_SELF']; ?>" class="field is-grouped">
                         <div class="control is-expanded">
                             <input type="text" id="user_search" name="user" class="input" placeholder="Enter username">
