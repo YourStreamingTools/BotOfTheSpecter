@@ -95,129 +95,123 @@ if ($username) {
                 <div class="notification is-info">
                     <?php echo $buildResults; ?>
                 </div>
-                <?php if (!empty($commands)): ?>
-                    <div class="buttons">
-                        <button class="button is-link" data-target="#commands-modal" aria-haspopup="true">Commands</button>
-                        <button class="button is-link" data-target="#custom-command-modal" aria-haspopup="true">Custom Command Count</button>
-                        <button class="button is-link" data-target="#lurkers-modal" aria-haspopup="true">Lurkers</button>
-                        <button class="button is-link" data-target="#typos-modal" aria-haspopup="true">Typos</button>
-                        <button class="button is-link" data-target="#deaths-modal" aria-haspopup="true">Deaths</button>
-                        <button class="button is-link" data-target="#hugs-modal" aria-haspopup="true">Hugs</button>
-                        <button class="button is-link" data-target="#kisses-modal" aria-haspopup="true">Kisses</button>
-                    </div>
-                    <!-- Commands Modal -->
-                    <div id="commands-modal" class="modal">
-                        <div class="modal-background"></div>
-                        <div class="modal-content">
-                            <div class="box">
-                                <h2 class="title">Commands</h2>
-                                <ul>
-                                    <?php foreach ($commands as $command): ?>
-                                        <li><?php echo htmlspecialchars($command['command']); ?></li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
+                <div class="buttons">
+                    <button class="button is-link" data-target="#commands-modal" aria-haspopup="true">Commands</button>
+                    <button class="button is-link" data-target="#custom-command-modal" aria-haspopup="true">Custom Command Count</button>
+                    <button class="button is-link" data-target="#lurkers-modal" aria-haspopup="true">Lurkers</button>
+                    <button class="button is-link" data-target="#typos-modal" aria-haspopup="true">Typos</button>
+                    <button class="button is-link" data-target="#deaths-modal" aria-haspopup="true">Deaths</button>
+                    <button class="button is-link" data-target="#hugs-modal" aria-haspopup="true">Hugs</button>
+                    <button class="button is-link" data-target="#kisses-modal" aria-haspopup="true">Kisses</button>
+                </div>
+                <!-- Commands Modal -->
+                <div id="commands-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">Commands</h2>
+                            <ul>
+                                <?php foreach ($commands as $command): ?>
+                                    <li><?php echo htmlspecialchars($command['command']); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
-                        <button class="modal-close is-large" aria-label="close"></button>
                     </div>
-                    <!-- Custom Command Count Modal -->
-                    <div id="custom-command-modal" class="modal">
-                        <div class="modal-background"></div>
-                        <div class="modal-content">
-                            <div class="box">
-                                <h2 class="title">Custom Command Count</h2>
-                                <ul>
-                                    <?php foreach ($customCounts as $custom): ?>
-                                        <li><?php echo htmlspecialchars($custom['command']); ?>: <?php echo htmlspecialchars($custom['count']); ?> uses</li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
+                <!-- Custom Command Count Modal -->
+                <div id="custom-command-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">Custom Command Count</h2>
+                            <ul>
+                                <?php foreach ($customCounts as $custom): ?>
+                                    <li><?php echo htmlspecialchars($custom['command']); ?>: <?php echo htmlspecialchars($custom['count']); ?> uses</li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
-                        <button class="modal-close is-large" aria-label="close"></button>
                     </div>
-                    <!-- Lurkers Modal -->
-                    <div id="lurkers-modal" class="modal">
-                        <div class="modal-background"></div>
-                        <div class="modal-content">
-                            <div class="box">
-                                <h2 class="title">Lurkers</h2>
-                                <ul>
-                                    <?php foreach ($lurkers as $lurker): ?>
-                                        <li><?php echo htmlspecialchars($lurker['username']); ?></li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
+                <!-- Lurkers Modal -->
+                <div id="lurkers-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">Lurkers</h2>
+                            <ul>
+                                <?php foreach ($lurkers as $lurker): ?>
+                                    <li><?php echo htmlspecialchars($lurker['username']); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
-                        <button class="modal-close is-large" aria-label="close"></button>
                     </div>
-                    <!-- Typos Modal -->
-                    <div id="typos-modal" class="modal">
-                        <div class="modal-background"></div>
-                        <div class="modal-content">
-                            <div class="box">
-                                <h2 class="title">Typos</h2>
-                                <ul>
-                                    <?php foreach ($typos as $typo): ?>
-                                        <li><?php echo htmlspecialchars($typo['username']); ?>: <?php echo htmlspecialchars($typo['typo_count']); ?> typos</li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
+                <!-- Typos Modal -->
+                <div id="typos-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">Typos</h2>
+                            <ul>
+                                <?php foreach ($typos as $typo): ?>
+                                    <li><?php echo htmlspecialchars($typo['username']); ?>: <?php echo htmlspecialchars($typo['typo_count']); ?> typos</li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
-                        <button class="modal-close is-large" aria-label="close"></button>
                     </div>
-                    <!-- Deaths Modal -->
-                    <div id="deaths-modal" class="modal">
-                        <div class="modal-background"></div>
-                        <div class="modal-content">
-                            <div class="box">
-                                <h2 class="title">Deaths</h2>
-                                <p>Total Deaths: <?php echo htmlspecialchars($totalDeaths['death_count']); ?></p>
-                                <ul>
-                                    <?php foreach ($gameDeaths as $gameDeath): ?>
-                                        <li><?php echo htmlspecialchars($gameDeath['game_name']); ?>: <?php echo htmlspecialchars($gameDeath['death_count']); ?> deaths</li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
+                <!-- Deaths Modal -->
+                <div id="deaths-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">Deaths</h2>
+                            <p>Total Deaths: <?php echo htmlspecialchars($totalDeaths['death_count']); ?></p>
+                            <ul>
+                                <?php foreach ($gameDeaths as $gameDeath): ?>
+                                    <li><?php echo htmlspecialchars($gameDeath['game_name']); ?>: <?php echo htmlspecialchars($gameDeath['death_count']); ?> deaths</li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
-                        <button class="modal-close is-large" aria-label="close"></button>
                     </div>
-                    <!-- Hugs Modal -->
-                    <div id="hugs-modal" class="modal">
-                        <div class="modal-background"></div>
-                        <div class="modal-content">
-                            <div class="box">
-                                <h2 class="title">Hugs</h2>
-                                <p>Total Hugs: <?php echo htmlspecialchars($totalHugs); ?></p>
-                                <ul>
-                                    <?php foreach ($hugCounts as $hug): ?>
-                                        <li><?php echo htmlspecialchars($hug['username']); ?>: <?php echo htmlspecialchars($hug['hug_count']); ?> hugs</li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
+                <!-- Hugs Modal -->
+                <div id="hugs-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">Hugs</h2>
+                            <p>Total Hugs: <?php echo htmlspecialchars($totalHugs); ?></p>
+                            <ul>
+                                <?php foreach ($hugCounts as $hug): ?>
+                                    <li><?php echo htmlspecialchars($hug['username']); ?>: <?php echo htmlspecialchars($hug['hug_count']); ?> hugs</li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
-                        <button class="modal-close is-large" aria-label="close"></button>
                     </div>
-                    <!-- Kisses Modal -->
-                    <div id="kisses-modal" class="modal">
-                        <div class="modal-background"></div>
-                        <div class="modal-content">
-                            <div class="box">
-                                <h2 class="title">Kisses</h2>
-                                <p>Total Kisses: <?php echo htmlspecialchars($totalKisses); ?></p>
-                                <ul>
-                                    <?php foreach ($kissCounts as $kiss): ?>
-                                        <li><?php echo htmlspecialchars($kiss['username']); ?>: <?php echo htmlspecialchars($kiss['kiss_count']); ?> kisses</li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
+                <!-- Kisses Modal -->
+                <div id="kisses-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">Kisses</h2>
+                            <p>Total Kisses: <?php echo htmlspecialchars($totalKisses); ?></p>
+                            <ul>
+                                <?php foreach ($kissCounts as $kiss): ?>
+                                    <li><?php echo htmlspecialchars($kiss['username']); ?>: <?php echo htmlspecialchars($kiss['kiss_count']); ?> kisses</li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
-                        <button class="modal-close is-large" aria-label="close"></button>
                     </div>
-                <?php else: ?>
-                    <div class="notification is-warning">
-                        <p>No commands found.</p>
-                    </div>
-                <?php endif; ?>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
             <?php else: ?>
                 <div class="box">
                     <h2 class="title">Search for User Commands:</h2>
