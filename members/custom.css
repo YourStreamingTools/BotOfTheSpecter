@@ -5,6 +5,7 @@ html, body {
 }
 
 body {
+    color: #ffffff;
     display: flex;
     flex-direction: column;
 }
@@ -21,6 +22,7 @@ footer {
 
 .hero.is-primary {
     background-color: #333333;
+    color: #ffffff;
     align-items: center;
 }
 
