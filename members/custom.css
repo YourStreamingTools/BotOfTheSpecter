@@ -21,6 +21,7 @@ footer {
 
 .hero.is-primary {
     background-color: #333333;
+    align-items: center;
 }
 
 .button {
