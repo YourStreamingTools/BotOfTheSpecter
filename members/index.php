@@ -7,7 +7,6 @@ function sanitize_input($input) {
 // PAGE TITLE
 $title = "Members";
 $commands = [];
-$builtCommands = [];
 $typos = [];
 $lurkers = [];
 $totalDeaths = [];
@@ -19,16 +18,6 @@ $kissCounts = [];
 $customCounts = [];
 
 require_once "db_connect.php";
-
-// Query to fetch built-in commands
-$fetchCommandsSql = "SELECT * FROM commands";
-$result = $conn->query($fetchCommandsSql);
-$builtCommands = array();
-if ($result->num_rows > 0) {
-    while ($row = $result->fetch_assoc()) {
-        $builtCommands[] = $row;
-    }
-}
 
 // Get the username from the URL path
 $requestUri = $_SERVER['REQUEST_URI'];
@@ -99,7 +88,6 @@ if ($username) {
         </p>
     </div>
 </section>
-
 <div class="container">
     <div class="columns is-centered">
         <div class="column is-three-quarters">
@@ -246,7 +234,6 @@ if ($username) {
         </div>
     </div>
 </div>
-
 <footer class="footer">
     <div class="content has-text-centered">
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
@@ -270,6 +257,5 @@ document.querySelectorAll('.modal-close, .modal-background').forEach(close => {
     });
 });
 </script>
-
 </body>
 </html>
