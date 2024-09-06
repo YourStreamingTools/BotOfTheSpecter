@@ -25,7 +25,8 @@ body {
     color: #ffffff;
     justify-content: center;
     display: flex;
-    align-items: center;
+    align-items: left;
+	height: 90px;
 }
 
 .hero-body .title {
@@ -54,6 +55,6 @@ body {
 .box {
     background-color: #222222;
     color: #ffffff;
-    border-radius: 8px;
+    border-radius: 10px;
     width: auto;
 }
