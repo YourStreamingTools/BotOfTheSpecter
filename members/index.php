@@ -32,29 +32,23 @@ if ($username) {
         // Connect to the MySQL database
         $db = new PDO("mysql:host=sql.botofthespecter.com;dbname={$username}", "specter", "Rg8sJ2h3FyL9");
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
         // Update Title for the Username
         $title = "User Commands: $username";
-
         // Check if custom_commands table exists
         $check_table_query = "SHOW TABLES LIKE 'custom_commands'";
         $stmt = $db->prepare($check_table_query);
         $stmt->execute();
         $table_exists = $stmt->fetch(PDO::FETCH_ASSOC);
-
         if (!$table_exists) {
             throw new Exception("No custom commands found for user '$username'.");
         }
-
         // Query commands for the user
         $query = "SELECT command FROM custom_commands";
         $result = $db->query($query);
-
         // Fetch commands into an array
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             $commands[] = $row;
         }
-
         // Close database connection
         $db = null;
     } catch (PDOException $e) {
@@ -69,6 +63,7 @@ if ($username) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
@@ -78,14 +73,14 @@ if ($username) {
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
-    <section class="hero is-primary">
-        <div class="hero-body">
-            <p class="title">
-                BotOfTheSpecter
-            </p>
-        </div>
-    </section>
-
+<section class="hero is-primary">
+    <div class="hero-body">
+        <p class="title">
+            BotOfTheSpecter
+        </p>
+    </div>
+</section>
+<div class="content-wrapper">
     <div class="container">
         <div class="columns is-centered">
             <div class="column is-three-quarters">
@@ -132,11 +127,11 @@ if ($username) {
             </div>
         </div>
     </div>
-
-    <footer class="footer">
-        <div class="content has-text-centered">
-            &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
-        </div>
-    </footer>
+</div>
+<footer class="footer">
+    <div class="content has-text-centered">
+        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
+    </div>
+</footer>
 </body>
 </html>
