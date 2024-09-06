@@ -14,7 +14,7 @@ body {
     flex: 1;
 }
 
-footer {
+.footer {
     background-color: #333333;
     color: #ffffff;
     padding: 1rem;
@@ -23,7 +23,7 @@ footer {
 .hero.is-primary {
     background-color: #333333;
     color: #ffffff;
-    align-items: center;
+    justify-content: center;
 }
 
 .button {
