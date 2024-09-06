@@ -24,6 +24,7 @@ body {
     background-color: #333333;
     color: #ffffff;
     justify-content: center;
+    vertical-align: middle;
 }
 
 .button {
