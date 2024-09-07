@@ -1,6 +1,7 @@
 # Environment files
 bot/.env
 app/.env
+api/.env
 
 # Build and distribution directories
 app/dist/
