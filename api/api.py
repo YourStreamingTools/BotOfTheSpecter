@@ -3,6 +3,7 @@ import aiohttp
 import aiomysql
 import random
 import json
+import paramiko
 from fastapi import FastAPI, HTTPException, Depends, Body, Request, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,9 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_KEY = os.getenv('ADMIN_KEY')
+SFTP_HOST = "10.240.0.169"
+SFTP_USER = os.getenv("SFPT_USERNAME")
+SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
 
 # Define the tags metadata
 tags_metadata = [
@@ -319,6 +323,29 @@ async def websocket_heartbeat():
                     return {"status": "OFF"} 
     except Exception:
         return {"status": "OFF"}
+
+# Public API Requests Remaining
+@app.get(
+    "/api/song",
+    summary="Get the current remaining requests for the song command",
+    tags=["BotOfTheSpecter"]
+)
+async def api_song():
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        get_requests_remaining = "/var/www/api/shazam.txt"
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+        sftp = ssh.open_sftp()
+        with sftp.open(get_requests_remaining, "r") as requests_remaining:
+            file_content = requests_remaining.read()
+        sftp.close()
+        ssh.close()
+        return {"requests_remaining": file_content}
+    except Exception as e:
+        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]')
+        sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
+        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
 
 # killCommand EndPoint
 @app.get(
