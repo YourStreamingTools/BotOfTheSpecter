@@ -384,10 +384,10 @@ async def connect_to_streamelements():
             }
             await streamelements_websocket.send(json.dumps(auth_message))
             event_logger.info(f"Sent auth message: {auth_message}")
-            
             # Listen for messages
             while True:
                 message = await streamelements_websocket.recv()
+                event_logger.info(f"StreamElements Message: {message}")
                 await process_message(message, "StreamElements")
     except websockets.ConnectionClosed as e:
         event_logger.error(f"StreamElements WebSocket connection closed: {e}")
@@ -402,6 +402,7 @@ async def connect_to_streamlabs():
             # Listen for messages
             while True:
                 message = await streamlabs_websocket.recv()
+                event_logger.info(f"StreamLabs Message: {message}")
                 await process_message(message, "StreamLabs")
     except websockets.ConnectionClosed as e:
         event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
@@ -437,19 +438,19 @@ async def process_tipping_message(data, source):
     try:
         channel = bot.get_channel(CHANNEL_NAME)
         send_message = None
-
         if source == "StreamElements" and data.get('type') == 'tip':
             user = data['data']['username']
             amount = data['data']['amount']
             tip_message = data['data']['message']
             send_message = f"{user} just tipped {amount}! Message: {tip_message}"
+            event_logger.info(f"StreamElemenets Tip: {send_message}")
         elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
             for donation in data['data']['donations']:
                 user = donation['name']
                 amount = donation['amount']
                 tip_message = donation['message']
                 send_message = f"{user} just tipped {amount}! Message: {tip_message}"
-        
+                event_logger.info(f"StreamLabs Tip: {send_message}")
         if send_message:
             await channel.send(send_message)
             # Save tipping data directly in this function
@@ -770,11 +771,11 @@ class BotOfTheSpecter(commands.Bot):
             AuthorMessage = None
             bannedUser = None
             try:
+                # Log the message content
+                chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                 # Ignore messages from the bot itself
                 if message.echo:
                     return
-                # Log the message content
-                chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                 # Check for a valid author before proceeding
                 if message.author is None:
                     bot_logger.error("Received a message without a valid author.")
