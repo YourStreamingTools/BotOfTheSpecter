@@ -2329,7 +2329,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
     
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
+    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
