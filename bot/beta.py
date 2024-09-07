@@ -3866,6 +3866,9 @@ async def detect_song(raw_audio_b64):
                 # Check requests remaining for the API
                 if "x-ratelimit-requests-remaining" in response.headers:
                     requests_left = response.headers['x-ratelimit-requests-remaining']
+                    file_path = "/var/www/api/shazam.txt"
+                    with open(file_path, 'w') as file:
+                        file.write(requests_left)
                     api_logger.info(f"There are {requests_left} requests lefts for the song command.")
                     if int(requests_left) == 0:
                         return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
