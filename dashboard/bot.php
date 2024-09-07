@@ -216,7 +216,7 @@ if ($ModStatusOutput) {
             if ($requests_remaining > 0) {
               echo "<p>Song Identifications Left: " . $requests_remaining . ". (" . $days_until_reset . " days left)</p>";
             } else {
-              echo "<p>Song Identifications Left: None</p>";
+              echo "<p>Song Identifications Left: None. (" . $days_until_reset . " days left)</p>";
             }
           } else {
             echo "<p>Song Identifications Left: Sorry I can't seen to find how many requests are left.</p>";
