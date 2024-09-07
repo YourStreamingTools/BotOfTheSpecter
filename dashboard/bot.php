@@ -195,6 +195,36 @@ if ($ModStatusOutput) {
         </div>
       </div>
     </div>
+    <!-- API System -->
+    <div class="column is-5 bot-box">
+      <h4 class="title is-4" style="text-align: center;">API Limits</h4>
+      <div class="status-message" style="font-size: 22px;">
+      <?php
+        $shazamFile = "/var/www/api/shazam.txt";
+        $today = new DateTime();
+        $reset_day = 23;
+        if ($today->format('d') >= $reset_day) {
+          $next_reset = new DateTime('first day of next month');
+          $next_reset->setDate($next_reset->format('Y'), $next_reset->format('m'), $reset_day);
+        } else {
+          $next_reset = new DateTime($today->format('Y-m') . "-$reset_day");
+        }
+        $days_until_reset = $today->diff($next_reset)->days;
+        if (file_exists($shazamFile)) {
+          $requests_remaining = file_get_contents($shazamFile);
+          if (is_numeric($requests_remaining)) {
+            if ($requests_remaining > 0) {
+              echo "<p>Song Identifications Left: " . $requests_remaining . ". (" . $days_until_reset . " days left)</p>";
+            } else {
+              echo "<p>Song Identifications Left: None</p>";
+            }
+          } else {
+            echo "<p>Song Identifications Left: Sorry I can't seen to find how many requests are left.</p>";
+          }
+        }
+      ?>
+      </div>
+    </div>
   </div>
 </div>
 
