@@ -497,7 +497,6 @@ async def process_eventsub_message(message):
                         event_data.get("cumulative_months", 1)
                     )
                 elif event_type == "channel.subscription.message":
-                    event_logger.info(f"Subscription (Message) Event Data: {event_data}")
                     tier_mapping = {
                         "1000": "Tier 1",
                         "2000": "Tier 2",
@@ -522,11 +521,11 @@ async def process_eventsub_message(message):
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
                     await process_giftsub_event(
-                        event_data["user_id"],
                         event_data["user_name"],
                         tier_name,
                         event_data["total"],
-                        event_data.get("is_anonymous", False)
+                        event_data.get("is_anonymous", False),
+                        event_data.get["cumulative_total"]
                     )
                 elif event_type == "channel.cheer":
                     await process_cheer_event(
@@ -4144,27 +4143,22 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
         await sqldb.ensure_closed()
 
 # Function for Gift Subscriptions
-async def process_giftsub_event(recipient_user_id, recipient_user_name, sub_plan, user_name, anonymous):
+async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
-            await cursor.execute('SELECT months FROM subscription_data WHERE user_id = %s', (recipient_user_id,))
-            existing_months = await cursor.fetchone()
-            if existing_months:
-                existing_months = existing_months[0]
-                updated_months = existing_months + 1
-                await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, updated_months, recipient_user_id))
-            else:
-                await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (recipient_user_id, recipient_user_name, sub_plan, 1))
-            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (recipient_user_name, "subscriptions", f"{sub_plan} - GIFT SUBSCRIPTION"))
+            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (gifter_user_name, "Gift Subscriptions", f"{number_gifts} - GIFT SUBSCRIPTIONS"))
             await sqldb.commit()
             if anonymous:
-                message = f"Thank you for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber!"
-                discord_message = f"An Anonymous Gifter just gifted {recipient_user_name} a subscription!"
+                message = f"Thank you for gifting a {givent_sub_plan} subscription to {number_gifts} members! {number_gifts} members are now a {givent_sub_plan} subscriber!"
+                discord_message = f"An Anonymous Gifter just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
             else:
-                message = f"Thank you {user_name} for gifting a {sub_plan} subscription to {recipient_user_name}! They are now a {sub_plan} subscriber!"
-                discord_message = f"{user_name} just gifted {recipient_user_name} a subscription!"
+                if total_gifted > 1:
+                    message = f"Thank you {gifter_user_name} for gifting a {givent_sub_plan} subscription to {number_gifts} members! You have gifted a total of {total_gifted} to the community!"
+                else:
+                    message = f"Thank you {gifter_user_name} for gifting a {givent_sub_plan} subscription to {number_gifts} members!"
+                discord_message = f"{gifter_user_name} just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
