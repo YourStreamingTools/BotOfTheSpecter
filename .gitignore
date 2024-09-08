@@ -37,6 +37,8 @@ api/app/*.exe
 api/authusers.json
 websocket/service-account-file.json
 websocket/ips.txt
+api/shazam.txt
+api/exchangerate.txt
 
 # Media files
 tts/*
