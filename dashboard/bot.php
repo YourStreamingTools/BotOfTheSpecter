@@ -248,6 +248,7 @@ $today = new DateTime();
           }
         }
       ?>
+      <br>
       </div>
     </div>
   </div>
