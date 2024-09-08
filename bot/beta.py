@@ -193,7 +193,6 @@ async def refresh_token(current_refresh_token):
 # Setup Twitch EventSub
 async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
-
     while True:
         try:
             async with websockets.connect(twitch_websocket_uri) as twitch_websocket:
@@ -247,7 +246,6 @@ async def subscribe_to_events(session_id):
         "channel.follow",
         "channel.update",
     ]
-
     responses = []
     async with aiohttp.ClientSession() as session:
         for v1topic in v1topics:
@@ -280,7 +278,6 @@ async def subscribe_to_events(session_id):
                 if response.status in (200, 202):
                     event_logger.info(f"WebSocket subscription successful for {v1topic}")
                     responses.append(await response.json())
-
     async with aiohttp.ClientSession() as session:
         for v2topic in v2topics:
             if v2topic == "channel.follow":
@@ -330,16 +327,13 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
                     await process_eventsub_message(message_data)
             else:
                 event_logger.error("Received unrecognized message format")
-
         except asyncio.TimeoutError:
             event_logger.error("Keepalive timeout exceeded, reconnecting...")
             await twitch_websocket.close()
             break  # Exit the loop to allow reconnection logic
-
         except websockets.ConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
             break  # Exit the loop for reconnection
-
         except Exception as e:
             event_logger.error(f"Error receiving message: {e}")
             break  # Exit the loop on critical error
@@ -738,6 +732,36 @@ async def process_eventsub_message(message):
         event_logger.error(f"Error processing EventSub message: {e}")
     finally:
         await sqldb.ensure_closed()
+
+class WebSocketCog(commands.Cog, name='WebSocket'):
+    def __init__(self):
+        super().__init__()
+        self.api_token = API_TOKEN
+        self.version = VERSION
+        self.sio = socketio.AsyncClient()
+
+        @self.sio.event
+        async def connect():
+            bot_logger.info("Connected to WebSocket server")
+            await self.sio.emit('REGISTER', {'code': self.api_token, 'name': f'Twitch Bot V{self.version}B'})
+
+        @self.sio.event
+        async def disconnect():
+            bot_logger.info("Disconnected from WebSocket server")
+
+        asyncio.create_task(self.start_websocket())
+
+    async def start_websocket(self):
+        try:
+            await self.sio.connect('wss://websocket.botofthespecter.com')
+            await self.sio.wait()
+        except Exception as e:
+            bot_logger.error(f"WebSocket connection error: {e}")
+            await asyncio.sleep(5)
+            asyncio.create_task(self.start_websocket())
+
+    def cog_unload(self):
+        asyncio.create_task(self.sio.disconnect())
 
 class BotOfTheSpecter(commands.Bot):
     # Event Message to get the bot ready
@@ -5116,6 +5140,7 @@ def start_bot():
     asyncio.get_event_loop().create_task(token_refresh())
 
     # Start the bot
+    #bot.add_cog(WebSocketCog)
     bot.run()
 
 if __name__ == '__main__':
