@@ -733,32 +733,55 @@ async def process_eventsub_message(message):
     finally:
         await sqldb.ensure_closed()
 
+@sio.event
+async def connect():
+    bot_logger.info("Connected to the WebSocket server.")
+    # Prepare the registration data
+    registration_data = {
+        'code': API_TOKEN,
+        'name': f'Twitch Bot Beta'
+    }
+    # Emit the 'REGISTER' event
+    await sio.emit('REGISTER', registration_data)
+    bot_logger.info(f"Sent registration: {registration_data}")
+
+@sio.event
+async def connect_error(data):
+    bot_logger.error(f"Failed to connect to the server: {data}")
+
+@sio.event
+async def disconnect():
+    bot_logger.info("Disconnected from WebSocket server.")
+
+@sio.on('REGISTERED')
+async def on_registered(data):
+    bot_logger.info(f"Registration confirmed: {data}")
+
+@sio.event
+async def message(data):
+    bot_logger.info(f"Received message: {data}")
+
+# Handle other events
+@sio.on('PING')
+async def handle_ping(data):
+    bot_logger.info(f"Received PING message from server: {data}")
+    await sio.emit('PONG', {})
+
+# Connect and manage reconnection
 async def specter_websocket():
     websocket_uri = "wss://websocket.botofthespecter.com"
     while True:
         try:
-            async with websockets.connect(websocket_uri) as specter_websocket:
-                # Log successful connection
-                bot_logger.info("Connected to in-house WebSocket server")
-                # Prepare the registration data
-                registration_data = {
-                    'code': API_TOKEN,
-                    'name': f'Twitch Bot V{VERSION}B'
-                }
-                # Send the 'REGISTER' message to the WebSocket server
-                await specter_websocket.send(json.dumps({'type': 'REGISTER', 'data': registration_data}))
-                bot_logger.info(f"Sent registration: {registration_data}")
-                # Handle incoming messages
-                await specter_messages(specter_websocket)
-        except websockets.ConnectionClosedError as e:
-            bot_logger.error(f"WebSocket connection closed unexpectedly: {e}")
-            await asyncio.sleep(10)  # Wait before retrying connection
+            # Attempt to connect to the WebSocket server
+            bot_logger.info(f"Attempting to connect to {websocket_uri}")
+            await sio.connect(websocket_uri)
+            await sio.wait()  # Keep the connection open to receive messages
+        except socketio.exceptions.ConnectionError as e:
+            bot_logger.error(f"Connection failed: {e}")
+            await asyncio.sleep(10)  # Wait and retry connection
         except Exception as e:
             bot_logger.error(f"An unexpected error occurred: {e}")
-            await asyncio.sleep(10)  # Wait before retrying
-
-async def specter_messages():
-    return
+            await asyncio.sleep(10)
 
 class BotOfTheSpecter(commands.Bot):
     # Event Message to get the bot ready
