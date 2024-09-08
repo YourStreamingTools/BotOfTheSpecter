@@ -347,6 +347,28 @@ async def api_song():
         sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
         raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
 
+@app.get(
+    "/api/exchangerate",
+    summary="Get the current remaining requests for the convert command for exchangerates",
+    tags=["BotOfTheSpecter"]
+)
+async def api_exchangerate():
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        get_requests_remaining = "/var/www/api/exchangerate.txt"
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+        sftp = ssh.open_sftp()
+        with sftp.open(get_requests_remaining, "r") as requests_remaining:
+            file_content = requests_remaining.read()
+        sftp.close()
+        ssh.close()
+        return {"requests_remaining": file_content}
+    except Exception as e:
+        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]')
+        sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
+        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
+
 # killCommand EndPoint
 @app.get(
     "/kill",
