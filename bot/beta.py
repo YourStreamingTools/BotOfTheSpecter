@@ -777,6 +777,7 @@ class BotOfTheSpecter(commands.Bot):
         await known_users()
         await channel_point_rewards()
         asyncio.get_event_loop().create_task(twitch_eventsub())
+        asyncio.get_event_loop().create_task(specter_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
         asyncio.get_event_loop().create_task(midnight(channel))
