@@ -4548,6 +4548,7 @@ async def check_stream_online():
 
 async def convert_currency(amount, from_currency, to_currency):
     url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API}/pair/{from_currency}/{to_currency}/{amount}"
+    quota_url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API}/quota"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -4556,13 +4557,22 @@ async def convert_currency(amount, from_currency, to_currency):
                 if data['result'] == "success":
                     converted_amount = data['conversion_result']
                     api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency}")
+                    async with session.get(quota_url) as quota_reponse:
+                        quota_data = await quota_reponse.json()
+                        remaining_requests = quota_data['requests_remaining']
+                        api_logger.info(f"Exchangerate API Requests Remaining: {remaining_requests}")
+                        file_path = "/var/www/api/exchangerate.txt"
+                        with open(file_path, 'w') as file:
+                            file.write(str(remaining_requests))
                     return converted_amount
                 else:
                     error_message = data.get('error-type', 'Unknown error')
                     api_logger.error(f"Error: {error_message}")
-                    return f"Error: {error_message}"
+                    sanitized_error = str(error_message).replace(EXCHANGE_RATE_API, '[EXCHANGE_RATE_API]')
+                    return f"Error: {sanitized_error}"
     except aiohttp.ClientError as e:
-        api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {str(e)}")
+        sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[EXCHANGE_RATE_API]')
+        api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {str(sanitized_error)}")
         raise
 
 async def channel_point_rewards():
