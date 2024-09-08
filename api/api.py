@@ -6,9 +6,10 @@ import json
 import paramiko
 import uvicorn
 import datetime
+import logging
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Depends, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Depends, Request, Query, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List
@@ -25,6 +26,13 @@ ADMIN_KEY = os.getenv('ADMIN_KEY')
 SFTP_HOST = "10.240.0.169"
 SFTP_USER = os.getenv("SFPT_USERNAME")
 SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
+
+# Setup Logger
+logging.basicConfig(
+    level=logging.INFO,
+    filename="/home/fastapi/log.txt",
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Define the tags metadata
 tags_metadata = [
@@ -253,31 +261,35 @@ class PublicAPIResponse(BaseModel):
 @app.post(
     "/fourthwall",
     summary="Get FOURTHWALL Webhook Requests",
-    tags=["Webhooks"]
+    tags=["Webhooks"],
+    status_code=status.HTTP_200_OK
 )
 async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...)):
     # Extract JSON data from the Fourthwall webhook
     try:
         webhook_data = await request.json()
+        logging.info(f"{webhook_data}")
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
-    # Define the payload to send to the WebSocket server
-    params = {
-        "event": "FOURTHWALL",
-        "data": webhook_data
-    }
     # Send the data to the WebSocket server
     async with aiohttp.ClientSession() as session:
-        params['code'] = api_key  # Include the API key in the request
-        encoded_params = urlencode(params)
-        url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
-        async with session.get(url) as response:
-            if response.status != 200:
-                raise HTTPException(
-                    status_code=response.status,
-                    detail=f"Failed to send HTTP event 'FOURTHWALL' to websocket server."
-                )
-    return {"message": "Webhook received and processed successfully"}
+        try:
+            params = {
+            "code": api_key,
+            "event": "FOURTHWALL",
+            "data": webhook_data
+            }
+            encoded_params = urlencode(params)
+            url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Failed to send HTTP event 'FOURTHWALL' to websocket server."
+                    )
+        except Exception as e:
+            logging.error(f"{e}")
+    return {"status": "success", "message": "Webhook recieved"}
 
 # Quotes endpoint
 @app.get(
@@ -574,16 +586,7 @@ async def authorized_users(api_key: str = Depends(verify_admin_key)):
 
 @app.get("/", include_in_schema=False)
 async def read_root():
-    html_content = """
-    <html>
-        <head>
-            <meta http-equiv="refresh" content="0;url=/docs">
-        </head>
-        <body>
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content, status_code=200)
+    return RedirectResponse(url="/docs")
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
