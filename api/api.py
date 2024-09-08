@@ -6,9 +6,9 @@ import json
 import paramiko
 import uvicorn
 import datetime
-from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, Depends, Body, Request, Query
-from fastapi.responses import FileResponse, HTMLResponse
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Depends, Request, Query
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List
@@ -222,8 +222,8 @@ class VersionControlResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "beta_version": "4.6",
-                "stable_version": "4.5.2"
+                "beta_version": "4.7",
+                "stable_version": "4.6"
             }
         }
 
@@ -475,7 +475,7 @@ async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
     summary="Trigger WALKON via API",
     tags=["Websocket"]
 )
-async def websocket_walkon(request: WalkonRequest, api_key):
+async def websocket_walkon(request: WalkonRequest, api_key, user):
     valid = await verify_api_key(api_key)  # Validate the API key before proceeding
     if not valid:  # Check if the API key is valid
         raise HTTPException(
@@ -588,14 +588,6 @@ async def read_root():
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
-
-@app.get("/bot_version_control.txt", include_in_schema=False)
-async def bot_version_control():
-    return "4.5.2"
-
-@app.get("/beta_version_control.txt", include_in_schema=False)
-async def beta_version_control():
-    return "4.6"
 
 if __name__ == "__main__":
     uvicorn.run(
