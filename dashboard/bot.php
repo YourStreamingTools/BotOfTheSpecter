@@ -101,6 +101,8 @@ if ($ModStatusOutput) {
 } else {
   $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p>";
 }
+
+$today = new DateTime();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -201,25 +203,48 @@ if ($ModStatusOutput) {
       <div class="status-message" style="font-size: 22px;">
       <?php
         $shazamFile = "/var/www/api/shazam.txt";
-        $today = new DateTime();
-        $reset_day = 23;
-        if ($today->format('d') >= $reset_day) {
-          $next_reset = new DateTime('first day of next month');
-          $next_reset->setDate($next_reset->format('Y'), $next_reset->format('m'), $reset_day);
+        $shazam_reset_day = 23;
+        if ($today->format('d') >= $shazam_reset_day) {
+          $shazam_next_reset = new DateTime('first day of next month');
+          $shazam_next_reset->setDate($shazam_next_reset->format('Y'), $shazam_next_reset->format('m'), $shazam_reset_day);
         } else {
-          $next_reset = new DateTime($today->format('Y-m') . "-$reset_day");
+          $shazam_next_reset = new DateTime($today->format('Y-m') . "-$shazam_reset_day");
         }
-        $days_until_reset = $today->diff($next_reset)->days;
+        $days_until_reset = $today->diff($shazam_next_reset)->days;
         if (file_exists($shazamFile)) {
-          $requests_remaining = file_get_contents($shazamFile);
-          if (is_numeric($requests_remaining)) {
-            if ($requests_remaining > 0) {
-              echo "<p>Song Identifications Left: " . $requests_remaining . ". (" . $days_until_reset . " days left)</p>";
+          $shazam_requests_remaining = file_get_contents($shazamFile);
+          if (is_numeric($shazam_requests_remaining)) {
+            if ($shazam_requests_remaining > 0) {
+              echo "<p>Song Identifications Left: " . $shazam_requests_remaining . ".<br>(" . $days_until_reset . " days until reset)</p>";
             } else {
-              echo "<p>Song Identifications Left: 0. (" . $days_until_reset . " days left)</p>";
+              echo "<p>Song Identifications Left: 0.<br>(" . $days_until_reset . " days until reset)</p>";
             }
           } else {
             echo "<p>Song Identifications Left: Sorry I can't seen to find how many requests are left.</p>";
+          }
+        }
+      ?>
+      <br>
+      <?php
+        $exchangerateFile = "/var/www/api/exchangerate.txt";
+        $exchangerate_reset_day = 14;
+        if ($today->format('d') >= $exchangerate_reset_day) {
+          $exchangerate_next_reset = new DateTime('first day of next month');
+          $exchangerate_next_reset->setDate($exchangerate_next_reset->format('Y'), $exchangerate_next_reset->format('m'), $exchangerate_reset_day);
+        } else {
+          $exchangerate_next_reset = new DateTime($today->format('Y-m') . "-$exchangerate_reset_day");
+        }
+        $days_until_reset = $today->diff($exchangerate_next_reset)->days;
+        if (file_exists($exchangerateFile)) {
+          $exchangerate_requests_remaining = file_get_contents($exchangerateFile);
+          if (is_numeric($exchangerate_requests_remaining)) {
+            if ($exchangerate_requests_remaining > 0) {
+              echo "<p>Exchange Rate Checks Left: " . $exchangerate_requests_remaining . ".<br>(" . $days_until_reset . " days until reset)</p>";
+            } else {
+              echo "<p>Exchange Rate Checks Left: 0.<br>(" . $days_until_reset . " days until reset)</p>";
+            }
+          } else {
+            echo "<p>Exchange Rate Checks Left: Sorry I can't seen to find how many requests are left.</p>";
           }
         }
       ?>
