@@ -235,11 +235,12 @@ class BotOfTheSpecterWebsocketServer:
         # Log and broadcast the FOURTHWALL event to the clients
         self.logger.info(f"Handling FOURTHWALL event with data: {data}")
         count = 0
-        for sid, registered_code in self.registered_clients.items():
-            if registered_code == code:
-                count += 1
-                await self.sio.emit("FOURTHWALL", data, sid)
+        if code in self.registered_clients:
+            for client in self.registered_clients[code]:
+                sid = client['sid']
+                await self.sio.emit("FOURTHWALL", data, to=sid)
                 self.logger.info(f"Emitted FOURTHWALL event to client {sid}")
+                count += 1
         self.logger.info(f"Broadcasted FOURTHWALL event to {count} clients")
 
     async def notify(self, sid, data):
