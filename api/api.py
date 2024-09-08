@@ -4,10 +4,12 @@ import aiomysql
 import random
 import json
 import paramiko
+import uvicorn
+import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends, Body, Request, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 from pydantic import BaseModel
 from typing import Dict, List
 from jokeapi import Jokes
@@ -235,6 +237,18 @@ class HeartbeatControlResponse(BaseModel):
             }
         }
 
+# Public API response model
+class PublicAPIResponse(BaseModel):
+    requests_remaining: str
+    days_remaining: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "requests_remaining": "100",
+                "days_remaining": "6",
+            }
+        }
+
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
     "/fourthwall",
@@ -308,6 +322,7 @@ async def versions():
 # Websocket HeartBeat
 @app.get(
     "/websocket/heartbeat",
+    response_model=HeartbeatControlResponse,
     summary="Get the heartbeat status of the websocket server",
     tags=["BotOfTheSpecter", "Websocket"]
 )
@@ -327,11 +342,21 @@ async def websocket_heartbeat():
 # Public API Requests Remaining
 @app.get(
     "/api/song",
+    response_model=PublicAPIResponse,
     summary="Get the current remaining requests for the song command",
     tags=["BotOfTheSpecter"]
 )
 async def api_song():
     try:
+        reset_day = 23
+        today = datetime.now()
+        if today.day >= reset_day:
+            next_month = today.month + 1 if today.month < 12 else 1
+            next_year = today.year + 1 if today.month == 12 else today.year
+            next_reset = datetime(next_year, next_month, reset_day)
+        else:
+            next_reset = datetime(today.year, today.month, reset_day)
+        days_until_reset = (next_reset - today).days
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         get_requests_remaining = "/var/www/api/shazam.txt"
@@ -341,19 +366,29 @@ async def api_song():
             file_content = requests_remaining.read()
         sftp.close()
         ssh.close()
-        return {"requests_remaining": file_content}
+        return {"requests_remaining": file_content, "days_remaining": days_until_reset}
     except Exception as e:
         sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]')
         sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
-        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
+        raise HTTPException(status_code=500, detail=f"{sanitized_error}")
 
 @app.get(
     "/api/exchangerate",
+    response_model=PublicAPIResponse,
     summary="Get the current remaining requests for the convert command for exchangerates",
     tags=["BotOfTheSpecter"]
 )
 async def api_exchangerate():
     try:
+        reset_day = 14
+        today = datetime.now()
+        if today.day >= reset_day:
+            next_month = today.month + 1 if today.month < 12 else 1
+            next_year = today.year + 1 if today.month == 12 else today.year
+            next_reset = datetime(next_year, next_month, reset_day)
+        else:
+            next_reset = datetime(today.year, today.month, reset_day)
+        days_until_reset = (next_reset - today).days
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         get_requests_remaining = "/var/www/api/exchangerate.txt"
@@ -363,7 +398,7 @@ async def api_exchangerate():
             file_content = requests_remaining.read()
         sftp.close()
         ssh.close()
-        return {"requests_remaining": file_content}
+        return {"requests_remaining": file_content, "days_remaining": days_until_reset}
     except Exception as e:
         sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]')
         sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
