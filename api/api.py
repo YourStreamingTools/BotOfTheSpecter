@@ -240,7 +240,7 @@ class HeartbeatControlResponse(BaseModel):
 # Public API response model
 class PublicAPIResponse(BaseModel):
     requests_remaining: str
-    days_remaining: str
+    days_remaining: int
     class Config:
         json_schema_extra = {
             "example": {
