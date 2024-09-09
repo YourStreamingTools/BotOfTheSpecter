@@ -192,12 +192,13 @@ if ($username) {
 
             socket.on('TTS', (data) => {
                 console.log('TTS Audio file path:', data.audio_file);
-                const audio = new Audio(data.audio_file);
+                const audio = new Audio(`${data.audio_file}?t=${new Date().getTime()}`);
                 audio.volume = 0.8;
                 audio.autoplay = true;
                 audio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
                 });
+
                 audio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
