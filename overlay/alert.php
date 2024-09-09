@@ -37,7 +37,8 @@
             // Function to play audio with error handling
             const playAudio = (audioFile) => {
                 if (!audioFile) return;
-                const audio = new Audio(audioFile);
+                // Add cache-busting query parameter with timestamp
+                const audio = new Audio(`${audioFile}?t=${new Date().getTime()}`);
                 audio.volume = 0.8;
                 audio.autoplay = true;
 
