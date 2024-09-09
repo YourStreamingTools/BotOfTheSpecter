@@ -3694,8 +3694,68 @@ async def fetch_json(url, headers=None):
 
 # Function to process fourthwall events
 async def process_fourthwall_event(data):
-    event_logger.info(f"Fourthwall event: {data}")
-    return
+    channel = bot.get_channel(CHANNEL_NAME)
+    event_logger.info(f"Fourthwall event received: {data}")
+    # Check if it's an order event
+    if data.get('type') == 'ORDER_PLACED':
+        purchaser_name = data['data']['billing']['address']['name']
+        item_name = data['data']['offers'][0]['name']
+        item_quantity = data['data']['offers'][0]['variant']['quantity']
+        total_price = data['data']['amounts']['total']['value']
+        currency = data['data']['amounts']['total']['currency']
+        # Log the order details
+        event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
+        # Respond to the chat with the order info
+        message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
+        await channel.send(message)
+    # Check if it's a donation event
+    elif data.get('type') == 'DONATION':
+        donor_username = data['username']
+        donation_amount = data['amounts']['total']['value']
+        currency = data['amounts']['total']['currency']
+        message_from_supporter = data.get('message', '')
+        # Respond to the chat with the donation info
+        if message_from_supporter:
+            event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency} with message: {message_from_supporter}")
+            message = f"💰 {donor_username} just donated {donation_amount} {currency}! Message: {message_from_supporter}"
+        else:
+            event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
+            message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
+        await channel.send(message)
+    # Check if it's a gift purchase event
+    elif data.get('type') == 'GIFT_PURCHASE':
+        purchaser_username = data['username']
+        item_name = data['offer']['name']
+        total_price = data['amounts']['total']['value']
+        currency = data['amounts']['total']['currency']
+        # Log the gift purchase details
+        event_logger.info(f"New Gift Purchase: {purchaser_username} bought {item_name} for {total_price} {currency}")
+        # Respond to the chat with the gift purchase info
+        message = f"🎁 {purchaser_username} just bought a gift: {item_name} for {total_price} {currency}!"
+        await channel.send(message)
+        # Process each gift
+        for gift in data['gifts']:
+            gift_status = gift['status']
+            winner_username = gift['winner']['username'] if gift['winner'] else "No winner yet"
+            # Log each gift's status and winner details
+            event_logger.info(f"Gift {gift['id']} is {gift_status} with winner: {winner_username}")
+            # Send a message to the chat about the gift status
+            gift_message = f"🎁 Gift ID: {gift['id']} is {gift_status}. Winner: {winner_username}."
+            await channel.send(gift_message)
+    # Check if it's a subscription purchased event
+    elif data.get('type') == 'SUBSCRIPTION_PURCHASED':
+        subscriber_nickname = data['nickname']
+        interval = data['subscription']['variant']['interval']
+        amount = data['subscription']['variant']['amount']['value']
+        currency = data['subscription']['variant']['amount']['currency']
+        # Log the subscription purchase details
+        event_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
+        # Respond to the chat with the subscription info
+        message = f"🎉 {subscriber_nickname} just subscribed for {interval}, paying {amount} {currency}!"
+        await channel.send(message)
+    # Handle other types of events
+    else:
+        event_logger.info(f"Unhandled Fourthwall event: {data.get('type')}")
 
 # Function to process the stream being online
 async def process_stream_online():
