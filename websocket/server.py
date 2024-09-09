@@ -149,7 +149,7 @@ class BotOfTheSpecterWebsocketServer:
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_duration(response)
         self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
-        await asyncio.sleep(duration)
+        await asyncio.sleep(duration + 5)
         # After playback, delete the TTS file from the SFTP server
         try:
             await self.sftp_delete(audio_file)
