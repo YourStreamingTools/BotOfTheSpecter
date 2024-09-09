@@ -216,14 +216,14 @@ $today = new DateTime();
           $reset_date_shazam = $shazam_next_reset->format('F j, Y');
           if (file_exists($shazamFile)) {
             $shazam_requests_remaining = file_get_contents($shazamFile);
-            $last_modified_shazam = date("F j, Y, g:i a", filemtime($shazamFile));
+            $last_modified_shazam = date("F j, Y, g:iA T", filemtime($shazamFile));
             if (is_numeric($shazam_requests_remaining)) {
-              echo "<p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>" . $shazam_requests_remaining . "</span> (" . $days_until_reset . " days until reset)</p>";
+              echo "<p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>" . $shazam_requests_remaining . "</span> 
+              (<span title='Next reset date: $reset_date_shazam'>" . $days_until_reset . " days until reset</span>)</p>";
             } else {
               echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
             }
             echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_shazam</span></p>";
-            echo "<p>Next reset date: <span style='color: #f39c12;'>$reset_date_shazam</span></p>";
           }
           ?>
         </div>
@@ -242,14 +242,14 @@ $today = new DateTime();
           $reset_date_exchangerate = $exchangerate_next_reset->format('F j, Y');
           if (file_exists($exchangerateFile)) {
             $exchangerate_requests_remaining = file_get_contents($exchangerateFile);
-            $last_modified_exchangerate = date("F j, Y, g:i a", filemtime($exchangerateFile));
+            $last_modified_exchangerate = date("F j, Y, g:iA T", filemtime($exchangerateFile));
             if (is_numeric($exchangerate_requests_remaining)) {
-              echo "<p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>" . $exchangerate_requests_remaining . "</span> (" . $days_until_reset . " days until reset)</p>";
+              echo "<p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>" . $exchangerate_requests_remaining . "</span> 
+              (<span title='Next reset date: $reset_date_exchangerate'>" . $days_until_reset . " days until reset</span>)</p>";
             } else {
               echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
             }
             echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_exchangerate</span></p>";
-            echo "<p>Next reset date: <span style='color: #f39c12;'>$reset_date_exchangerate</span></p>";
           }
           ?>
         </div>
