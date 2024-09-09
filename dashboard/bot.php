@@ -199,10 +199,10 @@ $today = new DateTime();
     </div>
     <!-- API System -->
     <div class="column is-5 bot-box">
-      <h4 class="title is-4 has-text-centered">API Limits</h4>
-      <div class="status-message" style="font-size: 18px; padding: 15px; background-color: #333333; color: #ffffff; border-radius: 8px;">
+      <h4 class="title is-4 has-text-centered" style="color: #f39c12;">API Limits</h4>
+      <div class="status-message" style="font-size: 18px; padding: 15px; background-color: #2c3e50; color: #ecf0f1; border-radius: 8px;">
         <!-- Song Identification Section -->
-        <div class="api-section" style="padding-bottom: 15px; border-bottom: 1px solid #555555; margin-bottom: 15px; color: #ffffff;">
+        <div class="api-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
           <?php
           $shazamFile = "/var/www/api/shazam.txt";
           $shazam_reset_day = 23;
@@ -218,12 +218,12 @@ $today = new DateTime();
             $shazam_requests_remaining = file_get_contents($shazamFile);
             $last_modified_shazam = date("F j, Y, g:i a", filemtime($shazamFile));
             if (is_numeric($shazam_requests_remaining)) {
-              echo "<p>Song Identifications Left: " . $shazam_requests_remaining . " (" . $days_until_reset . " days until reset)</p>";
+              echo "<p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>" . $shazam_requests_remaining . "</span> (" . $days_until_reset . " days until reset)</p>";
             } else {
-              echo "<p>Sorry, I can't seem to find how many requests are left.</p>";
+              echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
             }
-            echo "<p>Last checked: $last_modified_shazam</p>";
-            echo "<p>Next reset date: $reset_date_shazam</p>";
+            echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_shazam</span></p>";
+            echo "<p>Next reset date: <span style='color: #f39c12;'>$reset_date_shazam</span></p>";
           }
           ?>
         </div>
@@ -244,12 +244,12 @@ $today = new DateTime();
             $exchangerate_requests_remaining = file_get_contents($exchangerateFile);
             $last_modified_exchangerate = date("F j, Y, g:i a", filemtime($exchangerateFile));
             if (is_numeric($exchangerate_requests_remaining)) {
-              echo "<p>Exchange Rate Checks Left: " . $exchangerate_requests_remaining . " (" . $days_until_reset . " days until reset)</p>";
+              echo "<p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>" . $exchangerate_requests_remaining . "</span> (" . $days_until_reset . " days until reset)</p>";
             } else {
-              echo "<p>Sorry, I can't seem to find how many requests are left.</p>";
+              echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
             }
-            echo "<p>Last checked: $last_modified_exchangerate</p>";
-            echo "<p>Next reset date: $reset_date_exchangerate</p>";
+            echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_exchangerate</span></p>";
+            echo "<p>Next reset date: <span style='color: #f39c12;'>$reset_date_exchangerate</span></p>";
           }
           ?>
         </div>
