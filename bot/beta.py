@@ -767,6 +767,21 @@ async def handle_ping(data):
     bot_logger.info(f"Received PING message from server: {data}")
     await sio.emit('PONG', {})
 
+@sio.event
+async def STREAM_ONLINE(data):
+    bot_logger.info(f"Received STREAM_ONLINE event: {data}")
+    await process_stream_online_websocket()
+
+@sio.event
+async def STREAM_OFFLINE(data):
+    bot_logger.info(f"Received STREAM_OFFLINE event: {data}")
+    await process_stream_offline_websocket()
+
+@sio.event
+async def FOURTHWALL(data):
+    bot_logger.info(f"Received FOURTHWALL event: {data}")
+    await process_fourthwall_event(data)
+
 # Connect and manage reconnection
 async def specter_websocket():
     websocket_uri = "wss://websocket.botofthespecter.com"
@@ -3677,12 +3692,26 @@ async def fetch_json(url, headers=None):
         api_logger.error(f"Error fetching data: {e}")
     return None
 
+# Function to process fourthwall events
+async def process_fourthwall_event(data):
+    event_logger.info(f"Fourthwall event: {data}")
+    return
+
 # Function to process the stream being online
 async def process_stream_online():
+    bot_logger.info(f"Stream is now online!")
+    await websocket_notice(event="STREAM_ONLINE")
+
+# Function to process the stream being offline
+async def process_stream_offline():
+    bot_logger.info(f"Stream is now offline.")
+    await websocket_notice(event="STREAM_OFFLINE")
+
+# Function to process the stream being online
+async def process_stream_online_websocket():
     global stream_online
     global current_game
     stream_online = True
-    bot_logger.info(f"Stream is now online!")
     asyncio.get_event_loop().create_task(timed_message())
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
@@ -3710,16 +3739,14 @@ async def process_stream_online():
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_online_message(message)
-    await websocket_notice(event="STREAM_ONLINE")
     await send_to_discord_stream_online(message, image)
 
-async def process_stream_offline():
+# Function to process the stream being offline
+async def process_stream_offline_websocket():
     global stream_online
     stream_online = False  # Update the stream status
     await clear_seen_today()
     await clear_credits_data()
-    await websocket_notice(event="STREAM_OFFLINE")
-    bot_logger.info(f"Stream is now offline.")
 
 # Function to send the online message to channel
 async def send_online_message(message):
