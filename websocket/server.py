@@ -150,6 +150,12 @@ class BotOfTheSpecterWebsocketServer:
         duration = self.estimate_duration(response)
         self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
         await asyncio.sleep(duration)
+        # After playback, delete the TTS file from the SFTP server
+        try:
+            await self.sftp_delete(audio_file)
+            self.logger.info(f'Audio file "{audio_file}" successfully deleted from SFTP server.')
+        except Exception as e:
+            self.logger.error(f'Failed to delete audio file "{audio_file}" from SFTP server: {e}')
 
     async def sftp_transfer(self, local_file_path):
         # Set up the SFTP connection details from .env file
@@ -170,6 +176,26 @@ class BotOfTheSpecterWebsocketServer:
             transport.close()
         except Exception as e:
             self.logger.error(f"Failed to transfer file via SFTP: {e}")
+
+    async def sftp_delete(self, local_file_path):
+        # Set up the SFTP connection details from .env file
+        hostname = "10.240.0.169"
+        username = os.getenv("SFPT_USERNAME")
+        password = os.getenv("SFPT_PASSWORD")
+        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
+        try:
+            # Establish an SFTP session
+            transport = paramiko.Transport((hostname, 22))
+            transport.connect(username=username, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            # Delete the file
+            sftp.remove(remote_file_path)
+            self.logger.info(f"File {remote_file_path} deleted from webserver {hostname}")
+            # Close the SFTP session
+            sftp.close()
+            transport.close()
+        except Exception as e:
+            self.logger.error(f"Failed to delete file via SFTP: {e}")
 
     def estimate_duration(self, response):
         # Calculate the duration based on the audio content length and bitrate
@@ -434,8 +460,16 @@ class BotOfTheSpecterWebsocketServer:
 
     async def on_shutdown(self, app):
         self.logger.info("Shutting down...")
-        await self.sio.disconnect()
-        self.logger.info("WebSocket disconnected.")
+        # Disconnect all registered clients properly
+        for code, sids in list(self.registered_clients.items()):
+            for client in sids:
+                sid = client['sid']
+                self.logger.info(f"Disconnecting SID [{sid}] during shutdown.")
+                try:
+                    await self.sio.disconnect(sid)
+                except Exception as e:
+                    self.logger.error(f"Error disconnecting SID [{sid}]: {e}")
+        self.logger.info("All clients disconnected.")
 
     def sig_handler(self, signum, frame):
         # Handle system signals for graceful shutdown.
