@@ -37,7 +37,7 @@
             // Listen for TTS audio events
             socket.on('TTS', (data) => {
                 console.log('TTS Audio file path:', data.audio_file);
-                const audio = new Audio(data.audio_file);
+                const audio = new Audio(`${data.audio_file}?t=${new Date().getTime()}`);
                 audio.volume = 0.8;
 
                 audio.addEventListener('canplaythrough', () => {
@@ -53,7 +53,7 @@
                     alert('Failed to load audio file');
                 });
 
-                // Auto-play audio if the user has interacted with the page
+                // Handle user interaction to allow audio playback if blocked
                 document.body.addEventListener('click', () => {
                     audio.play().catch(error => {
                         console.error('Error playing audio:', error);
