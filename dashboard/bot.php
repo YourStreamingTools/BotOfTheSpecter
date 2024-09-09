@@ -199,56 +199,60 @@ $today = new DateTime();
     </div>
     <!-- API System -->
     <div class="column is-5 bot-box">
-      <h4 class="title is-4" style="text-align: center;">API Limits</h4>
-      <div class="status-message" style="font-size: 22px;">
-      <?php
-        $shazamFile = "/var/www/api/shazam.txt";
-        $shazam_reset_day = 23;
-        if ($today->format('d') >= $shazam_reset_day) {
-          $shazam_next_reset = new DateTime('first day of next month');
-          $shazam_next_reset->setDate($shazam_next_reset->format('Y'), $shazam_next_reset->format('m'), $shazam_reset_day);
-        } else {
-          $shazam_next_reset = new DateTime($today->format('Y-m') . "-$shazam_reset_day");
-        }
-        $days_until_reset = $today->diff($shazam_next_reset)->days;
-        if (file_exists($shazamFile)) {
-          $shazam_requests_remaining = file_get_contents($shazamFile);
-          if (is_numeric($shazam_requests_remaining)) {
-            if ($shazam_requests_remaining > 0) {
-              echo "<p>Song Identifications Left: " . $shazam_requests_remaining . ".<br>(" . $days_until_reset . " days until reset)</p>";
-            } else {
-              echo "<p>Song Identifications Left: 0.<br>(" . $days_until_reset . " days until reset)</p>";
-            }
+      <h4 class="title is-4 has-text-centered">API Limits</h4>
+      <div class="status-message" style="font-size: 18px; padding: 15px; background-color: #333333; color: #ffffff; border-radius: 8px;">
+        <!-- Song Identification Section -->
+        <div class="api-section" style="padding-bottom: 15px; border-bottom: 1px solid #555555; margin-bottom: 15px; color: #ffffff;">
+          <?php
+          $shazamFile = "/var/www/api/shazam.txt";
+          $shazam_reset_day = 23;
+          if ($today->format('d') >= $shazam_reset_day) {
+            $shazam_next_reset = new DateTime('first day of next month');
+            $shazam_next_reset->setDate($shazam_next_reset->format('Y'), $shazam_next_reset->format('m'), $shazam_reset_day);
           } else {
-            echo "<p>Song Identifications Left: Sorry I can't seen to find how many requests are left.</p>";
+            $shazam_next_reset = new DateTime($today->format('Y-m') . "-$shazam_reset_day");
           }
-        }
-      ?>
-      <br>
-      <?php
-        $exchangerateFile = "/var/www/api/exchangerate.txt";
-        $exchangerate_reset_day = 14;
-        if ($today->format('d') >= $exchangerate_reset_day) {
-          $exchangerate_next_reset = new DateTime('first day of next month');
-          $exchangerate_next_reset->setDate($exchangerate_next_reset->format('Y'), $exchangerate_next_reset->format('m'), $exchangerate_reset_day);
-        } else {
-          $exchangerate_next_reset = new DateTime($today->format('Y-m') . "-$exchangerate_reset_day");
-        }
-        $days_until_reset = $today->diff($exchangerate_next_reset)->days;
-        if (file_exists($exchangerateFile)) {
-          $exchangerate_requests_remaining = file_get_contents($exchangerateFile);
-          if (is_numeric($exchangerate_requests_remaining)) {
-            if ($exchangerate_requests_remaining > 0) {
-              echo "<p>Exchange Rate Checks Left: " . $exchangerate_requests_remaining . ".<br>(" . $days_until_reset . " days until reset)</p>";
+          $days_until_reset = $today->diff($shazam_next_reset)->days;
+          $reset_date_shazam = $shazam_next_reset->format('F j, Y');
+          if (file_exists($shazamFile)) {
+            $shazam_requests_remaining = file_get_contents($shazamFile);
+            $last_modified_shazam = date("F j, Y, g:i a", filemtime($shazamFile));
+            if (is_numeric($shazam_requests_remaining)) {
+              echo "<p>Song Identifications Left: " . $shazam_requests_remaining . " (" . $days_until_reset . " days until reset)</p>";
             } else {
-              echo "<p>Exchange Rate Checks Left: 0.<br>(" . $days_until_reset . " days until reset)</p>";
+              echo "<p>Sorry, I can't seem to find how many requests are left.</p>";
             }
-          } else {
-            echo "<p>Exchange Rate Checks Left: Sorry I can't seen to find how many requests are left.</p>";
+            echo "<p>Last checked: $last_modified_shazam</p>";
+            echo "<p>Next reset date: $reset_date_shazam</p>";
           }
-        }
-      ?>
-      <br>
+          ?>
+        </div>
+        <!-- Exchange Rate Section -->
+        <div class="api-section">
+          <?php
+          $exchangerateFile = "/var/www/api/exchangerate.txt";
+          $exchangerate_reset_day = 14;
+          if ($today->format('d') >= $exchangerate_reset_day) {
+            $exchangerate_next_reset = new DateTime('first day of next month');
+            $exchangerate_next_reset->setDate($exchangerate_next_reset->format('Y'), $exchangerate_next_reset->format('m'), $exchangerate_reset_day);
+          } else {
+            $exchangerate_next_reset = new DateTime($today->format('Y-m') . "-$exchangerate_reset_day");
+          }
+          $days_until_reset = $today->diff($exchangerate_next_reset)->days;
+          $reset_date_exchangerate = $exchangerate_next_reset->format('F j, Y');
+          if (file_exists($exchangerateFile)) {
+            $exchangerate_requests_remaining = file_get_contents($exchangerateFile);
+            $last_modified_exchangerate = date("F j, Y, g:i a", filemtime($exchangerateFile));
+            if (is_numeric($exchangerate_requests_remaining)) {
+              echo "<p>Exchange Rate Checks Left: " . $exchangerate_requests_remaining . " (" . $days_until_reset . " days until reset)</p>";
+            } else {
+              echo "<p>Sorry, I can't seem to find how many requests are left.</p>";
+            }
+            echo "<p>Last checked: $last_modified_exchangerate</p>";
+            echo "<p>Next reset date: $reset_date_exchangerate</p>";
+          }
+          ?>
+        </div>
       </div>
     </div>
   </div>
