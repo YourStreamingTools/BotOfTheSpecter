@@ -136,7 +136,14 @@ class BotOfTheSpecterWebsocketServer:
             self.logger.info(f"Emitting TTS event to clients with code {code}")
             for sid in sids:
                 self.logger.info(f"Emitting TTS event to SID {sid}")
-                await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=sid)
+                try:
+                    # Ensure valid session ID and emit the event
+                    if sid and isinstance(sid, dict) and 'sid' in sid:
+                        await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=sid['sid'])
+                    else:
+                        self.logger.error(f"Invalid SID structure for code {code}: {sid}")
+                except KeyError as e:
+                    self.logger.error(f"KeyError while emitting TTS event: {e}")
         else:
             self.logger.error(f"No clients found with code {code}. Unable to emit TTS event.")
         # Estimate the duration of the audio and wait for it to finish
