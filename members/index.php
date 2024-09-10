@@ -66,63 +66,73 @@ require_once "db_connect.php";
 // Get the username from the URL path
 $username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
+$notFound = false;
+
 if ($username) {
     try {
         // Connect to the MySQL database
         $db = new PDO("mysql:host=sql.botofthespecter.com;dbname={$username}", "USERNAME", "PASSWORD");
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        // Update Title for the Username
-        $title = "Member: $username";
-        // Fetch custom commands
-        $query = "SELECT command FROM custom_commands";
+        // Check if the user exists in the system
+        $query = "SELECT COUNT(*) FROM custom_commands";
         $result = $db->query($query);
-        while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
-            $commands[] = $row;
-        }
-        // Lurkers
-        $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time DESC");
-        $lurkerData = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
-        // Use the Twitch API to get usernames based on user_ids
-        if (!empty($lurkerData)) {
-            $lurkerUserIds = array_column($lurkerData, 'user_id');
-            $twitchUsers = getTwitchUsernames($lurkerUserIds);
-            foreach ($twitchUsers as $user) {
-                foreach ($lurkerData as $lurker) {
-                    if ($lurker['user_id'] == $user['id']) {
-                        $lurkers[] = [
-                            'user_id' => $user['id'],
-                            'username' => $user['display_name'],
-                            'start_time' => $lurker['start_time']
-                        ];
-                        break;
+        $userExists = $result->fetchColumn();
+        if ($userExists) {
+            // Update Title for the Username
+            $title = "Member: $username";
+            // Fetch custom commands
+            $query = "SELECT command FROM custom_commands";
+            $result = $db->query($query);
+            while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+                $commands[] = $row;
+            }
+            // Lurkers
+            $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time DESC");
+            $lurkerData = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+            // Use the Twitch API to get usernames based on user_ids
+            if (!empty($lurkerData)) {
+                $lurkerUserIds = array_column($lurkerData, 'user_id');
+                $twitchUsers = getTwitchUsernames($lurkerUserIds);
+                foreach ($twitchUsers as $user) {
+                    foreach ($lurkerData as $lurker) {
+                        if ($lurker['user_id'] == $user['id']) {
+                            $lurkers[] = [
+                                'user_id' => $user['id'],
+                                'username' => $user['display_name'],
+                                'start_time' => $lurker['start_time']
+                            ];
+                            break;
+                        }
                     }
                 }
             }
+            // Typos
+            $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
+            $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
+            // Hugs
+            $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
+            $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC)['total_hug_count'];
+            $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
+            $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
+            // Kisses
+            $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
+            $totalKisses = $getTotalKisses->fetch(PDO::FETCH_ASSOC)['total_kiss_count'];
+            $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
+            $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
+            // Custom Command Counts
+            $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
+            $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
+            // Fetch total deaths & game-specific deaths
+            $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
+            $totalDeaths = $getTotalDeaths->fetch(PDO::FETCH_ASSOC);
+            $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
+            $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
+            // Close database connection
+            $db = null;
+            $buildResults = "Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username;
+        } else {
+            $notFound = true;
         }
-        // Typos
-        $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
-        $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
-        // Hugs
-        $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
-        $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC)['total_hug_count'];
-        $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
-        $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
-        // Kisses
-        $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
-        $totalKisses = $getTotalKisses->fetch(PDO::FETCH_ASSOC)['total_kiss_count'];
-        $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
-        $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
-        // Custom Command Counts
-        $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
-        $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
-        // Fetch total deaths & game-specific deaths
-        $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
-        $totalDeaths = $getTotalDeaths->fetch(PDO::FETCH_ASSOC);
-        $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
-        $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
-        // Close database connection
-        $db = null;
-        $buildResults = "Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username;
     } catch (PDOException $e) {
         $buildResults = "Error: " . $e->getMessage();
     }
