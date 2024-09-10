@@ -191,8 +191,11 @@ async function fetchLogData(logname, loadMore = false) {
       logtext.innerHTML = "(log is empty)";
     } else {
       last_line = json["last_line"];
-      logtext.innerHTML = loadMore ? json["data"] + logtext.innerHTML : json["data"];
-      logtext.scrollTop = logtext.scrollHeight;
+      if (loadMore) {
+        logtext.innerHTML = json["data"] + logtext.innerHTML;
+      } else {
+        logtext.innerHTML = json["data"];
+      }
     }
 
     // Show buttons after selecting a valid log file
@@ -211,7 +214,6 @@ async function autoUpdateLog() {
       const json = await response.json();
       last_line = json["last_line"];
       logtext.innerHTML += json["data"];
-      logtext.scrollTop = logtext.scrollHeight;
     } catch (error) {
       console.error("Error fetching log data for auto-refresh:", error);
     }
