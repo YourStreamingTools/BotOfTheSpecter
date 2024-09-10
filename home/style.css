@@ -27,6 +27,7 @@ a.navbar-item:hover {
 
 .navbar-dropdown {
     background-color: #1b1b1b;
+    border-radius: 4px;
 }
 
 .navbar-dropdown .navbar-item {
@@ -41,4 +42,14 @@ a.navbar-item:hover {
 .navbar-dropdown .navbar-item:focus, .navbar-dropdown .navbar-item:active {
     background-color: #333333;
     color: #ffffff;
+}
+
+.navbar-dropdown .navbar-item.is-disabled {
+    color: #888888;
+    background-color: #1b1b1b;
+    pointer-events: none;
+}
+
+.navbar-dropdown .navbar-item:last-child {
+    border-bottom: none;
 }
