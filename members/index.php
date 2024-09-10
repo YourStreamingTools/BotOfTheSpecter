@@ -79,25 +79,23 @@ if ($username) {
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             $commands[] = $row;
         }
-        // Fetch additional data
-        // Typos
-        $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
-        $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
         // Lurkers
-        $getLurkers = $db->query("SELECT user_id FROM lurk_times ORDER BY start_time DESC");
-        $lurkerUserIds = $getLurkers->fetchAll(PDO::FETCH_COLUMN);
-
+        $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time DESC");
+        $lurkerUserIds = $getLurkers->fetchAll(PDO::FETCH_COLUMN, 0);
         // Use the Twitch API to get usernames based on user_ids
         if (!empty($lurkerUserIds)) {
             $twitchUsers = getTwitchUsernames($lurkerUserIds);
             foreach ($twitchUsers as $user) {
                 $lurkers[] = [
                     'user_id' => $user['id'],
-                    'username' => $user['display_name']
+                    'username' => $user['display_name'],
+                    'start_time' => $user['start_time'] ?? ''
                 ];
             }
         }
-
+        // Typos
+        $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
+        $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
         // Hugs
         $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
         $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC)['total_hug_count'];
@@ -121,7 +119,7 @@ if ($username) {
     } catch (PDOException $e) {
         $buildResults = "<p>Error: " . $e->getMessage() . "</p>";
     }
-    $buildResults = "<p>Welcome to $username Member Information</p>";
+    $buildResults = "<p>Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username . "</p>";
 }
 ?>
 <!DOCTYPE html>
@@ -177,11 +175,15 @@ if ($username) {
                     <div class="modal-content">
                         <div class="box">
                             <h2 class="title">Commands</h2>
-                            <ul>
+                            <div class="columns is-multiline">
                                 <?php foreach ($commands as $command): ?>
-                                    <li><?php echo htmlspecialchars($command['command']); ?></li>
+                                    <div class="column is-one-third">
+                                        <div class="box has-text-centered">
+                                            <p><?php echo htmlspecialchars($command['command']); ?></p>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
@@ -192,11 +194,16 @@ if ($username) {
                     <div class="modal-content">
                         <div class="box">
                             <h2 class="title">Custom Command Count</h2>
-                            <ul>
+                            <div class="columns is-multiline">
                                 <?php foreach ($customCounts as $custom): ?>
-                                    <li><?php echo htmlspecialchars($custom['command']); ?>: <?php echo htmlspecialchars($custom['count']); ?> uses</li>
+                                    <div class="column is-one-third">
+                                        <div class="box has-text-centered">
+                                            <p><?php echo htmlspecialchars($custom['command']); ?></p>
+                                            <p><?php echo htmlspecialchars($custom['count']); ?> uses</p>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
@@ -207,11 +214,17 @@ if ($username) {
                     <div class="modal-content">
                         <div class="box">
                             <h2 class="title">Lurkers</h2>
-                            <ul>
+                            <div class="columns is-multiline">
                                 <?php foreach ($lurkers as $lurker): ?>
-                                    <li><?php echo htmlspecialchars($lurker['username']); ?></li>
+                                    <div class="column is-one-third">
+                                        <div class="box has-text-centered">
+                                            <p><?php echo htmlspecialchars($lurker['username']); ?></p>
+                                            <p><?php echo date("n/j/Y", strtotime($lurker['start_time'])); ?></p>
+                                            <p><?php echo date("g:i:s A", strtotime($lurker['start_time'])); ?></p>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
@@ -222,11 +235,16 @@ if ($username) {
                     <div class="modal-content">
                         <div class="box">
                             <h2 class="title">Typos</h2>
-                            <ul>
+                            <div class="columns is-multiline">
                                 <?php foreach ($typos as $typo): ?>
-                                    <li><?php echo htmlspecialchars($typo['username']); ?>: <?php echo htmlspecialchars($typo['typo_count']); ?> typos</li>
+                                    <div class="column is-one-third">
+                                        <div class="box has-text-centered">
+                                            <p><?php echo htmlspecialchars($typo['username']); ?></p>
+                                            <p><?php echo htmlspecialchars($typo['typo_count']); ?> typos</p>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
@@ -237,12 +255,19 @@ if ($username) {
                     <div class="modal-content">
                         <div class="box">
                             <h2 class="title">Deaths</h2>
-                            <p>Total Deaths: <?php echo htmlspecialchars($totalDeaths['death_count']); ?></p>
-                            <ul>
+                            <div class="columns is-multiline">
+                                <div class="column is-full">
+                                    <p>Total Deaths: <?php echo htmlspecialchars($totalDeaths['death_count']); ?></p>
+                                </div>
                                 <?php foreach ($gameDeaths as $gameDeath): ?>
-                                    <li><?php echo htmlspecialchars($gameDeath['game_name']); ?>: <?php echo htmlspecialchars($gameDeath['death_count']); ?> deaths</li>
+                                    <div class="column is-one-third">
+                                        <div class="box has-text-centered">
+                                            <p><?php echo htmlspecialchars($gameDeath['game_name']); ?></p>
+                                            <p><?php echo htmlspecialchars($gameDeath['death_count']); ?> deaths</p>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
@@ -253,12 +278,19 @@ if ($username) {
                     <div class="modal-content">
                         <div class="box">
                             <h2 class="title">Hugs</h2>
-                            <p>Total Hugs: <?php echo htmlspecialchars($totalHugs); ?></p>
-                            <ul>
+                            <div class="columns is-multiline">
+                                <div class="column is-full">
+                                    <p>Total Hugs: <?php echo htmlspecialchars($totalHugs); ?></p>
+                                </div>
                                 <?php foreach ($hugCounts as $hug): ?>
-                                    <li><?php echo htmlspecialchars($hug['username']); ?>: <?php echo htmlspecialchars($hug['hug_count']); ?> hugs</li>
+                                    <div class="column is-one-third">
+                                        <div class="box has-text-centered">
+                                            <p><?php echo htmlspecialchars($hug['username']); ?></p>
+                                            <p><?php echo htmlspecialchars($hug['hug_count']); ?> hugs</p>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
@@ -269,12 +301,19 @@ if ($username) {
                     <div class="modal-content">
                         <div class="box">
                             <h2 class="title">Kisses</h2>
-                            <p>Total Kisses: <?php echo htmlspecialchars($totalKisses); ?></p>
-                            <ul>
+                            <div class="columns is-multiline">
+                                <div class="column is-full">
+                                    <p>Total Kisses: <?php echo htmlspecialchars($totalKisses); ?></p>
+                                </div>
                                 <?php foreach ($kissCounts as $kiss): ?>
-                                    <li><?php echo htmlspecialchars($kiss['username']); ?>: <?php echo htmlspecialchars($kiss['kiss_count']); ?> kisses</li>
+                                    <div class="column is-one-third">
+                                        <div class="box has-text-centered">
+                                            <p><?php echo htmlspecialchars($kiss['username']); ?></p>
+                                            <p><?php echo htmlspecialchars($kiss['kiss_count']); ?> kisses</p>
+                                        </div>
+                                    </div>
                                 <?php endforeach; ?>
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
