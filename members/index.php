@@ -20,9 +20,7 @@ $customCounts = [];
 require_once "db_connect.php";
 
 // Get the username from the URL path
-$requestUri = $_SERVER['REQUEST_URI'];
-$segments = explode('/', trim($requestUri, '/'));
-$username = isset($segments[1]) ? sanitize_input($segments[1]) : null;
+$username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
 
 if ($username) {
     try {
@@ -217,9 +215,9 @@ if ($username) {
                 <br>
                 <div class="box">
                     <h2 class="title">Enter the Twitch Username:</h2>
-                    <form method="get" action="<?php echo $_SERVER['PHP_SELF']; ?>" class="field is-grouped">
+                    <form id="usernameForm" class="field is-grouped" onsubmit="redirectToUser(event)">
                         <div class="control is-expanded">
-                            <input type="text" id="user_search" name="user" class="input" placeholder="Enter username">
+                            <input type="text" id="user_search" name="user" class="input" placeholder="Enter username" required>
                         </div>
                         <div class="control">
                             <input type="submit" value="Search" class="button is-link">
@@ -237,6 +235,16 @@ if ($username) {
 </footer>
 
 <script>
+// Function to redirect form submission to the new URL structure
+function redirectToUser(event) {
+    event.preventDefault();
+    const username = document.getElementById('user_search').value.trim();
+    if (username) {
+        // Redirect to the desired URL structure
+        window.location.href = `https://members.botofthespecter.com/${encodeURIComponent(username)}`;
+    }
+}
+
 // Script to handle modal open and close
 document.querySelectorAll('.button').forEach(button => {
     button.addEventListener('click', () => {
@@ -245,6 +253,7 @@ document.querySelectorAll('.button').forEach(button => {
         modal.classList.add('is-active');
     });
 });
+
 document.querySelectorAll('.modal-close, .modal-background').forEach(close => {
     close.addEventListener('click', () => {
         document.querySelectorAll('.modal').forEach(modal => {
