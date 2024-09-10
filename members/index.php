@@ -81,16 +81,22 @@ if ($username) {
         }
         // Lurkers
         $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time DESC");
-        $lurkerUserIds = $getLurkers->fetchAll(PDO::FETCH_COLUMN, 0);
+        $lurkerData = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
         // Use the Twitch API to get usernames based on user_ids
-        if (!empty($lurkerUserIds)) {
+        if (!empty($lurkerData)) {
+            $lurkerUserIds = array_column($lurkerData, 'user_id');
             $twitchUsers = getTwitchUsernames($lurkerUserIds);
             foreach ($twitchUsers as $user) {
-                $lurkers[] = [
-                    'user_id' => $user['id'],
-                    'username' => $user['display_name'],
-                    'start_time' => $user['start_time'] ?? ''
-                ];
+                foreach ($lurkerData as $lurker) {
+                    if ($lurker['user_id'] == $user['id']) {
+                        $lurkers[] = [
+                            'user_id' => $user['id'],
+                            'username' => $user['display_name'],
+                            'start_time' => $lurker['start_time']
+                        ];
+                        break;
+                    }
+                }
             }
         }
         // Typos
