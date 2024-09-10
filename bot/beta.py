@@ -832,14 +832,14 @@ class BotOfTheSpecter(commands.Bot):
             AuthorMessage = None
             bannedUser = None
             try:
+                # Check if the author exists before accessing its attributes
+                if message.author is None:
+                    bot_logger.error("Received a message without a valid author.")
+                    return
                 # Log the message content
                 chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                 # Ignore messages from the bot itself
                 if message.echo:
-                    return
-                # Check for a valid author before proceeding
-                if message.author is None:
-                    bot_logger.error("Received a message without a valid author.")
                     return
                 # Handle commands
                 await self.handle_commands(message)
