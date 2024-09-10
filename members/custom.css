@@ -10,6 +10,18 @@ body {
     flex-direction: column;
 }
 
+.navbar {
+    background-color: #1b1b1b;
+}
+
+.navbar-item, .navbar-link {
+    color: #ffffff;
+}
+
+a, a:hover {
+    color: #ffffff;
+}
+
 .title {
     color: #ffffff;
 }
