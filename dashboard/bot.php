@@ -199,7 +199,7 @@ $today = new DateTime();
     </div>
     <!-- API System -->
     <div class="column is-5 bot-box">
-      <h4 class="title is-4 has-text-centered" style="color: #f39c12;">API Limits</h4>
+      <h4 class="title is-4 has-text-centered">API Limits</h4>
       <div class="status-message" style="font-size: 18px; padding: 15px; background-color: #2c3e50; color: #ecf0f1; border-radius: 8px;">
         <!-- Song Identification Section -->
         <div class="api-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
