@@ -195,6 +195,9 @@ function getTimeDifference($start_time) {
 <div class="container">
     <div class="columns is-centered">
         <div class="column is-three-quarters">
+        <?php if ($notFound): ?>
+            <div class="notification is-danger">The username "<?php echo htmlspecialchars($username); ?>" was not found in our system.</div>
+        <?php else: ?>
             <div class="notification is-info"><?php echo $buildResults; ?></div>
             <?php if ($username): ?>
                 <div class="buttons">
@@ -368,6 +371,7 @@ function getTimeDifference($start_time) {
                     </form>
                 </div>
             <?php endif; ?>
+        <?php endif; ?>
         </div>
     </div>
 </div>
