@@ -22,6 +22,10 @@ a, a:hover {
     color: #ffffff;
 }
 
+#profile-image {
+    border-radius: 50%;
+}
+
 .title {
     color: #ffffff;
 }
