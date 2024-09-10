@@ -10,6 +10,7 @@ body {
     color: #c0c0c0;
     font-family: Arial, sans-serif;
 }
+
 a {
     color: #00FFFF;
 }
@@ -30,11 +31,11 @@ a {
     cursor: pointer;
     transition: box-shadow 0.3s;
 }
-  
+
 .login-button:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
-  
+
 /* Media query for smaller screens */
 @media (max-width: 600px) {
     .login-button {
