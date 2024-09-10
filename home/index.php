@@ -70,7 +70,7 @@
         </div>
     </div>
 </div>
-<footer class="footer has-background-black">
+<footer>
     <div class="content has-text-centered has-text-light">
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </div>
