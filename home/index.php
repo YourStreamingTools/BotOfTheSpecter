@@ -15,7 +15,7 @@
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
-<nav class="navbar is-info is-dark" role="navigation" aria-label="main navigation">
+<nav class="navbar is-dark" role="navigation" aria-label="main navigation">
     <div class="navbar-brand">
         <!-- Dropdown Menu on the Left -->
         <div class="navbar-item has-dropdown is-hoverable">
@@ -42,24 +42,24 @@
     <div class="container">
         <div class="columns">
             <div class="column is-12">
-                <section class="has-text-light">
+                <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Enhance Your Twitch and Discord Experiences</h2>
                     <ul>
                         <li>Twitch Bot Features: Engage your Twitch viewers with custom chat commands, channel point rewards, and real-time analytics. Easily manage subscribers, VIPs, and chat interactions from our user-friendly dashboard.</li>
                         <li>Discord Bot Features: Empower your Discord server with moderation tools, member engagement tracking, and automated notifications. Create a more organized and interactive environment for your community.</li>
                     </ul>
                 </section>
-                <section class="has-text-light">
+                <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Tailored for Streamers and Server Owners</h2>
                     <p>Twitch Streamers: Take control of your channel effortlessly with BotOfTheSpecter's Twitch bot. Automate tasks, manage chat, and monitor follower/subscriber growth in real time.</p>
                     <p>Discord Server Owners: Simplify server management with our Discord bot. Streamline moderation, monitor member activity, and create an engaging community space with ease.</p>
                 </section>
-                <section class="has-text-light">
+                <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Simple and Effective Tools</h2>
                     <p>Easy-to-use Dashboard: Access all the tools you need to manage your Twitch stream or Discord server with just a few clicks, whether you're monitoring real-time engagement or configuring bot settings.</p>
                     <p>Dedicated Features for Twitch and Discord: Enjoy tailored functionality for both platforms, ensuring you have the best tools to grow and manage your community effectively on each platform.</p>
                 </section>
-                <section class="has-text-light">
+                <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Join the Community</h2>
                     <p>Become part of the BotOfTheSpecter community to enhance your Twitch channel and Discord server experiences. Whether you're a streamer looking to improve engagement or a server owner seeking better moderation, our bots provide the perfect solutions.</p>
                     <p>Connect with like-minded streamers and server owners on our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" class="has-text-info">Discord server</a> for support and community interaction.</p>
@@ -70,7 +70,7 @@
         </div>
     </div>
 </div>
-<footer class="footer has-background-dark">
+<footer class="footer has-background-black">
     <div class="content has-text-centered has-text-light">
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </div>
