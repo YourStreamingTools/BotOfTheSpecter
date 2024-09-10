@@ -410,6 +410,10 @@ input[type="submit"]:hover {
     border: none;
 }
 
+.buttons-container {
+    display: none;
+}
+
 .tabs a {
     color: #ffffff;
 }
