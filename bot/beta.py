@@ -743,29 +743,18 @@ async def connect():
     }
     # Emit the 'REGISTER' event
     await sio.emit('REGISTER', registration_data)
-    bot_logger.info(f"Sent registration: {registration_data}")
 
 @sio.event
 async def connect_error(data):
-    bot_logger.error(f"Failed to connect to the server: {data}")
+    bot_logger.error(f"Failed to connect to the SpecterWebsocket Server: {data}")
 
 @sio.event
 async def disconnect():
-    bot_logger.info("Disconnected from WebSocket server.")
-
-@sio.on('REGISTERED')
-async def on_registered(data):
-    bot_logger.info(f"Registration confirmed: {data}")
+    bot_logger.info("Disconnected from SpecterWebsocket Server.")
 
 @sio.event
 async def message(data):
     bot_logger.info(f"Received message: {data}")
-
-# Handle other events
-@sio.on('PING')
-async def handle_ping(data):
-    bot_logger.info(f"Received PING message from server: {data}")
-    await sio.emit('PONG', {})
 
 @sio.event
 async def STREAM_ONLINE(data):
