@@ -155,7 +155,6 @@ if ($username) {
 </div>
 
 <div class="container">
-    <br><br><br>
     <div class="columns is-centered">
         <div class="column is-three-quarters">
             <div class="notification is-info"><?php echo $buildResults; ?></div>
