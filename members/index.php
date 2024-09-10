@@ -127,6 +127,28 @@ if ($username) {
         $buildResults = "Error: " . $e->getMessage();
     }
 }
+
+// Function to calculate the time difference and return it in a human-readable format
+function getTimeDifference($start_time) {
+    $startDateTime = new DateTime($start_time);
+    $currentDateTime = new DateTime();
+    $interval = $startDateTime->diff($currentDateTime);
+    $timeString = "";
+    if ($interval->y > 0) {
+        $timeString .= $interval->y . " year" . ($interval->y > 1 ? "s" : "") . ", ";
+    }
+    if ($interval->m > 0) {
+        $timeString .= $interval->m . " month" . ($interval->m > 1 ? "s" : "") . ", ";
+    }
+    if ($interval->d > 0) {
+        $timeString .= $interval->d . " day" . ($interval->d > 1 ? "s" : "") . ", ";
+    }
+    if ($interval->h > 0) {
+        $timeString .= $interval->h . " hour" . ($interval->h > 1 ? "s" : "") . ", ";
+    }
+    $timeString .= $interval->i . " minute" . ($interval->i > 1 ? "s" : "");
+    return rtrim($timeString, ', ');
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -226,6 +248,7 @@ if ($username) {
                                             <p><?php echo htmlspecialchars($lurker['username']); ?></p>
                                             <p><?php echo date("n/j/Y", strtotime($lurker['start_time'])); ?></p>
                                             <p><?php echo date("g:i:s A", strtotime($lurker['start_time'])); ?></p>
+                                            <p>Lurking for: <?php echo getTimeDifference($lurker['start_time']); ?></p>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
