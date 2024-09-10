@@ -111,6 +111,11 @@ if ($username) {
         // Custom Command Counts
         $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
         $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch total deaths & game-specific deaths
+        $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
+        $totalDeaths = $getTotalDeaths->fetch(PDO::FETCH_ASSOC);
+        $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
+        $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
         // Close database connection
         $db = null;
     } catch (PDOException $e) {
