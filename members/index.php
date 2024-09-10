@@ -134,7 +134,12 @@ if ($username) {
             $notFound = true;
         }
     } catch (PDOException $e) {
+        // Log the error message for debugging
         $buildResults = "Error: " . $e->getMessage();
+        // Check if the database error is due to the "unknown database" issue
+        if ($e->getCode() === '1049') {
+            $notFound = true;
+        }
     }
 }
 
