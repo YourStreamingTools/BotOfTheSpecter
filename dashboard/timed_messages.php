@@ -138,11 +138,11 @@ if ($displayMessageData) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <!-- Header -->
     <?php include('header.php'); ?>
     <!-- /Header -->
-  </head>
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
