@@ -65,7 +65,7 @@ require_once "db_connect.php";
 
 // Get the username from the URL path
 $username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
-
+$buildResults = "<p>Welcome " . $_SESSION['display_name'] . ".</p>";
 if ($username) {
     try {
         // Connect to the MySQL database
@@ -116,10 +116,10 @@ if ($username) {
         $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
         // Close database connection
         $db = null;
+        $buildResults = "<p>Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username . "</p>";
     } catch (PDOException $e) {
         $buildResults = "<p>Error: " . $e->getMessage() . "</p>";
     }
-    $buildResults = "<p>Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username . "</p>";
 }
 ?>
 <!DOCTYPE html>
@@ -129,6 +129,7 @@ if ($username) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <link rel="stylesheet" href="custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
@@ -178,8 +179,8 @@ if ($username) {
                             <div class="columns is-multiline">
                                 <?php foreach ($commands as $command): ?>
                                     <div class="column is-one-third">
-                                        <div class="box has-text-centered">
-                                            <p><?php echo htmlspecialchars($command['command']); ?></p>
+                                        <div class="box has-text-centered command-box" data-command="!<?php echo htmlspecialchars($command['command']); ?>" style="cursor: pointer;">
+                                            <p>!<?php echo htmlspecialchars($command['command']); ?></p>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
@@ -341,6 +342,7 @@ if ($username) {
     </div>
 </footer>
 
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
 // Function to redirect form submission to the new URL structure
 function redirectToUser(event) {
@@ -351,6 +353,28 @@ function redirectToUser(event) {
         window.location.href = `https://members.botofthespecter.com/${encodeURIComponent(username)}`;
     }
 }
+
+// Attach event listener to all command boxes to copy command to clipboard
+document.querySelectorAll('.command-box').forEach(box => {
+    box.addEventListener('click', () => {
+        const command = box.getAttribute('data-command');
+        // Create a temporary text area to copy the command to clipboard
+        const tempTextArea = document.createElement('textarea');
+        tempTextArea.value = command;
+        document.body.appendChild(tempTextArea);
+        tempTextArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempTextArea);
+        Toastify({
+            text: `Copied: ${command}`,
+            duration: 3000,
+            gravity: "top",
+            position: "center",
+            backgroundColor: "#4CAF50",
+            stopOnFocus: true,
+        }).showToast();
+    });
+});
 
 // Script to handle modal open and close
 document.querySelectorAll('.button').forEach(button => {
