@@ -134,7 +134,7 @@ if (isset($_GET['log'])) {
     </div>
     <div class="logs-log-area">
       <div id="logs-logDisplay" class="logs-log-content">
-        <h3 class="logs-title" id="logs-log-name"><?php echo ucfirst($logType); ?> Logs</h3>
+        <h3 class="logs-title" id="log-title">Logs</h3>
         <textarea id="logs-log-textarea" readonly><?php echo htmlspecialchars($logContent); ?></textarea>
       </div>
     </div>
@@ -152,6 +152,23 @@ const loadMoreButton = document.getElementById("load-more");
 const logSelect = document.getElementById("logs-select");
 const buttonsContainer = document.querySelector(".buttons-container"); // Target the buttons container
 const autoRefreshInterval = 5000; // Auto-refresh interval in milliseconds (5 seconds by default)
+
+// Get the h2 element where the log title will be displayed
+const logTitle = document.getElementById("log-title");
+
+// Function to update the log title with the selected log type
+function updateLogTitle(logname) {
+  if (logname && logname !== 'SELECT A LOG TYPE') {
+    logTitle.textContent = `${capitalizeFirstLetter(logname)} Logs`;
+  } else {
+    logTitle.textContent = 'Logs';
+  }
+}
+
+// Capitalize the first letter of the log type for a nice title format
+function capitalizeFirstLetter(string) {
+  return string.charAt(0).toUpperCase() + string.slice(1);
+}
 
 // Function to show buttons when a log file is selected
 function toggleButtonsContainer(show) {
@@ -198,6 +215,9 @@ async function fetchLogData(logname, loadMore = false) {
     // Show buttons after selecting a valid log file
     toggleButtonsContainer(true);
 
+    // Update the log title based on selected log type
+    updateLogTitle(logname);
+
   } catch (error) {
     console.error("Error fetching log data:", error);
   }
@@ -221,8 +241,10 @@ logSelect.addEventListener('change', (event) => {
   const selectedLog = event.target.value;
   if (selectedLog !== 'SELECT A LOG TYPE') {
     fetchLogData(selectedLog);
+    updateLogTitle(selectedLog);  // Update the log title
   } else {
     toggleButtonsContainer(false);
+    updateLogTitle('');
   }
 });
 
