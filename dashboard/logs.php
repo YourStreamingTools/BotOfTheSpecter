@@ -165,7 +165,6 @@ function toggleButtonsContainer(show) {
 async function fetchLogData(logname, loadMore = false) {
   // Set the current log name
   if (currentLogName !== logname) {
-    console.log(`Log file changed from ${currentLogName} to: ${logname}`);
     currentLogName = logname;
   }
 
@@ -181,8 +180,6 @@ async function fetchLogData(logname, loadMore = false) {
   } else {
     last_line = 0;
   }
-
-  console.log(`Fetching log data for: ${currentLogName} (Load More: ${loadMore})`);
 
   try {
     const response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
@@ -208,7 +205,6 @@ async function fetchLogData(logname, loadMore = false) {
 
 async function autoUpdateLog() {
   if (autoRefresh && currentLogName !== '') {
-    console.log(`Auto-refreshing log data for: ${currentLogName}`);
     try {
       const response = await fetch(`logs.php?log=${currentLogName}`);
       const json = await response.json();
@@ -240,7 +236,6 @@ autoRefreshButton.addEventListener('click', () => {
   autoRefresh = !autoRefresh;
   autoRefreshButton.innerText = `Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
   autoRefreshButton.classList.toggle('active', autoRefresh);
-  console.log(`Auto-refresh is now ${autoRefresh ? 'enabled' : 'disabled'}`);
 });
 
 // Event listener for load more button
