@@ -26,6 +26,10 @@ a, a:hover {
     border-radius: 50%;
 }
 
+.container {
+    margin-top: 100px;
+}
+
 .title {
     color: #ffffff;
 }
