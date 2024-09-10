@@ -4565,8 +4565,13 @@ async def midnight(channel):
     while True:
         # Get the current time in the user's timezone
         current_time = datetime.now(tz)
-        # Check if the current time in the user's timezone is exactly midnight
-        if current_time.hour == 0 and current_time.minute == 0:
+        # Check if it's exactly midnight (00:00:00)
+        if current_time.hour == 0 and current_time.minute == 0 and current_time.second == 0:
+            # Reload the .env file at midnight
+            load_dotenv()
+            # Log or handle any environment variable updates
+            bot_logger.info("Reloaded environment variables from .env file.")
+            # Send the midnight message to the channel
             cur_date = current_time.strftime("%d %B %Y")
             cur_time = current_time.strftime("%I %p")
             cur_day = current_time.strftime("%A")
