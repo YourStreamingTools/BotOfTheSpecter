@@ -76,6 +76,21 @@ a.navbar-item:hover {
     text-decoration: underline;
 }
 
+.notification {
+    background-color: #20c997;
+    color: #000000;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.notification .has-text-success {
+    color: #000000 !important;
+}
+
+.notification .has-text-danger {
+    color: #ff3860 !important;
+}
+
 h1, h2, h3, h4, h5, h6 {
     color: #ffffff;
 }
