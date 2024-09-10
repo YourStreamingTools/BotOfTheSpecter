@@ -6,6 +6,76 @@ html, body {
     font-family: 'Arial', 'sans-serif';
 }
 
+.navbar {
+    background-color: #1b1b1b;
+}
+
+.navbar-item, .navbar-link {
+    color: #ffffff;
+}
+
+.navbar-dropdown .navbar-item:hover,
+a.navbar-item:hover {
+    background-color: #333333 !important;
+    color: #ffffff !important;
+}
+
+.navbar-dropdown .navbar-item:focus, 
+.navbar-dropdown .navbar-item:active {
+    background-color: #333333 !important;
+    color: #ffffff !important;
+}
+
+.navbar-dropdown {
+    padding: 0;
+    background-color: #1b1b1b;
+    border: 1px solid #444;
+    min-width: 200px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.navbar-item {
+    padding: 10px 15px;
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+.navbar-item:hover {
+    background-color: #333333 !important;
+    color: #ffffff !important;
+}
+
+.navbar-link {
+    color: #ffffff;
+}
+
+.navbar-link:hover {
+    background-color: #333333;
+}
+
+.navbar-dropdown.is-hoverable:hover .navbar-dropdown {
+    display: block;
+}
+
+.navbar-item.has-dropdown.is-hoverable .navbar-link {
+    color: #ffffff;
+}
+
+.navbar-item.has-dropdown.is-hoverable:hover .navbar-link {
+    background-color: #333333;
+}
+
+.popup-link {
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.popup-link:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
 h1, h2, h3, h4, h5, h6 {
     color: #ffffff;
 }
