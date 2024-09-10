@@ -24,3 +24,21 @@ a.has-text-info {
 a.navbar-item:hover {
     background-color: #333333;
 }
+
+.navbar-dropdown {
+    background-color: #1b1b1b;
+}
+
+.navbar-dropdown .navbar-item {
+    color: #ffffff;
+}
+
+.navbar-dropdown .navbar-item:hover {
+    background-color: #333333;
+    color: #ffffff;
+}
+
+.navbar-dropdown .navbar-item:focus, .navbar-dropdown .navbar-item:active {
+    background-color: #333333;
+    color: #ffffff;
+}
