@@ -125,7 +125,8 @@ if (isset($_GET['log'])) {
       <div class="logs-options">
         Times are in GMT+10
       </div>
-      <div class="buttons-container">
+      <!-- Buttons Container - Hidden initially -->
+      <div class="buttons-container" style="display: none;">
         <button class="button" id="reload-log">Reload Log</button>
         <button class="button toggle-button" id="toggle-auto-refresh">Auto-refresh: OFF</button>
         <button class="button" id="load-more">Load More Lines</button>
@@ -149,7 +150,17 @@ const reloadButton = document.getElementById("reload-log");
 const autoRefreshButton = document.getElementById("toggle-auto-refresh");
 const loadMoreButton = document.getElementById("load-more");
 const logSelect = document.getElementById("logs-select");
+const buttonsContainer = document.querySelector(".buttons-container"); // Target the buttons container
 const autoRefreshInterval = 5000; // Auto-refresh interval in milliseconds (5 seconds by default)
+
+// Function to show buttons when a log file is selected
+function toggleButtonsContainer(show) {
+  if (show) {
+    buttonsContainer.style.display = "block";
+  } else {
+    buttonsContainer.style.display = "none";
+  }
+}
 
 async function fetchLogData(logname, loadMore = false) {
   // Set the current log name
@@ -183,6 +194,10 @@ async function fetchLogData(logname, loadMore = false) {
       logtext.innerHTML = loadMore ? json["data"] + logtext.innerHTML : json["data"];
       logtext.scrollTop = logtext.scrollHeight;
     }
+
+    // Show buttons after selecting a valid log file
+    toggleButtonsContainer(true);
+
   } catch (error) {
     console.error("Error fetching log data:", error);
   }
@@ -205,7 +220,12 @@ async function autoUpdateLog() {
 
 // Event listener for log type change
 logSelect.addEventListener('change', (event) => {
-  fetchLogData(event.target.value);
+  const selectedLog = event.target.value;
+  if (selectedLog !== 'SELECT A LOG TYPE') {
+    fetchLogData(selectedLog);
+  } else {
+    toggleButtonsContainer(false);
+  }
 });
 
 // Event listener for reload button
