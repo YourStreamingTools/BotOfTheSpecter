@@ -63,6 +63,11 @@ $customCounts = [];
 
 require_once "db_connect.php";
 
+// Database credentials
+$dbHost = 'sql.botofthespecter.com';
+$dbUsername = 'USERNAME';
+$dbPassword = 'PASSWORD';
+
 // Get the username from the URL path
 $username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
@@ -70,8 +75,17 @@ $notFound = false;
 
 if ($username) {
     try {
+        // Check if the database exists for the given username
+        $checkDb = new PDO("mysql:host=$dbHost", $dbUsername, $dbPassword);
+        $checkDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        // Check if the database exists
+        $result = $checkDb->query("SHOW DATABASES LIKE '{$username}'")->fetch();
+        if (!$result) {
+            $notFound = true;
+            throw new PDOException("Database does not exist", 1049);
+        }
         // Connect to the MySQL database
-        $db = new PDO("mysql:host=sql.botofthespecter.com;dbname={$username}", "USERNAME", "PASSWORD");
+        $db = new PDO("mysql:host=$dbHost;dbname={$username}", $dbUsername, $dbPassword);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         // Check if the user exists in the system
         $query = "SELECT COUNT(*) FROM custom_commands";
@@ -134,11 +148,11 @@ if ($username) {
             $notFound = true;
         }
     } catch (PDOException $e) {
-        // If the error is "Unknown database" (error code 1049), set $notFound to true
-        if ($e->getCode() === '1049') { 
-            $notFound = true;
+        // Check if the error is due to "Unknown database" (error code 1049)
+        if ($e->getCode() === '1049') {
+            $notFound = true;  // The database does not exist, mark user as not found
         } else {
-            // For other PDO exceptions, display the error message for debugging purposes
+            // For other database-related errors, display the error message
             $buildResults = "Error: " . $e->getMessage();
         }
     }
