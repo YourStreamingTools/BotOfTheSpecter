@@ -125,6 +125,11 @@ if (isset($_GET['log'])) {
       <div class="logs-options">
         Times are in GMT+10
       </div>
+      <div class="buttons-container">
+        <button class="button" id="reload-log">Reload Log</button>
+        <button class="button toggle-button" id="toggle-auto-refresh">Auto-refresh: OFF</button>
+        <button class="button" id="load-more">Load More Lines</button>
+      </div>
     </div>
     <div class="logs-log-area">
       <div id="logs-logDisplay" class="logs-log-content">
@@ -137,42 +142,92 @@ if (isset($_GET['log'])) {
 
 <script>
 var last_line = 0;
-async function autoupdateLog() {
-    let logtext = document.getElementById("logs-log-textarea");
-    const logselect = document.getElementById("logs-select");
-    if (logselect.selectedIndex >= 0) {
-        const logname = logselect.value;
-        // Fetch Log Data
-        let response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
-        let json = await response.json();
-        last_line = json["last_line"];
-        if (last_line === 0) {
-            logtext.innerHTML = json["data"];
-        } else {
-            logtext.innerHTML += json["data"];
-        }
-        logtext.scrollTop = logtext.scrollHeight;
-    }
-}
-async function updateLog(logname) {
-  console.log('Changing log type to:', logname);
-  last_line = 0;
-  var logtext = document.getElementById("logs-log-textarea");
-  var logtitle = document.getElementById("logs-log-name");
-  logtitle.innerHTML = logname.charAt(0).toUpperCase() + logname.slice(1) + ' Logs';
-  // Fetch Log Data
-  let response = await fetch(`logs.php?log=${logname}`);
-  let json = await response.json();
-  if (json["data"].length == 0) {
-    logtext.innerHTML = "(log is empty)";
+var autoRefresh = false;
+var currentLogName = ''; // Track the currently selected log
+var logtext = document.getElementById("logs-log-textarea");
+const reloadButton = document.getElementById("reload-log");
+const autoRefreshButton = document.getElementById("toggle-auto-refresh");
+const loadMoreButton = document.getElementById("load-more");
+const logSelect = document.getElementById("logs-select");
+const autoRefreshInterval = 5000; // Auto-refresh interval in milliseconds (5 seconds by default)
+
+async function fetchLogData(logname, loadMore = false) {
+  // Set the current log name
+  if (currentLogName !== logname) {
+    console.log(`Log file changed from ${currentLogName} to: ${logname}`);
+    currentLogName = logname;
+  }
+
+  // Prevent negative line counts
+  if (loadMore && last_line <= 0) {
+    console.log("No more lines to load.");
+    return;
+  }
+
+  // Load more lines or reset
+  if (loadMore) {
+    last_line -= 200;
   } else {
-    last_line = json["last_line"];
-    logtext.innerHTML = json["data"];
+    last_line = 0;
+  }
+
+  console.log(`Fetching log data for: ${currentLogName} (Load More: ${loadMore})`);
+
+  try {
+    const response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
+    const json = await response.json();
+    if (json["data"].length === 0) {
+      logtext.innerHTML = "(log is empty)";
+    } else {
+      last_line = json["last_line"];
+      logtext.innerHTML = loadMore ? json["data"] + logtext.innerHTML : json["data"];
+      logtext.scrollTop = logtext.scrollHeight;
+    }
+  } catch (error) {
+    console.error("Error fetching log data:", error);
   }
 }
-document.getElementById("logs-select").addEventListener('change', (event) => {
-  updateLog(event.target.value);
+
+async function autoUpdateLog() {
+  if (autoRefresh && currentLogName !== '') {
+    console.log(`Auto-refreshing log data for: ${currentLogName}`);
+    try {
+      const response = await fetch(`logs.php?log=${currentLogName}&since=${last_line}`);
+      const json = await response.json();
+      last_line = json["last_line"];
+      logtext.innerHTML += json["data"];
+      logtext.scrollTop = logtext.scrollHeight;
+    } catch (error) {
+      console.error("Error fetching log data for auto-refresh:", error);
+    }
+  }
+}
+
+// Event listener for log type change
+logSelect.addEventListener('change', (event) => {
+  fetchLogData(event.target.value);
 });
+
+// Event listener for reload button
+reloadButton.addEventListener('click', () => {
+  fetchLogData(currentLogName);
+});
+
+// Event listener for auto-refresh toggle
+autoRefreshButton.addEventListener('click', () => {
+  autoRefresh = !autoRefresh;
+  autoRefreshButton.innerText = `Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
+  autoRefreshButton.classList.toggle('active', autoRefresh);
+  console.log(`Auto-refresh is now ${autoRefresh ? 'enabled' : 'disabled'}`);
+});
+
+// Event listener for load more button
+loadMoreButton.addEventListener('click', () => {
+  fetchLogData(currentLogName, true);
+});
+
+// Auto-refresh interval (every 5 seconds)
+setInterval(autoUpdateLog, autoRefreshInterval);
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
