@@ -1,4 +1,8 @@
 RewriteEngine On
+
+# Check if the request is not pointing to a real file or directory
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^([a-zA-Z0-9_-]+)$ index.php?user=$1 [L,QSA]
+
+# Rewrite URL to index.php and pass the username as a query parameter
+RewriteRule ^([^/]+)/?$ index.php?user=$1 [L]
