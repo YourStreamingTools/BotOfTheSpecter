@@ -1,4 +1,13 @@
 <?php
+// Initialize the session
+session_start();
+
+// Check if the user is logged in
+if (!isset($_SESSION['access_token'])) {
+    header('Location: login.php');
+    exit();
+}
+
 // Function to sanitize input
 function sanitize_input($input) {
     return htmlspecialchars(trim($input));
@@ -40,7 +49,7 @@ if ($username) {
         $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
         $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
         // Lurkers
-        $getLurkers = $db->query("SELECT username FROM lurkers ORDER BY id DESC");
+        $getLurkers = $db->query("SELECT user_id FROM lurk_times ORDER BY start_time DESC");
         $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
         // Hugs
         $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
@@ -60,6 +69,7 @@ if ($username) {
     } catch (PDOException $e) {
         $buildResults = "<p>Error: " . $e->getMessage() . "</p>";
     }
+    $buildResults = "<p>Welcome to $username Member Information</p>";
 }
 ?>
 <!DOCTYPE html>
@@ -87,13 +97,12 @@ if ($username) {
         </p>
     </div>
 </section>
+<br>
 <div class="container">
-    <div class="columns is-centered">
+    <div class="columns">
         <div class="column is-three-quarters">
             <?php if ($username): ?>
-                <div class="notification is-info">
-                    <?php echo $buildResults; ?>
-                </div>
+                <div class="notification is-info"><?php echo $buildResults; ?></div>
                 <div class="buttons">
                     <button class="button is-link" data-target="#commands-modal" aria-haspopup="true">Commands</button>
                     <button class="button is-link" data-target="#custom-command-modal" aria-haspopup="true">Custom Command Count</button>
