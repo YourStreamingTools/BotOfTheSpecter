@@ -13,6 +13,41 @@ function sanitize_input($input) {
     return htmlspecialchars(trim($input));
 }
 
+// Function to fetch usernames from Twitch API using user_id
+function getTwitchUsernames($userIds) {
+    $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+    $accessToken = $_SESSION['access_token'];
+
+    // Twitch API endpoint
+    $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . implode('&id=', $userIds);
+
+    // Set up headers for the API request
+    $headers = [
+        "Client-ID: $clientID",
+        "Authorization: Bearer $accessToken",
+    ];
+
+    // Initialize cURL session
+    $ch = curl_init();
+
+    curl_setopt($ch, CURLOPT_URL, $twitchApiUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    // Execute API request
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    // Decode the JSON response
+    $data = json_decode($response, true);
+
+    // Check for valid response
+    if (isset($data['data'])) {
+        return $data['data'];
+    }
+    return [];
+}
+
 // PAGE TITLE
 $title = "Members";
 $commands = [];
@@ -50,7 +85,19 @@ if ($username) {
         $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
         // Lurkers
         $getLurkers = $db->query("SELECT user_id FROM lurk_times ORDER BY start_time DESC");
-        $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+        $lurkerUserIds = $getLurkers->fetchAll(PDO::FETCH_COLUMN);
+
+        // Use the Twitch API to get usernames based on user_ids
+        if (!empty($lurkerUserIds)) {
+            $twitchUsers = getTwitchUsernames($lurkerUserIds);
+            foreach ($twitchUsers as $user) {
+                $lurkers[] = [
+                    'user_id' => $user['id'],
+                    'username' => $user['display_name']
+                ];
+            }
+        }
+
         // Hugs
         $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
         $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC)['total_hug_count'];
@@ -89,19 +136,26 @@ if ($username) {
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
-<section class="hero is-primary">
-    <div class="hero-body">
-        <p class="title">
-            <img src="https://cdn.botofthespecter.com/logo.png" width="75px" height="75px" alt="BotOfTheSpecter Logo Image">
-            BotOfTheSpecter
-        </p>
+<div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
+    <div class="navbar-brand">
+        <img src="https://cdn.botofthespecter.com/logo.png" height="175px" alt="BotOfTheSpecter Logo Image">
+        <p class="navbar-item" style="font-size: 24px;">BotOfTheSpecter</p>
     </div>
-</section>
-<br>
+    <div id="navbarMenu" class="navbar-menu">
+        <div class="navbar-end">
+            <div class="navbar-item">
+                <img class="is-rounded" src="<?php echo $_SESSION['profile_image_url']; ?>" alt="Profile Image"> <span class="display-name"><?php echo $_SESSION['display_name']; ?></span>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="container">
+    <br><br><br>
     <div class="columns">
         <div class="column is-three-quarters">
             <?php if ($username): ?>
+                <br>
                 <div class="notification is-info"><?php echo $buildResults; ?></div>
                 <div class="buttons">
                     <button class="button is-link" data-target="#commands-modal" aria-haspopup="true">Commands</button>
