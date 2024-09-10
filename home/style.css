@@ -14,6 +14,7 @@ body {
 .box {
     background-color: #1f1f1f;
     color: #ffffff;
+    margin-bottom: 20px;
 }
 
 a.has-text-info {
