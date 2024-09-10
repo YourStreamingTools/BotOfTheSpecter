@@ -108,6 +108,7 @@ if (isset($_GET['code'])) {
         $_SESSION['twitch_username'] = $twitchUsername;
         $_SESSION['twitch_user_id'] = $twitchUserId;
         $_SESSION['profile_image_url'] = $profileImageUrl;
+        $_SESSION['display_name'] = $twitchDisplayName;
 
         // Redirect to the dashboard or the members area
         header('Location: ../');
