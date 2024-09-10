@@ -82,3 +82,14 @@ a, a:hover {
     border-radius: 10px;
     width: auto;
 }
+
+.modal .modal-content {
+    max-width: 60% !important;
+    width: 60%;
+    height: auto;
+    margin: 0 auto;
+}
+
+.modal .box {
+    padding: 2rem;
+}
