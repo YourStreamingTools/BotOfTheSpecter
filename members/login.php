@@ -3,7 +3,7 @@
 $clientID = ''; // CHANGE TO MAKE THIS WORK
 $redirectURI = ''; // CHANGE TO MAKE THIS WORK
 $clientSecret = ''; // CHANGE TO MAKE THIS WORK
-$IDScope = 'openid';
+$IDScope = 'openid user:read:email';
 $info = "Please wait while we redirect you to Twitch for authorization.";
 
 // Set session timeout to 24 hours (86400 seconds)
@@ -24,9 +24,9 @@ if (isset($_SESSION['access_token'])) {
 if (!isset($_SESSION['access_token']) && !isset($_GET['code'])) {
     header('Location: https://id.twitch.tv/oauth2/authorize' .
         '?client_id=' . $clientID .
-        '&redirect_uri=' . $redirectURI .
+        '&redirect_uri=' . urlencode($redirectURI) .
         '&response_type=code' .
-        '&scope=' . $IDScope);
+        '&scope=' . urlencode($IDScope));
     exit;
 }
 
@@ -102,8 +102,16 @@ if (isset($_GET['code'])) {
         $twitchUsername = $userInfo['data'][0]['login'];
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
         $twitchUserId = $userInfo['data'][0]['id'];
+
+        // Store the user information in the session
         $_SESSION['user_email'] = $userEmail;
+        $_SESSION['twitch_username'] = $twitchUsername;
+        $_SESSION['twitch_user_id'] = $twitchUserId;
+        $_SESSION['profile_image_url'] = $profileImageUrl;
+
+        // Redirect to the dashboard or the members area
         header('Location: ../');
+        exit;
     }
 }
 ?>
