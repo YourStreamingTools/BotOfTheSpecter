@@ -65,7 +65,7 @@ require_once "db_connect.php";
 
 // Get the username from the URL path
 $username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
-$buildResults = "<p>Welcome " . $_SESSION['display_name'] . ".</p>";
+$buildResults = "Welcome " . $_SESSION['display_name'];
 if ($username) {
     try {
         // Connect to the MySQL database
@@ -116,9 +116,9 @@ if ($username) {
         $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
         // Close database connection
         $db = null;
-        $buildResults = "<p>Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username . "</p>";
+        $buildResults = "Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username;
     } catch (PDOException $e) {
-        $buildResults = "<p>Error: " . $e->getMessage() . "</p>";
+        $buildResults = "Error: " . $e->getMessage();
     }
 }
 ?>
@@ -158,9 +158,8 @@ if ($username) {
     <br><br><br>
     <div class="columns is-centered">
         <div class="column is-three-quarters">
+            <div class="notification is-info"><?php echo $buildResults; ?></div>
             <?php if ($username): ?>
-                <br>
-                <div class="notification is-info"><?php echo $buildResults; ?></div>
                 <div class="buttons">
                     <button class="button is-link" data-target="#commands-modal" aria-haspopup="true">Commands</button>
                     <button class="button is-link" data-target="#custom-command-modal" aria-haspopup="true">Custom Command Count</button>
