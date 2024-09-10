@@ -821,15 +821,13 @@ class BotOfTheSpecter(commands.Bot):
             AuthorMessage = None
             bannedUser = None
             try:
-                # Check if the author exists before accessing its attributes
-                if message.author is None:
-                    bot_logger.error("Received a message without a valid author.")
-                    return
-                # Log the message content
-                chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                 # Ignore messages from the bot itself
                 if message.echo:
                     return
+                if not message.author or not hasattr(message.author, 'name'):
+                    return
+                # Log the message content
+                chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                 # Handle commands
                 await self.handle_commands(message)
                 messageContent = message.content.strip().lower() if message.content else ""
@@ -4777,7 +4775,7 @@ async def midnight(channel):
         # Get the current time in the user's timezone
         current_time = datetime.now(tz)
         # Check if it's exactly midnight (00:00:00)
-        if current_time.hour == 0 and current_time.minute == 0 and current_time.second == 0:
+        if current_time.hour == 0 and current_time.minute == 0:
             # Reload the .env file at midnight
             load_dotenv()
             # Log or handle any environment variable updates
