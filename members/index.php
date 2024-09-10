@@ -144,7 +144,7 @@ if ($username) {
     <div id="navbarMenu" class="navbar-menu">
         <div class="navbar-end">
             <div class="navbar-item">
-                <img class="is-rounded" id="profile-image" src="<?php echo $_SESSION['profile_image_url']; ?>" alt="Profile Image"> <span class="display-name"><?php echo $_SESSION['display_name']; ?></span>
+                <img class="is-rounded" id="profile-image" src="<?php echo $_SESSION['profile_image_url']; ?>" alt="Profile Image">&nbsp;&nbsp;<span class="display-name"><?php echo $_SESSION['display_name']; ?></span>
             </div>
         </div>
     </div>
