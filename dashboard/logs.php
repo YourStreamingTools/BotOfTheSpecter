@@ -210,10 +210,10 @@ async function autoUpdateLog() {
   if (autoRefresh && currentLogName !== '') {
     console.log(`Auto-refreshing log data for: ${currentLogName}`);
     try {
-      const response = await fetch(`logs.php?log=${currentLogName}&since=${last_line}`);
+      const response = await fetch(`logs.php?log=${currentLogName}`);
       const json = await response.json();
       last_line = json["last_line"];
-      logtext.innerHTML += json["data"];
+      logtext.innerHTML = json["data"];
     } catch (error) {
       console.error("Error fetching log data for auto-refresh:", error);
     }
