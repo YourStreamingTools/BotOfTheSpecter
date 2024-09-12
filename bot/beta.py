@@ -3685,14 +3685,16 @@ async def process_fourthwall_event(data):
     event_logger.info(f"Fourthwall event received: {data}")
     # Check if it's an order event
     if data.get('type') == 'ORDER_PLACED':
-        purchaser_name = data['data']['billing']['address']['name']
-        item_name = data['data']['offers'][0]['name']
-        item_quantity = data['data']['offers'][0]['variant']['quantity']
+        # Extract relevant details from the nested data structure
+        purchaser_name = data['data']['username']
+        offer = data['data']['offers'][0]
+        item_name = offer['name']
+        item_quantity = offer['variant']['quantity']
         total_price = data['data']['amounts']['total']['value']
         currency = data['data']['amounts']['total']['currency']
         # Log the order details
         event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
-        # Respond to the chat with the order info
+        # Prepare the message to send
         message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
         await channel.send(message)
     # Check if it's a donation event
