@@ -3686,24 +3686,28 @@ async def process_fourthwall_event(data):
     # Check if 'data' is a string and needs to be parsed
     if isinstance(data.get('data'), str):
         try:
-            # Parse the string to convert it to a dictionary
-            data['data'] = json.loads(data['data'].replace("'", "\""))  # Handling single quotes in the string
+            # Use regex to safely replace single quotes with double quotes only for JSON keys/values
+            json_data_str = re.sub(r"(?<!\\)'", '"', data['data'])
+            data['data'] = json.loads(json_data_str)
         except json.JSONDecodeError as e:
             event_logger.error(f"Failed to parse data: {e}")
             return
     # Check if it's an order event
     if data.get('data', {}).get('type') == 'ORDER_PLACED':
-        purchaser_name = data['data']['username']
-        offer = data['data']['offers'][0]
-        item_name = offer['name']
-        item_quantity = offer['variant']['quantity']
-        total_price = data['data']['amounts']['total']['value']
-        currency = data['data']['amounts']['total']['currency']
-        # Log the order details
-        event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
-        # Prepare the message to send
-        message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
-        await channel.send(message)
+        try:
+            purchaser_name = data['data']['username']
+            offer = data['data']['offers'][0]
+            item_name = offer['name']
+            item_quantity = offer['variant']['quantity']
+            total_price = data['data']['amounts']['total']['value']
+            currency = data['data']['amounts']['total']['currency']
+            # Log the order details
+            event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
+            # Prepare the message to send
+            message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
+            await channel.send(message)
+        except KeyError as e:
+            event_logger.error(f"Error processing ORDER_PLACED event: Missing key {e}")
     # Check if it's a donation event
     elif data.get('data', {}).get('type') == 'DONATION':
         donor_username = data['data']['username']
