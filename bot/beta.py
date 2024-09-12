@@ -758,17 +758,17 @@ async def message(data):
 
 @sio.event
 async def STREAM_ONLINE(data):
-    bot_logger.info(f"Received STREAM_ONLINE event: {data}")
+    event_logger.info(f"Received STREAM_ONLINE event: {data}")
     await process_stream_online_websocket()
 
 @sio.event
 async def STREAM_OFFLINE(data):
-    bot_logger.info(f"Received STREAM_OFFLINE event: {data}")
+    event_logger.info(f"Received STREAM_OFFLINE event: {data}")
     await process_stream_offline_websocket()
 
 @sio.event
 async def FOURTHWALL(data):
-    bot_logger.info(f"Received FOURTHWALL event: {data}")
+    event_logger.info(f"Received FOURTHWALL event: {data}")
     await process_fourthwall_event(data)
 
 # Connect and manage reconnection
