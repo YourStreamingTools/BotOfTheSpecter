@@ -14,6 +14,7 @@ import base64
 import uuid
 from urllib.parse import urlencode
 from enum import Enum
+import ast
 
 # Third-party imports
 import aiohttp
@@ -3686,10 +3687,9 @@ async def process_fourthwall_event(data):
     # Check if 'data' is a string and needs to be parsed
     if isinstance(data.get('data'), str):
         try:
-            # Use regex to safely replace single quotes with double quotes only for JSON keys/values
-            json_data_str = re.sub(r"(?<!\\)'", '"', data['data'])
-            data['data'] = json.loads(json_data_str)
-        except json.JSONDecodeError as e:
+            # Parse the string to convert it to a dictionary
+            data['data'] = ast.literal_eval(data['data'])
+        except (ValueError, SyntaxError) as e:
             event_logger.error(f"Failed to parse data: {e}")
             return
     # Check if it's an order event
