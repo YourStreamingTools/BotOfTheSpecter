@@ -84,6 +84,7 @@ class BotOfTheSpecterWebsocketServer:
             ("NOTIFY", self.notify),
             ("DEATHS", self.deaths),
             ("WEATHER", self.weather),
+            ("WEATHER_DATA", self.weather_data),
             ("TWITCH_FOLLOW", self.twitch_follow),
             ("TWITCH_CHEER", self.twitch_cheer),
             ("TWITCH_RAID", self.twitch_raid),
@@ -436,6 +437,16 @@ class BotOfTheSpecterWebsocketServer:
         self.logger.info(f"Broadcasting WEATHER event with data: {weather_data}")
         # Broadcast the weather event to all clients
         await self.sio.emit("WEATHER", weather_data)
+
+    async def weather_data(self, sid, data):
+        self.logger.info(f"Weather data event from SID [{sid}]: {data}")
+        weather_data = data.get("weather_data")
+        if not weather_data:
+            self.logger.error('Missing weather data for WEATHER_DATA event')
+            return
+        self.logger.info(f"Broadcasting WEATHER_DATA event with data: {weather_data}")
+        # Broadcast the weather data event to all clients
+        await self.sio.emit("WEATHER_DATA", weather_data)
 
     async def discord_join(self, sid, data):
         # Handle the DISCORD_JOIN event for SocketIO.
