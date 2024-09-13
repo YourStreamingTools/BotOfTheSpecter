@@ -3724,21 +3724,21 @@ async def process_fourthwall_event(data):
                 message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
             # Send the message and log any errors
             await channel.send(message)
-        elif event_type == 'GIFT_PURCHASE':
+        elif event_type == 'GIVEAWAY_PURCHASED':
             purchaser_username = event_data['username']
-            item_name = event_data['offers'][0]['name']
+            item_name = event_data['offer']['name']
             total_price = event_data['amounts']['total']['value']
             currency = event_data['amounts']['total']['currency']
-            # Log the gift purchase details
-            event_logger.info(f"New Gift Purchase: {purchaser_username} bought {item_name} for {total_price} {currency}")
+            # Log the giveaway purchase details
+            event_logger.info(f"New Giveaway Purchase: {purchaser_username} purchased giveaway '{item_name}' for {total_price} {currency}")
             # Prepare and send the message
-            message = f"🎁 {purchaser_username} just bought a gift: {item_name} for {total_price} {currency}!"
+            message = f"🎁 {purchaser_username} just purchased a giveaway: {item_name} for {total_price} {currency}!"
             await channel.send(message)
             # Process each gift
             for gift in event_data.get('gifts', []):
                 gift_status = gift['status']
-                winner = gift.get('winner')
-                winner_username = winner['username'] if winner else "No winner yet"
+                winner = gift.get('winner', {})
+                winner_username = winner.get('username', "No winner yet")
                 # Log each gift's status and winner details
                 event_logger.info(f"Gift {gift['id']} is {gift_status} with winner: {winner_username}")
                 # Prepare and send the gift status message
