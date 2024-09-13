@@ -512,68 +512,11 @@ async def joke(api_key):
     # Return the joke response
     return get_joke
 
-# Websocket endpoints
-@app.get(
-    "/websocket/tts",
-    summary="Trigger TTS via API",
-    tags=["Websocket"],
-    response_model=dict,
-)
-async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
-    params = {"event": "TTS", "text": text}
-    await websocket_notice("TTS", params, api_key)
-    return {"status": "success"}
-
-@app.get(
-    "/websocket/walkon",
-    summary="Trigger WALKON via API",
-    tags=["Websocket"]
-)
-async def websocket_walkon(request: WalkonRequest, api_key, user):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
-    channel = valid  # Fetch the channel (username) from the database
-    walkon_file_path = f"/var/www/walkons/{channel}/{request.user}.mp3"
-    if os.path.exists(walkon_file_path):
-        params = {"event": "WALKON", "channel": channel, "user": request.user}
-        await websocket_notice("WALKON", params, api_key)
-        return {"status": "success"}
-    else:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Walkon file for user '{request.user}' does not exist."
-        )
-
-@app.get(
-    "/websocket/deaths",
-    summary="Trigger DEATHS via API",
-    tags=["Websocket"]
-)
-async def websocket_deaths(request: DeathsRequest, api_key):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
-    params = {"event": "DEATHS", "death-text": request.death, "game": request.game}
-    await websocket_notice("DEATHS", params, api_key)
-    return {"status": "success"}
-
+# Weather endpoint
 @app.get(
     "/weather",
     summary="Get weather data and trigger WebSocket weather event",
-    tags=["Websocket"]
+    tags=["Commands"]
 )
 async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query(...)):
     # Validate the API key before proceeding
@@ -660,6 +603,64 @@ def get_wind_direction(deg):
         if start <= deg < end:
             return direction
     return "N/A"
+
+# Websocket endpoints
+@app.get(
+    "/websocket/tts",
+    summary="Trigger TTS via API",
+    tags=["Websocket"],
+    response_model=dict,
+)
+async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
+    params = {"event": "TTS", "text": text}
+    await websocket_notice("TTS", params, api_key)
+    return {"status": "success"}
+
+@app.get(
+    "/websocket/walkon",
+    summary="Trigger WALKON via API",
+    tags=["Websocket"]
+)
+async def websocket_walkon(request: WalkonRequest, api_key, user):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
+    channel = valid  # Fetch the channel (username) from the database
+    walkon_file_path = f"/var/www/walkons/{channel}/{request.user}.mp3"
+    if os.path.exists(walkon_file_path):
+        params = {"event": "WALKON", "channel": channel, "user": request.user}
+        await websocket_notice("WALKON", params, api_key)
+        return {"status": "success"}
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Walkon file for user '{request.user}' does not exist."
+        )
+
+@app.get(
+    "/websocket/deaths",
+    summary="Trigger DEATHS via API",
+    tags=["Websocket"]
+)
+async def websocket_deaths(request: DeathsRequest, api_key):
+    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
+    if not valid:  # Check if the API key is valid
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
+    params = {"event": "DEATHS", "death-text": request.death, "game": request.game}
+    await websocket_notice("DEATHS", params, api_key)
+    return {"status": "success"}
 
 @app.get(
     "/websocket/stream_online",
