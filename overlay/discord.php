@@ -34,6 +34,11 @@
                     attemptReconnect();
                 });
 
+                socket.on('connect_error', (error) => {
+                    console.error('Connection error:', error);
+                    attemptReconnect();
+                });
+
                 // Listen for DISCORD_JOIN events
                 socket.on('DISCORD_JOIN', (data) => {
                     console.log('Discord Join:', data);
