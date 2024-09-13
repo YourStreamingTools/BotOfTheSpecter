@@ -7,6 +7,7 @@ import paramiko
 import uvicorn
 import datetime
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends, Request, Query, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -16,6 +17,7 @@ from typing import Dict, List
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlencode
+from contextlib import asynccontextmanager
 
 # Load ENV file
 load_dotenv(find_dotenv("/home/fastapi/.env"))
@@ -55,8 +57,55 @@ tags_metadata = [
     },
 ]
 
-# Initialize FastAPI app with metadata and tags
+# Midnight function
+async def midnight():
+    while True:
+        # Get the current time in the user's timezone
+        current_time = datetime.now()
+        # Check if it's exactly midnight (00:00:00)
+        if current_time.hour == 0 and current_time.minute == 0:
+            # Reload the .env file at midnight
+            load_dotenv()
+            # Reset the weather requests file to 1000
+            log_file_path = "/home/fastapi/api/weather_requests.txt"
+            try:
+                # Reset the file to 1000 requests
+                with open(log_file_path, "w") as log_file:
+                    log_file.write("1000")
+                # Transfer the reset file to the bot's server via SFTP
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+                sftp = ssh.open_sftp()
+                sftp.put(log_file_path, "/var/www/api/weather.txt")  # Transfer to the bot's server location
+                sftp.close()
+                ssh.close()
+            except Exception as e:
+                # Handle any errors during the reset and SFTP transfer
+                logging.error(f"Failed to reset weather requests file: {e}")
+            # Sleep for 120 seconds to avoid sending the message multiple times
+            await asyncio.sleep(120)
+        else:
+            # Sleep for 10 seconds before checking again
+            await asyncio.sleep(10)
+
+# Lifespan event handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start the midnight task
+    midnight_task = asyncio.create_task(midnight())
+    # Yield control back to FastAPI (letting it continue with startup and handling requests)
+    yield
+    # After shutdown, cancel the midnight task
+    midnight_task.cancel()
+    try:
+        await midnight_task
+    except asyncio.CancelledError:
+        pass
+
+# Initialize FastAPI app with metadata and tags, including the lifespan handler
 app = FastAPI(
+    lifespan=lifespan,
     title="BotOfTheSpecter",
     description="API Endpoints for BotOfTheSpecter",
     version="1.0.0",
