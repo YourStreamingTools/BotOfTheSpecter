@@ -32,13 +32,52 @@ if ($username) {
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const socket = io('wss://websocket.botofthespecter.com');
+            let socket;
+            const retryInterval = 5000;
+            let reconnectAttempts = 0;
             const timezone = <?php echo json_encode($timezone); ?>;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
                 alert('No code provided in the URL');
                 return;
+            }
+
+            function connectWebSocket() {
+                socket = io('wss://websocket.botofthespecter.com', {
+                    reconnection: false
+                });
+
+                socket.on('connect', () => {
+                    console.log('Connected to WebSocket server');
+                    reconnectAttempts = 0;
+                    socket.emit('REGISTER', { code: code, name: 'Weather Overlay' });
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('Disconnected from WebSocket server');
+                    attemptReconnect();
+                });
+
+                socket.on('WELCOME', (data) => {
+                    console.log('Server says:', data.message);
+                });
+
+                socket.on('WEATHER_DATA', (data) => {
+                    console.log('Weather update received:', data);
+                    const weather = JSON.parse(data.weather_data);
+                    const location = weather.location;
+                    updateWeatherOverlay(weather, location);
+                });
+            }
+
+            function attemptReconnect() {
+                reconnectAttempts++;
+                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
+                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
+                setTimeout(() => {
+                    connectWebSocket();
+                }, delay);
             }
 
             function updateWeatherOverlay(weather, location) {
@@ -86,25 +125,8 @@ if ($username) {
                 setInterval(updateTime, 1000);
             }
 
-            socket.on('connect', () => {
-                console.log('Connected to WebSocket server');
-                socket.emit('REGISTER', { code: code, name: 'Weather Overlay' });
-            });
-
-            socket.on('disconnect', () => {
-                console.log('Disconnected from WebSocket server');
-            });
-
-            socket.on('WELCOME', (data) => {
-                console.log('Server says:', data.message);
-            });
-
-            socket.on('WEATHER_DATA', (data) => {
-                console.log('Weather update received:', data);
-                const weather = JSON.parse(data.weather_data);
-                const location = weather.location;
-                updateWeatherOverlay(weather, location);
-            });
+            // Start initial connection
+            connectWebSocket();
         });
     </script>
 </head>
