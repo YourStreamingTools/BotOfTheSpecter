@@ -261,15 +261,19 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.bot = bot
         self.api_token = api_token
         self.sio = socketio.AsyncClient()
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 15
 
         @self.sio.event
         async def connect():
             self.logger.info("Connected to WebSocket server")
             await self.sio.emit('REGISTER', {'code': self.api_token, 'name': 'DiscordBot'})
+            self.reconnect_attempts = 0
 
         @self.sio.event
         async def disconnect():
             self.logger.info("Disconnected from WebSocket server")
+            await self.handle_reconnect()
 
         @self.sio.event
         async def STREAM_ONLINE(data):
@@ -284,13 +288,25 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.bot.loop.create_task(self.start_websocket())
 
     async def start_websocket(self):
-        try:
-            await self.sio.connect('wss://websocket.botofthespecter.com')
-            await self.sio.wait()
-        except Exception as e:
-            self.logger.error(f"WebSocket connection error: {e}")
-            await asyncio.sleep(5)
-            self.bot.loop.create_task(self.start_websocket())
+        while True:
+            try:
+                await self.sio.connect('wss://websocket.botofthespecter.com')
+                await self.sio.wait()
+            except Exception as e:
+                self.logger.error(f"WebSocket connection error: {e}")
+                await asyncio.sleep(5)
+                await self.handle_reconnect()
+
+    async def handle_reconnect(self):
+        if self.reconnect_attempts < self.max_reconnect_attempts:
+            self.reconnect_attempts += 1
+            retry_delay = 5 * self.reconnect_attempts
+            self.logger.info(f"Reconnection attempt {self.reconnect_attempts} after {retry_delay} seconds.")
+            await asyncio.sleep(retry_delay)
+            await self.start_websocket()
+        else:
+            self.logger.error(f"Max reconnect attempts ({self.max_reconnect_attempts}) reached. Stopping reconnection attempts.")
+            self.bot.loop.stop()
 
     def cog_unload(self):
         self.bot.loop.create_task(self.sio.disconnect())
