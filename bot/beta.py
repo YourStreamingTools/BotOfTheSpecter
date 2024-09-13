@@ -3711,23 +3711,15 @@ async def process_weather_websocket(data):
     except (ValueError, SyntaxError) as e:
         event_logger.error(f"Error parsing weather data: {e}")
         return
-    # Avoid sending duplicate weather updates, check for recent trigger
-    if hasattr(process_weather_websocket, 'last_event_time'):
-        from datetime import datetime, timedelta
-        if datetime.now() - process_weather_websocket.last_event_time < timedelta(seconds=10):
-            event_logger.info("Ignoring duplicate weather event.")
-            return
-    process_weather_websocket.last_event_time = datetime.now()
     # Extract weather information from the weather_data
     location = weather_data.get('location', 'Unknown location')
     status = weather_data.get('status', 'Unknown status')
     temperature_c = weather_data.get('temperature', 'Unknown').split('°C')[0].strip()
     temperature_f = weather_data.get('temperature', 'Unknown').split('°F')[0].split('|')[-1].strip()
-    wind_data = weather_data.get('wind', 'Unknown')
-    wind_speed_kph = wind_data.split('kph')[0].strip() if 'kph' in wind_data else 'Unknown'
-    wind_speed_mph = wind_data.split('mph')[0].split('|')[-1].strip() if 'mph' in wind_data else 'Unknown'
-    wind_direction = wind_data.split()[-1] if len(wind_data.split()) > 1 else 'Unknown'
-    humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip() if '%' in weather_data.get('humidity', '') else 'Unknown'
+    wind_speed_kph = weather_data.get('wind', 'Unknown').split('kph')[0].strip()
+    wind_speed_mph = weather_data.get('wind', 'Unknown').split('mph')[0].split('|')[-1].strip()
+    wind_direction = weather_data.get('wind', 'Unknown').split()[-1]
+    humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip()
     # Format the message to be sent to the chat
     message = (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
                f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) and the humidity is {humidity}%.")
