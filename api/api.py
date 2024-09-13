@@ -607,7 +607,7 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         sftp.close()
         ssh.close()
         # Trigger WebSocket weather event
-        params = {"weather_data": formatted_weather_data}
+        params = {"event": "WEATHER_DATA", "weather_data": formatted_weather_data}
         await websocket_notice("WEATHER_DATA", params, api_key)
         return {"status": "success", "weather_data": formatted_weather_data, "remaining_requests": remaining_requests}
     except Exception as e:
