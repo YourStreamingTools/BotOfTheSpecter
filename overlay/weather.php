@@ -33,7 +33,6 @@ if ($username) {
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const socket = io('wss://websocket.botofthespecter.com');
-            const apiKey = ''; // CHANGE TO MAKE THIS WORK
             const timezone = <?php echo json_encode($timezone); ?>;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
@@ -100,11 +99,7 @@ if ($username) {
                 console.log('Server says:', data.message);
             });
 
-            socket.onAny((event, ...args) => {
-                console.log(`Event: ${event}`, args);
-            });
-
-            socket.on('WEATHER', async (data) => {
+            socket.on('WEATHER', (data) => {
                 console.log('Weather update received:', data);
                 if (data.location) {
                     updateWeatherOverlay(data, data.location);
