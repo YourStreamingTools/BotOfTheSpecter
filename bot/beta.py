@@ -3692,70 +3692,75 @@ async def process_fourthwall_event(data):
         except (ValueError, SyntaxError) as e:
             event_logger.error(f"Failed to parse data: {e}")
             return
-    # Check if it's an order event
-    if data.get('data', {}).get('type') == 'ORDER_PLACED':
-        try:
-            purchaser_name = data['data']['username']
-            offer = data['data']['offers'][0]
+    # Extract the event type and the nested event data
+    event_type = data.get('data', {}).get('type')
+    event_data = data.get('data', {}).get('data', {})
+    # Check the event type and process accordingly
+    try:
+        if event_type == 'ORDER_PLACED':
+            purchaser_name = event_data['username']
+            offer = event_data['offers'][0]
             item_name = offer['name']
             item_quantity = offer['variant']['quantity']
-            total_price = data['data']['amounts']['total']['value']
-            currency = data['data']['amounts']['total']['currency']
+            total_price = event_data['amounts']['total']['value']
+            currency = event_data['amounts']['total']['currency']
             # Log the order details
             event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
             # Prepare the message to send
             message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
+            # Send the message and log any errors
             await channel.send(message)
-        except KeyError as e:
-            event_logger.error(f"Error processing ORDER_PLACED event: Missing key {e}")
-    # Check if it's a donation event
-    elif data.get('data', {}).get('type') == 'DONATION':
-        donor_username = data['data']['username']
-        donation_amount = data['data']['amounts']['total']['value']
-        currency = data['data']['amounts']['total']['currency']
-        message_from_supporter = data.get('data', {}).get('message', '')
-        # Respond to the chat with the donation info
-        if message_from_supporter:
-            event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency} with message: {message_from_supporter}")
-            message = f"💰 {donor_username} just donated {donation_amount} {currency}! Message: {message_from_supporter}"
+        elif event_type == 'DONATION':
+            donor_username = event_data['username']
+            donation_amount = event_data['amounts']['total']['value']
+            currency = event_data['amounts']['total']['currency']
+            message_from_supporter = event_data.get('message', '')
+            # Log the donation details and prepare the message
+            if message_from_supporter:
+                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency} with message: {message_from_supporter}")
+                message = f"💰 {donor_username} just donated {donation_amount} {currency}! Message: {message_from_supporter}"
+            else:
+                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
+                message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
+            # Send the message and log any errors
+            await channel.send(message)
+        elif event_type == 'GIFT_PURCHASE':
+            purchaser_username = event_data['username']
+            item_name = event_data['offers'][0]['name']
+            total_price = event_data['amounts']['total']['value']
+            currency = event_data['amounts']['total']['currency']
+            # Log the gift purchase details
+            event_logger.info(f"New Gift Purchase: {purchaser_username} bought {item_name} for {total_price} {currency}")
+            # Prepare and send the message
+            message = f"🎁 {purchaser_username} just bought a gift: {item_name} for {total_price} {currency}!"
+            await channel.send(message)
+            # Process each gift
+            for gift in event_data.get('gifts', []):
+                gift_status = gift['status']
+                winner = gift.get('winner')
+                winner_username = winner['username'] if winner else "No winner yet"
+                # Log each gift's status and winner details
+                event_logger.info(f"Gift {gift['id']} is {gift_status} with winner: {winner_username}")
+                # Prepare and send the gift status message
+                gift_message = f"🎁 Gift ID: {gift['id']} is {gift_status}. Winner: {winner_username}."
+                await channel.send(gift_message)
+        elif event_type == 'SUBSCRIPTION_PURCHASED':
+            subscriber_nickname = event_data['nickname']
+            subscription_variant = event_data['subscription']['variant']
+            interval = subscription_variant['interval']
+            amount = subscription_variant['amount']['value']
+            currency = subscription_variant['amount']['currency']
+            # Log the subscription purchase details
+            event_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
+            # Prepare and send the message
+            message = f"🎉 {subscriber_nickname} just subscribed for {interval}, paying {amount} {currency}!"
+            await channel.send(message)
         else:
-            event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
-            message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
-        await channel.send(message)
-    # Check if it's a gift purchase event
-    elif data.get('data', {}).get('type') == 'GIFT_PURCHASE':
-        purchaser_username = data['data']['username']
-        item_name = data['data']['offers'][0]['name']
-        total_price = data['data']['amounts']['total']['value']
-        currency = data['data']['amounts']['total']['currency']
-        # Log the gift purchase details
-        event_logger.info(f"New Gift Purchase: {purchaser_username} bought {item_name} for {total_price} {currency}")
-        # Respond to the chat with the gift purchase info
-        message = f"🎁 {purchaser_username} just bought a gift: {item_name} for {total_price} {currency}!"
-        await channel.send(message)
-        # Process each gift
-        for gift in data['data']['gifts']:
-            gift_status = gift['status']
-            winner_username = gift['winner']['username'] if gift['winner'] else "No winner yet"
-            # Log each gift's status and winner details
-            event_logger.info(f"Gift {gift['id']} is {gift_status} with winner: {winner_username}")
-            # Send a message to the chat about the gift status
-            gift_message = f"🎁 Gift ID: {gift['id']} is {gift_status}. Winner: {winner_username}."
-            await channel.send(gift_message)
-    # Check if it's a subscription purchased event
-    elif data.get('data', {}).get('type') == 'SUBSCRIPTION_PURCHASED':
-        subscriber_nickname = data['data']['nickname']
-        interval = data['data']['subscription']['variant']['interval']
-        amount = data['data']['subscription']['variant']['amount']['value']
-        currency = data['data']['subscription']['variant']['amount']['currency']
-        # Log the subscription purchase details
-        event_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
-        # Respond to the chat with the subscription info
-        message = f"🎉 {subscriber_nickname} just subscribed for {interval}, paying {amount} {currency}!"
-        await channel.send(message)
-    # Handle other types of events
-    else:
-        event_logger.info(f"Unhandled Fourthwall event: {data.get('data', {}).get('type')}")
+            event_logger.info(f"Unhandled Fourthwall event: {event_type}")
+    except KeyError as e:
+        event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
+    except Exception as e:
+        event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
 # Function to process the stream being online
 async def process_stream_online():
