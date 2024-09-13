@@ -276,6 +276,11 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
             await self.handle_reconnect()
 
         @self.sio.event
+        async def connect_error(data):
+            self.logger.error(f"Connection error: {data}")
+            await self.handle_reconnect()
+
+        @self.sio.event
         async def STREAM_ONLINE(data):
             self.logger.info(f"Received STREAM_ONLINE event: {data}")
             await self.bot.update_channel_status(config.live_channel_id, "online")
