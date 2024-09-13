@@ -591,17 +591,37 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
             raise HTTPException(status_code=500, detail="Error fetching weather data.")
         # Format weather data
         formatted_weather_data = format_weather_data(weather_data_metric, weather_data_imperial, location)
+        # Log the request for tracking remaining requests
+        log_file_path = "/home/fastapi/api/weather_requests.txt"
+        remaining_requests = 1000  # Default daily request limit
+        # Check current remaining requests
+        try:
+            with open(log_file_path, "r") as log_file:
+                remaining_requests = int(log_file.read().strip())
+        except FileNotFoundError:
+            # If log file does not exist, we start with the max requests
+            remaining_requests = 1000
+        # Reduce remaining requests by 1
+        remaining_requests -= 1
+        # Log the new remaining request count
+        with open(log_file_path, "w") as log_file:
+            log_file.write(str(remaining_requests))
+        # Transfer the updated file to the bot's server via SFTP
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+        sftp = ssh.open_sftp()
+        sftp.put(log_file_path, "/var/www/api/weather.txt")  # Transfer to the bot's server location
+        sftp.close()
+        ssh.close()
         # Trigger WebSocket weather event
         params = {"event": "WEATHER", "weather_data": formatted_weather_data}
         await websocket_notice("WEATHER", params, api_key)
-        # Log the request for tracking
-        with open("/var/log/weather_requests.log", "a") as log_file:
-            log_file.write(f"Weather request made for {location} at {datetime.now()}\n")
-        return {"status": "success", "weather_data": formatted_weather_data}
+        return {"status": "success", "weather_data": formatted_weather_data, "remaining_requests": remaining_requests}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-# Functions to fetch weather data (same as from bot, adapted for API server)
+# Functions to fetch weather data
 async def get_lat_lon(location):
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
