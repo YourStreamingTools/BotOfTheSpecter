@@ -177,9 +177,12 @@ if ($username) {
                 }, 11000);
             });
 
+            // Listen for WEATHER_DATA events
             socket.on('WEATHER_DATA', (data) => {
                 console.log('Weather update received:', data);
-                updateWeatherOverlay(data);
+                const weather = JSON.parse(data.weather_data);
+                const location = weather.location;
+                updateWeatherOverlay(weather, location);
             });
 
             // Listen for DISCORD_JOIN events
