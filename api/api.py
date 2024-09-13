@@ -7,7 +7,7 @@ import paramiko
 import uvicorn
 import datetime
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends, Request, Query, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -258,6 +258,17 @@ class PublicAPIResponse(BaseModel):
             }
         }
 
+class PublicAPIDailyResponse(BaseModel):
+    requests_remaining: str
+    time_remaining: int
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "requests_remaining": "600",
+                "time_remaining": "3 hours, 24 minutes, 16 seconds",
+            }
+        }
+
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
     "/fourthwall",
@@ -415,6 +426,42 @@ async def api_exchangerate():
     except Exception as e:
         sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]')
         sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
+        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
+
+@app.get(
+    "/api/weather",
+    response_model=PublicAPIDailyResponse,
+    summary="Get the current remaining requests for the weather API",
+    tags=["BotOfTheSpecter"]
+)
+async def api_weather_requests_remaining():
+    try:
+        # Calculate the time remaining until midnight
+        now = datetime.now()
+        midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
+        time_until_midnight = (midnight - now).seconds
+        # Determine the format for displaying the remaining time
+        hours, remainder = divmod(time_until_midnight, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours > 0:
+            time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds"
+        elif minutes > 0:
+            time_remaining = f"{minutes} minutes, {seconds} seconds"
+        else:
+            time_remaining = f"{seconds} seconds"
+        # Connect to SFTP and retrieve the number of requests remaining
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        weather_requests_file = "/var/www/api/weather.txt"
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+        sftp = ssh.open_sftp()
+        with sftp.open(weather_requests_file, "r") as requests_remaining:
+            file_content = requests_remaining.read()
+        sftp.close()
+        ssh.close()
+        return {"requests_remaining": file_content, "time_remaining": time_remaining}
+    except Exception as e:
+        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
         raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
 
 # killCommand EndPoint
