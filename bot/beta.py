@@ -3708,20 +3708,17 @@ async def process_fourthwall_event(data):
 async def process_weather_websocket(data):
     # Extract weather information from the received data
     location = data.get('location', 'Unknown location')
-    weather_data = data.get('weather_data', {})
-    status = weather_data.get('status', 'Unknown status')
-    temperature_c = weather_data.get('temperature', {}).split('°C')[0].strip()
-    temperature_f = weather_data.get('temperature', {}).split('°F')[0].split('|')[-1].strip()
-    wind_speed_kph = weather_data.get('wind', {}).split('kph')[0].strip()
-    wind_speed_mph = weather_data.get('wind', {}).split('mph')[0].split('|')[-1].strip()
-    wind_direction = weather_data.get('wind', {}).split()[-1]
-    humidity = weather_data.get('humidity', {}).split('%')[0].strip()
-    # Format the message to be sent to the chat
+    status = data.get('status', 'Unknown status')
+    temperature_c = data.get('temperature', {}).split('°C')[0].strip()
+    temperature_f = data.get('temperature', {}).split('°F')[0].split('|')[-1].strip()
+    wind_speed_kph = data.get('wind', {}).split('kph')[0].strip()
+    wind_speed_mph = data.get('wind', {}).split('mph')[0].split('|')[-1].strip()
+    wind_direction = data.get('wind', {}).split()[-1]
+    humidity = data.get('humidity', {}).split('%')[0].strip()
     message = (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
                f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) and the humidity is {humidity}%.")
-    # Get the channel and send the message
     channel = bot.get_channel(CHANNEL_NAME)
-    event_logger.info(f"Sending weather update to {CHANNEL_NAME}: {message}")
+    event_logger.info(f"Sending weather update : {message}")
     await channel.send(message)
 
 # Function to process the stream being online
