@@ -1389,22 +1389,21 @@ class BotOfTheSpecter(commands.Bot):
             async with sqldb.cursor() as cursor:
                 await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("weather",))
                 result = await cursor.fetchone()
-                if result:
-                    status = result[0]
-                    if status == 'Disabled':
-                        return
-                if location:
-                    weather_info = await get_weather(location)
-                else:
-                    location = await get_streamer_weather()
-                    if location:
-                        weather_info = await get_weather(location)
-                        if await command_permissions(ctx.author):
-                            chat_logger.info(f"Sending WEATHER event with location: {location}")
-                            await websocket_notice(event="WEATHER", weather=location)
+                if result and result[0] == 'Disabled':
+                    return
+            if not location:
+                location = await get_streamer_weather()
+            if location:
+                # Make API request to fetch weather data
+                async with aiohttp.ClientSession() as session:
+                    response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
+                    result = await response.json()
+                    if result.get("status") == "success":
+                        await websocket_notice(event="WEATHER", weather=location)
                     else:
-                        weather_info = "I'm sorry, something went wrong trying to get the current weather."
-                await ctx.send(weather_info)
+                        await ctx.send(f"Failed to fetch weather info: {result.get('detail')}")
+            else:
+                await ctx.send("Unable to retrieve location.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3496,65 +3495,6 @@ async def get_streamer_weather():
                 return None
     finally:
         await sqldb.ensure_closed()
-
-async def get_weather(location):
-    try:
-        # Get the latitude and longitude
-        lat, lon = await get_lat_lon(location)
-        if lat is None or lon is None:
-            return f"Location '{location}' not found."
-        # Get the weather data in metric and imperial units
-        weather_data_metric = await fetch_weather_data(lat, lon, units='metric')
-        weather_data_imperial = await fetch_weather_data(lat, lon, units='imperial')
-        if weather_data_metric is None or weather_data_imperial is None:
-            return f"An error occurred while fetching the weather data for '{location}'."
-        # Extract weather information
-        current_weather_metric = weather_data_metric['current']
-        current_weather_imperial = weather_data_imperial['current']
-        status = current_weather_metric['weather'][0]['description']
-        temperature_c = current_weather_metric['temp']
-        temperature_f = current_weather_imperial['temp']
-        wind_speed_kph = current_weather_metric['wind_speed']
-        wind_speed_mph = current_weather_imperial['wind_speed']
-        humidity = current_weather_metric['humidity']
-        wind_direction = await getWindDirection(current_weather_metric['wind_deg'])
-        return (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
-                f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) and the humidity is {humidity}%.")
-    except Exception as e:
-        return f"An error occurred while processing the weather data for '{location}': {str(e)}"
-
-async def get_lat_lon(location):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
-            data = await response.json()
-            if len(data) > 0:
-                lat = data[0]['lat']
-                lon = data[0]['lon']
-                return lat, lon
-            else:
-                return None, None
-
-async def fetch_weather_data(lat, lon, units='metric'):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,daily,alerts&units={units}&appid={WEATHER_API}") as response:
-            data = await response.json()
-            return data
-
-async def getWindDirection(deg):
-    cardinalDirections = {
-        'N': (337.5, 22.5),
-        'NE': (22.5, 67.5),
-        'E': (67.5, 112.5),
-        'SE': (112.5, 157.5),
-        'S': (157.5, 202.5),
-        'SW': (202.5, 247.5),
-        'W': (247.5, 292.5),
-        'NW': (292.5, 337.5)
-    }
-    for direction, (start, end) in cardinalDirections.items():
-        if deg >= start and deg < end:
-            return direction
-    return 'N/A'
 
 # Function to trigger updating stream title or game
 class GameNotFoundException(Exception):
