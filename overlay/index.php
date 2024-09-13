@@ -177,7 +177,7 @@ if ($username) {
                 }, 11000);
             });
 
-            socket.on('WEATHER', async (data) => {
+            socket.on('WEATHER_DATA', async (data) => {
                 console.log('Weather update received:', data);
                 if (data.location) {
                     updateWeatherOverlay(data, data.location);
