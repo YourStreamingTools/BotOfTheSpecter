@@ -70,6 +70,11 @@ if ($username) {
                     const location = weather.location;
                     updateWeatherOverlay(weather, location);
                 });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`Event: ${event}`, args);
+                });
             }
 
             function attemptReconnect() {
