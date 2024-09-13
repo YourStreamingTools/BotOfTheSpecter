@@ -3708,7 +3708,6 @@ async def process_fourthwall_event(data):
             event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
             # Prepare the message to send
             message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
-            # Send the message and log any errors
             await channel.send(message)
         elif event_type == 'DONATION':
             donor_username = event_data['username']
@@ -3722,7 +3721,6 @@ async def process_fourthwall_event(data):
             else:
                 event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
                 message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
-            # Send the message and log any errors
             await channel.send(message)
         elif event_type == 'GIVEAWAY_PURCHASED':
             purchaser_username = event_data['username']
@@ -3735,14 +3733,14 @@ async def process_fourthwall_event(data):
             message = f"🎁 {purchaser_username} just purchased a giveaway: {item_name} for {total_price} {currency}!"
             await channel.send(message)
             # Process each gift
-            for gift in event_data.get('gifts', []):
+            for idx, gift in enumerate(event_data.get('gifts', []), start=1):
                 gift_status = gift['status']
                 winner = gift.get('winner', {})
                 winner_username = winner.get('username', "No winner yet")
                 # Log each gift's status and winner details
-                event_logger.info(f"Gift {gift['id']} is {gift_status} with winner: {winner_username}")
+                event_logger.info(f"Gift {idx} is {gift_status} with winner: {winner_username}")
                 # Prepare and send the gift status message
-                gift_message = f"🎁 Gift ID: {gift['id']} is {gift_status}. Winner: {winner_username}."
+                gift_message = f"🎁 Gift {idx}: Status - {gift_status}. Winner: {winner_username}."
                 await channel.send(gift_message)
         elif event_type == 'SUBSCRIPTION_PURCHASED':
             subscriber_nickname = event_data['nickname']
