@@ -1402,10 +1402,6 @@ class BotOfTheSpecter(commands.Bot):
                 async with aiohttp.ClientSession() as session:
                     response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
                     result = await response.json()
-                    if result.get("status") == "success":
-                        await websocket_notice(event="WEATHER", weather=location)
-                    else:
-                        await ctx.send(f"Failed to fetch weather info: {result.get('detail')}")
             else:
                 await ctx.send("Unable to retrieve location.")
         finally:
