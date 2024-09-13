@@ -429,13 +429,10 @@ class BotOfTheSpecterWebsocketServer:
 
     async def weather(self, sid, data):
         self.logger.info(f"Weather event from SID [{sid}]: {data}")
-        location = data.get("location")
-        if not location:
-            self.logger.error('Missing location information for WEATHER event')
+        weather_data = data.get("weather_data")
+        if not weather_data:
+            self.logger.error('Missing weather data for WEATHER event')
             return
-        weather_data = {
-            'location': location
-        }
         self.logger.info(f"Broadcasting WEATHER event with data: {weather_data}")
         # Broadcast the weather event to all clients
         await self.sio.emit("WEATHER", weather_data)
