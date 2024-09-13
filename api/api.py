@@ -625,23 +625,32 @@ async def get_lat_lon(location):
 async def fetch_weather_data(lat, lon, units='metric'):
     async with aiohttp.ClientSession() as session:
         async with session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,daily,alerts&units={units}&appid={WEATHER_API}") as response:
-            return await response.json()
+            data = await response.json()
+            # Log the response for debugging
+            logging.info(f"Weather API response: {data}")
+            if 'current' not in data:
+                raise ValueError("Invalid weather data received: 'current' section missing")
+            return data['current']
 
 def format_weather_data(current_metric, current_imperial, location):
-    status = current_metric['weather'][0]['description']
-    temperature_c = current_metric['temp']
-    temperature_f = current_imperial['temp']
-    wind_speed_kph = current_metric['wind_speed']
-    wind_speed_mph = current_imperial['wind_speed']
-    humidity = current_metric['humidity']
-    wind_direction = get_wind_direction(current_metric['wind_deg'])
-    icon = f"https://openweathermap.org/img/wn/{current_metric['weather'][0]['icon']}@2x.png"
+    try:
+        status = current_metric['weather'][0]['description']
+    except (KeyError, IndexError):
+        status = 'Unknown status'
+    temperature_c = current_metric.get('temp', 'Unknown')
+    temperature_f = current_imperial.get('temp', 'Unknown')
+    wind_speed_kph = current_metric.get('wind_speed', 'Unknown')
+    wind_speed_mph = current_imperial.get('wind_speed', 'Unknown')
+    humidity = current_metric.get('humidity', 'Unknown')
+    wind_direction = get_wind_direction(current_metric.get('wind_deg', 0))
+    icon = current_metric.get('weather', [{}])[0].get('icon', '01d')
+    icon_url = f"https://openweathermap.org/img/wn/{icon}@2x.png"
     return {
         "status": status,
         "temperature": f"{temperature_c}°C | {temperature_f}°F",
         "wind": f"{wind_speed_kph} kph | {wind_speed_mph} mph {wind_direction}",
         "humidity": f"Humidity: {humidity}%",
-        "icon": icon,
+        "icon": icon_url,
         "location": location
     }
 
