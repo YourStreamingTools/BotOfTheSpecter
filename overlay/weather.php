@@ -99,7 +99,7 @@ if ($username) {
                 console.log('Server says:', data.message);
             });
 
-            socket.on('WEATHER', (data) => {
+            socket.on('WEATHER_DATA', (data) => {
                 console.log('Weather update received:', data);
                 if (data.location) {
                     updateWeatherOverlay(data, data.location);
