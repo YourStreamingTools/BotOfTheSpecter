@@ -772,8 +772,8 @@ async def FOURTHWALL(data):
     await process_fourthwall_event(data)
 
 @sio.event
-async def WEATHER(data):
-    event_logger.info(f"Received WEATHER event: {data}")
+async def WEATHER_DATA(data):
+    event_logger.info(f"Received WEATHER_DATA event: {data}")
     await process_weather_websocket(data)
 
 # Connect and manage reconnection
