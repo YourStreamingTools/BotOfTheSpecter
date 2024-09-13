@@ -60,7 +60,6 @@ CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
-WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
@@ -774,7 +773,7 @@ async def FOURTHWALL(data):
 
 @sio.event
 async def WEATHER(data):
-    event_logger.info(f"Received STREAM_OFFLINE event: {data}")
+    event_logger.info(f"Received WEATHER event: {data}")
     await process_weather_websocket(data)
 
 # Connect and manage reconnection
@@ -3706,19 +3705,27 @@ async def process_fourthwall_event(data):
         event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
 async def process_weather_websocket(data):
-    # Extract weather information from the received data
-    location = data.get('location', 'Unknown location')
-    status = data.get('status', 'Unknown status')
-    temperature_c = data.get('temperature', {}).split('°C')[0].strip()
-    temperature_f = data.get('temperature', {}).split('°F')[0].split('|')[-1].strip()
-    wind_speed_kph = data.get('wind', {}).split('kph')[0].strip()
-    wind_speed_mph = data.get('wind', {}).split('mph')[0].split('|')[-1].strip()
-    wind_direction = data.get('wind', {}).split()[-1]
-    humidity = data.get('humidity', {}).split('%')[0].strip()
+    # Convert weather_data from string to dictionary
+    try:
+        weather_data = ast.literal_eval(data.get('weather_data', '{}'))
+    except (ValueError, SyntaxError) as e:
+        event_logger.error(f"Error parsing weather data: {e}")
+        return
+    # Extract weather information from the weather_data
+    location = weather_data.get('location', 'Unknown location')
+    status = weather_data.get('status', 'Unknown status')
+    temperature_c = weather_data.get('temperature', 'Unknown').split('°C')[0].strip()
+    temperature_f = weather_data.get('temperature', 'Unknown').split('°F')[0].split('|')[-1].strip()
+    wind_speed_kph = weather_data.get('wind', 'Unknown').split('kph')[0].strip()
+    wind_speed_mph = weather_data.get('wind', 'Unknown').split('mph')[0].split('|')[-1].strip()
+    wind_direction = weather_data.get('wind', 'Unknown').split()[-1]
+    humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip()
+    # Format the message to be sent to the chat
     message = (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
                f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) and the humidity is {humidity}%.")
+    # Get the channel and send the message
     channel = bot.get_channel(CHANNEL_NAME)
-    event_logger.info(f"Sending weather update : {message}")
+    event_logger.info(f"Sending weather update: {message}")
     await channel.send(message)
 
 # Function to process the stream being online
