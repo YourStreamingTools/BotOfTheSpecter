@@ -101,7 +101,9 @@ if ($username) {
 
             socket.on('WEATHER_DATA', (data) => {
                 console.log('Weather update received:', data);
-                updateWeatherOverlay(data);
+                const weather = JSON.parse(data.weather_data);
+                const location = weather.location;
+                updateWeatherOverlay(weather, location);
             });
         });
     </script>
