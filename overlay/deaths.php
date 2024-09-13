@@ -33,6 +33,11 @@
                     attemptReconnect();
                 });
 
+                socket.on('connect_error', (error) => {
+                    console.error('Connection error:', error);
+                    attemptReconnect();
+                });
+
                 socket.on('WELCOME', (data) => {
                     console.log('Server says:', data.message);
                 });
