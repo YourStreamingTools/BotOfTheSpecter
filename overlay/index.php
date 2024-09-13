@@ -177,13 +177,9 @@ if ($username) {
                 }, 11000);
             });
 
-            socket.on('WEATHER_DATA', async (data) => {
+            socket.on('WEATHER_DATA', (data) => {
                 console.log('Weather update received:', data);
-                if (data.location) {
-                    updateWeatherOverlay(data, data.location);
-                } else {
-                    console.error('No location provided in WEATHER event data');
-                }
+                updateWeatherOverlay(data);
             });
 
             // Listen for DISCORD_JOIN events
