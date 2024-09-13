@@ -28,7 +28,9 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const socket = io('wss://websocket.botofthespecter.com');
+            let socket;
+            const retryInterval = 5000;
+            let reconnectAttempts = 0;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
@@ -36,64 +38,84 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
                 return;
             }
 
-            socket.on('connect', () => {
-                console.log('Connected to WebSocket server');
-                socket.emit('REGISTER', { code: code, name: 'Twitch Alerts Overlay' });
-            });
+            function connectWebSocket() {
+                socket = io('wss://websocket.botofthespecter.com', {
+                    reconnection: false
+                });
 
-            socket.on('disconnect', () => {
-                console.log('Disconnected from WebSocket server');
-            });
+                socket.on('connect', () => {
+                    console.log('Connected to WebSocket server');
+                    reconnectAttempts = 0;
+                    socket.emit('REGISTER', { code: code, name: 'Twitch Alerts Overlay' });
+                });
 
-            socket.on('WELCOME', (data) => {
-                console.log('Server says:', data.message);
-            });
+                socket.on('disconnect', () => {
+                    console.log('Disconnected from WebSocket server');
+                    attemptReconnect();
+                });
 
-            socket.on('TWITCH_FOLLOW', (data) => {
-                console.log('Twitch Follow:', data);
-                showTwitchEventOverlay('New Follower!', `${data['twitch-username']} has followed!`);
-            });
+                socket.on('WELCOME', (data) => {
+                    console.log('Server says:', data.message);
+                });
 
-            socket.on('TWITCH_CHEER', (data) => {
-                console.log('Twitch Cheer:', data);
-                showTwitchEventOverlay('New Cheer!', `${data['twitch-username']} cheered ${data['twitch-cheer-amount']} bits!`);
-            });
+                socket.on('TWITCH_FOLLOW', (data) => {
+                    console.log('Twitch Follow:', data);
+                    showTwitchEventOverlay('New Follower!', `${data['twitch-username']} has followed!`);
+                });
 
-            socket.on('TWITCH_SUB', (data) => {
-                console.log('Twitch Sub:', data);
-                showTwitchEventOverlay('New Subscriber!', `${data['twitch-username']} subscribed at tier ${data['twitch-tier']} for ${data['twitch-sub-months']} months!`);
-            });
+                socket.on('TWITCH_CHEER', (data) => {
+                    console.log('Twitch Cheer:', data);
+                    showTwitchEventOverlay('New Cheer!', `${data['twitch-username']} cheered ${data['twitch-cheer-amount']} bits!`);
+                });
 
-            socket.on('TWITCH_RAID', (data) => {
-                console.log('Twitch Raid:', data);
-                showTwitchEventOverlay('New Raid!', `${data['twitch-username']} is raiding with ${data['twitch-raid']} viewers!`);
-            });
+                socket.on('TWITCH_SUB', (data) => {
+                    console.log('Twitch Sub:', data);
+                    showTwitchEventOverlay('New Subscriber!', `${data['twitch-username']} subscribed at tier ${data['twitch-tier']} for ${data['twitch-sub-months']} months!`);
+                });
 
-            function showTwitchEventOverlay(title, message) {
-                const twitchOverlay = document.getElementById('twitchOverlay');
-                twitchOverlay.innerHTML = `
-                    <div class="overlay-content">
-                        <div class="overlay-title">${title}</div>
-                        <div class="overlay-message">${message}</div>
-                    </div>
-                `;
-                twitchOverlay.classList.add('show');
-                twitchOverlay.style.display = 'block';
+                socket.on('TWITCH_RAID', (data) => {
+                    console.log('Twitch Raid:', data);
+                    showTwitchEventOverlay('New Raid!', `${data['twitch-username']} is raiding with ${data['twitch-raid']} viewers!`);
+                });
 
-                setTimeout(() => {
-                    twitchOverlay.classList.add('hide');
-                    twitchOverlay.classList.remove('show');
-                }, 10000);
+                function showTwitchEventOverlay(title, message) {
+                    const twitchOverlay = document.getElementById('twitchOverlay');
+                    twitchOverlay.innerHTML = `
+                        <div class="overlay-content">
+                            <div class="overlay-title">${title}</div>
+                            <div class="overlay-message">${message}</div>
+                        </div>
+                    `;
+                    twitchOverlay.classList.add('show');
+                    twitchOverlay.style.display = 'block';
 
-                setTimeout(() => {
-                    twitchOverlay.style.display = 'none';
-                }, 11000);
+                    setTimeout(() => {
+                        twitchOverlay.classList.add('hide');
+                        twitchOverlay.classList.remove('show');
+                    }, 10000);
+
+                    setTimeout(() => {
+                        twitchOverlay.style.display = 'none';
+                    }, 11000);
+                }
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`Event: ${event}`, args);
+                });
             }
 
-            // Log all events
-            socket.onAny((event, ...args) => {
-                console.log(`Event: ${event}`, args);
-            });
+            function attemptReconnect() {
+                reconnectAttempts++;
+                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
+                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
+                setTimeout(() => {
+                    connectWebSocket();
+                }, delay);
+            }
+
+            // Start initial connection
+            connectWebSocket();
         });
     </script>
 </head>
