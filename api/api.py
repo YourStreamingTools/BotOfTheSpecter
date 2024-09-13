@@ -26,6 +26,7 @@ ADMIN_KEY = os.getenv('ADMIN_KEY')
 SFTP_HOST = "10.240.0.169"
 SFTP_USER = os.getenv("SFPT_USERNAME")
 SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
+WEATHER_API = os.getenv('WEATHER_API')
 
 # Setup Logger
 logging.basicConfig(
@@ -523,20 +524,75 @@ async def websocket_deaths(request: DeathsRequest, api_key):
     return {"status": "success"}
 
 @app.get(
-    "/websocket/weather",
-    summary="Trigger WEATHER via API",
+    "/weather",
+    summary="Get weather data and trigger WebSocket weather event",
     tags=["Websocket"]
 )
-async def websocket_weather(api_key: str = Query(...), location: str = Query(...)):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
-    params = {"event": "WEATHER", "location": location}
-    await websocket_notice("WEATHER", params, api_key)
-    return {"status": "success"}
+async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query(...)):
+    # Validate the API key before proceeding
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    # Fetch weather data
+    try:
+        lat, lon = await get_lat_lon(location)
+        if lat is None or lon is None:
+            raise HTTPException(status_code=404, detail=f"Location '{location}' not found.")
+        weather_data_metric = await fetch_weather_data(lat, lon, units='metric')
+        weather_data_imperial = await fetch_weather_data(lat, lon, units='imperial')
+        if not weather_data_metric or not weather_data_imperial:
+            raise HTTPException(status_code=500, detail="Error fetching weather data.")
+        # Format weather data
+        formatted_weather_data = format_weather_data(weather_data_metric, weather_data_imperial, location)
+        # Trigger WebSocket weather event
+        params = {"event": "WEATHER", "weather_data": formatted_weather_data}
+        await websocket_notice("WEATHER", params, api_key)
+        # Log the request for tracking
+        with open("/var/log/weather_requests.log", "a") as log_file:
+            log_file.write(f"Weather request made for {location} at {datetime.now()}\n")
+        return {"status": "success", "weather_data": formatted_weather_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# Functions to fetch weather data (same as from bot, adapted for API server)
+async def get_lat_lon(location):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
+            data = await response.json()
+            if len(data) > 0:
+                return data[0]['lat'], data[0]['lon']
+            return None, None
+
+async def fetch_weather_data(lat, lon, units='metric'):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,daily,alerts&units={units}&appid={WEATHER_API}") as response:
+            return await response.json()
+
+def format_weather_data(current_metric, current_imperial, location):
+    status = current_metric['weather'][0]['description']
+    temperature_c = current_metric['temp']
+    temperature_f = current_imperial['temp']
+    wind_speed_kph = current_metric['wind_speed']
+    wind_speed_mph = current_imperial['wind_speed']
+    humidity = current_metric['humidity']
+    wind_direction = get_wind_direction(current_metric['wind_deg'])
+    icon = f"https://openweathermap.org/img/wn/{current_metric['weather'][0]['icon']}@2x.png"
+    return {
+        "status": status,
+        "temperature": f"{temperature_c}°C | {temperature_f}°F",
+        "wind": f"{wind_speed_kph} kph | {wind_speed_mph} mph {wind_direction}",
+        "humidity": f"Humidity: {humidity}%",
+        "icon": icon,
+        "location": location
+    }
+
+def get_wind_direction(deg):
+    directions = { 'N': (337.5, 22.5), 'NE': (22.5, 67.5), 'E': (67.5, 112.5), 'SE': (112.5, 157.5),
+                   'S': (157.5, 202.5), 'SW': (202.5, 247.5), 'W': (247.5, 292.5), 'NW': (292.5, 337.5) }
+    for direction, (start, end) in directions.items():
+        if start <= deg < end:
+            return direction
+    return "N/A"
 
 @app.get(
     "/websocket/stream_online",
