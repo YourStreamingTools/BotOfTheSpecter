@@ -60,34 +60,49 @@ tags_metadata = [
 # Midnight function
 async def midnight():
     while True:
-        # Get the current time in the user's timezone
+        # Get the current time
         current_time = datetime.now()
-        # Check if it's exactly midnight (00:00:00)
-        if current_time.hour == 0 and current_time.minute == 0:
-            # Reload the .env file at midnight
-            load_dotenv()
-            # Reset the weather requests file to 1000
-            log_file_path = "/home/fastapi/api/weather_requests.txt"
-            try:
-                # Reset the file to 1000 requests
-                with open(log_file_path, "w") as log_file:
-                    log_file.write("1000")
-                # Transfer the reset file to the bot's server via SFTP
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-                sftp = ssh.open_sftp()
-                sftp.put(log_file_path, "/var/www/api/weather.txt")  # Transfer to the bot's server location
-                sftp.close()
-                ssh.close()
-            except Exception as e:
-                # Handle any errors during the reset and SFTP transfer
-                logging.error(f"Failed to reset weather requests file: {e}")
-            # Sleep for 120 seconds to avoid sending the message multiple times
-            await asyncio.sleep(120)
-        else:
-            # Sleep for 10 seconds before checking again
-            await asyncio.sleep(10)
+        # Paths to the log files
+        weather_log_file = "/home/fastapi/api/weather_requests.txt"
+        shazam_log_file = "/home/fastapi/api/shazam_requests.txt"
+        exchangerate_log_file = "/home/fastapi/api/exchangerate_requests.txt"
+        try:
+            # Connect via SFTP
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+            sftp = ssh.open_sftp()
+            # Reset weather requests at midnight (this happens daily)
+            if current_time.hour == 0 and current_time.minute == 0:
+                # Reload the .env file at midnight
+                load_dotenv()
+                # Reset weather requests to 1000
+                with open(weather_log_file, "w") as weather_file:
+                    weather_file.write("1000")
+                # Transfer the weather requests file via SFTP
+                sftp.put(weather_log_file, "/var/www/api/weather.txt")
+            # Reset song identifications on the 23rd of each month
+            if current_time.day == 23 and current_time.hour == 0 and current_time.minute == 0:
+                # Reset song identifications to 500
+                with open(shazam_log_file, "w") as shazam_file:
+                    shazam_file.write("500")
+                # Transfer the song identification file via SFTP
+                sftp.put(shazam_log_file, "/var/www/api/shazam.txt")
+            # Reset exchange rate checks on the 14th of each month
+            if current_time.day == 14 and current_time.hour == 0 and current_time.minute == 0:
+                # Reset exchange rate checks to 1500
+                with open(exchangerate_log_file, "w") as exchangerate_file:
+                    exchangerate_file.write("1500")
+                # Transfer the exchange rate file via SFTP
+                sftp.put(exchangerate_log_file, "/var/www/api/exchangerate.txt")
+            # Close the SFTP connection
+            sftp.close()
+            ssh.close()
+        except Exception as e:
+            # Handle any errors during the reset and SFTP transfer
+            logging.error(f"Failed to reset API request files or transfer via SFTP: {e}")
+        # Sleep for 60 seconds before checking again
+        await asyncio.sleep(60)
 
 # Lifespan event handler
 @asynccontextmanager
