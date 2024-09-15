@@ -228,7 +228,7 @@ $today = new DateTime();
           ?>
         </div>
         <!-- Exchange Rate Section -->
-        <div class="api-section">
+        <div class="api-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
           <?php
           $exchangerateFile = "/var/www/api/exchangerate.txt";
           $exchangerate_reset_day = 14;
@@ -252,7 +252,8 @@ $today = new DateTime();
             echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_exchangerate</span></p>";
           }
           ?>
-        </div><!-- Weather Usage Section -->
+        </div>
+        <!-- Weather Usage Section -->
         <div class="api-section">
           <?php
           $weatherFile = "/var/www/api/weather_requests.txt";
