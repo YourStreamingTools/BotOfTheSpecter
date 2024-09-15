@@ -256,7 +256,7 @@ $today = new DateTime();
         <!-- Weather Usage Section -->
         <div class="api-section">
           <?php
-          $weatherFile = "/var/www/api/weather_requests.txt";
+          $weatherFile = "/var/www/api/weather.txt";
           // Get today's date and time
           $today = new DateTime();
           // Calculate midnight of the next day
