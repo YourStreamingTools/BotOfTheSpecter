@@ -337,32 +337,10 @@ class PublicAPIDailyResponse(BaseModel):
 @app.post(
     "/fourthwall",
     summary="Receive and process FOURTHWALL Webhook Requests",
-    description="""
-        This endpoint allows you to send webhook data from FOURTHWALL to be processed by the bot's WebSocket server.
-        
-        **How to use:**
-        
-        1. Make a POST request to this endpoint with a valid JSON payload. 
-        2. You need to include the `api_key` as a query parameter to authenticate the request.
-        3. The bot will process the payload and send the event to the WebSocket server for further action.
-        
-        **Example Payload:**
-        
-        ```json
-        {
-            "event": "donation",
-            "data": {
-                "amount": 100,
-                "currency": "USD",
-                "username": "user123"
-            }
-        }
-        ```
-        
-        The payload will be logged and forwarded to the bot's WebSocket server.
-        """,
+    description="This endpoint allows you to send webhook data from FOURTHWALL to be processed by the bot's WebSocket server.",
     tags=["Webhooks"],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    operation_id="process_fourthwall_webhook"
 )
 async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...)):
     # Extract JSON data from the Fourthwall webhook
