@@ -252,6 +252,36 @@ $today = new DateTime();
             echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_exchangerate</span></p>";
           }
           ?>
+        </div><!-- Weather Usage Section -->
+        <div class="api-section">
+          <?php
+          $weatherFile = "/var/www/api/weather_requests.txt";
+          // Get today's date and time
+          $today = new DateTime();
+          // Calculate midnight of the next day
+          $midnight = new DateTime('tomorrow midnight');
+          // Calculate the time remaining until midnight
+          $time_until_midnight = $today->diff($midnight);
+          $hours_until_midnight = $time_until_midnight->h;
+          $minutes_until_midnight = $time_until_midnight->i;
+          $seconds_until_midnight = $time_until_midnight->s;
+          // Check if the weather request file exists
+          if (file_exists($weatherFile)) {
+            $weather_requests_remaining = file_get_contents($weatherFile);
+            $last_modified_weather = date("F j, Y, g:i A T", filemtime($weatherFile));
+            // Display the number of weather requests left if the file content is numeric
+            if (is_numeric($weather_requests_remaining)) {
+              echo "<p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>" . $weather_requests_remaining . "</span> 
+              (<span title='Resets at midnight'>" . $hours_until_midnight . " hours, " . $minutes_until_midnight . " minutes, and " . $seconds_until_midnight . " seconds until reset</span>)</p>";
+            } else {
+              echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
+            }
+            // Display the last modified date of the weather requests file
+            echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_weather</span></p>";
+          } else {
+            echo "<p style='color: #e74c3c;'>No weather requests data available.</p>";
+          }
+          ?>
         </div>
       </div>
     </div>
