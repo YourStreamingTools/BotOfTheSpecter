@@ -206,6 +206,7 @@ $today = new DateTime();
           <?php
           $shazamFile = "/var/www/api/shazam.txt";
           $shazam_reset_day = 23;
+          $today = new DateTime(); // Initialize today's date
           if ($today->format('d') >= $shazam_reset_day) {
             $shazam_next_reset = new DateTime('first day of next month');
             $shazam_next_reset->setDate($shazam_next_reset->format('Y'), $shazam_next_reset->format('m'), $shazam_reset_day);
@@ -216,7 +217,7 @@ $today = new DateTime();
           $reset_date_shazam = $shazam_next_reset->format('F j, Y');
           if (file_exists($shazamFile)) {
             $shazam_requests_remaining = file_get_contents($shazamFile);
-            $last_modified_shazam = date("F j, Y, g:iA T", filemtime($shazamFile));
+            $last_modified_shazam = date("F j, Y, g:i A T", filemtime($shazamFile));
             if (is_numeric($shazam_requests_remaining)) {
               echo "<p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>" . $shazam_requests_remaining . "</span> 
               (<span title='Next reset date: $reset_date_shazam'>" . $days_until_reset . " days until reset</span>)</p>";
@@ -224,6 +225,8 @@ $today = new DateTime();
               echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
             }
             echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_shazam</span></p>";
+          } else {
+            echo "<p style='color: #e74c3c;'>No song identification data available.</p>";
           }
           ?>
         </div>
@@ -242,7 +245,7 @@ $today = new DateTime();
           $reset_date_exchangerate = $exchangerate_next_reset->format('F j, Y');
           if (file_exists($exchangerateFile)) {
             $exchangerate_requests_remaining = file_get_contents($exchangerateFile);
-            $last_modified_exchangerate = date("F j, Y, g:iA T", filemtime($exchangerateFile));
+            $last_modified_exchangerate = date("F j, Y, g:i A T", filemtime($exchangerateFile));
             if (is_numeric($exchangerate_requests_remaining)) {
               echo "<p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>" . $exchangerate_requests_remaining . "</span> 
               (<span title='Next reset date: $reset_date_exchangerate'>" . $days_until_reset . " days until reset</span>)</p>";
@@ -250,6 +253,8 @@ $today = new DateTime();
               echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
             }
             echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_exchangerate</span></p>";
+          } else {
+            echo "<p style='color: #e74c3c;'>No exchange rate data available.</p>";
           }
           ?>
         </div>
@@ -257,8 +262,6 @@ $today = new DateTime();
         <div class="api-section">
           <?php
           $weatherFile = "/var/www/api/weather.txt";
-          // Get today's date and time
-          $today = new DateTime();
           // Calculate midnight of the next day
           $midnight = new DateTime('tomorrow midnight');
           // Calculate the time remaining until midnight
@@ -266,18 +269,15 @@ $today = new DateTime();
           $hours_until_midnight = $time_until_midnight->h;
           $minutes_until_midnight = $time_until_midnight->i;
           $seconds_until_midnight = $time_until_midnight->s;
-          // Check if the weather request file exists
           if (file_exists($weatherFile)) {
             $weather_requests_remaining = file_get_contents($weatherFile);
             $last_modified_weather = date("F j, Y, g:i A T", filemtime($weatherFile));
-            // Display the number of weather requests left if the file content is numeric
             if (is_numeric($weather_requests_remaining)) {
-              echo "<p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>" . $weather_requests_remaining . "</span> 
+              echo "<p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>" . $weather_requests_remaining . "</span><br> 
               (<span title='Resets at midnight'>" . $hours_until_midnight . " hours, " . $minutes_until_midnight . " minutes, and " . $seconds_until_midnight . " seconds until reset</span>)</p>";
             } else {
               echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
             }
-            // Display the last modified date of the weather requests file
             echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_weather</span></p>";
           } else {
             echo "<p style='color: #e74c3c;'>No weather requests data available.</p>";
