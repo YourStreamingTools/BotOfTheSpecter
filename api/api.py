@@ -336,7 +336,31 @@ class PublicAPIDailyResponse(BaseModel):
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
     "/fourthwall",
-    summary="Get FOURTHWALL Webhook Requests",
+    summary="Receive and process FOURTHWALL Webhook Requests",
+    description="""
+        This endpoint allows you to send webhook data from FOURTHWALL to be processed by the bot's WebSocket server.
+        
+        **How to use:**
+        
+        1. Make a POST request to this endpoint with a valid JSON payload. 
+        2. You need to include the `api_key` as a query parameter to authenticate the request.
+        3. The bot will process the payload and send the event to the WebSocket server for further action.
+        
+        **Example Payload:**
+        
+        ```json
+        {
+            "event": "donation",
+            "data": {
+                "amount": 100,
+                "currency": "USD",
+                "username": "user123"
+            }
+        }
+        ```
+        
+        The payload will be logged and forwarded to the bot's WebSocket server.
+        """,
     tags=["Webhooks"],
     status_code=status.HTTP_200_OK
 )
@@ -351,9 +375,9 @@ async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...))
     async with aiohttp.ClientSession() as session:
         try:
             params = {
-            "code": api_key,
-            "event": "FOURTHWALL",
-            "data": webhook_data
+                "code": api_key,
+                "event": "FOURTHWALL",
+                "data": webhook_data
             }
             encoded_params = urlencode(params)
             url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
@@ -365,7 +389,7 @@ async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...))
                     )
         except Exception as e:
             logging.error(f"{e}")
-    return {"status": "success", "message": "Webhook recieved"}
+    return {"status": "success", "message": "Webhook received"}
 
 # Quotes endpoint
 @app.get(
