@@ -549,7 +549,7 @@ async def process_eventsub_message(message):
                         contribution_type = contribution["type"]
                         total_formatted = "{:,}".format(contribution["total"])
                         total = total_formatted
-                        message += f"\n{user_name} contributed {total} {contribution_type}."
+                        message += f" {user_name} contributed {total} {contribution_type}."
                     await channel.send(message)
                 elif event_type == 'channel.update':
                     global current_game
@@ -633,14 +633,14 @@ async def process_eventsub_message(message):
                         channel_points_voting_enabled = event_data.get("channel_points_voting", {}).get("is_enabled")
                         channel_points_amount_per_vote = event_data.get("channel_points_voting", {}).get("amount_per_vote") if channel_points_voting_enabled else False
                         poll_ends_at = datetime.strptime(event_data.get("ends_at")[:-11], "%Y-%m-%dT%H:%M:%S")
-                        message = f"Poll '{poll_title}' has started! \n"
-                        message += "Choices: \n"
+                        message = f"Poll '{poll_title}' has started!  "
+                        message += "Choices:  "
                         for choice_title in choices_titles:
-                            message += f"- {choice_title} \n"
+                            message += f"- {choice_title}  "
                         if bits_voting_enabled:
-                            message += f"Bits Voting Enabled: Amount per Vote - {bits_amount_per_vote} \n"
+                            message += f"Bits Voting Enabled: Amount per Vote - {bits_amount_per_vote}  "
                         if channel_points_voting_enabled:
-                            message += f"Channel Points Voting Enabled: Amount per Vote - {channel_points_amount_per_vote} \n"
+                            message += f"Channel Points Voting Enabled: Amount per Vote - {channel_points_amount_per_vote}  "
                         tz = pytz.timezone("UTC")
                         utc_now = datetime.now(tz)
                         poll_ends_at_utc = tz.localize(poll_ends_at)
@@ -676,13 +676,13 @@ async def process_eventsub_message(message):
                                     "channel_points_votes": channel_points_votes,
                                     "total_votes": total_votes
                                 })
-                            message = f"Poll Progress: {poll_title}\n"
+                            message = f"Poll Progress: {poll_title} "
                             for choice_data in choices_data:
                                 choice_title = choice_data["title"]
                                 bits_votes = choice_data["bits_votes"]
                                 channel_points_votes = choice_data["channel_points_votes"]
                                 total_votes = choice_data["total_votes"]
-                                message += f"- {choice_title}: Bits Votes - {bits_votes}, Channel Points Votes - {channel_points_votes}, Total Votes - {total_votes}\n"
+                                message += f"- {choice_title}: Bits Votes - {bits_votes}, Channel Points Votes - {channel_points_votes}, Total Votes - {total_votes} "
                             await channel.send(message)
                     elif event_type == "channel.poll.end":
                         poll_id = event_data.get("id")
@@ -701,13 +701,13 @@ async def process_eventsub_message(message):
                             })
                         sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
                         winning_choice = sorted_choices[0] if sorted_choices else None
-                        message = f"The poll '{poll_title}' has ended! \n"
+                        message = f"The poll '{poll_title}' has ended!  "
                         if winning_choice:
-                            message += f"The winning choice is '{winning_choice['title']}' with {winning_choice['total_votes']} votes. \n"
+                            message += f"The winning choice is '{winning_choice['title']}' with {winning_choice['total_votes']} votes.  "
                         else:
-                            message += f"The winning choice is '{winning_choice['title']}' but there are no votes recorded for this poll. \n"
+                            message += f"The winning choice is '{winning_choice['title']}' but there are no votes recorded for this poll.  "
                         for choice_data in sorted_choices:
-                            message += f"- {choice_data['title']}: Bits Votes - {choice_data['bits_votes']}, Channel Points Votes - {choice_data['channel_points_votes']}, Total Votes - {choice_data['total_votes']} \n"
+                            message += f"- {choice_data['title']}: Bits Votes - {choice_data['bits_votes']}, Channel Points Votes - {choice_data['channel_points_votes']}, Total Votes - {choice_data['total_votes']}  "
                         await channel.send(message)
                         await cursor.execute("INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s)", (poll_id, poll_title))
                         await sqldb.commit()
@@ -1240,12 +1240,12 @@ class BotOfTheSpecter(commands.Bot):
                 await ctx.send(f"User @{mentioned_user} not found.")
                 return
         # Fetch user information
-        user_info = (f"Username: {user_obj.name}\n"
-                    f"Display Name: {user_obj.display_name}\n"
-                    f"Is Subscriber: {'Yes' if user_obj.is_subscriber else 'No'}\n"
+        user_info = (f"Username: {user_obj.name} "
+                    f"Display Name: {user_obj.display_name} "
+                    f"Is Subscriber: {'Yes' if user_obj.is_subscriber else 'No'} "
                     f"Is Moderator: {'Yes' if user_obj.is_mod else 'No'}")
         # Send user information to the chat
-        await ctx.send(f"User Info:\n{user_info}")
+        await ctx.send(f"User Info: {user_info}")
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='commands', aliases=['cmds'])
@@ -3333,27 +3333,28 @@ class BotOfTheSpecter(commands.Bot):
                     # Add a new todo item with optional category ID
                     if params:
                         try:
-                            # The task is surrounded by quotes, so we split by space and remove quotes
+                            # The task is surrounded by quotes, so we split by quotes and remove whitespace
                             task_and_category = params[0].strip().split('"')
                             task_description = task_and_category[1].strip()
                             # Optional category ID, default to 1 if not provided
-                            if len(task_and_category) > 2:
-                                category_id = int(task_and_category[2].strip()) if task_and_category[2].strip() else 1
+                            if len(task_and_category) > 2 and task_and_category[2].strip():
+                                category_id = int(task_and_category[2].strip())
                             else:
                                 category_id = 1
+                            # Insert the task into the database
+                            sql_insert = "INSERT INTO todos (objective, category) VALUES (%s, %s)"
+                            await cursor.execute(sql_insert, (task_description, category_id))
+                            task_id = cursor.lastrowid  # Get the ID of the newly inserted task
+                            await sqldb.commit()
                             # Fetch category name from the database based on category_id
                             sql_category = "SELECT category FROM categories WHERE id = %s"
                             await cursor.execute(sql_category, (category_id,))
                             result = await cursor.fetchone()
                             if result:
                                 category_name = result[0]
-                                await ctx.send(f'{user.name}, your task "{task_description}" has been added to category "{category_name}".')
+                                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name}".')
                             else:
-                                await ctx.send(f'{user.name}, your task "{task_description}" has been added.')
-                            # Insert the task into the database
-                            sql_insert = "INSERT INTO todos (objective, category) VALUES (%s, %s)"
-                            await cursor.execute(sql_insert, (task_description, category_id))
-                            await sqldb.commit()
+                                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added.')
                         except ValueError:
                             await ctx.send(f"{user.name}, please provide a valid category ID.")
                     else:
@@ -3399,9 +3400,36 @@ class BotOfTheSpecter(commands.Bot):
                             await ctx.send(f"{user.name}, please provide a valid task ID to mark as complete.")
                     else:
                         await ctx.send(f"{user.name}, please provide the task ID to mark as complete.")
+                elif action == 'view':
+                    # View a specific todo item
+                    if params:
+                        try:
+                            todo_id = int(params[0].strip())
+                            sql = "SELECT objective, category, completed FROM todos WHERE id = %s"
+                            await cursor.execute(sql, (todo_id,))
+                            result = await cursor.fetchone()
+                            if result:
+                                objective, category_id, completed = result
+                                # Fetch category name
+                                sql_category = "SELECT category FROM categories WHERE id = %s"
+                                await cursor.execute(sql_category, (category_id,))
+                                category_result = await cursor.fetchone()
+                                category_name = category_result[0] if category_result else 'Unknown'
+                                await ctx.send(
+                                    f"Task ID {todo_id}: "
+                                    f"Description: {objective} "
+                                    f"Category: {category_name} "
+                                    f"Completed: {completed}"
+                                )
+                            else:
+                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                        except ValueError:
+                            await ctx.send(f"{user.name}, please provide a valid task ID to view.")
+                    else:
+                        await ctx.send(f"{user.name}, please provide the task ID to view.")
                 else:
                     # Unrecognized action
-                    await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, or Complete.")
+                    await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, or View.")
         finally:
             await sqldb.ensure_closed()
 
