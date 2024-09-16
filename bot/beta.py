@@ -3308,6 +3308,95 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
+    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
+    @commands.command(name='todo')
+    async def todo_command(self, ctx: commands.Context):
+        message_content = ctx.message.content.strip()
+        user = ctx.author
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Check if the command is just '!todo' with no additional action
+                if message_content.lower() == '!todo':
+                    # Provide the link to the todo list
+                    await ctx.send(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/todo")
+                    return
+                # Extract the action and parameters
+                action, *params = message_content[5:].strip().split(' ', 1)
+                action = action.lower()
+                # Check permissions for actions other than viewing
+                if action in ['add', 'edit', 'remove', 'complete', 'done']:
+                    if not await command_permissions(user):
+                        await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
+                        return
+                if action == 'add':
+                    # Add a new todo item with optional category ID
+                    if params:
+                        try:
+                            # The task is surrounded by quotes, so we split by space and remove quotes
+                            task_and_category = params[0].strip().split('"')
+                            task_description = task_and_category[1].strip()
+                            # Optional category ID
+                            if len(task_and_category) > 2:
+                                category_id = int(task_and_category[2].strip()) if task_and_category[2].strip() else 1
+                            else:
+                                category_id = 1
+                            # Insert into the database
+                            sql = "INSERT INTO todos (objective, category) VALUES (%s, %s)"
+                            await cursor.execute(sql, (task_description, category_id))
+                            await sqldb.commit()
+                            await ctx.send(f'{user.name}, your task "{task_description}" has been added to category {category_id}.')
+                        except ValueError:
+                            await ctx.send(f"{user.name}, please provide a valid category ID.")
+                    else:
+                        await ctx.send(f"{user.name}, please provide a task to add.")
+                elif action == 'edit':
+                    # Edit an existing todo item
+                    if params:
+                        try:
+                            todo_id_str, new_task = params[0].split(',', 1)
+                            todo_id = int(todo_id_str.strip())
+                            new_task = new_task.strip()
+                            sql = "UPDATE todos SET objective = %s WHERE id = %s"
+                            await cursor.execute(sql, (new_task, todo_id))
+                            await sqldb.commit()
+                            await ctx.send(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
+                        except ValueError:
+                            await ctx.send(f"{user.name}, please provide the task ID and new description separated by a comma.")
+                    else:
+                        await ctx.send(f"{user.name}, please provide the task ID and new description.")
+                elif action == 'remove':
+                    # Remove a todo item
+                    if params:
+                        try:
+                            todo_id = int(params[0].strip())
+                            sql = "DELETE FROM todos WHERE id = %s"
+                            await cursor.execute(sql, (todo_id,))
+                            await sqldb.commit()
+                            await ctx.send(f"{user.name}, task {todo_id} has been removed.")
+                        except ValueError:
+                            await ctx.send(f"{user.name}, please provide a valid task ID to remove.")
+                    else:
+                        await ctx.send(f"{user.name}, please provide the task ID to remove.")
+                elif action in ['complete', 'done']:
+                    # Mark a todo item as complete
+                    if params:
+                        try:
+                            todo_id = int(params[0].strip())
+                            sql = "UPDATE todos SET completed = 'Yes' WHERE id = %s"
+                            await cursor.execute(sql, (todo_id,))
+                            await sqldb.commit()
+                            await ctx.send(f"{user.name}, task {todo_id} has been marked as complete.")
+                        except ValueError:
+                            await ctx.send(f"{user.name}, please provide a valid task ID to mark as complete.")
+                    else:
+                        await ctx.send(f"{user.name}, please provide the task ID to mark as complete.")
+                else:
+                    # Unrecognized action
+                    await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, or Complete.")
+        finally:
+            await sqldb.ensure_closed()
+
 # Functions for all the commands
 ##
 # Function  to check if the user is a real user on Twitch
