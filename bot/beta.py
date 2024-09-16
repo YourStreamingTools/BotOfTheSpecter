@@ -3313,7 +3313,11 @@ class BotOfTheSpecter(commands.Bot):
     async def todo_command(self, ctx: commands.Context):
         message_content = ctx.message.content.strip()
         user = ctx.author
+        user_id = user.id  # Get the user's unique ID
         sqldb = await get_mysql_connection()
+        # Pending removals dictionary (user_id: task_id)
+        if not hasattr(self, 'pending_removals'):
+            self.pending_removals = {}
         try:
             async with sqldb.cursor() as cursor:
                 # Check if the command is just '!todo' with no additional action
@@ -3355,8 +3359,8 @@ class BotOfTheSpecter(commands.Bot):
                                 await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name}".')
                             else:
                                 await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added.')
-                        except ValueError:
-                            await ctx.send(f"{user.name}, please provide a valid category ID.")
+                        except (ValueError, IndexError):
+                            await ctx.send(f"{user.name}, please provide a valid task description and optional category ID.")
                     else:
                         await ctx.send(f"{user.name}, please provide a task to add.")
                 elif action == 'edit':
@@ -3368,21 +3372,32 @@ class BotOfTheSpecter(commands.Bot):
                             new_task = new_task.strip()
                             sql = "UPDATE todos SET objective = %s WHERE id = %s"
                             await cursor.execute(sql, (new_task, todo_id))
-                            await sqldb.commit()
-                            await ctx.send(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
+                            if cursor.rowcount == 0:
+                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                            else:
+                                await sqldb.commit()
+                                await ctx.send(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
                         except ValueError:
                             await ctx.send(f"{user.name}, please provide the task ID and new description separated by a comma.")
+                        except IndexError:
+                            await ctx.send(f"{user.name}, please provide both task ID and new description.")
                     else:
                         await ctx.send(f"{user.name}, please provide the task ID and new description.")
                 elif action == 'remove':
-                    # Remove a todo item
+                    # Remove a todo item (with confirmation)
                     if params:
                         try:
                             todo_id = int(params[0].strip())
-                            sql = "DELETE FROM todos WHERE id = %s"
-                            await cursor.execute(sql, (todo_id,))
-                            await sqldb.commit()
-                            await ctx.send(f"{user.name}, task {todo_id} has been removed.")
+                            # Check if the task exists
+                            sql_check = "SELECT id FROM todos WHERE id = %s"
+                            await cursor.execute(sql_check, (todo_id,))
+                            result = await cursor.fetchone()
+                            if result:
+                                # Store pending removal
+                                self.pending_removals[user_id] = todo_id
+                                await ctx.send(f"{user.name}, please use `!todo confirm` to remove task ID {todo_id}.")
+                            else:
+                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
                         except ValueError:
                             await ctx.send(f"{user.name}, please provide a valid task ID to remove.")
                     else:
@@ -3394,12 +3409,25 @@ class BotOfTheSpecter(commands.Bot):
                             todo_id = int(params[0].strip())
                             sql = "UPDATE todos SET completed = 'Yes' WHERE id = %s"
                             await cursor.execute(sql, (todo_id,))
-                            await sqldb.commit()
-                            await ctx.send(f"{user.name}, task {todo_id} has been marked as complete.")
+                            if cursor.rowcount == 0:
+                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                            else:
+                                await sqldb.commit()
+                                await ctx.send(f"{user.name}, task {todo_id} has been marked as complete.")
                         except ValueError:
                             await ctx.send(f"{user.name}, please provide a valid task ID to mark as complete.")
                     else:
                         await ctx.send(f"{user.name}, please provide the task ID to mark as complete.")
+                elif action == 'confirm':
+                    # Confirm pending removal
+                    if user_id in self.pending_removals:
+                        todo_id = self.pending_removals.pop(user_id)
+                        sql = "DELETE FROM todos WHERE id = %s"
+                        await cursor.execute(sql, (todo_id,))
+                        await sqldb.commit()
+                        await ctx.send(f"{user.name}, task ID {todo_id} has been removed.")
+                    else:
+                        await ctx.send(f"{user.name}, you have no pending task removal to confirm.")
                 elif action == 'view':
                     # View a specific todo item
                     if params:
@@ -3429,7 +3457,7 @@ class BotOfTheSpecter(commands.Bot):
                         await ctx.send(f"{user.name}, please provide the task ID to view.")
                 else:
                     # Unrecognized action
-                    await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, or View.")
+                    await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
         finally:
             await sqldb.ensure_closed()
 
