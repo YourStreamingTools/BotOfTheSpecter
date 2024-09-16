@@ -2028,7 +2028,7 @@ class BotOfTheSpecter(commands.Bot):
                 result = await cursor.fetchone()
                 if result:
                     # User was lurking before
-                    previous_start_time = result[0]
+                    previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                     lurk_duration = now - previous_start_time
                     # Calculate the duration
                     days, seconds = divmod(lurk_duration.total_seconds(), 86400)
@@ -2076,7 +2076,7 @@ class BotOfTheSpecter(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = result[0]
+                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = datetime.now() - start_time
                         # Calculate the duration
                         days = elapsed_time.days
@@ -2119,7 +2119,7 @@ class BotOfTheSpecter(commands.Bot):
                     now = datetime.now()
                     for user_id, start_time_str in lurkers:
                         # Convert start_time from string to datetime
-                        start_time = start_time_str
+                        start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
                         lurk_duration = now - start_time
                         if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
                             longest_lurk = lurk_duration
