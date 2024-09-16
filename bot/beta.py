@@ -4965,7 +4965,8 @@ async def get_bot_settings():
                     'subscriber_points': int(result[3]),
                     'cheer_points': int(result[4]),
                     'raid_points': int(result[5]),
-                    'excluded_users': result[6]
+                    'subscriber_multiplier': int(result[6]),
+                    'excluded_users': result[7]
                 }
             else:
                 return None
