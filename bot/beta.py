@@ -3336,16 +3336,24 @@ class BotOfTheSpecter(commands.Bot):
                             # The task is surrounded by quotes, so we split by space and remove quotes
                             task_and_category = params[0].strip().split('"')
                             task_description = task_and_category[1].strip()
-                            # Optional category ID
+                            # Optional category ID, default to 1 if not provided
                             if len(task_and_category) > 2:
                                 category_id = int(task_and_category[2].strip()) if task_and_category[2].strip() else 1
                             else:
                                 category_id = 1
-                            # Insert into the database
-                            sql = "INSERT INTO todos (objective, category) VALUES (%s, %s)"
-                            await cursor.execute(sql, (task_description, category_id))
+                            # Fetch category name from the database based on category_id
+                            sql_category = "SELECT category FROM categories WHERE id = %s"
+                            await cursor.execute(sql_category, (category_id,))
+                            result = await cursor.fetchone()
+                            if result:
+                                category_name = result[0]
+                                await ctx.send(f'{user.name}, your task "{task_description}" has been added to category "{category_name}".')
+                            else:
+                                await ctx.send(f'{user.name}, your task "{task_description}" has been added.')
+                            # Insert the task into the database
+                            sql_insert = "INSERT INTO todos (objective, category) VALUES (%s, %s)"
+                            await cursor.execute(sql_insert, (task_description, category_id))
                             await sqldb.commit()
-                            await ctx.send(f'{user.name}, your task "{task_description}" has been added to category {category_id}.')
                         except ValueError:
                             await ctx.send(f"{user.name}, please provide a valid category ID.")
                     else:
