@@ -1270,7 +1270,7 @@ class BotOfTheSpecter(commands.Bot):
                     builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
                     await ctx.send(f"General commands: {builtin_commands_list}")
                     # Custom commands link
-                    custom_response_message = f"Custom commands: https://commands.botofthespecter.com/?user={CHANNEL_NAME}"
+                    custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/commands"
                     await ctx.send(custom_response_message)
                 except Exception as e:
                     chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
