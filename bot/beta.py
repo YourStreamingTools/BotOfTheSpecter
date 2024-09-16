@@ -4231,8 +4231,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (from_broadcaster_name, "raid", viewer_count))
             # Retrieve the bot settings to get the raid points amount and subscriber multiplier
             settings = await get_bot_settings()
-            raid_points = int(settings['point_amount_raid'])
-            subscriber_multiplier = int(settings['subscriber_multiplier'])
+            raid_points = int(settings['raid_points'])
+            subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             # Check if the user is a subscriber and apply the multiplier
             if await is_user_subscribed(from_broadcaster_id) is not None:
                 raid_points *= subscriber_multiplier
