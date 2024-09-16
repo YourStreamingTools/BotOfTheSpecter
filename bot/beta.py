@@ -821,7 +821,7 @@ class BotOfTheSpecter(commands.Bot):
         if isinstance(error, commands.CommandOnCooldown):
             command_name = ctx.command.name
             if command_name in cooldown_notify_commands:
-                retry_after = round(error.retry_after, 2)
+                retry_after = round(error.retry_after)
                 await ctx.send(f'!{command_name} is on cooldown. Please wait {retry_after} seconds before using the command again.')
             else:
                 chat_logger.info(f"{command_name} command used by {ctx.author.name} is on cooldown.")
