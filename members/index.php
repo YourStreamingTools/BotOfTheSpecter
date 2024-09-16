@@ -4,6 +4,7 @@ session_start();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
+    $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
     header('Location: login.php');
     exit();
 }
@@ -68,8 +69,11 @@ $dbHost = 'sql.botofthespecter.com';
 $dbUsername = 'USERNAME';
 $dbPassword = 'PASSWORD';
 
-// Get the username from the URL path
-$username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
+$path = trim($_SERVER['REQUEST_URI'], '/');
+$path = parse_url($path, PHP_URL_PATH);
+$pathParts = explode('/', $path);
+$username = isset($pathParts[0]) ? sanitize_input($pathParts[0]) : null;
+$page = isset($pathParts[1]) ? sanitize_input($pathParts[1]) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
 
@@ -143,7 +147,7 @@ if ($username) {
             $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
             // Close database connection
             $db = null;
-            $buildResults = "Welcome " . $_SESSION['display_name'] . ". Your viewing information for: " . $username;
+            $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
         } else {
             $notFound = true;
         }
@@ -183,6 +187,7 @@ function getTimeDifference($start_time) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Head content remains the same -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
@@ -191,6 +196,7 @@ function getTimeDifference($start_time) {
     <link rel="stylesheet" href="custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <!-- Additional meta tags -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Tools4Streaming" />
     <meta name="twitter:title" content="BotOfTheSpecter" />
@@ -228,6 +234,7 @@ function getTimeDifference($start_time) {
                     <button class="button is-link" data-target="#deaths-modal" aria-haspopup="true">Deaths</button>
                     <button class="button is-link" data-target="#hugs-modal" aria-haspopup="true">Hugs</button>
                     <button class="button is-link" data-target="#kisses-modal" aria-haspopup="true">Kisses</button>
+                    <!--<button class="button is-link" data-target="#todo-modal" aria-haspopup="true">To Do List</button>-->
                 </div>
                 <!-- Commands Modal -->
                 <div id="commands-modal" class="modal">
@@ -377,6 +384,18 @@ function getTimeDifference($start_time) {
                     </div>
                     <button class="modal-close is-large" aria-label="close"></button>
                 </div>
+                <!-- To Do List Modal --><!--
+                <div id="todo-modal" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-content">
+                        <div class="box">
+                            <h2 class="title">To Do List</h2>
+                            <!-- Your To Do List content goes here --><!--
+                            <p>Coming soon!</p>
+                        </div>
+                    </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>-->
             <?php else: ?>
                 <br>
                 <div class="box">
@@ -409,7 +428,7 @@ function redirectToUser(event) {
     const username = document.getElementById('user_search').value.trim();
     if (username) {
         // Redirect to the desired URL structure
-        window.location.href = `https://members.botofthespecter.com/${encodeURIComponent(username)}`;
+        window.location.href = `/${encodeURIComponent(username)}`;
     }
 }
 
@@ -440,7 +459,9 @@ document.querySelectorAll('.button').forEach(button => {
     button.addEventListener('click', () => {
         const target = button.dataset.target;
         const modal = document.querySelector(target);
-        modal.classList.add('is-active');
+        if (modal) {
+            modal.classList.add('is-active');
+        }
     });
 });
 
@@ -450,6 +471,18 @@ document.querySelectorAll('.modal-close, .modal-background').forEach(close => {
             modal.classList.remove('is-active');
         });
     });
+});
+
+// Auto-open modal based on the page variable
+document.addEventListener('DOMContentLoaded', function() {
+    var page = '<?php echo $page; ?>';
+    if (page) {
+        var modalId = '#' + page + '-modal';
+        var modal = document.querySelector(modalId);
+        if (modal) {
+            modal.classList.add('is-active');
+        }
+    }
 });
 </script>
 </body>
