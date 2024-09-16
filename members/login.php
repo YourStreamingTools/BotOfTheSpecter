@@ -14,9 +14,15 @@ ini_set('session.cookie_lifetime', 86400);
 // Start PHP session
 session_start();
 
-// If the user is already logged in, redirect them to the dashboard page
+// If the user is already logged in, redirect them to the original page or dashboard
 if (isset($_SESSION['access_token'])) {
-    header('Location: ../');
+    if (isset($_SESSION['redirect_url'])) {
+        $redirectUrl = filter_var($_SESSION['redirect_url'], FILTER_SANITIZE_URL);
+        unset($_SESSION['redirect_url']);
+        header("Location: $redirectUrl");
+    } else {
+        header('Location: ../');
+    }
     exit;
 }
 
@@ -110,8 +116,14 @@ if (isset($_GET['code'])) {
         $_SESSION['profile_image_url'] = $profileImageUrl;
         $_SESSION['display_name'] = $twitchDisplayName;
 
-        // Redirect to the dashboard or the members area
-        header('Location: ../');
+        // Redirect to the original page or the dashboard
+        if (isset($_SESSION['redirect_url'])) {
+            $redirectUrl = filter_var($_SESSION['redirect_url'], FILTER_SANITIZE_URL);
+            unset($_SESSION['redirect_url']);
+            header("Location: $redirectUrl");
+        } else {
+            header('Location: ../');
+        }
         exit;
     }
 }
