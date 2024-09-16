@@ -1841,9 +1841,10 @@ class BotOfTheSpecter(commands.Bot):
                     await sqldb.commit()
                     # Retrieve the updated count
                     await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (target_user,))
-                    kiss_count = await cursor.fetchone()[0]
-                    # Send the message
+                    kiss_count_result = await cursor.fetchone()
+                    kiss_count = kiss_count_result[0] if kiss_count_result else 1
                     chat_logger.info(f"{target_user} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
+                    # Send the message
                     await ctx.send(f"@{target_user} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
                 else:
                     chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
