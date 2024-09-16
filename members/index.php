@@ -203,7 +203,7 @@ function getTimeDifference($start_time) {
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <link rel="stylesheet" href="custom.css">
+    <link rel="stylesheet" href="../custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
