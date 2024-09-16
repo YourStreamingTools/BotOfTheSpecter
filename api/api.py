@@ -343,13 +343,11 @@ class PublicAPIDailyResponse(BaseModel):
     operation_id="process_fourthwall_webhook"
 )
 async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...)):
-    # Extract JSON data from the Fourthwall webhook
     try:
         webhook_data = await request.json()
         logging.info(f"{webhook_data}")
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
-    # Send the data to the WebSocket server
     async with aiohttp.ClientSession() as session:
         try:
             params = {
@@ -374,23 +372,20 @@ async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...))
     "/quotes",
     response_model=QuoteResponse,
     summary="Get a random quote",
-    tags=["Commands"]
+    description="Retrieve a random quote from the database of quotes, based on a random author.",
+    tags=["Commands"],
+    operation_id="get_random_quote"
 )
 async def quotes(api_key):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     quotes_path = "/home/fastapi/quotes.json"
     if not os.path.exists(quotes_path):
         raise HTTPException(status_code=404, detail="Quotes file not found")
     with open(quotes_path, "r") as quotes_file:
         quotes = json.load(quotes_file)
-    # Select a random author
     random_author = random.choice(list(quotes.keys()))
-    # Select a random quote from the chosen author
     random_quote = random.choice(quotes[random_author])
     return {"author": random_author, "quote": random_quote}
 
@@ -399,7 +394,9 @@ async def quotes(api_key):
     "/versions",
     response_model=VersionControlResponse,
     summary="Get the current bot versions",
-    tags=["BotOfTheSpecter"]
+    description="Fetch the beta and stable version numbers of the bot.",
+    tags=["BotOfTheSpecter"],
+    operation_id="get_bot_versions"
 )
 async def versions():
     versions_path = "/home/fastapi/versions.json"
@@ -409,12 +406,14 @@ async def versions():
         versions = json.load(versions_file)
     return versions
 
-# Websocket HeartBeat
+# Websocket Heartbeat endpoint
 @app.get(
     "/websocket/heartbeat",
     response_model=HeartbeatControlResponse,
     summary="Get the heartbeat status of the websocket server",
-    tags=["BotOfTheSpecter", "Websocket"]
+    description="Retrieve the current heartbeat status of the WebSocket server.",
+    tags=["BotOfTheSpecter", "Websocket"],
+    operation_id="get_websocket_heartbeat"
 )
 async def websocket_heartbeat():
     url = "https://websocket.botofthespecter.com/heartbeat"
@@ -422,19 +421,21 @@ async def websocket_heartbeat():
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
-                    heartbeat_data = await response.json()  # Fetch the JSON data
-                    return heartbeat_data  # Return the data as the response
+                    heartbeat_data = await response.json()
+                    return heartbeat_data
                 else:
-                    return {"status": "OFF"} 
+                    return {"status": "OFF"}
     except Exception:
         return {"status": "OFF"}
 
-# Public API Requests Remaining
+# Public API Requests Remaining (for song)
 @app.get(
     "/api/song",
     response_model=PublicAPIResponse,
-    summary="Get the current remaining requests for the song command",
-    tags=["BotOfTheSpecter"]
+    summary="Get the remaining song requests",
+    description="Get the number of remaining song requests for the current reset period.",
+    tags=["BotOfTheSpecter"],
+    operation_id="get_song_requests_remaining"
 )
 async def api_song():
     try:
@@ -458,15 +459,17 @@ async def api_song():
         ssh.close()
         return {"requests_remaining": file_content, "days_remaining": days_until_reset}
     except Exception as e:
-        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]')
-        sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
+        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
         raise HTTPException(status_code=500, detail=f"{sanitized_error}")
 
+# Public API Requests Remaining (for exchange rate)
 @app.get(
     "/api/exchangerate",
     response_model=PublicAPIResponse,
-    summary="Get the current remaining requests for the convert command for exchangerates",
-    tags=["BotOfTheSpecter"]
+    summary="Get the remaining exchangerate requests",
+    description="Retrieve the number of remaining exchange rate requests for the current reset period.",
+    tags=["BotOfTheSpecter"],
+    operation_id="get_exchangerate_requests_remaining"
 )
 async def api_exchangerate():
     try:
@@ -490,32 +493,26 @@ async def api_exchangerate():
         ssh.close()
         return {"requests_remaining": file_content, "days_remaining": days_until_reset}
     except Exception as e:
-        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]')
-        sanitized_error = str(e).replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
+        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
         raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
 
+# Public API Requests Remaining (for weather)
 @app.get(
     "/api/weather",
     response_model=PublicAPIDailyResponse,
-    summary="Get the current remaining requests for the weather API",
-    tags=["BotOfTheSpecter"]
+    summary="Get the remaining weather API requests",
+    description="Retrieve the number of remaining weather API requests for the current day, as well as the time remaining until midnight.",
+    tags=["BotOfTheSpecter"],
+    operation_id="get_weather_requests_remaining"
 )
 async def api_weather_requests_remaining():
     try:
-        # Calculate the time remaining until midnight
         now = datetime.now()
         midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
         time_until_midnight = (midnight - now).seconds
-        # Determine the format for displaying the remaining time
         hours, remainder = divmod(time_until_midnight, 3600)
         minutes, seconds = divmod(remainder, 60)
-        if hours > 0:
-            time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds"
-        elif minutes > 0:
-            time_remaining = f"{minutes} minutes, {seconds} seconds"
-        else:
-            time_remaining = f"{seconds} seconds"
-        # Connect to SFTP and retrieve the number of requests remaining
+        time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds" if hours > 0 else f"{minutes} minutes, {seconds} seconds" if minutes > 0 else f"{seconds} seconds"
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         weather_requests_file = "/var/www/api/weather.txt"
@@ -535,21 +532,14 @@ async def api_weather_requests_remaining():
     "/kill",
     response_model=KillCommandResponse,
     summary="Retrieve the Kill Command Responses",
-    responses={
-        422: {
-            "model": ValidationErrorResponse,
-            "description": "Validation Error"
-        }
-    },
-    tags=["Commands"]
+    description="Fetch kill command responses for various events.",
+    tags=["Commands"],
+    operation_id="get_kill_commands"
 )
 async def kill_responses(api_key):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     kill_command_path = "/home/fastapi/killCommand.json"
     if not os.path.exists(kill_command_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -557,32 +547,32 @@ async def kill_responses(api_key):
         kill_commands = json.load(kill_command_file)
     return {"killcommand": kill_commands}
 
-# Joke endpoint
+# Joke Endpoint
 @app.get(
     "/joke",
     response_model=JokeResponse,
     summary="Get a random joke",
-    tags=["Commands"]
+    description="Fetch a random joke from a joke API, filtered to exclude inappropriate content.",
+    tags=["Commands"],
+    operation_id="get_random_joke"
 )
 async def joke(api_key):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     jokes = await Jokes()
     get_joke = await jokes.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
     if "category" not in get_joke:
         raise HTTPException(status_code=500, detail="Error: Unable to retrieve joke from API.")
-    # Return the joke response
     return get_joke
 
-# Weather endpoint
+# Weather Data Endpoint
 @app.get(
     "/weather",
     summary="Get weather data and trigger WebSocket weather event",
-    tags=["Commands"]
+    description="Retrieve current weather data for a given location and send it to the WebSocket server.",
+    tags=["Commands"],
+    operation_id="get_weather_data_and_trigger_event"
 )
 async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query(...)):
     # Validate the API key before proceeding
@@ -603,13 +593,11 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         # Log the request for tracking remaining requests
         log_file_path = "/home/fastapi/api/weather_requests.txt"
         remaining_requests = 1000  # Default daily request limit
-        # Check current remaining requests
         try:
             with open(log_file_path, "r") as log_file:
                 remaining_requests = int(log_file.read().strip())
         except FileNotFoundError:
-            # If log file does not exist, we start with the max requests
-            remaining_requests = 1000
+            remaining_requests = 1000  # If log file does not exist, we start with the max requests
         # Reduce remaining requests by 1
         remaining_requests -= 1
         # Log the new remaining request count
@@ -679,92 +667,88 @@ def get_wind_direction(deg):
             return direction
     return "N/A"
 
-# Websocket endpoints
+# WebSocket TTS Trigger
 @app.get(
     "/websocket/tts",
     summary="Trigger TTS via API",
+    description="Send a text-to-speech (TTS) event to the WebSocket server, allowing TTS to be triggered via API.",
     tags=["Websocket"],
     response_model=dict,
+    operation_id="trigger_websocket_tts"
 )
 async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     params = {"event": "TTS", "text": text}
     await websocket_notice("TTS", params, api_key)
     return {"status": "success"}
 
+# WebSocket Walkon Trigger
 @app.get(
     "/websocket/walkon",
-    summary="Trigger WALKON via API",
-    tags=["Websocket"]
+    summary="Trigger Walkon via API",
+    description="Trigger the 'Walkon' event for a specified user via the WebSocket server.",
+    tags=["Websocket"],
+    operation_id="trigger_websocket_walkon"
 )
 async def websocket_walkon(request: WalkonRequest, api_key, user):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
-    channel = valid  # Fetch the channel (username) from the database
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    channel = valid
     walkon_file_path = f"/var/www/walkons/{channel}/{request.user}.mp3"
     if os.path.exists(walkon_file_path):
         params = {"event": "WALKON", "channel": channel, "user": request.user}
         await websocket_notice("WALKON", params, api_key)
         return {"status": "success"}
     else:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Walkon file for user '{request.user}' does not exist."
-        )
+        raise HTTPException(status_code=404, detail=f"Walkon file for user '{request.user}' does not exist.")
 
+# WebSocket Deaths Trigger
 @app.get(
     "/websocket/deaths",
-    summary="Trigger DEATHS via API",
-    tags=["Websocket"]
+    summary="Trigger Deaths via API",
+    description="Trigger the 'Deaths' event with custom death text for a game via the WebSocket server.",
+    tags=["Websocket"],
+    operation_id="trigger_websocket_deaths"
 )
 async def websocket_deaths(request: DeathsRequest, api_key):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     params = {"event": "DEATHS", "death-text": request.death, "game": request.game}
     await websocket_notice("DEATHS", params, api_key)
     return {"status": "success"}
 
+# WebSocket Stream Online Trigger
 @app.get(
     "/websocket/stream_online",
-    summary="Trigger STREAM_ONLINE via API",
-    tags=["Websocket"]
+    summary="Trigger Stream Online via API",
+    description="Send a 'Stream Online' event to the WebSocket server to notify that the stream is live.",
+    tags=["Websocket"],
+    operation_id="trigger_websocket_stream_online"
 )
 async def websocket_stream_online(api_key):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     params = {"event": "STREAM_ONLINE"}
     await websocket_notice("STREAM_ONLINE", params, api_key)
     return {"status": "success"}
 
+# WebSocket Stream Offline Trigger
 @app.get(
     "/websocket/stream_offline",
-    summary="Trigger STREAM_OFFLINE via API",
-    tags=["Websocket"]
+    summary="Trigger Stream Offline via API",
+    description="Send a 'Stream Offline' event to the WebSocket server to notify that the stream is offline.",
+    tags=["Websocket"],
+    operation_id="trigger_websocket_stream_offline"
 )
 async def websocket_stream_offline(api_key):
-    valid = await verify_api_key(api_key)  # Validate the API key before proceeding
-    if not valid:  # Check if the API key is valid
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API Key",
-        )
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     params = {"event": "STREAM_OFFLINE"}
     await websocket_notice("STREAM_OFFLINE", params, api_key)
     return {"status": "success"}
