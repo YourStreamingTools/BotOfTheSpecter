@@ -4288,7 +4288,7 @@ async def process_cheer_event(user_id, user_name, bits):
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
             settings = await get_bot_settings()
-            cheer_points = int(settings['point_amount_cheer'])
+            cheer_points = int(settings['cheer_points'])
             subscriber_multiplier = int(settings['subscriber_multiplier'])
             # Check if the user is a subscriber and apply the multiplier
             if await is_user_subscribed(user_id) is not None:
