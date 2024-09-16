@@ -4951,6 +4951,7 @@ async def get_bot_settings():
                     point_amount_subscriber, 
                     point_amount_cheer, 
                     point_amount_raid,
+                    subscriber_multiplier,
                     excluded_users
                 FROM bot_settings 
                 LIMIT 1
