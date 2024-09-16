@@ -72,10 +72,21 @@ $dbPassword = 'PASSWORD';
 $path = trim($_SERVER['REQUEST_URI'], '/');
 $path = parse_url($path, PHP_URL_PATH);
 $pathParts = explode('/', $path);
-$username = isset($pathParts[0]) ? sanitize_input($pathParts[0]) : null;
-$page = isset($pathParts[1]) ? sanitize_input($pathParts[1]) : null;
+$username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
+$page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
+
+// Mapping of page paths to modal IDs
+$modalMapping = [
+    'commands' => 'commands-modal',
+    'command-counts' => 'custom-command-modal',
+    'lurkers' => 'lurkers-modal',
+    'typos' => 'typos-modal',
+    'deaths' => 'deaths-modal',
+    'hugs' => 'hugs-modal',
+    'kisses' => 'kisses-modal',
+];
 
 if ($username) {
     try {
@@ -187,7 +198,6 @@ function getTimeDifference($start_time) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Head content remains the same -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
@@ -196,7 +206,6 @@ function getTimeDifference($start_time) {
     <link rel="stylesheet" href="custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <!-- Additional meta tags -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Tools4Streaming" />
     <meta name="twitter:title" content="BotOfTheSpecter" />
@@ -422,6 +431,10 @@ function getTimeDifference($start_time) {
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
+// Pass the modal mapping to JavaScript
+var modalMapping = <?php echo json_encode($modalMapping); ?>;
+var page = '<?php echo $page; ?>';
+
 // Function to redirect form submission to the new URL structure
 function redirectToUser(event) {
     event.preventDefault();
@@ -475,12 +488,13 @@ document.querySelectorAll('.modal-close, .modal-background').forEach(close => {
 
 // Auto-open modal based on the page variable
 document.addEventListener('DOMContentLoaded', function() {
-    var page = '<?php echo $page; ?>';
     if (page) {
-        var modalId = '#' + page + '-modal';
-        var modal = document.querySelector(modalId);
-        if (modal) {
-            modal.classList.add('is-active');
+        var modalId = modalMapping[page];
+        if (modalId) {
+            var modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('is-active');
+            }
         }
     }
 });
