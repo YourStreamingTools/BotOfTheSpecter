@@ -94,7 +94,8 @@ if ($username) {
         $checkDb = new PDO("mysql:host=$dbHost", $dbUsername, $dbPassword);
         $checkDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         // Escape underscore (_) only for the SHOW DATABASES LIKE query
-        $escapedUsername = str_replace('_', '\\_', $username); // Only escape for database query
+        $username = isset($_GET['user']) ? strtolower(sanitize_input($_GET['user'])) : null;
+        $escapedUsername = str_replace('_', '\\_', $username);
         // Prepare the statement to prevent SQL injection
         $stmt = $checkDb->prepare("SHOW DATABASES LIKE :username");
         $stmt->bindParam(':username', $escapedUsername, PDO::PARAM_STR);
