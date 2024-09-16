@@ -4,5 +4,6 @@ RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 
-# Rewrite URL to index.php and pass the username as a query parameter
+# Rewrite URLs like /username/page to index.php?user=username&page=page
 RewriteRule ^([^/]+)/?$ index.php?user=$1 [L]
+RewriteRule ^([^/]+)/([^/]+)/?$ index.php?user=$1&page=$2 [L]
