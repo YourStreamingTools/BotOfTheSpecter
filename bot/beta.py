@@ -739,7 +739,7 @@ async def connect():
     # Prepare the registration data
     registration_data = {
         'code': API_TOKEN,
-        'name': f'Twitch Bot Beta'
+        'name': f'Twitch Bot Beta V{VERSION}B'
     }
     # Emit the 'REGISTER' event
     await sio.emit('REGISTER', registration_data)
