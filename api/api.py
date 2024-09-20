@@ -295,7 +295,7 @@ class VersionControlResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "beta_version": "4.7",
+                "beta_version": "4.8",
                 "stable_version": "4.7"
             }
         }
