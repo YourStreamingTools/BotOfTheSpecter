@@ -96,12 +96,35 @@ if ($response === false) {
 curl_close($checkModConnect);
 $ModStatusOutput = $BotIsMod;
 $BotModMessage = "";
+$setupMessage = "";
 if ($ModStatusOutput) {
   $BotModMessage = "<p class='has-text-success'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
 } else {
-  $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p>";
+  $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p><br>
+  <form method='post'>
+      <button class='button is-success bot-button' type='submit' name='setupBot'>Run Setup</button>
+  </form>";
 }
 
+// When the setup button is clicked
+if (isset($_POST['setupBot'])) {
+  // Escape shell arguments to ensure they are safely passed to the command
+  $escapedUsername = escapeshellarg($username);
+  $escapedTwitchUserId = escapeshellarg($twitchUserId);
+  $escapedAuthToken = escapeshellarg($authToken);
+  // Run the setup script with shell_exec and pass the escaped arguments
+  shell_exec("python3 /var/www/bot/setup.py -channel $escapedUsername -channelid $escapedTwitchUserId -token $escapedAuthToken 2>&1");
+  // Add a message or feedback to the user while processing the request
+  $setupMessage = "<p>Running setup, please wait...</p>";
+  // Add a delay before refreshing the page
+  sleep(3);
+  // Refresh the page after the delay
+  echo '<script type="text/javascript">
+            setTimeout(function(){
+                window.location.reload(1);
+            }, 500); // Refresh after 0.5 seconds
+        </script>';
+}
 $today = new DateTime();
 ?>
 <!DOCTYPE html>
@@ -120,6 +143,7 @@ $today = new DateTime();
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php echo $BotModMessage; ?>
+  <?php echo $setupMessage; ?>
   <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
