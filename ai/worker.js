@@ -2,6 +2,7 @@
 const recentResponses = new Map();
 const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_CONVERSATION_LENGTH = 20; // Maximum number of messages in history
+const AI_CHARACTER_LIMIT = 490; // Adjusted to account for potential name prefix
 
 // Function to remove formatting from the text
 function removeFormatting(text) {
@@ -143,6 +144,76 @@ function handleNotNewResponse(message) {
   return null;
 }
 
+// Function to retrieve OAuth token
+async function getOAuthToken(env) {
+  // Check if token is cached
+  const cachedToken = await env.KV_NAMESPACE.get('TWITCH_OAUTH_TOKEN');
+  if (cachedToken) {
+    return cachedToken;
+  }
+  // Request new token
+  const response = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: env.TWITCH_CLIENT_ID,
+      client_secret: env.TWITCH_CLIENT_SECRET,
+      grant_type: 'client_credentials',
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to obtain OAuth token: ${response.statusText}`);
+  }
+  const data = await response.json();
+  const accessToken = data.access_token;
+  const expiresIn = data.expires_in; // In seconds
+  // Cache the token with a slight buffer before actual expiry
+  await env.KV_NAMESPACE.put('TWITCH_OAUTH_TOKEN', accessToken, {
+    expirationTtl: expiresIn - 60, // Refresh a minute before expiry
+  });
+  return accessToken;
+}
+
+// Function to fetch Twitch username from user_id
+async function getUsername(user_id, env) {
+  // Check if username is cached
+  const cachedUsername = await env.KV_NAMESPACE.get(`USERNAME_${user_id}`);
+  if (cachedUsername) {
+    return cachedUsername;
+  }
+  // Get OAuth token
+  let oauthToken;
+  try {
+    oauthToken = await getOAuthToken(env);
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+  // Fetch user data from Twitch API
+  const response = await fetch(`https://api.twitch.tv/helix/users?id=${user_id}`, {
+    headers: {
+      'Client-ID': env.TWITCH_CLIENT_ID,
+      'Authorization': `Bearer ${oauthToken}`,
+    },
+  });
+  if (!response.ok) {
+    console.error(`Twitch API error: ${response.statusText}`);
+    return null;
+  }
+  const data = await response.json();
+  if (data.data && data.data.length > 0) {
+    const username = data.data[0].login; // Twitch username
+    // Cache the username for 24 hours
+    await env.KV_NAMESPACE.put(`USERNAME_${user_id}`, username, {
+      expirationTtl: 86400, // 24 hours in seconds
+    });
+    return username;
+  }
+  return null;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -186,7 +257,7 @@ export default {
       }
     }
     // Function to query insults from the database
-    async function getInsults() {
+    async function getInsults(env) {
       const query = 'SELECT insult FROM insults';
       try {
         const results = await env.database.prepare(query).all();
@@ -197,14 +268,14 @@ export default {
       }
     }
     // Function to detect insults
-    async function detectInsult(message) {
-      const insults = await getInsults();
+    async function detectInsult(message, env) {
+      const insults = await getInsults(env);
       return insults.some(insult => message.includes(insult));
     }
     // Function to get conversation history from KV storage
-    async function getConversationHistory(channel, message_user) {
+    async function getConversationHistory(channel, message_user, env) {
       const key = `conversation_${channel}_${message_user}`;
-      const conversation = await env.namespace.get(key);
+      const conversation = await env.KV_NAMESPACE.get(key);
       if (conversation) {
         try {
           const parsed = JSON.parse(conversation);
@@ -217,7 +288,7 @@ export default {
       return [];
     }
     // Function to save conversation history to KV storage
-    async function saveConversationHistory(channel, message_user, history) {
+    async function saveConversationHistory(channel, message_user, history, env) {
       const key = `conversation_${channel}_${message_user}`;
       try {
         await env.namespace.put(key, JSON.stringify(history));
@@ -308,7 +379,7 @@ export default {
         const channel = body.channel || 'unknown';
         const message_user = body.message_user || 'anonymous';
         // Retrieve conversation history
-        let conversationHistory = await getConversationHistory(channel, message_user);
+        let conversationHistory = await getConversationHistory(channel, message_user, env);
         console.log('Previous Conversation History:', conversationHistory);
         // Append the new user message
         conversationHistory.push({ role: 'user', content: userMessage });
@@ -320,17 +391,17 @@ export default {
         const predefinedResponse = await getPredefinedResponse(normalizedMessage);
         if (predefinedResponse) {
           conversationHistory.push({ role: 'assistant', content: predefinedResponse });
-          await saveConversationHistory(channel, message_user, conversationHistory);
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Predefined Response:', predefinedResponse);
           return new Response(predefinedResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
         // Detect insults
-        if (await detectInsult(normalizedMessage)) {
+        if (await detectInsult(normalizedMessage, env)) {
           const insultResponse = getInsultResponse();
           conversationHistory.push({ role: 'assistant', content: insultResponse });
-          await saveConversationHistory(channel, message_user, conversationHistory);
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Insult Response:', insultResponse);
           return new Response(insultResponse, {
             headers: { 'content-type': 'text/plain' },
@@ -340,7 +411,7 @@ export default {
         if (handleSensitiveQuestion(normalizedMessage)) {
           const sensitiveResponse = "As a system committed to respecting privacy and individuality, I avoid sharing or providing descriptions of people or personal information. My designer ensures that any interaction remains secure and confidential, focusing solely on delivering helpful and relevant information without compromising anyone's privacy.";
           conversationHistory.push({ role: 'assistant', content: sensitiveResponse });
-          await saveConversationHistory(channel, message_user, conversationHistory);
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Sensitive Response:', sensitiveResponse);
           return new Response(sensitiveResponse, {
             headers: { 'content-type': 'text/plain' },
@@ -350,7 +421,7 @@ export default {
         const funnyResponse = handleFunnyResponses(normalizedMessage);
         if (funnyResponse) {
           conversationHistory.push({ role: 'assistant', content: funnyResponse });
-          await saveConversationHistory(channel, message_user, conversationHistory);
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Funny Response:', funnyResponse);
           return new Response(funnyResponse, {
             headers: { 'content-type': 'text/plain' },
@@ -360,7 +431,7 @@ export default {
         const notNewResponse = handleNotNewResponse(normalizedMessage);
         if (notNewResponse) {
           conversationHistory.push({ role: 'assistant', content: notNewResponse });
-          await saveConversationHistory(channel, message_user, conversationHistory);
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Not New Response:', notNewResponse);
           return new Response(notNewResponse, {
             headers: { 'content-type': 'text/plain' },
@@ -368,13 +439,24 @@ export default {
         }
         // Retrieve the desired name
         const desiredName = await getDesiredName(message_user, env);
-        const displayName = desiredName ? `${desiredName}, ` : '';
+        // Fetch Twitch username if desired name is not set and user_id is valid
+        let twitchUsername = null;
+        if (!desiredName && message_user !== 'anonymous') { 
+          twitchUsername = await getUsername(message_user, env);
+        }
+        // Determine how to address the user
+        let userPrefix = '';
+        if (desiredName) {
+          userPrefix = `${desiredName}, `;
+        } else if (twitchUsername) {
+          userPrefix = `${twitchUsername}, `;
+        }
         // Prepare the AI chat prompt with conversation history
         const chatPrompt = {
           messages: [
             {
               role: 'system',
-              content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep each of your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information briefly within a 490 character limit including spaces. If a user asks for more information, provide additional details in another response, adhering to the same character limit."
+              content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep each of your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information briefly within a 500 character limit including spaces. If a user asks for more information, provide additional details in another response, adhering to the same character limit."
             },
             // Include conversation history up to the last MAX_CONVERSATION_LENGTH messages
             ...conversationHistory.slice(-MAX_CONVERSATION_LENGTH)
@@ -390,14 +472,14 @@ export default {
             console.log('AI response:', chatResponse);
             aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             aiMessage = removeFormatting(aiMessage);
-            // Enforce 490 character limit
-            aiMessage = enforceCharacterLimit(aiMessage, 490);
+            // Enforce adjusted character limit
+            aiMessage = enforceCharacterLimit(aiMessage, AI_CHARACTER_LIMIT);
             attempt++;
           } while (isRecentResponse(aiMessage) && attempt < MAX_ATTEMPTS);
-          // Prepend the desired name to the AI response only if set
-          aiMessage = displayName + aiMessage;
+          // Prepend the user's name if available
+          aiMessage = userPrefix + aiMessage;
           conversationHistory.push({ role: 'assistant', content: aiMessage });
-          await saveConversationHistory(channel, message_user, conversationHistory);
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Final AI Response:', aiMessage);
           return new Response(aiMessage, {
             headers: { 'content-type': 'text/plain' },
