@@ -147,7 +147,7 @@ function handleNotNewResponse(message) {
 // Function to retrieve OAuth token
 async function getOAuthToken(env) {
   // Check if token is cached
-  const cachedToken = await env.KV_NAMESPACE.get('TWITCH_OAUTH_TOKEN');
+  const cachedToken = await env.namespace.get('TWITCH_OAUTH_TOKEN');
   if (cachedToken) {
     return cachedToken;
   }
@@ -170,7 +170,7 @@ async function getOAuthToken(env) {
   const accessToken = data.access_token;
   const expiresIn = data.expires_in; // In seconds
   // Cache the token with a slight buffer before actual expiry
-  await env.KV_NAMESPACE.put('TWITCH_OAUTH_TOKEN', accessToken, {
+  await env.namespace.put('TWITCH_OAUTH_TOKEN', accessToken, {
     expirationTtl: expiresIn - 60, // Refresh a minute before expiry
   });
   return accessToken;
@@ -179,7 +179,7 @@ async function getOAuthToken(env) {
 // Function to fetch Twitch username from user_id
 async function getUsername(user_id, env) {
   // Check if username is cached
-  const cachedUsername = await env.KV_NAMESPACE.get(`USERNAME_${user_id}`);
+  const cachedUsername = await env.namespace.get(`USERNAME_${user_id}`);
   if (cachedUsername) {
     return cachedUsername;
   }
@@ -206,7 +206,7 @@ async function getUsername(user_id, env) {
   if (data.data && data.data.length > 0) {
     const username = data.data[0].login; // Twitch username
     // Cache the username for 24 hours
-    await env.KV_NAMESPACE.put(`USERNAME_${user_id}`, username, {
+    await env.namespace.put(`USERNAME_${user_id}`, username, {
       expirationTtl: 86400, // 24 hours in seconds
     });
     return username;
@@ -275,7 +275,7 @@ export default {
     // Function to get conversation history from KV storage
     async function getConversationHistory(channel, message_user, env) {
       const key = `conversation_${channel}_${message_user}`;
-      const conversation = await env.KV_NAMESPACE.get(key);
+      const conversation = await env.namespace.get(key);
       if (conversation) {
         try {
           const parsed = JSON.parse(conversation);
