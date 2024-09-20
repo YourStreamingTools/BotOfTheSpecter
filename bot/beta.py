@@ -51,7 +51,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.7"
+VERSION = "4.8"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -118,16 +118,6 @@ global bot_started
 bot_started = datetime.now()
 stream_online = False
 current_game = None
-
-# Spam Messages
-spam_pattern = [
-    re.compile(r'cheap viewers on', re.IGNORECASE),
-    re.compile(r'best viewers on', re.IGNORECASE),
-    re.compile(r'ch̍eap viewers on', re.IGNORECASE),
-    re.compile(r'B͟est Viewers on', re.IGNORECASE),
-    re.compile(r'B̟est viewers', re.IGNORECASE),
-    re.compile(r'Ch͟eap viewers on', re.IGNORECASE),
-]
 
 # Setup Token Refresh
 async def token_refresh():
@@ -853,6 +843,7 @@ class BotOfTheSpecter(commands.Bot):
                 messageAuthorID = message.author.id if message.author else ""
                 AuthorMessage = message.content if message.content else ""
                 # Check if the message matches the spam pattern
+                spam_pattern = await get_spam_patterns()
                 for pattern in spam_pattern:
                     if pattern.search(messageContent):
                         bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
@@ -5030,6 +5021,24 @@ async def get_mysql_connection():
         password=SQL_PASSWORD,
         db=CHANNEL_NAME
     )
+
+async def get_spam_patterns():
+    # Connect to your MySQL database
+    conn = await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db="spam_pattern",
+    )
+    async with conn.cursor() as cursor:
+        await cursor.execute("SELECT spam_pattern FROM spam_patterns")
+        results = await cursor.fetchall()
+        # Close the connection
+        await cursor.close()
+        conn.close()
+        # Compile the regular expressions
+        compiled_patterns = [re.compile(row[0], re.IGNORECASE) for row in results]
+    return compiled_patterns
 
 async def setup_database():
     try:
