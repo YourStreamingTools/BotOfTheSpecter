@@ -1,6 +1,7 @@
 // Global variables to persist data between requests
 const recentResponses = new Map();
 const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
+const MAX_CONVERSATION_LENGTH = 20; // Maximum number of messages in history
 
 // Function to remove formatting from the text
 function removeFormatting(text) {
@@ -198,13 +199,26 @@ export default {
     async function getConversationHistory(channel, message_user) {
       const key = `conversation_${channel}_${message_user}`;
       const conversation = await env.namespace.get(key);
-      return conversation ? JSON.parse(conversation) : [];
+      if (conversation) {
+        try {
+          const parsed = JSON.parse(conversation);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('Error parsing conversation history:', e);
+          return [];
+        }
+      }
+      return [];
     }
 
     // Function to save conversation history to KV storage
     async function saveConversationHistory(channel, message_user, history) {
       const key = `conversation_${channel}_${message_user}`;
-      await env.namespace.put(key, JSON.stringify(history));
+      try {
+        await env.namespace.put(key, JSON.stringify(history));
+      } catch (e) {
+        console.error('Error saving conversation history:', e);
+      }
     }
 
     // Handle requests at the base path "/"
@@ -268,79 +282,98 @@ export default {
         try {
           body = await request.json();
         } catch (e) {
+          console.error('Invalid JSON:', e);
           return new Response('Bad Request: Invalid JSON', { status: 400 });
         }
 
-        const userMessage = normalizeMessage(body.message);
+        const userMessage = body.message ? body.message.trim() : '';
+        if (!userMessage) {
+          return new Response('Bad Request: Missing message field', { status: 400 });
+        }
+        const normalizedMessage = normalizeMessage(userMessage);
         const channel = body.channel || 'unknown';
         const message_user = body.message_user || 'anonymous';
 
         // Retrieve conversation history
         let conversationHistory = await getConversationHistory(channel, message_user);
-        conversationHistory.push({ role: 'user', content: body.message });
+        console.log('Previous Conversation History:', conversationHistory);
+        // Append the new user message
+        conversationHistory.push({ role: 'user', content: userMessage });
+        // Ensure conversation history does not exceed the maximum length
+        if (conversationHistory.length > MAX_CONVERSATION_LENGTH) {
+          conversationHistory = conversationHistory.slice(-MAX_CONVERSATION_LENGTH);
+        }
 
         // Query predefined responses
-        const predefinedResponse = await getPredefinedResponse(userMessage);
+        const predefinedResponse = await getPredefinedResponse(normalizedMessage);
         if (predefinedResponse) {
           conversationHistory.push({ role: 'assistant', content: predefinedResponse });
           await saveConversationHistory(channel, message_user, conversationHistory);
+          console.log('Predefined Response:', predefinedResponse);
           return new Response(predefinedResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
 
         // Detect insults
-        if (await detectInsult(userMessage)) {
+        if (await detectInsult(normalizedMessage)) {
           const insultResponse = getInsultResponse();
           conversationHistory.push({ role: 'assistant', content: insultResponse });
           await saveConversationHistory(channel, message_user, conversationHistory);
+          console.log('Insult Response:', insultResponse);
           return new Response(insultResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
 
         // Handle sensitive questions
-        if (handleSensitiveQuestion(userMessage)) {
+        if (handleSensitiveQuestion(normalizedMessage)) {
           const sensitiveResponse = "As a system committed to respecting privacy and individuality, I avoid sharing or providing descriptions of people or personal information. My designer ensures that any interaction remains secure and confidential, focusing solely on delivering helpful and relevant information without compromising anyone's privacy.";
           conversationHistory.push({ role: 'assistant', content: sensitiveResponse });
           await saveConversationHistory(channel, message_user, conversationHistory);
+          console.log('Sensitive Response:', sensitiveResponse);
           return new Response(sensitiveResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
 
         // Handle funny responses
-        const funnyResponse = handleFunnyResponses(userMessage);
+        const funnyResponse = handleFunnyResponses(normalizedMessage);
         if (funnyResponse) {
           conversationHistory.push({ role: 'assistant', content: funnyResponse });
           await saveConversationHistory(channel, message_user, conversationHistory);
+          console.log('Funny Response:', funnyResponse);
           return new Response(funnyResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
 
         // Handle "I'm not new" responses
-        const notNewResponse = handleNotNewResponse(userMessage);
+        const notNewResponse = handleNotNewResponse(normalizedMessage);
         if (notNewResponse) {
           conversationHistory.push({ role: 'assistant', content: notNewResponse });
           await saveConversationHistory(channel, message_user, conversationHistory);
+          console.log('Not New Response:', notNewResponse);
           return new Response(notNewResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         }
 
-        // Prepare the AI chat prompt
+        // Prepare the AI chat prompt with conversation history
         const chatPrompt = {
           messages: [
             {
               role: 'system',
-              content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information briefly within a 500 character limit including spaces."
+              content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep each of your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information briefly within a 500 character limit including spaces. If a user asks for more information, provide additional details in another response, adhering to the same character limit."
             },
-            { role: 'user', content: body.message }
+            ...conversationHistory.slice(-MAX_CONVERSATION_LENGTH)
           ]
         };
+        console.log('Chat Prompt:', JSON.stringify(chatPrompt, null, 2));
         try {
           let aiMessage;
+          let attempt = 0;
+          const MAX_ATTEMPTS = 3; // Prevent infinite loops
           do {
             const chatResponse = await runAI(chatPrompt);
             console.log('AI response:', chatResponse);
@@ -348,10 +381,11 @@ export default {
             aiMessage = removeFormatting(aiMessage);
             // Enforce 500 character limit
             aiMessage = enforceCharacterLimit(aiMessage, 500);
-          } while (isRecentResponse(aiMessage));
+            attempt++;
+          } while (isRecentResponse(aiMessage) && attempt < MAX_ATTEMPTS);
           conversationHistory.push({ role: 'assistant', content: aiMessage });
           await saveConversationHistory(channel, message_user, conversationHistory);
-          console.log('Formatted response:', aiMessage);
+          console.log('Final AI Response:', aiMessage);
           return new Response(aiMessage, {
             headers: { 'content-type': 'text/plain' },
           });
