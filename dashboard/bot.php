@@ -58,7 +58,6 @@ $live_channel_id = $discordUser['live_channel_id'] ?? null;
 
 // Twitch API URL
 $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
-$addMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}&user_id=971436498";
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
 $checkModConnect = curl_init($checkMod);
@@ -81,7 +80,7 @@ if ($response === false) {
     // Decode the response
     $responseData = json_decode($response, true);
     if (isset($responseData['data'])) {
-        // Check if the user is in the list of moderators
+        // Check if the bot is in the list of moderators
         foreach ($responseData['data'] as $mod) {
             if ($mod['user_login'] === 'botofthespecter') {
                 $BotIsMod = true;
@@ -97,13 +96,22 @@ curl_close($checkModConnect);
 $ModStatusOutput = $BotIsMod;
 $BotModMessage = "";
 $setupMessage = "";
+$showButtons = false;
+
+// Handle the bot mod status
 if ($ModStatusOutput) {
   $BotModMessage = "<p class='has-text-success'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
+  $showButtons = true;
 } else {
+  $showButtons = false;
   $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p><br>
   <form method='post'>
-      <button class='button is-success bot-button' type='submit' name='setupBot'>Run Setup</button>
+    <button class='button is-success bot-button' type='submit' name='setupBot'>Run Setup</button>
   </form>";
+  if ($username !== 'BotOfTheSpecter') {
+    $BotModMessage = "<p class='has-text-success'>Welcome to your own system!</p>";
+    $showButtons = true;
+  }
 }
 
 // When the setup button is clicked
@@ -148,6 +156,7 @@ $today = new DateTime();
   <br>
   <div class="columns is-desktop is-multiline box-container">
     <!-- Stable Bot Section -->
+    <?php if ($showButtons): ?>
     <div class="column is-5 bot-box" id="bot-status">
       <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
       <?php echo $statusOutput; ?>
@@ -164,6 +173,7 @@ $today = new DateTime();
         </form>
       </div>
     </div>
+    <?php endif; ?>
     <!-- Beta Bot Section -->
     <?php if ($betaAccess) { ?>
     <div class="column is-5 bot-box" id="beta-bot-status">
