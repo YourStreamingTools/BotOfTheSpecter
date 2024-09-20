@@ -457,6 +457,7 @@ export default {
             {
               role: 'system',
               content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep each of your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information briefly within a 500 character limit including spaces. If a user asks for more information, provide additional details in another response, adhering to the same character limit."
+              content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep each of your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. **Do not include any prefixes, usernames, or salutations** in your responses. Focus on delivering helpful and relevant information briefly within a 500 character limit including spaces. If a user asks for more information, provide additional details in another response, adhering to the same character limit."
             },
             // Include conversation history up to the last MAX_CONVERSATION_LENGTH messages
             ...conversationHistory.slice(-MAX_CONVERSATION_LENGTH)
@@ -464,27 +465,30 @@ export default {
         };
         console.log('Chat Prompt:', JSON.stringify(chatPrompt, null, 2));
         try {
-          let aiMessage;
+          let rawAiMessage;
           let attempt = 0;
           const MAX_ATTEMPTS = 3; // Prevent infinite loops
           do {
             const chatResponse = await runAI(chatPrompt);
             console.log('AI response:', chatResponse);
-            aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
-            aiMessage = removeFormatting(aiMessage);
-            // Check if userPrefix is already in the AI response to avoid duplicating it
-            if (!aiMessage.startsWith(userPrefix)) {
-              aiMessage = userPrefix + aiMessage;
-            }
+            rawAiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
+            rawAiMessage = removeFormatting(rawAiMessage);
             // Enforce adjusted character limit
-            aiMessage = enforceCharacterLimit(aiMessage, AI_CHARACTER_LIMIT);
+            rawAiMessage = enforceCharacterLimit(rawAiMessage, AI_CHARACTER_LIMIT);
             attempt++;
-          } while (isRecentResponse(aiMessage) && attempt < MAX_ATTEMPTS);
-          // Save the final AI response to conversation history
-          conversationHistory.push({ role: 'assistant', content: aiMessage });
+          } while (isRecentResponse(rawAiMessage) && attempt < MAX_ATTEMPTS);
+          // Prepend the user's name if available
+          let prefixedAiMessage = '';
+          if (userPrefix) {
+            prefixedAiMessage = `${userPrefix}${rawAiMessage}`;
+          } else {
+            prefixedAiMessage = rawAiMessage;
+          }
+          // Add the raw AI message to conversation history
+          conversationHistory.push({ role: 'assistant', content: rawAiMessage });
           await saveConversationHistory(channel, message_user, conversationHistory, env);
-          console.log('Final AI Response:', aiMessage);
-          return new Response(aiMessage, {
+          console.log('Final AI Response:', prefixedAiMessage);
+          return new Response(prefixedAiMessage, {
             headers: { 'content-type': 'text/plain' },
           });
         } catch (error) {
