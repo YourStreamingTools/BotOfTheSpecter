@@ -174,27 +174,33 @@ export default {
         throw error;
       }
     }
-
     // Function to query predefined responses from the database
     async function getPredefinedResponse(question) {
       const query = 'SELECT response FROM predefined_responses WHERE question = ?';
-      const result = await env.database.prepare(query).bind(question).first();
-      return result?.response || null;
+      try {
+        const result = await env.database.prepare(query).bind(question).first();
+        return result?.response || null;
+      } catch (e) {
+        console.error('Error fetching predefined response:', e);
+        return null;
+      }
     }
-
     // Function to query insults from the database
     async function getInsults() {
       const query = 'SELECT insult FROM insults';
-      const results = await env.database.prepare(query).all();
-      return results.results.map(row => row.insult);
+      try {
+        const results = await env.database.prepare(query).all();
+        return results.results.map(row => row.insult);
+      } catch (e) {
+        console.error('Error fetching insults:', e);
+        return [];
+      }
     }
-
     // Function to detect insults
     async function detectInsult(message) {
       const insults = await getInsults();
       return insults.some(insult => message.includes(insult));
     }
-
     // Function to get conversation history from KV storage
     async function getConversationHistory(channel, message_user) {
       const key = `conversation_${channel}_${message_user}`;
@@ -210,7 +216,6 @@ export default {
       }
       return [];
     }
-
     // Function to save conversation history to KV storage
     async function saveConversationHistory(channel, message_user, history) {
       const key = `conversation_${channel}_${message_user}`;
@@ -220,7 +225,17 @@ export default {
         console.error('Error saving conversation history:', e);
       }
     }
-
+    // Function to get desired name from D1 SQL Database
+    async function getDesiredName(user_id, env) {
+      const query = 'SELECT desired_name FROM user_preferences WHERE user_id = ?';
+      try {
+        const result = await env.database.prepare(query).bind(user_id).first();
+        return result?.desired_name || null;
+      } catch (e) {
+        console.error('Error fetching desired name:', e);
+        return null;
+      }
+    }
     // Handle requests at the base path "/"
     if (path === '/') {
       if (request.method === 'GET') {
@@ -285,7 +300,6 @@ export default {
           console.error('Invalid JSON:', e);
           return new Response('Bad Request: Invalid JSON', { status: 400 });
         }
-
         const userMessage = body.message ? body.message.trim() : '';
         if (!userMessage) {
           return new Response('Bad Request: Missing message field', { status: 400 });
@@ -293,7 +307,6 @@ export default {
         const normalizedMessage = normalizeMessage(userMessage);
         const channel = body.channel || 'unknown';
         const message_user = body.message_user || 'anonymous';
-
         // Retrieve conversation history
         let conversationHistory = await getConversationHistory(channel, message_user);
         console.log('Previous Conversation History:', conversationHistory);
@@ -303,7 +316,6 @@ export default {
         if (conversationHistory.length > MAX_CONVERSATION_LENGTH) {
           conversationHistory = conversationHistory.slice(-MAX_CONVERSATION_LENGTH);
         }
-
         // Query predefined responses
         const predefinedResponse = await getPredefinedResponse(normalizedMessage);
         if (predefinedResponse) {
@@ -314,7 +326,6 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-
         // Detect insults
         if (await detectInsult(normalizedMessage)) {
           const insultResponse = getInsultResponse();
@@ -325,7 +336,6 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-
         // Handle sensitive questions
         if (handleSensitiveQuestion(normalizedMessage)) {
           const sensitiveResponse = "As a system committed to respecting privacy and individuality, I avoid sharing or providing descriptions of people or personal information. My designer ensures that any interaction remains secure and confidential, focusing solely on delivering helpful and relevant information without compromising anyone's privacy.";
@@ -336,7 +346,6 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-
         // Handle funny responses
         const funnyResponse = handleFunnyResponses(normalizedMessage);
         if (funnyResponse) {
@@ -347,7 +356,6 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-
         // Handle "I'm not new" responses
         const notNewResponse = handleNotNewResponse(normalizedMessage);
         if (notNewResponse) {
@@ -358,14 +366,17 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-
+        // Retrieve the desired name
+        const desiredName = await getDesiredName(message_user, env);
+        const displayName = desiredName ? `${desiredName}, ` : '';
         // Prepare the AI chat prompt with conversation history
         const chatPrompt = {
           messages: [
             {
               role: 'system',
-              content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep each of your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information briefly within a 500 character limit including spaces. If a user asks for more information, provide additional details in another response, adhering to the same character limit."
+              content: "You are BotOfTheSpecter, an advanced AI designed to interact with users on Twitch. Please keep each of your responses short, concise, and to the point. Uphold privacy and respect individuality; do not respond to requests for personal information or descriptions of people. Focus on delivering helpful and relevant information briefly within a 490 character limit including spaces. If a user asks for more information, provide additional details in another response, adhering to the same character limit."
             },
+            // Include conversation history up to the last MAX_CONVERSATION_LENGTH messages
             ...conversationHistory.slice(-MAX_CONVERSATION_LENGTH)
           ]
         };
@@ -379,10 +390,12 @@ export default {
             console.log('AI response:', chatResponse);
             aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             aiMessage = removeFormatting(aiMessage);
-            // Enforce 500 character limit
-            aiMessage = enforceCharacterLimit(aiMessage, 500);
+            // Enforce 490 character limit
+            aiMessage = enforceCharacterLimit(aiMessage, 490);
             attempt++;
           } while (isRecentResponse(aiMessage) && attempt < MAX_ATTEMPTS);
+          // Prepend the desired name to the AI response only if set
+          aiMessage = displayName + aiMessage;
           conversationHistory.push({ role: 'assistant', content: aiMessage });
           await saveConversationHistory(channel, message_user, conversationHistory);
           console.log('Final AI Response:', aiMessage);
