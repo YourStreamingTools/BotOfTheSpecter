@@ -472,12 +472,15 @@ export default {
             console.log('AI response:', chatResponse);
             aiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             aiMessage = removeFormatting(aiMessage);
+            // Check if userPrefix is already in the AI response to avoid duplicating it
+            if (!aiMessage.startsWith(userPrefix)) {
+              aiMessage = userPrefix + aiMessage;
+            }
             // Enforce adjusted character limit
             aiMessage = enforceCharacterLimit(aiMessage, AI_CHARACTER_LIMIT);
             attempt++;
           } while (isRecentResponse(aiMessage) && attempt < MAX_ATTEMPTS);
-          // Prepend the user's name if available
-          aiMessage = userPrefix + aiMessage;
+          // Save the final AI response to conversation history
           conversationHistory.push({ role: 'assistant', content: aiMessage });
           await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Final AI Response:', aiMessage);
