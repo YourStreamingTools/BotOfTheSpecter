@@ -307,6 +307,17 @@ export default {
         return null;
       }
     }
+    // Function to strip prefix from assistant messages
+    function stripPrefixFromAssistantMessages(conversation, userPrefix) {
+      return conversation.map(msg => {
+        if (msg.role === 'assistant' && userPrefix) {
+          if (msg.content.startsWith(userPrefix)) {
+            return { ...msg, content: msg.content.substring(userPrefix.length).trim() };
+          }
+        }
+        return msg;
+      });
+    }
     // Handle requests at the base path "/"
     if (path === '/') {
       if (request.method === 'GET') {
@@ -378,9 +389,27 @@ export default {
         const normalizedMessage = normalizeMessage(userMessage);
         const channel = body.channel || 'unknown';
         const message_user = body.message_user || 'anonymous';
+        // Retrieve desired name first to determine prefix
+        const desiredName = await getDesiredName(message_user, env);
+        let twitchUsername = null;
+        if (!desiredName && message_user !== 'anonymous') { 
+          twitchUsername = await getUsername(message_user, env);
+        }
+        // Determine how to address the user
+        let userPrefix = '';
+        if (desiredName) {
+          userPrefix = `${desiredName}, `;
+        } else if (twitchUsername) {
+          userPrefix = `${twitchUsername}, `;
+        }
         // Retrieve conversation history
         let conversationHistory = await getConversationHistory(channel, message_user, env);
-        console.log('Previous Conversation History:', conversationHistory);
+        console.log('Original Conversation History:', conversationHistory);
+        // Strip any existing prefixes from assistant messages
+        if (userPrefix) {
+          conversationHistory = stripPrefixFromAssistantMessages(conversationHistory, userPrefix);
+          console.log('Stripped Conversation History:', conversationHistory);
+        }
         // Append the new user message
         conversationHistory.push({ role: 'user', content: userMessage });
         // Ensure conversation history does not exceed the maximum length
@@ -437,20 +466,6 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-        // Retrieve the desired name
-        const desiredName = await getDesiredName(message_user, env);
-        // Fetch Twitch username if desired name is not set and user_id is valid
-        let twitchUsername = null;
-        if (!desiredName && message_user !== 'anonymous') { 
-          twitchUsername = await getUsername(message_user, env);
-        }
-        // Determine how to address the user
-        let userPrefix = '';
-        if (desiredName) {
-          userPrefix = `${desiredName}, `;
-        } else if (twitchUsername) {
-          userPrefix = `${twitchUsername}, `;
-        }
         // Prepare the AI chat prompt with conversation history
         const chatPrompt = {
           messages: [
@@ -476,18 +491,17 @@ export default {
             rawAiMessage = enforceCharacterLimit(rawAiMessage, AI_CHARACTER_LIMIT);
             attempt++;
           } while (isRecentResponse(rawAiMessage) && attempt < MAX_ATTEMPTS);
-          // Prepend the user's name if available
-          let prefixedAiMessage = '';
-          if (userPrefix) {
-            prefixedAiMessage = `${userPrefix}${rawAiMessage}`;
-          } else {
-            prefixedAiMessage = rawAiMessage;
+          // Remove any existing prefix from rawAiMessage (safety)
+          if (userPrefix && rawAiMessage.startsWith(userPrefix)) {
+            rawAiMessage = rawAiMessage.substring(userPrefix.length).trim();
           }
-          // Add the raw AI message to conversation history
+          // Add the raw AI message to the conversation history without prefix
           conversationHistory.push({ role: 'assistant', content: rawAiMessage });
           await saveConversationHistory(channel, message_user, conversationHistory, env);
-          console.log('Final AI Response:', prefixedAiMessage);
-          return new Response(prefixedAiMessage, {
+          // Final AI response with user prefix
+          const finalResponse = userPrefix ? `${userPrefix}${rawAiMessage}` : rawAiMessage;
+          console.log('Final AI Response:', finalResponse);
+          return new Response(finalResponse, {
             headers: { 'content-type': 'text/plain' },
           });
         } catch (error) {
