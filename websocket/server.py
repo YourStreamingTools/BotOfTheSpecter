@@ -91,6 +91,7 @@ class BotOfTheSpecterWebsocketServer:
             ("TWITCH_SUB", self.twitch_sub),
             ("WALKON", self.walkon),
             ("TTS", self.tts),
+            ("SOUND_ALERT", self.sound_alert),
             ("STREAM_ONLINE", self.stream_online),
             ("STREAM_OFFLINE", self.stream_offline),
             ("DISCORD_JOIN", self.discord_join),
@@ -460,6 +461,10 @@ class BotOfTheSpecterWebsocketServer:
         }
         # Broadcast the DISCORD_JOIN event to all clients
         await self.sio.emit("DISCORD_JOIN", join_data)
+
+    async def sound_alert(self, sid, data):
+        self.logger.info(f"Sound Alert event from SID [{sid}]: {data}")
+        return
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
