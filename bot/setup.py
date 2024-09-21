@@ -326,6 +326,13 @@ async def setup_database():
                         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         PRIMARY KEY (id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'sound_alerts': '''
+                    CREATE TABLE IF NOT EXISTS sound_alerts (
+                        reward_id VARCHAR(255),
+                        sound_mapping TEXT, 
+                        PRIMARY KEY (reward_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
             }
             # Create tables
