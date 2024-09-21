@@ -595,25 +595,7 @@ async def process_eventsub_message(message):
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
-                    try:
-                        if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                            reward_id = event_data.get("id")
-                            reward_title = event_data["reward"].get("type")
-                        elif event_type == "channel.channel_points_custom_reward_redemption.add":
-                            reward_id = event_data["reward"].get("id")
-                            reward_title = event_data["reward"].get("title")
-                            if "tts" in reward_title.lower():
-                                tts_message = event_data["user_input"]
-                                await websocket_notice_tts(event="TTS", text=tts_message)
-                                event_logger.info(f"TTS message sent: {tts_message}")
-                                return
-                        await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                        result = await cursor.fetchone()
-                        if result and result[0]:
-                            custom_message = result[0]
-                            await channel.send(custom_message)
-                    except Exception as e:
-                        event_logger.error(f"An error occurred while processing the reward: {str(e)}")
+                    await process_channel_point_rewards(event_data, event_type)
                 elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
@@ -3885,12 +3867,14 @@ async def process_weather_websocket(data):
 # Function to process the stream being online
 async def process_stream_online():
     bot_logger.info(f"Stream is now online!")
-    await websocket_notice(event="STREAM_ONLINE")
+    await sio.emit('STREAM_ONLINE')
+    #await websocket_notice(event="STREAM_ONLINE")
 
 # Function to process the stream being offline
 async def process_stream_offline():
     bot_logger.info(f"Stream is now offline.")
-    await websocket_notice(event="STREAM_OFFLINE")
+    await sio.emit('STREAM_OFFLINE')
+    #await websocket_notice(event="STREAM_OFFLINE")
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
@@ -4837,6 +4821,38 @@ async def convert_currency(amount, from_currency, to_currency):
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
         raise
 
+async def process_channel_point_rewards(event_data, event_type):
+    sqldb = await get_mysql_connection()
+    channel = CHANNEL_NAME
+    async with sqldb.cursor() as cursor:
+        try:
+            if event_type == "channel.channel_points_automatic_reward_redemption.add":
+                reward_id = event_data.get("id")
+                reward_title = event_data["reward"].get("type")
+            elif event_type == "channel.channel_points_custom_reward_redemption.add":
+                reward_id = event_data["reward"].get("id")
+                reward_title = event_data["reward"].get("title")
+                if "tts" in reward_title.lower():
+                    tts_message = event_data["user_input"]
+                    #await sio.emit('TTS', {'text': tts_message})
+                    await websocket_notice_tts(event="TTS", text=tts_message)
+                    event_logger.info(f"TTS message sent: {tts_message}")
+                    return
+                await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
+                sound_result = await cursor.fetchone()
+                if sound_result:
+                    sound_file = sound_result
+                    await sio.emit('SOUND_ALERT_EVENT', {'sound_file': sound_file})
+            await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+            result = await cursor.fetchone()
+            if result and result[0]:
+                custom_message = result[0]
+                await channel.send(custom_message)
+        except Exception as e:
+            event_logger.error(f"An error occurred while processing the reward: {str(e)}")
+        finally:
+            sqldb.close()
+
 async def channel_point_rewards():
     # Check the broadcaster's type
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
@@ -5339,6 +5355,13 @@ async def setup_database():
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'sound_alerts': '''
+                    CREATE TABLE IF NOT EXISTS sound_alerts (
+                        reward_id VARCHAR(255),
+                        sound_mapping TEXT, 
+                        PRIMARY KEY (reward_id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
             }
