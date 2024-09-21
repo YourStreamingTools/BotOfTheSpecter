@@ -3,6 +3,7 @@ const recentResponses = new Map();
 const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_CONVERSATION_LENGTH = 20; // Maximum number of messages in history
 const AI_CHARACTER_LIMIT = 490; // Adjusted to account for potential name prefix
+const ALLOWED_POST_IP = 'AN IP ADDRESS HERE'; // Change to the IP you wish to auth
 
 // Function to remove formatting from the text
 function removeFormatting(text) {
@@ -375,6 +376,11 @@ export default {
           headers: { 'content-type': 'text/html' },
         });
       } else if (request.method === 'POST') {
+        const requestIP = request.headers.get('CF-Connecting-IP') || '';
+        if (requestIP !== ALLOWED_POST_IP) {
+          console.warn(`Unauthorized access attempt from IP: ${requestIP}`);
+          return new Response('Unauthorized', { status: 401 });
+        }
         let body;
         try {
           body = await request.json();
