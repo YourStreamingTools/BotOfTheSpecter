@@ -533,14 +533,22 @@ async def process_eventsub_message(message):
                     event_logger.info(f"Hype Train End Event Data: {event_data}")
                     level = event_data["level"]
                     top_contributions = event_data.get("top_contributions", [])
-                    message = f"The Hype Train has ended at level {level}! Top contributions:"
+                    await channel.send(f"The Hype Train has ended at level {level}! Top contributions:")
                     for contribution in top_contributions:
                         user_name = contribution["user_name"]
                         contribution_type = contribution["type"]
+                        if contribution_type == "subscription":
+                            contribution_type = "subscriptions"
                         total_formatted = "{:,}".format(contribution["total"])
                         total = total_formatted
-                        message += f" {user_name} contributed {total} {contribution_type}."
-                    await channel.send(message)
+                        if contribution_type == "subscriptions":
+                            tier_mapping = {
+                                "500": "Tier 1",
+                                "1000": "Tier 2",
+                                "2500": "Tier 3"
+                            }
+                            total = tier_mapping.get(total, total)
+                        await channel.send(f"{user_name} contributed {total} {contribution_type}.")
                 elif event_type == 'channel.update':
                     global current_game
                     global stream_title
@@ -1406,8 +1414,10 @@ class BotOfTheSpecter(commands.Bot):
                 result = await cursor.fetchone()
                 if result:
                     points = result[0]
+                    chat_logger.info(f"{user_name} has {points} points")
                 else:
                     points = 0
+                    chat_logger.info(f"{user_name} has {points} points")
                     await cursor.execute(
                         "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
                         (user_id, user_name, points)
@@ -4605,16 +4615,14 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to connect to the websocket server and push a notice
-async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None, weather=None, cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None):
+async def websocket_notice(event, channel=None, user=None, death=None, game=None, weather=None, cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None):
     async with ClientSession() as session:
         params = {
             'code': API_TOKEN,
             'event': event
         }
         # Handling different event types and their specific parameters
-        if event == "TTS" and text:
-            params['text'] = text
-        elif event == "WALKON" and channel and user:
+        if event == "WALKON" and channel and user:
             walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
             if os.path.exists(walkon_file_path):
                 params['channel'] = channel
@@ -4659,7 +4667,7 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             else:
                 bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
 
-# Function to connect to the websocket server and push a notice
+# Function to connect to the websocket server and push a TTS notice
 async def websocket_notice_tts(event, text=None):
     async with ClientSession() as session:
         params = {
@@ -4669,6 +4677,30 @@ async def websocket_notice_tts(event, text=None):
         # Handling TTS event
         if event == "TTS" and text:
             params['text'] = text
+        else:
+            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
+            return
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
+        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        # Send the HTTP request
+        async with session.get(url) as response:
+            if response.status == 200:
+                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+            else:
+                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+
+# Function to connect to the websocket server and push a SOUND_ALERT notice
+async def websocket_notice_sound_alert(event, sound=None):
+    async with ClientSession() as session:
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
+        # Handling TTS event
+        if event == "SOUND_ALERT" and sound:
+            params['sound'] = sound
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
             return
@@ -4834,7 +4866,6 @@ async def process_channel_point_rewards(event_data, event_type):
                 reward_title = event_data["reward"].get("title")
                 if "tts" in reward_title.lower():
                     tts_message = event_data["user_input"]
-                    #await sio.emit('TTS', {'text': tts_message})
                     await websocket_notice_tts(event="TTS", text=tts_message)
                     event_logger.info(f"TTS message sent: {tts_message}")
                     return
@@ -4842,7 +4873,7 @@ async def process_channel_point_rewards(event_data, event_type):
                 sound_result = await cursor.fetchone()
                 if sound_result:
                     sound_file = sound_result
-                    await sio.emit('SOUND_ALERT_EVENT', {'sound_file': sound_file})
+                    await websocket_notice_sound_alert(event="SOUND_ALERT", sound=sound_file)
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             result = await cursor.fetchone()
             if result and result[0]:
