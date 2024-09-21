@@ -127,7 +127,6 @@ function formatFileName($fileName) {
     <br>
     <h1 class="title is-4">Upload Walkons</h1>
     <p class='has-text-danger'>
-        Walkons are only enabled in the Beta Bot, however, you can still upload the files here if you don't have the Beta Bot.<br>
         Before uploading, ensure the file is an MP3 and the filename is the user's lowercase username.
     </p><br>
     <div class="upload-container" style="width: 100%; max-width: 500px;">
