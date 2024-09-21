@@ -38,6 +38,7 @@
           <a class="navbar-item" href="../remove-commands.php">Remove Custom Command</a>
           <a class="navbar-item" href="../edit-commands.php">Edit Custom Command</a>
           <a class="navbar-item" href="../walkons.php">Walkon Audio</a>
+          <a class="navbar-item" href="../sound-alerts.php">Sound Alerts</a>
         </div>
       </div>
       <a class="navbar-item" href="../discordbot.php">Discord Bot</a>
