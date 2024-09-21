@@ -4855,7 +4855,7 @@ async def convert_currency(amount, from_currency, to_currency):
 
 async def process_channel_point_rewards(event_data, event_type):
     sqldb = await get_mysql_connection()
-    channel = CHANNEL_NAME
+    channel = bot.get_channel(CHANNEL_NAME)
     async with sqldb.cursor() as cursor:
         try:
             if event_type == "channel.channel_points_automatic_reward_redemption.add":
@@ -4878,6 +4878,8 @@ async def process_channel_point_rewards(event_data, event_type):
             result = await cursor.fetchone()
             if result and result[0]:
                 custom_message = result[0]
+                if '(user)' in custom_message:
+                    custom_message = custom_message.replace('(user)', event_data["user_name"])
                 await channel.send(custom_message)
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
