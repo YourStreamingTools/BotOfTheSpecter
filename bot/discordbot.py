@@ -263,16 +263,19 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.sio = socketio.AsyncClient()
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 15
+        self.connected = False
 
         @self.sio.event
         async def connect():
             self.logger.info("Connected to WebSocket server")
             await self.sio.emit('REGISTER', {'code': self.api_token, 'name': 'DiscordBot'})
             self.reconnect_attempts = 0
+            self.connected = True
 
         @self.sio.event
         async def disconnect():
             self.logger.info("Disconnected from WebSocket server")
+            self.connected = False
             await self.handle_reconnect()
 
         @self.sio.event
@@ -294,15 +297,22 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
 
     async def start_websocket(self):
         while True:
-            try:
-                await self.sio.connect('wss://websocket.botofthespecter.com')
-                await self.sio.wait()
-            except Exception as e:
-                self.logger.error(f"WebSocket connection error: {e}")
-                await asyncio.sleep(5)
-                await self.handle_reconnect()
+            if not self.connected:
+                try:
+                    await self.sio.connect('wss://websocket.botofthespecter.com')
+                    await self.sio.wait()
+                except Exception as e:
+                    self.logger.error(f"WebSocket connection error: {e}")
+                    await asyncio.sleep(5)
+                    await self.handle_reconnect()
+            else:
+                self.logger.info("Already connected to WebSocket server.")
+                await asyncio.sleep(5)  # Sleep to prevent rapid loops
 
     async def handle_reconnect(self):
+        if self.connected:
+            self.logger.info("Already connected, skipping reconnection.")
+            return
         if self.reconnect_attempts < self.max_reconnect_attempts:
             self.reconnect_attempts += 1
             retry_delay = 5 * self.reconnect_attempts
@@ -315,6 +325,7 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
 
     def cog_unload(self):
         self.bot.loop.create_task(self.sio.disconnect())
+        self.connected = False
 
 class DiscordBotRunner:
     def __init__(self, discord_token, channel_name, discord_logger):
