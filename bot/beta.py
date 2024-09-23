@@ -4993,7 +4993,7 @@ async def tell_fortune():
                 fortune_data = await response.json()
                 if fortune_data and "fortune" in fortune_data:
                     # Return the fetched fortune
-                    api_logger.info(f"API - BotOfTheSpecter - Fortune - {fortune_data["fortune"]}")
+                    api_logger.info(f'API - BotOfTheSpecter - Fortune - {fortune_data["fortune"]}')
                     return fortune_data["fortune"]
             return "Unable to retrieve your fortune at this time."
 
