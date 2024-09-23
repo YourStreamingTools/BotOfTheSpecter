@@ -241,7 +241,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
                             $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
                             ?>
                             <?php if ($current_reward_id): ?>
-                                <strong><?php echo $current_reward_title; ?></strong>
+                                <em><?php echo $current_reward_title; ?></em>
                             <?php else: ?>
                                 <em>Not Mapped</em>
                             <?php endif; ?>
