@@ -523,6 +523,18 @@ pre {
     margin-bottom: 20px;
 }
 
+.mapping-select {
+    width: 100%;
+    padding: 5px;
+    margin-top: 5px;
+}
+
+.mapping-form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Style for status messages */
 .dashboard-section h5, .dashboard-section h3 {
     font-size: 14px;
