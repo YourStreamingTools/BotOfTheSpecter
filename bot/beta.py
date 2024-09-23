@@ -4700,6 +4700,7 @@ async def websocket_notice_sound_alert(event, sound=None):
         }
         # Handling TTS event
         if event == "SOUND_ALERT" and sound:
+            sound = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
             params['sound'] = sound
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
@@ -4872,7 +4873,8 @@ async def process_channel_point_rewards(event_data, event_type):
                 await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
                 sound_result = await cursor.fetchone()
                 if sound_result:
-                    sound_file = sound_result
+                    sound_file = sound_result[0]
+                    event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
                     await websocket_notice_sound_alert(event="SOUND_ALERT", sound=sound_file)
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             result = await cursor.fetchone()
