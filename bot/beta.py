@@ -1396,6 +1396,7 @@ class BotOfTheSpecter(commands.Bot):
                 async with aiohttp.ClientSession() as session:
                     response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
                     result = await response.json()
+                    api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
             else:
                 await ctx.send("Unable to retrieve location.")
         finally:
@@ -3156,6 +3157,7 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         result = f"{ctx.author.name} tried to kill {target}, but something went wrong."
                         chat_logger.error("No 'other' kill message found.")
+                    api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
                 else:
                     message_key = [key for key in kill_message if "self" in key]
                     if message_key:
@@ -3164,6 +3166,7 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
                         chat_logger.error("No 'self' kill message found.")
+                    api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
                 await ctx.send(result)
                 chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
         except Exception as e:
@@ -4885,7 +4888,7 @@ async def process_channel_point_rewards(event_data, event_type):
                 elif "fortune" in reward_title.lower():
                     fortune_message = await tell_fortune()
                     await channel.send(f"{user_name}, {fortune_message}")
-                    event_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
+                    chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
                     return
                 # Sound alert logic
                 await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
@@ -4976,7 +4979,6 @@ async def user_lotto_numbers():
     all_numbers = random.sample(range(1, 48), 10)
     winning_numbers = all_numbers[:7]
     supplementary_numbers = all_numbers[7:]
-    
     return {
         "winning_numbers": winning_numbers,
         "supplementary_numbers": supplementary_numbers
@@ -4991,6 +4993,7 @@ async def tell_fortune():
                 fortune_data = await response.json()
                 if fortune_data and "fortune" in fortune_data:
                     # Return the fetched fortune
+                    api_logger.info(f"API - BotOfTheSpecter - Fortune - {fortune_data["fortune"]}")
                     return fortune_data["fortune"]
             return "Unable to retrieve your fortune at this time."
 
