@@ -5,7 +5,7 @@ session_start();
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
+    header('Location: ../login.php');
     exit();
 }
 
