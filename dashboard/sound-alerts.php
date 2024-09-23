@@ -167,7 +167,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
         // Commit transaction
         $db->commit();
         // Reload the page to reflect changes
-        echo "<script>window.location.reload();</script>";
+        header('Location: sound-alerts.php');
+        exit();
     } catch (PDOException $e) {
         // Rollback transaction on error
         $db->rollBack();
