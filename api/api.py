@@ -288,6 +288,16 @@ class QuoteResponse(BaseModel):
             }
         }
 
+# Define the response model for Fortunes
+class FortuneResponse(BaseModel):
+    fortune: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "fortune": "You are very talented in many ways.",
+            }
+        }
+
 # Define the response model for Version Control
 class VersionControlResponse(BaseModel):
     beta_version: str
@@ -388,6 +398,31 @@ async def quotes(api_key):
     random_author = random.choice(list(quotes.keys()))
     random_quote = random.choice(quotes[random_author])
     return {"author": random_author, "quote": random_quote}
+
+# Fortune endpoint
+@app.get(
+    "/fortune",
+    response_model=FortuneResponse,
+    summary="Get a random fortunes",
+    description="Retrieve a random fortunes from the database of fortunes.",
+    tags=["Commands"],
+    operation_id="get_random_fortune"
+)
+async def fortune(api_key: str):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    fortunes_path = "/home/fastapi/fortunes.json"
+    if not os.path.exists(fortunes_path):
+        raise HTTPException(status_code=404, detail="Fortunes file not found")
+    # Load fortunes from JSON file
+    with open(fortunes_path, "r") as fortunes_file:
+        data = json.load(fortunes_file)
+    if "fortunes" not in data or not data["fortunes"]:
+        raise HTTPException(status_code=404, detail="No fortunes available")
+    # Randomly select a fortune
+    random_fortune = random.choice(data["fortunes"])
+    return {"fortune": random_fortune}
 
 # Version Control endpoint
 @app.get(
