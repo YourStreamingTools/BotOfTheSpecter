@@ -53,6 +53,12 @@ foreach ($soundAlerts as $alert) {
     $soundAlertMappings[$alert['sound_mapping']] = $alert['reward_id'];
 }
 
+// Create an associative array for reward_id => reward_title for easy lookup
+$rewardIdToTitle = [];
+foreach ($channelPointRewards as $reward) {
+    $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
+}
+
 // Define sound alert path and storage limits
 $soundalert_path = "/var/www/soundalerts/" . $username;
 $status = '';
@@ -204,7 +210,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
         </div>
         <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
     </div>
-    <?php if (!empty($walkon_files = array_diff(scandir($soundalert_path), array('.', '..')))) : ?>
+    <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
     <div class="container">
         <h1 class="title is-4">Sound Alerts Uploaded</h1>
         <form action="" method="POST" id="deleteForm">
@@ -220,27 +226,51 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
                 <tbody>
                     <?php foreach ($walkon_files as $file): ?>
                     <tr>
-                        <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                        <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
                         <td>
+                            <input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
+                        </td>
+                        <td>
+                            <?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>
+                        </td>
+                        <td>
+                            <?php
+                            // Determine the current mapped reward (if any)
+                            $current_reward_id = isset($soundAlertMappings[$file]) ? $soundAlertMappings[$file] : null;
+                            $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
+                            ?>
+                            <?php if ($current_reward_id): ?>
+                                <strong><?php echo $current_reward_title; ?></strong>
+                            <?php else: ?>
+                                <em>Not Mapped</em>
+                            <?php endif; ?>
+                            <br>
                             <form action="" method="POST" class="mapping-form">
                                 <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                 <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
                                     <option value="">-- Select Reward --</option>
-                                    <?php foreach ($channelPointRewards as $reward): 
-                                        // Check if this reward is already mapped to another sound
+                                    <?php 
+                                    foreach ($channelPointRewards as $reward): 
                                         $isMapped = in_array($reward['reward_id'], $soundAlertMappings);
-                                        $isCurrent = isset($soundAlertMappings[$file]) && $soundAlertMappings[$file] == $reward['reward_id'];
-                                        if ($isMapped && !$isCurrent) continue; // Skip if already mapped to another sound
+                                        $isCurrent = ($current_reward_id === $reward['reward_id']);
+                                        // Skip rewards that are already mapped to other sounds, unless it's the current mapping
+                                        if ($isMapped && !$isCurrent) continue; 
                                     ?>
-                                        <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" <?php echo (isset($soundAlertMappings[$file]) && $soundAlertMappings[$file] == $reward['reward_id']) ? 'selected' : ''; ?>>
+                                        <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
+                                            <?php 
+                                            if ($isCurrent) {
+                                                echo 'selected';
+                                            }
+                                            ?>
+                                        >
                                             <?php echo htmlspecialchars($reward['reward_title']); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
                             </form>
                         </td>
-                        <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
+                        <td>
+                            <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
