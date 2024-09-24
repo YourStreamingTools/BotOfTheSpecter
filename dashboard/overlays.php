@@ -63,6 +63,7 @@ include 'sqlite.php';
     <br>
     <div class="columns is-desktop is-multiline">
         <div class="column is-half">
+            <!-- All the Overlays -->
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
                 <p><em>This URL includes any and all overlays we offer, automatically added and updated.
@@ -71,6 +72,7 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
+        <!-- Death Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Death Overlay Only:</h4>
@@ -80,6 +82,7 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
             </div>
         </div>
+        <!-- Stream Ending Credits Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Stream Ending Credits:</h4>
@@ -89,28 +92,7 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
             </div>
         </div>
-        <div class="column is-half">
-            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">All Audio:</h4>
-                <p><em>This URL includes any and all audio alerts we offer, automatically added and updated.
-                    <br>You only need to add this link once, and any new audio alerts will be included automatically:</em></p>
-                <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
-            </div>
-        </div>
-        <div class="column is-half">
-            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Text To Speech (TTS) Only:</h4>
-                <p><em>Only hear the Text To Speech audio.</em></p>
-                <code>https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE</code>
-            </div>
-        </div>
-        <div class="column is-half">
-            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Walkons Only:</h4>
-                <p><em>Only hear the Walkon audio that you've set for each user.</em></p>
-                <code>https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE</code>
-            </div>
-        </div>
+        <!-- To Do List Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">To Do List:</h4>
@@ -121,6 +103,7 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</code>
             </div>
         </div>
+        <!-- Weather Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Weather Overlay:</h4>
@@ -129,13 +112,46 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/weather.php?code=API_KEY_HERE</code>
             </div>
         </div>
-        <!-- New Discord Join Notifications Overlay -->
+        <!-- Discord Join Notifications Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Discord Join Notifications:</h4>
                 <p><em>Display notifications when a user joins your Discord server.
                     <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
                 <code>https://overlay.botofthespecter.com/discord.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- All Audio Overlays -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">All Audio:</h4>
+                <p><em>This URL includes any and all audio alerts we offer, automatically added and updated.
+                    <br>You only need to add this link once, and any new audio alerts will be included automatically:</em></p>
+                <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- TTS Only Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Text To Speech (TTS) Only:</h4>
+                <p><em>Only hear the Text To Speech audio.</em></p>
+                <code>https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- Walkons Only Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Walkons Only:</h4>
+                <p><em>Only hear the Walkon audio that you've set for each user.</em></p>
+                <code>https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- Sound Alerts Only Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Sound Alerts Only:</h4>
+                <p><em>Only hear the sound alerts audio that you've set for each channel point reward.</em></p>
+                <code>https://overlay.botofthespecter.com/sound-alert.php?code=API_KEY_HERE</code>
             </div>
         </div>
     </div>
