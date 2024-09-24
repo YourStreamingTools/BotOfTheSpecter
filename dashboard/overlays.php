@@ -72,16 +72,6 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
-        <!-- Death Overlay -->
-        <div class="column is-half">
-            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Death Overlay Only:</h4>
-                <p><em>Display only the death overlay when the death commands are triggered in chat:
-                    <br>"!deaths", "!deathadd", and "!deathremove".
-                    <br>For best results, set Width to 450 and Height to 350:</em></p>
-                <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
-            </div>
-        </div>
         <!-- Stream Ending Credits Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
@@ -101,6 +91,16 @@ include 'sqlite.php';
                     <br>You can define a working category by adding it to the URL like this:
                     <br>todolist.php?code=API_KEY&category=1</></em></p>
                 <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- Death Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Death Overlay Only:</h4>
+                <p><em>Display only the death overlay when the death commands are triggered in chat:
+                    <br>"!deaths", "!deathadd", and "!deathremove".
+                    <br>For best results, set Width to 450 and Height to 350:</em></p>
+                <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
             </div>
         </div>
         <!-- Weather Overlay -->
