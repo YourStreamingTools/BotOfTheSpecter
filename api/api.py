@@ -802,6 +802,17 @@ async def authorized_users(api_key: str = Depends(verify_admin_key)):
         auth_users = json.load(auth_users_file)
     return auth_users
 
+@app.get(
+    "/checkkey",
+    summary="Check if the API key is valid",
+    include_in_schema=False
+)
+async def check_key(api_key: str = Query(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        return {"status": "Invalid API Key"}
+    return {"status": "Valid API Key"}
+
 @app.get("/", include_in_schema=False)
 async def read_root():
     return RedirectResponse(url="/docs")
