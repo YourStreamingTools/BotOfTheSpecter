@@ -36,6 +36,7 @@ if ($username) {
             const retryInterval = 5000;
             let reconnectAttempts = 0;
             let currentAudio = null;
+            const audioQueue = [];
             const timezone = <?php echo json_encode($timezone); ?>;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
@@ -44,38 +45,43 @@ if ($username) {
                 return;
             }
 
-            function playAudio(url) {
-                if (currentAudio) {
-                    // Stop the current audio
-                    currentAudio.pause();
-                    currentAudio.currentTime = 0;
+            function enqueueAudio(url) {
+                audioQueue.push(url);
+                if (!currentAudio) {
+                    playNextAudio();
+                }
+            }
+
+            function playNextAudio() {
+                if (audioQueue.length === 0) {
+                    currentAudio = null;
+                    return;
                 }
 
+                const url = audioQueue.shift();
                 currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
                 currentAudio.volume = 0.8;
-                currentAudio.autoplay = true;
 
                 currentAudio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
                 });
 
                 currentAudio.addEventListener('ended', () => {
-                    // Audio finished playing
                     currentAudio = null;
+                    playNextAudio();
                 });
 
                 currentAudio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
                     currentAudio = null;
+                    playNextAudio();
                 });
 
-                setTimeout(() => {
-                    currentAudio.play().catch(error => {
-                        console.error('Error playing audio:', error);
-                        alert('Click to play audio');
-                    });
-                }, 100);
+                currentAudio.play().catch(error => {
+                    console.error('Error playing audio:', error);
+                    alert('Click to play audio');
+                });
             }
 
             function connectWebSocket() {
@@ -110,18 +116,18 @@ if ($username) {
 
                 socket.on('TTS', (data) => {
                     console.log('TTS Audio file path:', data.audio_file);
-                    playAudio(data.audio_file);
+                    enqueueAudio(data.audio_file);
                 });
 
                 socket.on('WALKON', (data) => {
                     console.log('Walkon:', data);
                     const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
-                    playAudio(audioFile);
+                    enqueueAudio(audioFile);
                 });
 
                 socket.on('SOUND_ALERT', (data) => {
                     console.log('SOUND_ALERT:', data);
-                    playAudio(data.sound);
+                    enqueueAudio(data.sound);
                 });
 
                 socket.on('DEATHS', (data) => {
