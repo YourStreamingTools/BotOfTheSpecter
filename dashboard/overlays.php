@@ -62,7 +62,7 @@ include 'sqlite.php';
     <h4 class="title is-4">To integrate with your streaming setup, simply add one or more of the following links to a browser source in your streaming software, appending your API key from the profile page:</h4>
     <br>
     <div class="columns is-desktop is-multiline">
-        <div class="column is-half">
+        <div class="column is-full">
             <!-- All the Overlays -->
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
@@ -72,8 +72,6 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
-    </div>
-    <div class="columns is-desktop is-multiline">
         <!-- Death Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
