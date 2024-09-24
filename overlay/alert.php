@@ -55,7 +55,6 @@
                     const audio = new Audio(`${audioFile}?t=${new Date().getTime()}`);
                     audio.volume = 0.8;
                     audio.autoplay = true;
-
                     audio.addEventListener('canplaythrough', () => {
                         console.log('Audio can play through without buffering');
                         audio.play().catch(error => {
@@ -81,6 +80,12 @@
                     console.log('Walkon:', data);
                     const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
                     playAudio(audioFile);
+                });
+
+                // Listen for SOUND_ALERT audio events
+                socket.on('SOUND_ALERT', (data) => {
+                    console.log('SOUND_ALERT Audio file path:', data.sound);
+                    playAudio(data.sound);
                 });
 
                 // Handle user interaction to allow audio playback if blocked
