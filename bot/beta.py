@@ -1845,18 +1845,19 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                # Using subprocess to run the ping command
-                result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
-                # Decode the result from bytes to string and search for the time
-                output = result.stdout.decode('utf-8')
-                match = re.search(r"time=(\d+\.\d+) ms", output)
-                if match:
-                    ping_time = match.group(1)
-                    bot_logger.info(f"Pong: {ping_time} ms")
-                    await ctx.send(f'Pong: {ping_time} ms')
-                else:
-                    bot_logger.error(f"Error Pinging. {output}")
-                    await ctx.send(f'Error pinging')
+            # Using subprocess to run the ping command
+            result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
+            # Decode the result from bytes to string and search for the time
+            output = result.stdout.decode('utf-8')
+            match = re.search(r"time=(\d+\.\d+) ms", output)
+            if match:
+                ping_time = match.group(1)
+                bot_logger.info(f"Pong: {ping_time} ms")
+                # Updated message to make it clear to the user
+                await ctx.send(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
+            else:
+                bot_logger.error(f"Error Pinging. {output}")
+                await ctx.send(f'Error pinging the internet from the bot server.')
         finally:
             await sqldb.ensure_closed()
 
