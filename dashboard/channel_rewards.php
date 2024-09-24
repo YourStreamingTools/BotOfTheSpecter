@@ -10,7 +10,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Dashboard";
+$title = "Channel Point Rewards";
 
 // Connect to database
 require_once "db_connect.php";
@@ -50,6 +50,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
   $messageQuery->execute();
   echo "<script>window.location.reload();</script>";
 }
+
+// Handle reward deletion
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
+    $deleteRewardId = $_POST['deleteRewardId'];
+    $deleteQuery = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = :rewardid");
+    $deleteQuery->bindParam(':rewardid', $deleteRewardId);
+    $deleteQuery->execute();
+    echo "<script>window.location.reload();</script>";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -75,6 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
         <th>Cost</th>
         <th>Bot Message</th>
         <th>Edit</th>
+        <th>Delete</th>
       </tr>
     </thead>
     <tbody>
@@ -93,6 +103,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
           </td>
           <td>
             <button class="button is-small is-info edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-pencil-alt"></i></button>
+          </td>
+          <td>
+            <button class="button is-small is-danger delete-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-trash-alt"></i></button>
           </td>
         </tr>
       <?php endforeach; ?>
@@ -123,6 +136,15 @@ document.querySelectorAll('.edit-btn').forEach(btn => {
   });
 });
 
+document.querySelectorAll('.delete-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const rewardid = this.getAttribute('data-reward-id');
+    if (confirm('Are you sure you want to delete this reward?')) {
+      deleteReward(rewardid);
+    }
+  });
+});
+
 function updateCustomMessage(rewardid, newCustomMessage) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "", true);
@@ -133,6 +155,18 @@ function updateCustomMessage(rewardid, newCustomMessage) {
     }
   };
   xhr.send("rewardid=" + encodeURIComponent(rewardid) + "&newCustomMessage=" + encodeURIComponent(newCustomMessage));
+}
+
+function deleteReward(rewardid) {
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "", true);
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === XMLHttpRequest.DONE) {
+      location.reload();
+    }
+  };
+  xhr.send("deleteRewardId=" + encodeURIComponent(rewardid));
 }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
