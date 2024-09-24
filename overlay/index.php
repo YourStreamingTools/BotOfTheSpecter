@@ -35,12 +35,47 @@ if ($username) {
             let socket;
             const retryInterval = 5000;
             let reconnectAttempts = 0;
+            let currentAudio = null;
             const timezone = <?php echo json_encode($timezone); ?>;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
                 alert('No code provided in the URL');
                 return;
+            }
+
+            function playAudio(url) {
+                if (currentAudio) {
+                    // Stop the current audio
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                }
+
+                currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
+                currentAudio.volume = 0.8;
+                currentAudio.autoplay = true;
+
+                currentAudio.addEventListener('canplaythrough', () => {
+                    console.log('Audio can play through without buffering');
+                });
+
+                currentAudio.addEventListener('ended', () => {
+                    // Audio finished playing
+                    currentAudio = null;
+                });
+
+                currentAudio.addEventListener('error', (e) => {
+                    console.error('Error occurred while loading the audio file:', e);
+                    alert('Failed to load audio file');
+                    currentAudio = null;
+                });
+
+                setTimeout(() => {
+                    currentAudio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                        alert('Click to play audio');
+                    });
+                }, 100);
             }
 
             function connectWebSocket() {
@@ -75,46 +110,18 @@ if ($username) {
 
                 socket.on('TTS', (data) => {
                     console.log('TTS Audio file path:', data.audio_file);
-                    const audio = new Audio(`${data.audio_file}?t=${new Date().getTime()}`);
-                    audio.volume = 0.8;
-                    audio.autoplay = true;
-                    audio.addEventListener('canplaythrough', () => {
-                        console.log('Audio can play through without buffering');
-                    });
-
-                    audio.addEventListener('error', (e) => {
-                        console.error('Error occurred while loading the audio file:', e);
-                        alert('Failed to load audio file');
-                    });
-
-                    setTimeout(() => {
-                        audio.play().catch(error => {
-                            console.error('Error playing audio:', error);
-                            alert('Click to play audio');
-                        });
-                    }, 100);
+                    playAudio(data.audio_file);
                 });
 
                 socket.on('WALKON', (data) => {
                     console.log('Walkon:', data);
                     const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
-                    const audio = new Audio(audioFile);
-                    audio.volume = 0.8;
-                    audio.autoplay = true;
-                    audio.addEventListener('canplaythrough', () => {
-                        console.log('Walkon audio can play through without buffering');
-                    });
-                    audio.addEventListener('error', (e) => {
-                        console.error('Error occurred while loading the Walkon audio file:', e);
-                        alert('Failed to load Walkon audio file');
-                    });
+                    playAudio(audioFile);
+                });
 
-                    setTimeout(() => {
-                        audio.play().catch(error => {
-                            console.error('Error playing Walkon audio:', error);
-                            alert('Click to play Walkon audio');
-                        });
-                    }, 100);
+                socket.on('SOUND_ALERT', (data) => {
+                    console.log('SOUND_ALERT:', data);
+                    playAudio(data.sound);
                 });
 
                 socket.on('DEATHS', (data) => {
