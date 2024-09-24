@@ -4,6 +4,7 @@ import aiomysql
 from dotenv import load_dotenv
 import argparse
 import aiohttp
+import asyncio
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -78,11 +79,17 @@ async def channel_point_rewards():
                                     "WHERE reward_id = %s",
                                     (reward_title, reward_cost, reward_id)
                                 )
-                    else:
-                        return
         await conn.commit()
     except Exception as e:
-        return
+        pass
     finally:
         if conn:
             conn.close()
+
+# Run the async function
+async def main():
+    await channel_point_rewards()
+
+# Start the asyncio loop
+if __name__ == "__main__":
+    asyncio.run(main())
