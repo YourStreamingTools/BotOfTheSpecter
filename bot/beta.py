@@ -797,14 +797,11 @@ class BotOfTheSpecter(commands.Bot):
 
     # Errors
     async def event_command_error(self, ctx, error: Exception) -> None:
-        cooldown_notify_commands = ['song', 'commands', 'weather', 'time']
         if isinstance(error, commands.CommandOnCooldown):
             command_name = ctx.command.name
-            if command_name in cooldown_notify_commands:
-                retry_after = round(error.retry_after)
-                await ctx.send(f'!{command_name} is on cooldown. Please wait {retry_after} seconds before using the command again.')
-            else:
-                chat_logger.info(f"{command_name} command used by {ctx.author.name} is on cooldown.")
+            username = ctx.user.name
+            retry_after = round(error.retry_after)
+            await ctx.send(f'@{username} !{command_name} is on cooldown. Please wait {retry_after} seconds before using the command again.')
         else:
             bot_logger.error(f"Error occurred: {error}")
 
