@@ -72,6 +72,8 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
+    </div>
+    <div class="columns is-desktop is-multiline">
         <!-- Death Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
