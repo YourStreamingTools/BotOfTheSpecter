@@ -491,7 +491,7 @@ class BotOfTheSpecterWebsocketServer:
         self.stop()
         self.logger.info("Server stopped")
 
-    def run_app(self, host="0.0.0.0", port=8080):
+    def run_app(self, host="0.0.0.0", port=443):
         # Run the web application.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
         self.logger.info(f"Host: {host} Port: {port}")
