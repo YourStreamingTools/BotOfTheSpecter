@@ -38,6 +38,7 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
+$syncMessage = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($_POST['newCustomMessage'])) {
   // Process the update here
@@ -48,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
   $messageQuery->bindParam(':custom_message', $newCustomMessage);
   $messageQuery->bindParam(':rewardid', $rewardid);
   $messageQuery->execute();
-  header('Location: sound-alerts.php');
+  header('Location: channel_rewards.php');
 }
 
 // Handle reward deletion
@@ -57,7 +58,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
     $deleteQuery = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = :rewardid");
     $deleteQuery->bindParam(':rewardid', $deleteRewardId);
     $deleteQuery->execute();
-    header('Location: sound-alerts.php');
+    header('Location: channel_rewards.php');
+}
+
+// Handle sync button click
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
+    // Escape shell arguments to ensure safe execution
+    $escapedUsername = escapeshellarg($username);
+    $escapedTwitchUserId = escapeshellarg($twitchUserId);
+    $escapedAuthToken = escapeshellarg($authToken);
+    // Run the sync script
+    shell_exec("python3 /var/www/bot/sync-channel-rewards.py -channel $escapedUsername -channelid $escapedTwitchUserId -token $escapedAuthToken 2>&1");
+    // Add a message or feedback to the user while processing the request
+    $syncMessage = "<p>Syncing rewards, please wait...</p>";
+    sleep(3); // Optionally, add a delay before refreshing
+    header('Location: channel_rewards.php');
 }
 ?>
 <!DOCTYPE html>
@@ -76,6 +91,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <h1 class="title is-4">Channel Point Rewards:</h1>
+  <form method="POST"><button class="button is-primary" name="syncRewards" type="submit">Sync Rewards</button></form>
+  <?php echo $syncMessage; ?>
   <table class="table is-striped is-fullwidth">
     <thead>
       <tr>
