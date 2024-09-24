@@ -10,12 +10,54 @@
             let socket;
             const retryInterval = 5000;
             let reconnectAttempts = 0;
+            let currentAudio = null;
+            const audioQueue = [];
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
 
             if (!code) {
                 alert('No code provided in the URL');
                 return;
+            }
+
+            function enqueueAudio(url) {
+                if (!url) return;
+                audioQueue.push(url);
+                if (!currentAudio) {
+                    playNextAudio();
+                }
+            }
+
+            function playNextAudio() {
+                if (audioQueue.length === 0) {
+                    currentAudio = null;
+                    return;
+                }
+
+                const url = audioQueue.shift();
+                currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
+                currentAudio.volume = 0.8;
+
+                currentAudio.addEventListener('canplaythrough', () => {
+                    console.log('Audio can play through without buffering');
+                });
+
+                currentAudio.addEventListener('ended', () => {
+                    currentAudio = null;
+                    playNextAudio();
+                });
+
+                currentAudio.addEventListener('error', (e) => {
+                    console.error('Error occurred while loading the audio file:', e);
+                    alert('Failed to load audio file');
+                    currentAudio = null;
+                    playNextAudio();
+                });
+
+                currentAudio.play().catch(error => {
+                    console.error('Error playing audio:', error);
+                    alert('Click to play audio');
+                });
             }
 
             function connectWebSocket() {
@@ -51,29 +93,7 @@
                 // Listen for TTS audio events
                 socket.on('TTS', (data) => {
                     console.log('TTS Audio file path:', data.audio_file);
-                    const audio = new Audio(`${data.audio_file}?t=${new Date().getTime()}`);
-                    audio.volume = 0.8;
-
-                    audio.addEventListener('canplaythrough', () => {
-                        console.log('Audio can play through without buffering');
-                        audio.play().catch(error => {
-                            console.error('Error playing audio:', error);
-                            alert('Click to play audio');
-                        });
-                    });
-
-                    audio.addEventListener('error', (e) => {
-                        console.error('Error occurred while loading the audio file:', e);
-                        alert('Failed to load audio file');
-                    });
-
-                    // Handle user interaction to allow audio playback if blocked
-                    document.body.addEventListener('click', () => {
-                        audio.play().catch(error => {
-                            console.error('Error playing audio:', error);
-                            alert('Click to play audio');
-                        });
-                    }, { once: true });
+                    enqueueAudio(data.audio_file);
                 });
             }
 
@@ -85,6 +105,15 @@
                     connectWebSocket();
                 }, delay);
             }
+
+            // Handle user interaction to allow audio playback if blocked
+            document.body.addEventListener('click', () => {
+                if (currentAudio) {
+                    currentAudio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                    });
+                }
+            }, { once: true });
 
             // Start initial connection
             connectWebSocket();
