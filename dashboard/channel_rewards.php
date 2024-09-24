@@ -48,7 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
   $messageQuery->bindParam(':custom_message', $newCustomMessage);
   $messageQuery->bindParam(':rewardid', $rewardid);
   $messageQuery->execute();
-  echo "<script>window.location.reload();</script>";
+  header('Location: sound-alerts.php');
 }
 
 // Handle reward deletion
@@ -57,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
     $deleteQuery = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = :rewardid");
     $deleteQuery->bindParam(':rewardid', $deleteRewardId);
     $deleteQuery->execute();
-    echo "<script>window.location.reload();</script>";
+    header('Location: sound-alerts.php');
 }
 ?>
 <!DOCTYPE html>
