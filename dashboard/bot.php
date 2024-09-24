@@ -127,11 +127,8 @@ if (isset($_POST['setupBot'])) {
   // Add a delay before refreshing the page
   sleep(3);
   // Refresh the page after the delay
-  echo '<script type="text/javascript">
-            setTimeout(function(){
-                window.location.reload(1);
-            }, 500); // Refresh after 0.5 seconds
-        </script>';
+  header('Location: sound-alerts.php');
+  exit();
 }
 $today = new DateTime();
 ?>
