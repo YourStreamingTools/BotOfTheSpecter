@@ -10,12 +10,51 @@
             let socket;
             const retryInterval = 5000;
             let reconnectAttempts = 0;
+            let currentAudio = null;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
 
             if (!code) {
                 alert('No code provided in the URL');
                 return;
+            }
+
+            function playAudio(audioFile) {
+                if (!audioFile) return;
+
+                // Stop any currently playing audio
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                    currentAudio = null;
+                }
+
+                // Add cache-busting query parameter with timestamp
+                currentAudio = new Audio(`${audioFile}?t=${new Date().getTime()}`);
+                currentAudio.volume = 0.8;
+                currentAudio.autoplay = true;
+
+                currentAudio.addEventListener('canplaythrough', () => {
+                    console.log('Audio can play through without buffering');
+                });
+
+                currentAudio.addEventListener('ended', () => {
+                    // Audio finished playing
+                    currentAudio = null;
+                });
+
+                currentAudio.addEventListener('error', (e) => {
+                    console.error('Error occurred while loading the audio file:', e);
+                    alert('Failed to load audio file');
+                    currentAudio = null;
+                });
+
+                setTimeout(() => {
+                    currentAudio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                        alert('Click to play audio');
+                    });
+                }, 100);
             }
 
             function connectWebSocket() {
@@ -48,27 +87,6 @@
                     alert(data.message);
                 });
 
-                // Function to play audio with error handling
-                const playAudio = (audioFile) => {
-                    if (!audioFile) return;
-                    // Add cache-busting query parameter with timestamp
-                    const audio = new Audio(`${audioFile}?t=${new Date().getTime()}`);
-                    audio.volume = 0.8;
-                    audio.autoplay = true;
-                    audio.addEventListener('canplaythrough', () => {
-                        console.log('Audio can play through without buffering');
-                        audio.play().catch(error => {
-                            console.error('Error playing audio:', error);
-                            alert('Click to play audio');
-                        });
-                    });
-
-                    audio.addEventListener('error', (e) => {
-                        console.error('Error occurred while loading the audio file:', e);
-                        alert('Failed to load audio file');
-                    });
-                };
-
                 // Listen for TTS audio events
                 socket.on('TTS', (data) => {
                     console.log('TTS Audio file path:', data.audio_file);
@@ -90,7 +108,11 @@
 
                 // Handle user interaction to allow audio playback if blocked
                 document.body.addEventListener('click', () => {
-                    playAudio();
+                    if (currentAudio) {
+                        currentAudio.play().catch(error => {
+                            console.error('Error playing audio:', error);
+                        });
+                    }
                 }, { once: true });
             }
 
