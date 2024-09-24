@@ -11,6 +11,7 @@
             const retryInterval = 5000;
             let reconnectAttempts = 0;
             let currentAudio = null;
+            const audioQueue = [];
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
 
@@ -19,42 +20,44 @@
                 return;
             }
 
-            function playAudio(audioFile) {
-                if (!audioFile) return;
+            function enqueueAudio(url) {
+                if (!url) return;
+                audioQueue.push(url);
+                if (!currentAudio) {
+                    playNextAudio();
+                }
+            }
 
-                // Stop any currently playing audio
-                if (currentAudio) {
-                    currentAudio.pause();
-                    currentAudio.currentTime = 0;
+            function playNextAudio() {
+                if (audioQueue.length === 0) {
                     currentAudio = null;
+                    return;
                 }
 
-                // Add cache-busting query parameter with timestamp
-                currentAudio = new Audio(`${audioFile}?t=${new Date().getTime()}`);
+                const url = audioQueue.shift();
+                currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
                 currentAudio.volume = 0.8;
-                currentAudio.autoplay = true;
 
                 currentAudio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
                 });
 
                 currentAudio.addEventListener('ended', () => {
-                    // Audio finished playing
                     currentAudio = null;
+                    playNextAudio();
                 });
 
                 currentAudio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
                     currentAudio = null;
+                    playNextAudio();
                 });
 
-                setTimeout(() => {
-                    currentAudio.play().catch(error => {
-                        console.error('Error playing audio:', error);
-                        alert('Click to play audio');
-                    });
-                }, 100);
+                currentAudio.play().catch(error => {
+                    console.error('Error playing audio:', error);
+                    alert('Click to play audio');
+                });
             }
 
             function connectWebSocket() {
@@ -90,20 +93,20 @@
                 // Listen for TTS audio events
                 socket.on('TTS', (data) => {
                     console.log('TTS Audio file path:', data.audio_file);
-                    playAudio(data.audio_file);
+                    enqueueAudio(data.audio_file);
                 });
 
                 // Listen for WALKON events
                 socket.on('WALKON', (data) => {
                     console.log('Walkon:', data);
                     const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
-                    playAudio(audioFile);
+                    enqueueAudio(audioFile);
                 });
 
                 // Listen for SOUND_ALERT audio events
                 socket.on('SOUND_ALERT', (data) => {
                     console.log('SOUND_ALERT Audio file path:', data.sound);
-                    playAudio(data.sound);
+                    enqueueAudio(data.sound);
                 });
 
                 // Handle user interaction to allow audio playback if blocked
