@@ -10,11 +10,53 @@
             let socket;
             const retryInterval = 5000;
             let reconnectAttempts = 0;
+            let currentAudio = null;
+            const audioQueue = [];
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
                 alert('No code provided in the URL');
                 return;
+            }
+
+            function enqueueAudio(url) {
+                if (!url) return;
+                audioQueue.push(url);
+                if (!currentAudio) {
+                    playNextAudio();
+                }
+            }
+
+            function playNextAudio() {
+                if (audioQueue.length === 0) {
+                    currentAudio = null;
+                    return;
+                }
+
+                const url = audioQueue.shift();
+                currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
+                currentAudio.volume = 0.8;
+
+                currentAudio.addEventListener('canplaythrough', () => {
+                    console.log('Audio can play through without buffering');
+                });
+
+                currentAudio.addEventListener('ended', () => {
+                    currentAudio = null;
+                    playNextAudio();
+                });
+
+                currentAudio.addEventListener('error', (e) => {
+                    console.error('Error occurred while loading the audio file:', e);
+                    alert('Failed to load audio file');
+                    currentAudio = null;
+                    playNextAudio();
+                });
+
+                currentAudio.play().catch(error => {
+                    console.error('Error playing audio:', error);
+                    alert('Click to play audio');
+                });
             }
 
             function connectWebSocket() {
@@ -51,23 +93,7 @@
                 socket.on('WALKON', (data) => {
                     console.log('Walkon:', data);
                     const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
-                    const audio = new Audio(audioFile);
-                    audio.volume = 0.8;
-                    audio.autoplay = true;
-                    audio.addEventListener('canplaythrough', () => {
-                        console.log('Walkon audio can play through without buffering');
-                    });
-                    audio.addEventListener('error', (e) => {
-                        console.error('Error occurred while loading the Walkon audio file:', e);
-                        alert('Failed to load Walkon audio file');
-                    });
-
-                    setTimeout(() => {
-                        audio.play().catch(error => {
-                            console.error('Error playing Walkon audio:', error);
-                            alert('Click to play Walkon audio');
-                        });
-                    }, 100); // 100ms delay
+                    enqueueAudio(audioFile);
                 });
             }
 
@@ -79,6 +105,15 @@
                     connectWebSocket();
                 }, delay);
             }
+
+            // Handle user interaction to allow audio playback if blocked
+            document.body.addEventListener('click', () => {
+                if (currentAudio) {
+                    currentAudio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                    });
+                }
+            }, { once: true });
 
             // Start initial connection
             connectWebSocket();
