@@ -3879,13 +3879,11 @@ async def process_weather_websocket(data):
 async def process_stream_online():
     bot_logger.info(f"Stream is now online!")
     await sio.emit('STREAM_ONLINE')
-    #await websocket_notice(event="STREAM_ONLINE")
 
 # Function to process the stream being offline
 async def process_stream_offline():
     bot_logger.info(f"Stream is now offline.")
     await sio.emit('STREAM_OFFLINE')
-    #await websocket_notice(event="STREAM_OFFLINE")
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
