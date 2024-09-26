@@ -51,7 +51,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.7.1"
+VERSION = "4.8"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -118,16 +118,6 @@ global bot_started
 bot_started = datetime.now()
 stream_online = False
 current_game = None
-
-# Spam Messages
-spam_pattern = [
-    re.compile(r'cheap viewers on', re.IGNORECASE),
-    re.compile(r'best viewers on', re.IGNORECASE),
-    re.compile(r'ch̍eap viewers on', re.IGNORECASE),
-    re.compile(r'B͟est Viewers on', re.IGNORECASE),
-    re.compile(r'B̟est viewers', re.IGNORECASE),
-    re.compile(r'Ch͟eap viewers on', re.IGNORECASE),
-]
 
 # Setup Token Refresh
 async def token_refresh():
@@ -320,7 +310,7 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
-                    event_logger.info("Received session keepalive message")
+                    event_logger.info("Received session keepalive message from Twitch WebSocket")
                 else:
                     # event_logger.info(f"Received message type: {message_type}")
                     event_logger.info(f"Info from Twitch EventSub: {message_data}")
@@ -613,25 +603,7 @@ async def process_eventsub_message(message):
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
-                    try:
-                        if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                            reward_id = event_data.get("id")
-                            reward_title = event_data["reward"].get("type")
-                        elif event_type == "channel.channel_points_custom_reward_redemption.add":
-                            reward_id = event_data["reward"].get("id")
-                            reward_title = event_data["reward"].get("title")
-                            if "tts" in reward_title.lower():
-                                tts_message = event_data["user_input"]
-                                await websocket_notice_tts(event="TTS", text=tts_message)
-                                event_logger.info(f"TTS message sent: {tts_message}")
-                                return
-                        await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                        result = await cursor.fetchone()
-                        if result and result[0]:
-                            custom_message = result[0]
-                            await channel.send(custom_message)
-                    except Exception as e:
-                        event_logger.error(f"An error occurred while processing the reward: {str(e)}")
+                    await process_channel_point_rewards(event_data, event_type)
                 elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
@@ -780,6 +752,11 @@ async def FOURTHWALL(data):
     await process_fourthwall_event(data)
 
 @sio.event
+async def KOFI(data):
+    event_logger.info(f"Received KOFI event: {data}")
+    await process_kofi_event(data)
+
+@sio.event
 async def WEATHER_DATA(data):
     event_logger.info(f"Received WEATHER_DATA event: {data}")
     await process_weather_websocket(data)
@@ -825,14 +802,11 @@ class BotOfTheSpecter(commands.Bot):
 
     # Errors
     async def event_command_error(self, ctx, error: Exception) -> None:
-        cooldown_notify_commands = ['song', 'commands', 'weather', 'time']
         if isinstance(error, commands.CommandOnCooldown):
             command_name = ctx.command.name
-            if command_name in cooldown_notify_commands:
-                retry_after = round(error.retry_after)
-                await ctx.send(f'!{command_name} is on cooldown. Please wait {retry_after} seconds before using the command again.')
-            else:
-                chat_logger.info(f"{command_name} command used by {ctx.author.name} is on cooldown.")
+            username = ctx.user.name
+            retry_after = round(error.retry_after)
+            await ctx.send(f'@{username} !{command_name} is on cooldown. Please wait {retry_after} seconds before using the command again.')
         else:
             bot_logger.error(f"Error occurred: {error}")
 
@@ -861,6 +835,7 @@ class BotOfTheSpecter(commands.Bot):
                 messageAuthorID = message.author.id if message.author else ""
                 AuthorMessage = message.content if message.content else ""
                 # Check if the message matches the spam pattern
+                spam_pattern = await get_spam_patterns()
                 for pattern in spam_pattern:
                     if pattern.search(messageContent):
                         bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
@@ -1399,6 +1374,7 @@ class BotOfTheSpecter(commands.Bot):
                 async with aiohttp.ClientSession() as session:
                     response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
                     result = await response.json()
+                    api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
             else:
                 await ctx.send("Unable to retrieve location.")
         finally:
@@ -1417,8 +1393,10 @@ class BotOfTheSpecter(commands.Bot):
                 result = await cursor.fetchone()
                 if result:
                     points = result[0]
+                    chat_logger.info(f"{user_name} has {points} points")
                 else:
                     points = 0
+                    chat_logger.info(f"{user_name} has {points} points")
                     await cursor.execute(
                         "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
                         (user_id, user_name, points)
@@ -1848,18 +1826,19 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                # Using subprocess to run the ping command
-                result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
-                # Decode the result from bytes to string and search for the time
-                output = result.stdout.decode('utf-8')
-                match = re.search(r"time=(\d+\.\d+) ms", output)
-                if match:
-                    ping_time = match.group(1)
-                    bot_logger.info(f"Pong: {ping_time} ms")
-                    await ctx.send(f'Pong: {ping_time} ms')
-                else:
-                    bot_logger.error(f"Error Pinging. {output}")
-                    await ctx.send(f'Error pinging')
+            # Using subprocess to run the ping command
+            result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
+            # Decode the result from bytes to string and search for the time
+            output = result.stdout.decode('utf-8')
+            match = re.search(r"time=(\d+\.\d+) ms", output)
+            if match:
+                ping_time = match.group(1)
+                bot_logger.info(f"Pong: {ping_time} ms")
+                # Updated message to make it clear to the user
+                await ctx.send(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
+            else:
+                bot_logger.error(f"Error Pinging. {output}")
+                await ctx.send(f'Error pinging the internet from the bot server.')
         finally:
             await sqldb.ensure_closed()
 
@@ -3157,6 +3136,7 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         result = f"{ctx.author.name} tried to kill {target}, but something went wrong."
                         chat_logger.error("No 'other' kill message found.")
+                    api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
                 else:
                     message_key = [key for key in kill_message if "self" in key]
                     if message_key:
@@ -3165,6 +3145,7 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         result = f"{ctx.author.name} tried to kill themselves, but something went wrong."
                         chat_logger.error("No 'self' kill message found.")
+                    api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
                 await ctx.send(result)
                 chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
         except Exception as e:
@@ -3851,6 +3832,72 @@ async def process_fourthwall_event(data):
     except Exception as e:
         event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
+# Function to process KOFI events
+async def process_kofi_event(data):
+    channel = bot.get_channel(CHANNEL_NAME)
+    if isinstance(data.get('data'), str):
+        try:
+            data['data'] = ast.literal_eval(data['data'])
+        except (ValueError, SyntaxError) as e:
+            event_logger.error(f"Failed to parse data: {e}")
+            return
+    if not isinstance(data.get('data'), dict):
+        event_logger.error(f"Unexpected data structure: {data}")
+        return
+    # Extract event type and data
+    event_type = data.get('data', {}).get('type', None)
+    event_data = data.get('data', {})
+    message_to_send = None
+    if event_type is None:
+        event_logger.info(f"Unhandled KOFI event: {event_type}")
+        return
+    # Process the event based on type
+    try:
+        if event_type == 'Donation':
+            donor_name = event_data.get('from_name', 'Unknown')
+            amount = event_data.get('amount', 'Unknown')
+            currency = event_data.get('currency', 'Unknown')
+            message = event_data.get('message', None)
+            # Log the donation details and build the message to send to chat
+            if message:
+                event_logger.info(f"Donation: {donor_name} donated {amount} {currency} with message: {message}")
+                message_to_send = f"💰 {donor_name} donated {amount} {currency}. Message: {message}"
+            else:
+                event_logger.info(f"Donation: {donor_name} donated {amount} {currency}")
+                message_to_send = f"💰 {donor_name} donated {amount} {currency}. Thank you!"
+        elif event_type == 'Subscription':
+            subscriber_name = event_data.get('from_name', 'Unknown')
+            amount = event_data.get('amount', 'Unknown')
+            currency = event_data.get('currency', 'Unknown')
+            is_first_payment = event_data.get('is_first_subscription_payment', False)
+            tier_name = event_data.get('tier_name', 'None')
+            # Log the subscription details and build the message to send to chat
+            if is_first_payment:
+                event_logger.info(f"Subscription: {subscriber_name} subscribed to {tier_name} for {amount} {currency} (First payment)")
+                message_to_send = f"🎉 {subscriber_name} subscribed to {tier_name} for {amount} {currency} (First payment)!"
+            else:
+                event_logger.info(f"Subscription: {subscriber_name} renewed {tier_name} for {amount} {currency}")
+                message_to_send = f"🎉 {subscriber_name} renewed {tier_name} for {amount} {currency}!"
+        elif event_type == 'Shop Order':
+            purchaser_name = event_data.get('from_name', 'Unknown')
+            amount = event_data.get('amount', 'Unknown')
+            currency = event_data.get('currency', 'Unknown')
+            shop_items = event_data.get('shop_items', [])
+            item_summary = ", ".join([f"{item['quantity']} x {item['variation_name']}" for item in shop_items])
+            message_to_send = f"🛒 {purchaser_name} purchased items for {amount} {currency}. Items: {item_summary}"
+            # Log the shop order details
+            event_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Items: {item_summary}")
+        else:
+            event_logger.info(f"Unhandled KOFI event: {event_type}")
+            return
+        # Only send a message if it was successfully created
+        if message_to_send:
+            await channel.send(message_to_send)
+    except KeyError as e:
+        event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
+    except Exception as e:
+        event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
+
 async def process_weather_websocket(data):
     # Convert weather_data from string to dictionary
     try:
@@ -3878,12 +3925,12 @@ async def process_weather_websocket(data):
 # Function to process the stream being online
 async def process_stream_online():
     bot_logger.info(f"Stream is now online!")
-    await websocket_notice(event="STREAM_ONLINE")
+    await sio.emit('STREAM_ONLINE')
 
 # Function to process the stream being offline
 async def process_stream_offline():
     bot_logger.info(f"Stream is now offline.")
-    await websocket_notice(event="STREAM_OFFLINE")
+    await sio.emit('STREAM_OFFLINE')
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
@@ -4614,16 +4661,14 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Function to connect to the websocket server and push a notice
-async def websocket_notice(event, channel=None, user=None, text=None, death=None, game=None, weather=None, cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None):
+async def websocket_notice(event, channel=None, user=None, death=None, game=None, weather=None, cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None):
     async with ClientSession() as session:
         params = {
             'code': API_TOKEN,
             'event': event
         }
         # Handling different event types and their specific parameters
-        if event == "TTS" and text:
-            params['text'] = text
-        elif event == "WALKON" and channel and user:
+        if event == "WALKON" and channel and user:
             walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
             if os.path.exists(walkon_file_path):
                 params['channel'] = channel
@@ -4668,7 +4713,7 @@ async def websocket_notice(event, channel=None, user=None, text=None, death=None
             else:
                 bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
 
-# Function to connect to the websocket server and push a notice
+# Function to connect to the websocket server and push a TTS notice
 async def websocket_notice_tts(event, text=None):
     async with ClientSession() as session:
         params = {
@@ -4678,6 +4723,31 @@ async def websocket_notice_tts(event, text=None):
         # Handling TTS event
         if event == "TTS" and text:
             params['text'] = text
+        else:
+            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
+            return
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
+        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
+        # Send the HTTP request
+        async with session.get(url) as response:
+            if response.status == 200:
+                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+            else:
+                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+
+# Function to connect to the websocket server and push a SOUND_ALERT notice
+async def websocket_notice_sound_alert(event, sound=None):
+    async with ClientSession() as session:
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
+        # Handling TTS event
+        if event == "SOUND_ALERT" and sound:
+            sound = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
+            params['sound'] = sound
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
             return
@@ -4830,6 +4900,59 @@ async def convert_currency(amount, from_currency, to_currency):
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
         raise
 
+async def process_channel_point_rewards(event_data, event_type):
+    sqldb = await get_mysql_connection()
+    channel = bot.get_channel(CHANNEL_NAME)
+    async with sqldb.cursor() as cursor:
+        try:
+            user_name = event_data["user_name"]
+            if event_type == "channel.channel_points_automatic_reward_redemption.add":
+                reward_id = event_data.get("id")
+                reward_title = event_data["reward"].get("type")
+            elif event_type == "channel.channel_points_custom_reward_redemption.add":
+                reward_id = event_data["reward"].get("id")
+                reward_title = event_data["reward"].get("title")
+                # Check for TTS reward
+                if "tts" in reward_title.lower():
+                    tts_message = event_data["user_input"]
+                    await websocket_notice_tts(event="TTS", text=tts_message)
+                    event_logger.info(f"TTS message sent: {tts_message}")
+                    return
+                # Check for Lotto Numbers reward
+                elif "lotto" in reward_title.lower():
+                    lotto_result = await user_lotto_numbers()
+                    winning = ', '.join(map(str, lotto_result['winning_numbers']))
+                    supplementary = ', '.join(map(str, lotto_result['supplementary_numbers']))
+                    lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning} Supplementary Numbers: {supplementary}"
+                    await channel.send(lotto_message)
+                    chat_logger.info(f"Lotto numbers generated: {lotto_message}")
+                    return
+                # Check for Fortune reward
+                elif "fortune" in reward_title.lower():
+                    fortune_message = await tell_fortune()
+                    await channel.send(f"{user_name}, {fortune_message}")
+                    chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
+                    return
+                # Sound alert logic
+                await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
+                sound_result = await cursor.fetchone()
+                if sound_result:
+                    sound_file = sound_result[0]
+                    event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
+                    await websocket_notice_sound_alert(event="SOUND_ALERT", sound=sound_file)
+            # Custom message handling
+            await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
+            result = await cursor.fetchone()
+            if result and result[0]:
+                custom_message = result[0]
+                if '(user)' in custom_message:
+                    custom_message = custom_message.replace('(user)', user_name)
+                await channel.send(custom_message)
+        except Exception as e:
+            event_logger.error(f"An error occurred while processing the reward: {str(e)}")
+        finally:
+            sqldb.close()
+
 async def channel_point_rewards():
     # Check the broadcaster's type
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
@@ -4892,6 +5015,30 @@ async def channel_point_rewards():
     finally:
         if sqldb:
             sqldb.close()
+
+# Function to generate random Lotto numbers
+async def user_lotto_numbers():
+    # Draw 7 winning numbers and 3 supplementary numbers from 1-47
+    all_numbers = random.sample(range(1, 48), 10)
+    winning_numbers = all_numbers[:7]
+    supplementary_numbers = all_numbers[7:]
+    return {
+        "winning_numbers": winning_numbers,
+        "supplementary_numbers": supplementary_numbers
+    }
+
+# Function to fetch a random fortune
+async def tell_fortune():
+    url = f"https://api.botofthespecter.com/fortune?api_key={API_TOKEN}"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                fortune_data = await response.json()
+                if fortune_data and "fortune" in fortune_data:
+                    # Return the fetched fortune
+                    api_logger.info(f'API - BotOfTheSpecter - Fortune - {fortune_data["fortune"]}')
+                    return fortune_data["fortune"]
+            return "Unable to retrieve your fortune at this time."
 
 async def midnight(channel):
     # Get the timezone once outside the loop
@@ -5014,6 +5161,24 @@ async def get_mysql_connection():
         password=SQL_PASSWORD,
         db=CHANNEL_NAME
     )
+
+async def get_spam_patterns():
+    # Connect to your MySQL database
+    conn = await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db="spam_pattern",
+    )
+    async with conn.cursor() as cursor:
+        await cursor.execute("SELECT spam_pattern FROM spam_patterns")
+        results = await cursor.fetchall()
+        # Close the connection
+        await cursor.close()
+        conn.close()
+        # Compile the regular expressions
+        compiled_patterns = [re.compile(row[0], re.IGNORECASE) for row in results]
+    return compiled_patterns
 
 async def setup_database():
     try:
@@ -5314,6 +5479,13 @@ async def setup_database():
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'sound_alerts': '''
+                    CREATE TABLE IF NOT EXISTS sound_alerts (
+                        reward_id VARCHAR(255),
+                        sound_mapping TEXT, 
+                        PRIMARY KEY (reward_id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
             }
