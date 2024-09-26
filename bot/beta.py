@@ -3865,10 +3865,16 @@ async def process_kofi_event(data):
         except (ValueError, SyntaxError) as e:
             event_logger.error(f"Failed to parse data: {e}")
             return
+    if not isinstance(data.get('data'), dict):
+        event_logger.error(f"Unexpected data structure: {data}")
+        return
     # Extract event type and data
-    event_type = data.get('type')
+    event_type = data.get('data', {}).get('type', None)
     event_data = data.get('data', {})
     message_to_send = None
+    if event_type is None:
+        event_logger.info(f"Unhandled KOFI event: {event_type}")
+        return
     # Process the event based on type
     try:
         if event_type == 'Donation':
@@ -3909,6 +3915,8 @@ async def process_kofi_event(data):
             event_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Shipping to {shipping_summary}. Items: {item_summary}")
         else:
             event_logger.info(f"Unhandled KOFI event: {event_type}")
+            return
+        # Only send a message if it was successfully created
         if message_to_send:
             await channel.send(message_to_send)
     except KeyError as e:
