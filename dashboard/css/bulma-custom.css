@@ -441,3 +441,11 @@ input[type="submit"]:hover {
     align-items: center;
     justify-content: center;
 }
+
+.content-card {
+    padding: 2em;
+    margin-bottom: 2em;
+    border-radius: 10px;
+    background-color: #1F1F1F;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
