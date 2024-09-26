@@ -3868,6 +3868,7 @@ async def process_kofi_event(data):
     # Extract event type and data
     event_type = data.get('type')
     event_data = data.get('data', {})
+    message_to_send = None
     # Process the event based on type
     try:
         if event_type == 'Donation':
@@ -3875,7 +3876,7 @@ async def process_kofi_event(data):
             amount = event_data.get('amount', 'Unknown')
             currency = event_data.get('currency', 'Unknown')
             message = event_data.get('message', None)
-            # Log the subscription details and build the message to send to chat
+            # Log the donation details and build the message to send to chat
             if message:
                 event_logger.info(f"Donation: {donor_name} donated {amount} {currency} with message: {message}")
                 message_to_send = f"💰 {donor_name} donated {amount} {currency}. Message: {message}"
@@ -3908,7 +3909,8 @@ async def process_kofi_event(data):
             event_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Shipping to {shipping_summary}. Items: {item_summary}")
         else:
             event_logger.info(f"Unhandled KOFI event: {event_type}")
-        await channel.send(message_to_send)
+        if message_to_send:
+            await channel.send(message_to_send)
     except KeyError as e:
         event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
