@@ -52,6 +52,7 @@ include 'sqlite.php';
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
+  <!-- Fourthwall Integration -->
   <div class="content">
       <h2 class="subtitle">Fourthwall Integration</h2>
       <p>Follow the steps below to integrate Specter with your Fourthwall account:</p>
@@ -76,6 +77,23 @@ include 'sqlite.php';
           </li>
       </ol>
       <p>That's it! Your Fourthwall account is now integrated with Specter.</p>
+  </div>
+  <!-- Ko-Fi Integration -->
+  <div class="content">
+    <h2 class="subtitle">Ko-Fi Integration</h2>
+    <p>Follow the steps below to integrate Specter with your Ko-Fi account:</p>
+    <ol>
+      <li>Log into your Ko-Fi account.</li>
+      <li>When the manage page loads, on the left-hand side, under Stream Alerts, click the three dots where it says More.</li>
+      <li>In the "More" section, click the API option.</li>
+      <li>
+        In the webhook URL field, enter:
+        <code>https://api.botofthespecter.com/kofi?api_key=</code>
+        Make sure to append your API key, which can be found on the Profile page of the Specter dashboard.
+      </li>
+      <li>Once you've entered the URL, click the Update button.</li>
+    </ol>
+    <p>That's it! Your Ko-Fi account is now integrated with Specter.</p>
   </div>
 </div>
 
