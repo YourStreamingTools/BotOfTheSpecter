@@ -9,7 +9,7 @@ import datetime
 import logging
 import asyncio
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, Depends, Request, Query, status
+from fastapi import FastAPI, HTTPException, Request, status, Depends, Query, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -386,15 +386,10 @@ async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...))
     status_code=status.HTTP_200_OK,
     operation_id="process_kofi_webhook"
 )
-async def handle_kofi_webhook(request: Request, api_key: str = Query(...)):
+async def handle_kofi_webhook(api_key: str = Query(...), data: str = Form(...)):
     try:
-        # Read form-urlencoded data
-        form_data = await request.form()
-        # The 'data' field contains the payment information as a JSON string
-        if 'data' not in form_data:
-            raise HTTPException(status_code=400, detail="Missing 'data' field")
         # Parse the 'data' field (which is a JSON string)
-        kofi_data = form_data['data']
+        kofi_data = json.loads(data)
         # Forward the data to the WebSocket server
         async with aiohttp.ClientSession() as session:
             params = {
