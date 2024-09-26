@@ -310,7 +310,7 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
-                    event_logger.info("Received session keepalive message from Twitch WwebSocket")
+                    event_logger.info("Received session keepalive message from Twitch WebSocket")
                 else:
                     # event_logger.info(f"Received message type: {message_type}")
                     event_logger.info(f"Info from Twitch EventSub: {message_data}")
