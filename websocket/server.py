@@ -96,6 +96,7 @@ class BotOfTheSpecterWebsocketServer:
             ("STREAM_OFFLINE", self.stream_offline),
             ("DISCORD_JOIN", self.discord_join),
             ("FOURTHWALL", self.handle_fourthwall_event),
+            ("KOFI", self.handle_kofi_event),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -256,6 +257,8 @@ class BotOfTheSpecterWebsocketServer:
             self.logger.info(f"TTS request added to queue: {text}")
         elif event == "FOURTHWALL":
             await self.handle_fourthwall_event(code, data)
+        elif event == "KOFI":
+            await self.handle_kofi_event(code, data)
         else:
             if code in self.registered_clients:
                 for client in self.registered_clients[code]:
@@ -278,9 +281,17 @@ class BotOfTheSpecterWebsocketServer:
                 count += 1
         self.logger.info(f"Broadcasted FOURTHWALL event to {count} clients")
 
-    async def notify(self, sid, data):
-        self.logger.info(f"Notify event from SID [{sid}]: {data}")
-        event = data.get('event')
+    async def handle_kofi_event(self, code, data):
+        # Log and broadcast the KOFI event to the clients
+        self.logger.info(f"Handling KOFI event with data: {data}")
+        count = 0
+        if code in self.registered_clients:
+            for client in self.registered_clients[code]:
+                sid = client['sid']
+                await self.sio.emit("KOFI", data, to=sid)
+                self.logger.info(f"Emitted KOFI event to client {sid}")
+                count += 1
+        self.logger.info(f"Broadcasted KOFI event to {count} clients")
 
     async def notify(self, sid, data):
         self.logger.info(f"Notify event from SID [{sid}]: {data}")
