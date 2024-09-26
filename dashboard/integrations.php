@@ -49,10 +49,34 @@ include 'sqlite.php';
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
-<div class="row column">
-<br>
-<h1><?php echo "$greeting, $twitchDisplayName <img id='profile-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
+<div class="container">
+  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+  <br>
+  <div class="content">
+      <h2 class="subtitle">Fourthwall Integration</h2>
+      <p>Follow the steps below to integrate Specter with your Fourthwall account:</p>
+      <ol>
+          <li>Login to your Fourthwall admin dashboard.</li>
+          <li>On the left-hand menu, click Settings.</li>
+          <li>In the Site Settings page, find and click the For developers link.</li>
+          <li>Click Create webhook in the webhooks section.</li>
+          <li>
+              In the URL field, enter:
+              <code>https://api.botofthespecter.com/fourthwall?api_key=</code>
+              Make sure to append your API key, which can be found on the Profile page.
+          </li>
+          <li>
+              From the "Add Event" list, choose any or all of the following events:
+              <ul>
+                  <li>Order placed</li>
+                  <li>Gift purchase</li>
+                  <li>Donation</li>
+                  <li>Subscription purchased</li>
+              </ul>
+          </li>
+      </ol>
+      <p>That's it! Your Fourthwall account is now integrated with Specter.</p>
+  </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
