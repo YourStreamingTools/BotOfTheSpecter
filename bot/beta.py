@@ -3907,12 +3907,10 @@ async def process_kofi_event(data):
             amount = event_data.get('amount', 'Unknown')
             currency = event_data.get('currency', 'Unknown')
             shop_items = event_data.get('shop_items', [])
-            shipping_info = event_data.get('shipping', {})
             item_summary = ", ".join([f"{item['quantity']} x {item['variation_name']}" for item in shop_items])
-            shipping_summary = f"{shipping_info.get('full_name', 'Unknown')}, {shipping_info.get('city', 'Unknown')}, {shipping_info.get('country', 'Unknown')}"
-            message_to_send = f"🛒 {purchaser_name} purchased items for {amount} {currency}. Shipping to {shipping_summary}. Items: {item_summary}"
+            message_to_send = f"🛒 {purchaser_name} purchased items for {amount} {currency}. Items: {item_summary}"
             # Log the shop order details
-            event_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Shipping to {shipping_summary}. Items: {item_summary}")
+            event_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Items: {item_summary}")
         else:
             event_logger.info(f"Unhandled KOFI event: {event_type}")
             return
