@@ -752,6 +752,11 @@ async def FOURTHWALL(data):
     await process_fourthwall_event(data)
 
 @sio.event
+async def KOFI(data):
+    event_logger.info(f"Received KOFI event: {data}")
+    return
+
+@sio.event
 async def WEATHER_DATA(data):
     event_logger.info(f"Received WEATHER_DATA event: {data}")
     await process_weather_websocket(data)
