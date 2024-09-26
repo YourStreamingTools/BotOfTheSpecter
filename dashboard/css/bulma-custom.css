@@ -92,11 +92,11 @@ a.navbar-item:hover {
 }
 
 h1, h2, h3, h4, h5, h6 {
-    color: #ffffff;
+    color: #ffffff !important;
 }
 
 .title, .subtitle, .label {
-    color: #ffffff;
+    color: #ffffff !important;
 }
 
 .container {
