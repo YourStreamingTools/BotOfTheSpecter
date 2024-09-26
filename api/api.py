@@ -377,6 +377,44 @@ async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...))
             logging.error(f"{e}")
     return {"status": "success", "message": "Webhook received"}
 
+# Kofi Webhook Endpoint
+@app.post(
+    "/kofi",
+    summary="Receive and process KOFI Webhook Requests",
+    description="This endpoint allows you to receive KOFI webhook events and forward them to the WebSocket server.",
+    tags=["Webhooks"],
+    status_code=status.HTTP_200_OK,
+    operation_id="process_kofi_webhook"
+)
+async def handle_kofi_webhook(request: Request, api_key: str = Query(...)):
+    try:
+        # Read form-urlencoded data
+        form_data = await request.form()
+        # The 'data' field contains the payment information as a JSON string
+        if 'data' not in form_data:
+            raise HTTPException(status_code=400, detail="Missing 'data' field")
+        # Parse the 'data' field (which is a JSON string)
+        kofi_data = form_data['data']
+        # Forward the data to the WebSocket server
+        async with aiohttp.ClientSession() as session:
+            params = {
+                "code": api_key,
+                "event": "KOFI",
+                "data": kofi_data
+            }
+            encoded_params = urlencode(params)
+            url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Failed to send KOFI event to WebSocket server."
+                    )
+        return {"status": "success", "message": "Kofi event forwarded to WebSocket server"}
+    except Exception as e:
+        logging.error(f"Error forwarding Kofi webhook: {e}")
+        raise HTTPException(status_code=500, detail=f"Error forwarding Kofi webhook: {str(e)}")
+
 # Quotes endpoint
 @app.get(
     "/quotes",
