@@ -754,7 +754,7 @@ async def FOURTHWALL(data):
 @sio.event
 async def KOFI(data):
     event_logger.info(f"Received KOFI event: {data}")
-    return
+    await process_kofi_event(data)
 
 @sio.event
 async def WEATHER_DATA(data):
@@ -3851,6 +3851,64 @@ async def process_fourthwall_event(data):
             await channel.send(message)
         else:
             event_logger.info(f"Unhandled Fourthwall event: {event_type}")
+    except KeyError as e:
+        event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
+    except Exception as e:
+        event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
+
+# Function to process KOFI events
+async def process_kofi_event(data):
+    channel = bot.get_channel(CHANNEL_NAME)
+    if isinstance(data.get('data'), str):
+        try:
+            data['data'] = ast.literal_eval(data['data'])
+        except (ValueError, SyntaxError) as e:
+            event_logger.error(f"Failed to parse data: {e}")
+            return
+    # Extract event type and data
+    event_type = data.get('type')
+    event_data = data.get('data', {})
+    # Process the event based on type
+    try:
+        if event_type == 'Donation':
+            donor_name = event_data.get('from_name', 'Unknown')
+            amount = event_data.get('amount', 'Unknown')
+            currency = event_data.get('currency', 'Unknown')
+            message = event_data.get('message', None)
+            # Log the subscription details and build the message to send to chat
+            if message:
+                event_logger.info(f"Donation: {donor_name} donated {amount} {currency} with message: {message}")
+                message_to_send = f"💰 {donor_name} donated {amount} {currency}. Message: {message}"
+            else:
+                event_logger.info(f"Donation: {donor_name} donated {amount} {currency}")
+                message_to_send = f"💰 {donor_name} donated {amount} {currency}. Thank you!"
+        elif event_type == 'Subscription':
+            subscriber_name = event_data.get('from_name', 'Unknown')
+            amount = event_data.get('amount', 'Unknown')
+            currency = event_data.get('currency', 'Unknown')
+            is_first_payment = event_data.get('is_first_subscription_payment', False)
+            tier_name = event_data.get('tier_name', 'None')
+            # Log the subscription details and build the message to send to chat
+            if is_first_payment:
+                event_logger.info(f"Subscription: {subscriber_name} subscribed to {tier_name} for {amount} {currency} (First payment)")
+                message_to_send = f"🎉 {subscriber_name} subscribed to {tier_name} for {amount} {currency} (First payment)!"
+            else:
+                event_logger.info(f"Subscription: {subscriber_name} renewed {tier_name} for {amount} {currency}")
+                message_to_send = f"🎉 {subscriber_name} renewed {tier_name} for {amount} {currency}!"
+        elif event_type == 'Shop Order':
+            purchaser_name = event_data.get('from_name', 'Unknown')
+            amount = event_data.get('amount', 'Unknown')
+            currency = event_data.get('currency', 'Unknown')
+            shop_items = event_data.get('shop_items', [])
+            shipping_info = event_data.get('shipping', {})
+            item_summary = ", ".join([f"{item['quantity']} x {item['variation_name']}" for item in shop_items])
+            shipping_summary = f"{shipping_info.get('full_name', 'Unknown')}, {shipping_info.get('city', 'Unknown')}, {shipping_info.get('country', 'Unknown')}"
+            message_to_send = f"🛒 {purchaser_name} purchased items for {amount} {currency}. Shipping to {shipping_summary}. Items: {item_summary}"
+            # Log the shop order details
+            event_logger.info(f"Shop Order: {purchaser_name} ordered items for {amount} {currency}. Shipping to {shipping_summary}. Items: {item_summary}")
+        else:
+            event_logger.info(f"Unhandled KOFI event: {event_type}")
+        await channel.send(message_to_send)
     except KeyError as e:
         event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
