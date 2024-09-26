@@ -61,3 +61,5 @@ BotOfTheSpecter is a comprehensive Twitch chat bot designed to enhance the strea
 [Version 4.6](4.6.md)
 
 [Version 4.7](4.7.md)
+
+[Version 4.8](4.8.md)
