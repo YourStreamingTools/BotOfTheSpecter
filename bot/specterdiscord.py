@@ -95,8 +95,10 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Determine the "channel_name" based on the source of the message
         if isinstance(message.channel, discord.DMChannel):
+            channel = message.channel
             channel_name = str(message.author.id)  # Use user ID for DMs
         else:
+            channel = message.channel
             channel_name = str(message.guild.name)  # Use guild name for server messages
         # Use the message ID to track if it's already been processed
         message_id = str(message.id)
@@ -105,20 +107,23 @@ class BotOfTheSpecter(commands.Bot):
         if message_id in processed_messages:
             self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
             return
-        # Process the message
+        # Process the message if it's in a DM channel
         if isinstance(message.channel, discord.DMChannel):
             try:
-                async with message.channel.typing():
+                # Wrap the entire response process within the typing context
+                async with channel.typing():
+                    self.logger.info(f"Processing message from {message.author}: {message.content}")
+                    # Fetch AI responses
                     ai_responses = await self.get_ai_response(message.content, channel_name)
-                # Now stop typing and simulate typing speed
-                for ai_response in ai_responses:
-                    if ai_response:  # Ensure we're not trying to send an empty message
-                        typing_delay = len(ai_response) / self.typing_speed
-                        await asyncio.sleep(typing_delay)
-                        await message.author.send(ai_response)
-                        self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
-                    else:
-                        self.logger.error("AI response chunk was empty, not sending")
+                    # Send each chunk of AI response
+                    for ai_response in ai_responses:
+                        if ai_response:  # Ensure we're not sending an empty message
+                            typing_delay = len(ai_response) / self.typing_speed
+                            await asyncio.sleep(typing_delay)  # Simulate typing speed
+                            await message.author.send(ai_response)
+                            self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
+                        else:
+                            self.logger.error("AI response chunk was empty, not sending.")
             except discord.HTTPException as e:
                 self.logger.error(f"Failed to send message: {e}")
             except Exception as e:
