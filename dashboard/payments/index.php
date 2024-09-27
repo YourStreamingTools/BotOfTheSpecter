@@ -15,9 +15,36 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Payments";
 
+// Include Stripe PHP library and set the API key
+require_once('stripe-php/init.php');
+$stripeSecretKey = ''; // CHANGE TO MAKE THIS WORK
+\Stripe\Stripe::setApiKey($stripeSecretKey);
+
 // Connect to database
 require_once "../db_connect.php";
 require_once "stripe_customer.php";
+
+// Define your product and price IDs for each plan
+$plans = [
+    'standard' => [
+        'product' => '', // CHANGE TO MAKE THIS WORK
+        'priceId' => '', // CHANGE TO MAKE THIS WORK
+        'name' => 'Standard Plan',
+        'price' => '$5 USD',
+    ],
+    'premium' => [
+        'product' => '', // CHANGE TO MAKE THIS WORK
+        'priceId' => '', // CHANGE TO MAKE THIS WORK
+        'name' => 'Premium Plan',
+        'price' => '$10 USD',
+    ],
+    'ultimate' => [
+        'product' => '', // CHANGE TO MAKE THIS WORK
+        'priceId' => '', // CHANGE TO MAKE THIS WORK
+        'name' => 'Ultimate Plan',
+        'price' => '$15 USD',
+    ],
+];
 
 // Fetch the user's data from the database based on the access_token
 $access_token = $_SESSION['access_token'];
@@ -28,6 +55,7 @@ $userSTMT->execute();
 $userResult = $userSTMT->get_result();
 $user = $userResult->fetch_assoc();
 $user_id = $user['id'];
+$_SESSION['user_id'] = $user_id;
 $username = $user['username'];
 $twitchDisplayName = $user['twitch_display_name'];
 $profileImageUrl = $user['profile_image'];
@@ -38,6 +66,7 @@ $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
 $stripeCustomerId = $user['stripe_customer_id'];
+$_SESSION['stripe_customer_id'] = $stripeCustomerId;
 $subscriptionId = $user['subscription_id'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
@@ -62,6 +91,28 @@ if (empty($stripeCustomerId)) {
 
 // Check for status messages
 $status = isset($_GET['status']) ? $_GET['status'] : null;
+
+// Fetch the user's subscription status from Stripe
+$subscriptionActive = false;
+$currentPlan = 'free'; // Default to free
+
+if (!empty($subscriptionId)) {
+    try {
+        $subscription = \Stripe\Subscription::retrieve($subscriptionId);
+        if ($subscription->status === 'active') {
+            $subscriptionActive = true;
+            // Determine the current plan based on the subscription's price ID
+            $currentPriceId = $subscription->items->data[0]->price->id;
+            foreach ($plans as $planName => $planDetails) {
+                if ($planDetails['priceId'] === $currentPriceId) {
+                    $currentPlan = $planName;
+                    break;
+                }
+            }
+        }
+    } catch (\Exception $e) {
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -104,6 +155,7 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
     </h2>
 
     <div class="card-container">
+        <!-- Free Plan -->
         <div class="card">
             <div class="card-content">
                 <div class="content">
@@ -114,139 +166,66 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
                     </ul>
                 </div>
             </div>
-        </div>
-
-        <div class="card">
-            <div class="card-content">
-                <div class="content">
-                    <h2 class="card-title">Standard Plan<br>$5 USD</h2>
-                    <ul>
-                        <li><a class="feature-link" data-modal="modal-feature-song-weather">!song & !weather Commands</a></li>
-                        <li><a class="feature-link" data-modal="modal-feature-support">Full Support</a></li>
-                        <li><a class="feature-link" data-modal="modal-feature-beta">Exclusive Beta Features</a></li>
-                        <li>Shared Bot (BotOfTheSpecter)</li>
-                    </ul>
-                    <h2 class="card-subtitle">Coming Soon</h2>
+            <?php if ($currentPlan === 'free'): ?>
+                <div class="card-footer">
+                    <p class="card-footer-item">
+                        <span>Current Plan</span>
+                    </p>
                 </div>
-            </div>
+            <?php else: ?>
+                <form action="subscribe.php" method="POST">
+                    <input type="hidden" name="plan" value="free">
+                    <button type="submit" class="button is-primary">Switch to Free Plan</button>
+                </form>
+            <?php endif; ?>
         </div>
-
-        <div class="card" id="premium-card">
-            <div class="card-content">
-                <div class="content">
-                    <h2 class="card-title">Premium Plan<br>$10 USD</h2>
+        <?php foreach ($plans as $planKey => $planDetails): ?>
+            <div class="card">
+                <div class="card-content">
+                    <h2 class="card-title"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
                     <ul>
-                        <li>Everything From Standard Plan</li>
-                        <li><a class="feature-link" data-modal="modal-feature-personalized-support">Personalized Support</a></li>
-                        <li><a class="feature-link" data-modal="modal-feature-ai">AI Features & Conversations</a></li>
-                        <li>Shared Bot (BotOfTheSpecter)</li>
+                        <?php if ($planKey === 'standard'): ?>
+                            <li><a class="feature-link" data-modal="modal-feature-song-weather">!song & !weather Commands</a></li>
+                            <li><a class="feature-link" data-modal="modal-feature-support">Full Support</a></li>
+                            <li><a class="feature-link" data-modal="modal-feature-beta">Exclusive Beta Features</a></li>
+                            <li>Shared Bot (BotOfTheSpecter)</li>
+                        <?php elseif ($planKey === 'premium'): ?>
+                            <li>Everything From Standard Plan</li>
+                            <li><a class="feature-link" data-modal="modal-feature-personalized-support">Personalized Support</a></li>
+                            <li><a class="feature-link" data-modal="modal-feature-ai">AI Features & Conversations</a></li>
+                            <li>Shared Bot (BotOfTheSpecter)</li>
+                        <?php elseif ($planKey === 'ultimate'): ?>
+                            <li>Everything from Premium Plan</li>
+                            <li><a class="feature-link" data-modal="modal-feature-dedicated-bot">Dedicated bot (custom bot name)</a></li>
+                        <?php endif; ?>
                     </ul>
-                    <h2 class="card-subtitle">Coming Soon</h2>
                 </div>
+                <?php if ($currentPlan === $planKey): ?>
+                    <div class="card-footer">
+                        <p class="card-footer-item">
+                            <span>Current Plan</span>
+                        </p>
+                        <form action="cancel_subscription.php" method="POST" class="card-footer-item">
+                            <button type="submit" class="button is-danger">Cancel Subscription</button>
+                        </form>
+                    </div>
+                <?php else: ?>
+                    <form action="subscribe.php" method="POST">
+                        <input type="hidden" name="plan" value="<?php echo $planKey; ?>">
+                        <?php if ($subscriptionActive): ?>
+                            <?php if (array_search($planKey, array_keys($plans)) > array_search($currentPlan, array_keys($plans))): ?>
+                                <button type="submit" class="button is-primary">Upgrade to <?php echo $planDetails['name']; ?></button>
+                            <?php else: ?>
+                                <button type="submit" class="button is-primary">Downgrade to <?php echo $planDetails['name']; ?></button>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <button type="submit" class="button is-primary">Subscribe to <?php echo $planDetails['name']; ?></button>
+                        <?php endif; ?>
+                    </form>
+                <?php endif; ?>
             </div>
-        </div>
-
-        <div class="card" id="ultimate-card">
-            <div class="card-content">
-                <div class="content">
-                    <h2 class="card-title">Ultimate Plan<br>$15 USD</h2>
-                    <ul>
-                        <li>Everything from Premium Plan</li>
-                        <li><a class="feature-link" data-modal="modal-feature-dedicated-bot">Dedicated bot (custom bot name)</a></li>
-                    </ul>
-                    <h2 class="card-subtitle">Coming Soon</h2>
-                </div>
-            </div>
-        </div>
+        <?php endforeach; ?>
     </div>
-</div>
-
-<div id="modal-feature-basic" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">Basic Commands</h2>
-            <p>Access basic bot commands that allow you to interact with the chat, manage simple tasks, and enhance viewer engagement.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div id="modal-feature-limited-support" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">Limited Support</h2>
-            <p>Get access to limited support to help you with the basic setup and troubleshooting of your bot.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div id="modal-feature-song-weather" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">!song & !weather Commands</h2>
-            <p>Use the !song command to display the current song playing, and the !weather command to get real-time weather updates for your location.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div id="modal-feature-support" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">Full Support</h2>
-            <p>Receive full support for any issues or questions you have about using and configuring your bot. Our team is here to help you every step of the way.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div id="modal-feature-beta" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">Exclusive Beta Features</h2>
-            <p>Gain access to beta features before they are released to the public. Help us test and improve new functionalities.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div id="modal-feature-personalized-support" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">Personalized Support</h2>
-            <p>Receive personalized support tailored to your specific needs, including custom configurations and advanced troubleshooting.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div id="modal-feature-ai" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">AI Features & Conversations</h2>
-            <p>Utilize advanced AI features for more interactive and engaging chat experiences. Includes AI-driven conversations and responses.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
-</div>
-
-<div id="modal-feature-dedicated-bot" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content">
-        <div class="box">
-            <h2 class="title">Dedicated Bot (Custom Bot Name)</h2>
-            <p>Have your own dedicated bot with a custom name that is unique to your channel. Enjoy all future features and custom integrations.</p>
-        </div>
-    </div>
-    <button class="modal-close is-large" aria-label="close"></button>
 </div>
 
 <script src="https://js.stripe.com/v3/"></script>
@@ -254,11 +233,3 @@ $status = isset($_GET['status']) ? $_GET['status'] : null;
 <script src="modal.js"></script>
 </body>
 </html>
-
-<!--
-<?php if (empty($subscriptionId)): ?>
-    <button id="checkout-button" class="button is-primary">Subscribe Now</button>
-<?php else: ?>
-    <button id="cancel-subscription-button" class="button is-danger">Cancel Subscription</button>
-<?php endif; ?>
--->
