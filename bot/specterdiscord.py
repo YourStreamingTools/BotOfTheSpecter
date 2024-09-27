@@ -162,7 +162,6 @@ class QuoteCog(commands.Cog, name='Quote'):
             ctx = ctx_or_interaction
         else:
             ctx = await commands.Context.from_interaction(ctx_or_interaction)
-
         url = f"https://api.botofthespecter.com/quotes?api_key={self.api_token}"
         try:
             async with aiohttp.ClientSession() as session:
