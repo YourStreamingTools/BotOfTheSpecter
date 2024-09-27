@@ -140,7 +140,6 @@ class QuoteCog(commands.Cog, name='Quote'):
         self.api_token = api_token
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.typing_speed = 50
-
         # Register the slash command
         self.bot.tree.add_command(
             app_commands.Command(
