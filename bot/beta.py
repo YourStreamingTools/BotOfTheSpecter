@@ -51,7 +51,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.8"
+VERSION = "4.8.1"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -4374,46 +4374,69 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
+            event_logger.info(f"Processing subscription event for user_id: {user_id}, user_name: {user_name}")
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
             existing_subscription = await cursor.fetchone()
-            # Update or insert subscription data
+            event_logger.debug(f"Existing subscription: {existing_subscription}")
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription
+                new_months = db_months + event_months
                 if existing_sub_plan != sub_plan:
-                    await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, db_months, user_id))
+                    await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, new_months, user_id))
+                    event_logger.info(f"Updated subscription plan for user_id: {user_id} to {sub_plan} with {new_months} months")
                 else:
-                    await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
+                    await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (new_months, user_id))
+                    event_logger.info(f"Updated subscription months for user_id: {user_id} to {new_months} months")
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
+                event_logger.info(f"Inserted new subscription for user_id: {user_id}, sub_plan: {sub_plan}, months: {event_months}")
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
-            # Retrieve the bot settings to get the subscriber points amount and subscriber multiplier
+            event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
+            # Retrieve bot settings
             settings = await get_bot_settings()
-            subscriber_points = int(settings['point_amount_subscriber'])
-            subscriber_multiplier = int(settings['subscriber_multiplier'])
-            # Apply the multiplier since this is a subscription event
+            subscriber_points = int(settings.get('point_amount_subscriber', 0))
+            subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
-            # Fetch current points for the user
+            event_logger.debug(f"Subscriber points after multiplier: {subscriber_points}")
+            # Fetch and update user points
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
             current_points = result[0] if result else 0
-            # Update the user's points based on the subscription event
             new_points = current_points + subscriber_points
             if result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                event_logger.info(f"Updated points for user_id: {user_id} to {new_points}")
             else:
                 await cursor.execute(
                     "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
                     (user_id, user_name, new_points)
                 )
+                event_logger.info(f"Inserted new bot points for user_id: {user_id} with {new_points} points")
             await sqldb.commit()
+            event_logger.info("Database changes committed successfully")
             # Send notification messages
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
-            await send_to_discord(discord_message, "New Subscriber!", "sub.png")
-            await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
+            try:
+                await send_to_discord(discord_message, "New Subscriber!", "sub.png")
+                event_logger.info("Sent message to Discord")
+            except Exception as e:
+                event_logger.error(f"Failed to send message to Discord: {e}")
+            try:
+                await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
+                event_logger.info("Sent WebSocket notice")
+            except Exception as e:
+                event_logger.error(f"Failed to send WebSocket notice: {e}")
+            # Retrieve the channel object
             channel = bot.get_channel(CHANNEL_NAME)
-            await channel.send(message)
+            try:
+                await channel.send(message)
+                event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
+            except Exception as e:
+                event_logger.error(f"Failed to send message to channel {CHANNEL_NAME}: {e}")
+    except Exception as e:
+        event_logger.error(f"Error processing subscription event for user {user_name} ({user_id}): {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -4422,49 +4445,72 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
+            event_logger.info(f"Processing subscription message event for user_id: {user_id}, user_name: {user_name}")
             await cursor.execute('SELECT sub_plan, months FROM subscription_data WHERE user_id = %s', (user_id,))
             existing_subscription = await cursor.fetchone()
-            # Update or insert subscription data
+            event_logger.debug(f"Existing subscription: {existing_subscription}")
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription
+                new_months = db_months + event_months
                 if existing_sub_plan != sub_plan:
-                    await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, db_months, user_id))
+                    await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, new_months, user_id))
+                    event_logger.info(f"Updated subscription plan for user_id: {user_id} to {sub_plan} with {new_months} months")
                 else:
-                    await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (db_months, user_id))
+                    await cursor.execute('UPDATE subscription_data SET months = %s WHERE user_id = %s', (new_months, user_id))
+                    event_logger.info(f"Updated subscription months for user_id: {user_id} to {new_months} months")
             else:
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
+                event_logger.info(f"Inserted new subscription for user_id: {user_id}, sub_plan: {sub_plan}, months: {event_months}")
             # Insert stream credits data
-            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", event_months))
-            # Retrieve the bot settings to get the subscriber points amount and subscriber multiplier
+            await cursor.execute(
+                'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
+                (user_name, "subscriptions", f"{sub_plan} - {event_months} months")
+            )
+            event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
+            # Retrieve bot settings
             settings = await get_bot_settings()
-            subscriber_points = int(settings['point_amount_subscriber'])
-            subscriber_multiplier = int(settings['subscriber_multiplier'])
-            # Apply the multiplier since this is a subscription event
+            subscriber_points = int(settings.get('point_amount_subscriber', 0))
+            subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
-            # Fetch current points for the user
+            event_logger.debug(f"Subscriber points after multiplier: {subscriber_points}")
+            # Fetch and update user points
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
             current_points = result[0] if result else 0
-            # Update the user's points based on the subscription event
             new_points = current_points + subscriber_points
             if result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                event_logger.info(f"Updated points for user_id: {user_id} to {new_points}")
             else:
-                await cursor.execute(
-                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                    (user_id, user_name, new_points)
-                )
+                await cursor.execute("INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)", (user_id, user_name, new_points))
+                event_logger.info(f"Inserted new bot points for user_id: {user_id} with {new_points} points")
             await sqldb.commit()
-            # Send notification messages
+            event_logger.info("Database changes committed successfully")
+            # Prepare and send notification messages
             if subscriber_message.strip():
-                message = f'Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: "{subscriber_message}" '
+                message = f'Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: "{subscriber_message}"'
             else:
                 message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
-            await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
-            await send_to_discord(discord_message, "New Subscriber!", "sub.png")
+            try:
+                await send_to_discord(discord_message, "New Subscriber!", "sub.png")
+                event_logger.info("Sent message to Discord")
+            except Exception as e:
+                event_logger.error(f"Failed to send message to Discord: {e}")
+            try:
+                await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
+                event_logger.info("Sent WebSocket notice")
+            except Exception as e:
+                event_logger.error(f"Failed to send WebSocket notice: {e}")
+            # Retrieve the channel object
             channel = bot.get_channel(CHANNEL_NAME)
-            await channel.send(message)
+            try:
+                await channel.send(message)
+                event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
+            except Exception as e:
+                event_logger.error(f"Failed to send message to channel {CHANNEL_NAME}: {e}")
+    except Exception as e:
+        event_logger.error(f"Error processing subscription message event for user {user_name} ({user_id}): {e}")
     finally:
         await sqldb.ensure_closed()
 
