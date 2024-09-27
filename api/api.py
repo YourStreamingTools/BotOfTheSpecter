@@ -8,9 +8,10 @@ import uvicorn
 import datetime
 import logging
 import asyncio
+import stripe
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, Request, status, Depends, Query, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Request, status, Query, Form
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List
@@ -29,6 +30,11 @@ SFTP_HOST = "10.240.0.169"
 SFTP_USER = os.getenv("SFPT_USERNAME")
 SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
 WEATHER_API = os.getenv('WEATHER_API')
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+STRIPE_PRICE_STANDARD = os.getenv("STRIPE_PRICE_STANDARD")
+STRIPE_PRICE_PREMIUM = os.getenv("STRIPE_PRICE_PREMIUM")
+STRIPE_PRICE_ULTIMATE = os.getenv("STRIPE_PRICE_ULTIMATE")
 
 # Setup Logger
 logging.basicConfig(
@@ -36,6 +42,9 @@ logging.basicConfig(
     filename="/home/fastapi/log.txt",
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+# Initialize Stripe
+stripe.api_key = STRIPE_SECRET_KEY
 
 # Define the tags metadata
 tags_metadata = [
@@ -165,12 +174,12 @@ async def verify_api_key(api_key):
     finally:
         conn.close()
 
-# Verify the ADMIN Key Given
-async def verify_admin_key(api_key):
-    if api_key != ADMIN_KEY:
+# Verify the ADMIN API Key Given
+async def verify_admin_key(admin_key: str):
+    if admin_key != ADMIN_KEY:
         raise HTTPException(
             status_code=403,
-            detail="Forbidden: Invalid Admin Key",
+            detail="Forbidden: Invalid Admin API Key",
         )
 
 # Function to connect to the websocket server and push a notice
@@ -419,7 +428,7 @@ async def handle_kofi_webhook(api_key: str = Query(...), data: str = Form(...)):
     tags=["Commands"],
     operation_id="get_random_quote"
 )
-async def quotes(api_key):
+async def quotes(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -436,12 +445,12 @@ async def quotes(api_key):
 @app.get(
     "/fortune",
     response_model=FortuneResponse,
-    summary="Get a random fortunes",
-    description="Retrieve a random fortunes from the database of fortunes.",
+    summary="Get a random fortune",
+    description="Retrieve a random fortune from the database of fortunes.",
     tags=["Commands"],
     operation_id="get_random_fortune"
 )
-async def fortune(api_key: str):
+async def fortune(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -522,7 +531,7 @@ async def api_song():
         ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
         sftp = ssh.open_sftp()
         with sftp.open(get_requests_remaining, "r") as requests_remaining:
-            file_content = requests_remaining.read()
+            file_content = requests_remaining.read().decode().strip()
         sftp.close()
         ssh.close()
         return {"requests_remaining": file_content, "days_remaining": days_until_reset}
@@ -556,7 +565,7 @@ async def api_exchangerate():
         ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
         sftp = ssh.open_sftp()
         with sftp.open(get_requests_remaining, "r") as requests_remaining:
-            file_content = requests_remaining.read()
+            file_content = requests_remaining.read().decode().strip()
         sftp.close()
         ssh.close()
         return {"requests_remaining": file_content, "days_remaining": days_until_reset}
@@ -587,7 +596,7 @@ async def api_weather_requests_remaining():
         ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
         sftp = ssh.open_sftp()
         with sftp.open(weather_requests_file, "r") as requests_remaining:
-            file_content = requests_remaining.read()
+            file_content = requests_remaining.read().decode().strip()
         sftp.close()
         ssh.close()
         return {"requests_remaining": file_content, "time_remaining": time_remaining}
@@ -604,7 +613,7 @@ async def api_weather_requests_remaining():
     tags=["Commands"],
     operation_id="get_kill_commands"
 )
-async def kill_responses(api_key):
+async def kill_responses(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -624,7 +633,7 @@ async def kill_responses(api_key):
     tags=["Commands"],
     operation_id="get_random_joke"
 )
-async def joke(api_key):
+async def joke(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -731,8 +740,13 @@ def get_wind_direction(deg):
     directions = { 'N': (337.5, 22.5), 'NE': (22.5, 67.5), 'E': (67.5, 112.5), 'SE': (112.5, 157.5),
                    'S': (157.5, 202.5), 'SW': (202.5, 247.5), 'W': (247.5, 292.5), 'NW': (292.5, 337.5) }
     for direction, (start, end) in directions.items():
-        if start <= deg < end:
-            return direction
+        # Handle the wrap-around for North
+        if direction == 'N':
+            if deg >= start or deg < end:
+                return direction
+        else:
+            if start <= deg < end:
+                return direction
     return "N/A"
 
 # WebSocket TTS Trigger
@@ -760,7 +774,7 @@ async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
     tags=["Websocket"],
     operation_id="trigger_websocket_walkon"
 )
-async def websocket_walkon(request: WalkonRequest, api_key, user):
+async def websocket_walkon(request: WalkonRequest, api_key: str = Query(...), user: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -781,7 +795,7 @@ async def websocket_walkon(request: WalkonRequest, api_key, user):
     tags=["Websocket"],
     operation_id="trigger_websocket_deaths"
 )
-async def websocket_deaths(request: DeathsRequest, api_key):
+async def websocket_deaths(request: DeathsRequest, api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -797,7 +811,7 @@ async def websocket_deaths(request: DeathsRequest, api_key):
     tags=["Websocket"],
     operation_id="trigger_websocket_stream_online"
 )
-async def websocket_stream_online(api_key):
+async def websocket_stream_online(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -813,7 +827,7 @@ async def websocket_stream_online(api_key):
     tags=["Websocket"],
     operation_id="trigger_websocket_stream_offline"
 )
-async def websocket_stream_offline(api_key):
+async def websocket_stream_offline(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -827,10 +841,10 @@ async def websocket_stream_offline(api_key):
     summary="Get a list of authorized users",
     include_in_schema=False
 )
-async def authorized_users(api_key):
+async def authorized_users(api_key: str = Query(...)):
     valid = await verify_admin_key(api_key)
     if not valid:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
     auth_users_path = "/home/fastapi/authusers.json"
     if not os.path.exists(auth_users_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -856,6 +870,121 @@ async def read_root():
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
+
+# Stripe Webhook Endpoint (Admin Only)
+@app.post("/stripe", include_in_schema=False)
+async def stripe_webhook(request: Request, admin_key: str = Query(...)):
+    # Verify the admin API key
+    await verify_admin_key(admin_key)
+    payload = await request.body()
+    sig_header = request.headers.get('stripe-signature')
+    if sig_header is None:
+        logging.warning("Missing Stripe signature header.")
+        raise HTTPException(status_code=400, detail="Missing signature.")
+    try:
+        event = stripe.Webhook.construct_event(
+            payload=payload, sig_header=sig_header, secret=STRIPE_WEBHOOK_SECRET
+        )
+    except stripe.error.SignatureVerificationError as e:
+        logging.error(f"Invalid signature: {e}")
+        raise HTTPException(status_code=400, detail="Invalid signature.")
+    except Exception as e:
+        logging.error(f"Error parsing webhook: {e}")
+        raise HTTPException(status_code=400, detail="Webhook error.")
+    event_type = event['type']
+    data_object = event['data']['object']
+    logging.info(f"Received Stripe event: {event_type}")
+    # Handle the event
+    if event_type == 'customer.subscription.created':
+        await handle_subscription_created(data_object)
+    elif event_type == 'customer.subscription.updated':
+        await handle_subscription_updated(data_object)
+    elif event_type == 'customer.subscription.deleted':
+        await handle_subscription_deleted(data_object)
+    elif event_type == 'invoice.payment_succeeded':
+        await handle_payment_succeeded(data_object)
+    elif event_type == 'invoice.payment_failed':
+        await handle_payment_failed(data_object)
+    else:
+        logging.info(f"Ignored event type: {event_type}")
+    return {"status": "success"}
+
+# Stripe Webhook Event Handler Functions
+async def handle_subscription_created(subscription):
+    customer_id = subscription['customer']
+    subscription_id = subscription['id']
+    price_id = subscription['items']['data'][0]['price']['id']
+    plan = get_plan_from_price_id(price_id)
+    if plan == 'unknown':
+        logging.warning(f"Received subscription with unknown price ID: {price_id}")
+        return
+    # Connect to MySQL and update the user's subscription_id
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("UPDATE users SET subscription_id = %s WHERE stripe_customer_id = %s", (subscription_id, customer_id))
+            await conn.commit()
+        logging.info(f"Subscription created: {subscription_id} for customer {customer_id} with plan {plan}")
+    except Exception as e:
+        logging.error(f"Error updating subscription: {e}")
+    finally:
+        conn.close()
+
+async def handle_subscription_updated(subscription):
+    customer_id = subscription['customer']
+    subscription_id = subscription['id']
+    price_id = subscription['items']['data'][0]['price']['id']
+    plan = get_plan_from_price_id(price_id)
+    if plan == 'unknown':
+        logging.warning(f"Received updated subscription with unknown price ID: {price_id}")
+        return
+    # Connect to MySQL and update the user's subscription_id
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("UPDATE users SET subscription_id = %s WHERE stripe_customer_id = %s", (subscription_id, customer_id))
+            await conn.commit()
+        logging.info(f"Subscription updated: {subscription_id} for customer {customer_id} with plan {plan}")
+    except Exception as e:
+        logging.error(f"Error updating subscription: {e}")
+    finally:
+        conn.close()
+
+async def handle_subscription_deleted(subscription):
+    customer_id = subscription['customer']
+    subscription_id = subscription['id']
+    # Connect to MySQL and remove the subscription_id
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("UPDATE users SET subscription_id = NULL WHERE stripe_customer_id = %s", (customer_id,))
+            await conn.commit()
+        logging.info(f"Subscription deleted: {subscription_id} for customer {customer_id}")
+    except Exception as e:
+        logging.error(f"Error deleting subscription: {e}")
+    finally:
+        conn.close()
+
+async def handle_payment_succeeded(invoice):
+    customer_id = invoice['customer']
+    subscription_id = invoice['subscription']
+    # Implement any logic needed on successful payment, such as sending a notification
+    logging.info(f"Payment succeeded for subscription {subscription_id} and customer {customer_id}")
+
+async def handle_payment_failed(invoice):
+    customer_id = invoice['customer']
+    subscription_id = invoice['subscription']
+    # Implement any logic needed on payment failure, such as sending a notification
+    logging.warning(f"Payment failed for subscription {subscription_id} and customer {customer_id}")
+
+# Helper Function to Map Price IDs to Plans
+def get_plan_from_price_id(price_id):
+    price_to_plan = {
+        STRIPE_PRICE_STANDARD: 'standard',
+        STRIPE_PRICE_PREMIUM: 'premium',
+        STRIPE_PRICE_ULTIMATE: 'ultimate',
+    }
+    return price_to_plan.get(price_id, 'unknown')
 
 if __name__ == "__main__":
     uvicorn.run(
