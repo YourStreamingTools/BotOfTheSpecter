@@ -872,7 +872,7 @@ async def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
 
 # Stripe Webhook Endpoint (Admin Only)
-@app.post("/stripe", include_in_schema=False)
+@app.post("/stripe", include_in_schema=False, tags=["Webhooks"])
 async def stripe_webhook(request: Request, admin_key: str = Query(...)):
     # Verify the admin API key
     await verify_admin_key(admin_key)
