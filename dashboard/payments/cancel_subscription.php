@@ -3,24 +3,39 @@ session_start();
 require_once('stripe-php/init.php');
 require_once "../db_connect.php";
 
+// Set the secret key
 $stripeSecretKey = ''; // CHANGE TO MAKE THIS WORK
 \Stripe\Stripe::setApiKey($stripeSecretKey);
 
-$subscriptionId = $_SESSION['subscription_id'];
+// Retrieve the user's subscription ID
+$userId = $_SESSION['user_id'];
+
+// Fetch the user's subscription ID from the database
+$userSTMT = $conn->prepare("SELECT subscription_id FROM users WHERE id = ?");
+$userSTMT->bind_param("i", $userId);
+$userSTMT->execute();
+$userResult = $userSTMT->get_result();
+$user = $userResult->fetch_assoc();
+$subscriptionId = $user['subscription_id'];
+
+if (!$subscriptionId) {
+    die('No active subscription found.');
+}
 
 try {
+    // Cancel the subscription immediately
     $subscription = \Stripe\Subscription::retrieve($subscriptionId);
     $subscription->cancel();
-
-    // Update the user's record to remove the subscription ID
+    // Update the database
     $updateSTMT = $conn->prepare("UPDATE users SET subscription_id = NULL WHERE id = ?");
-    $updateSTMT->bind_param("i", $_SESSION['user_id']);
+    $updateSTMT->bind_param("i", $userId);
     $updateSTMT->execute();
     $updateSTMT->close();
+    // Redirect or display a success message
+    header('Location: index.php?status=cancel');
+    exit();
 
-    echo json_encode(['success' => true]);
-
-} catch (Error $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+} catch (Exception $e) {
+    die('Error canceling subscription: ' . $e->getMessage());
 }
 ?>
