@@ -145,6 +145,20 @@ function handleNotNewResponse(message) {
   return null;
 }
 
+// Function to handle "Do you know someone?" questions
+function handleKnowSomeoneQuestion(message) {
+  // Patterns to match "Do you know [someone]?" questions
+  const regexPatterns = [
+    /^do you know\s+([a-zA-Z\s]+)\?*$/i,
+    /^are you familiar with\s+([a-zA-Z\s]+)\?*$/i,
+    /^have you heard of\s+([a-zA-Z\s]+)\?*$/i,
+    /^do you recognize\s+([a-zA-Z\s]+)\?*$/i,
+    /^can you tell me about\s+([a-zA-Z\s]+)\?*$/i,
+    /^do you have information on\s+([a-zA-Z\s]+)\?*$/i
+  ];
+  return regexPatterns.some(pattern => pattern.test(message));
+}
+
 // Function to retrieve OAuth token
 async function getOAuthToken(env) {
   // Check if token is cached
@@ -449,6 +463,17 @@ export default {
           await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Sensitive Response:', sensitiveResponse);
           return new Response(sensitiveResponse, {
+            headers: { 'content-type': 'text/plain' },
+          });
+        }
+        // 4. **Handle "Do You Know Someone" Questions**
+        const knowSomeoneDetected = handleKnowSomeoneQuestion(normalizedMessage);
+        if (knowSomeoneDetected) {
+          const responseText = "I'm sorry, but I don't have information about specific individuals.";
+          conversationHistory.push({ role: 'assistant', content: responseText });
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
+          console.log('"Do You Know Someone" Response:', responseText);
+          return new Response(responseText, {
             headers: { 'content-type': 'text/plain' },
           });
         }
