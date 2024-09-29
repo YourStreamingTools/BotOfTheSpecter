@@ -112,12 +112,14 @@ function handleSensitiveQuestion(message) {
 // Function to handle funny responses
 function handleFunnyResponses(message) {
   const funnyQuestions = {
-    'what is your favorite color': "My favorite color is a nice shade of binary green!",
+    'what is your favorite color': "I love the color of well-indented code, which is green!",
     'what is your favorite colour': "I love the color of well-indented code, which is green!",
-    'what is your favorite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
-    'what is your favorite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!",
+    'whats your favorite color': "I love the color of well-indented code, which is green!",
+    'whats your favorite colour': "I love the color of well-indented code, which is green!",
     'what is your favourite color': "My favourite colour is a nice shade of binary green!",
     'what is your favourite colour': "I love the colour of well-indented code, which is green!",
+    'what is your favorite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
+    'what is your favorite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!",
     'what is your favourite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
     'what is your favourite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!"
   };
