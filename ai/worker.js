@@ -60,7 +60,27 @@ function getInsultResponse() {
     "Your hard drive must be full because there's no more space for common sense.",
     "You're like a search engine that returns no results.",
     "Even autocorrect can’t fix what you’re saying.",
-    "I’ve seen better logic in my own coding."
+    "I’ve seen better logic in my own coding.",
+    "Is your brain functioning, or did it take a coffee break?",
+    "I'd explain it to you but I left my crayons at home.",
+    "Your code has more bugs than a rainforest.",
+    "If you were a program, you'd be full of errors.",
+    "Did you just copy-paste that response from a 90s chatbot?",
+    "Even my algorithms find you perplexing.",
+    "You're like a deprecated function—useless and outdated.",
+    "Your logic is as flawed as a broken loop.",
+    "If ignorance is bliss, you must be ecstatic.",
+    "You're the reason we have error messages.",
+    "I'd call you a variable, but you're too unstable.",
+    "Your arguments are as convincing as a null value.",
+    "You must be using a deprecated API for those ideas.",
+    "Your presence is like an infinite loop—never-ending and pointless.",
+    "You're like a syntax error—confusing and frustrating.",
+    "If stupidity was a programming language, you'd be the compiler.",
+    "Your insights are as valuable as a missing semicolon.",
+    "You're the runtime exception no one wants to handle.",
+    "If wit was memory, you'd have a memory leak.",
+    "Your reasoning is as clear as obfuscated code."
   ];
   return responses[Math.floor(Math.random() * responses.length)];
 }
