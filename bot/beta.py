@@ -2377,7 +2377,7 @@ class BotOfTheSpecter(commands.Bot):
                     await ctx.send("Oops, something went wrong while trying to check uptime.")
         finally:
             await sqldb.ensure_closed()
-    
+
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
@@ -2412,7 +2412,7 @@ class BotOfTheSpecter(commands.Bot):
             await ctx.send(f"An error occurred while trying to add to your typo count.")
         finally:
             await sqldb.ensure_closed()
-    
+
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
@@ -3302,7 +3302,7 @@ class BotOfTheSpecter(commands.Bot):
     async def todo_command(self, ctx: commands.Context):
         message_content = ctx.message.content.strip()
         user = ctx.author
-        user_id = user.id  # Get the user's unique ID
+        user_id = user.id
         sqldb = await get_mysql_connection()
         # Pending removals dictionary (user_id: task_id)
         if not hasattr(self, 'pending_removals'):
@@ -3449,6 +3449,32 @@ class BotOfTheSpecter(commands.Bot):
                     await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
         finally:
             await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
+    @commands.command(name="subathon")
+    async def subathon_command(self, ctx, action: str = None, minutes: int = None):
+        user = ctx.author
+        if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
+            if not await command_permissions(user):
+                await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
+                return
+        if action == "start":
+            await start_subathon(ctx)
+        elif action == "stop":
+            await stop_subathon(ctx)
+        elif action == "pause":
+            await pause_subathon(ctx)
+        elif action == "resume":
+            await resume_subathon(ctx)
+        elif action == "addtime":
+            if minutes:
+                await addtime_subathon(ctx)
+            else:
+                ctx.send(f"{user} Please provide the number of minutes to add. !subathon addtime <minutes>")
+        elif action == "status":
+            await subathon_status(ctx)
+        else:
+            ctx.send(f"{user} Invalid action. Use !subathon start|stop|pause|resume|addtime|status")
 
 # Functions for all the commands
 ##
@@ -3940,7 +3966,7 @@ async def process_weather_websocket(data):
     humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip()
     # Format the message to be sent to the chat
     message = (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
-               f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) and the humidity is {humidity}%.")
+               f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) with {humidity}%.")
     # Get the channel and send the message
     channel = bot.get_channel(CHANNEL_NAME)
     event_logger.info(f"Sending weather update: {message}")
@@ -5089,9 +5115,9 @@ async def channel_point_rewards():
 # Function to generate random Lotto numbers
 async def user_lotto_numbers():
     # Draw 7 winning numbers and 3 supplementary numbers from 1-47
-    all_numbers = random.sample(range(1, 48), 10)
-    winning_numbers = all_numbers[:7]
-    supplementary_numbers = all_numbers[7:]
+    all_numbers = random.sample(range(1, 48), 9)
+    winning_numbers = all_numbers[:6]
+    supplementary_numbers = all_numbers[6:]
     return {
         "winning_numbers": winning_numbers,
         "supplementary_numbers": supplementary_numbers
@@ -5110,6 +5136,121 @@ async def tell_fortune():
                     return fortune_data["fortune"]
             return "Unable to retrieve your fortune at this time."
 
+# Function to start subathon timer
+async def start_subathon(ctx):
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            subathon_state = await get_subaton_state()
+            if subathon_state and not subathon_state[4]: # [4] is paused?
+                await ctx.send(f"A subathon is already running!")
+                return
+            if subathon_state and subathon_state[4]: # If paused, continue
+                await resume_subathon(ctx)
+            else:
+                await cursor.execute("SELECT * FROM subathon_settings LIMIT 1")
+                settings = await cursor.fetchone()
+                if settings:
+                    starting_minutes = settings[1]
+                    subathon_start_time = datetime.now()
+                    subathon_end_time = subathon_start_time + timedelta(menutes=starting_minutes)
+                    await cursor.excute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
+                    await cursor.commit()
+                    await ctx.send(f"Subathon started!")
+                    asyncio.create_task(subathon_countdown())
+                else:
+                    ctx.send(f"Can't start subathon, please go to the dashboard and setup subathons.")
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
+# Function to stop subathon timer
+async def stop_subathon(ctx):
+    sqldb = await get_mysql_connection()
+    subathon_state = await get_subaton_state()
+    try:
+        async with sqldb.cursor() as cursor:
+            if subathon_state and not subathon_state[4]: # If running
+                await cursor.execute("UDPATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
+                await cursor.commit()
+                await ctx.send(f"Subathon ended!")
+            else:
+                await ctx.send(f"No subathon active.")
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
+# Function to pause subathon
+async def pause_subathon(ctx):
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            return
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
+# Function to resume subathon
+async def resume_subathon(ctx):
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            return
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
+# Function to Add Time to subathon
+async def addtime_subathon(ctx):
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            return
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
+# Function to get the current subathon status
+async def subathon_status(ctx):
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            return
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
+# Fcuntion to get the current subathon
+async def get_subaton_state():
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            await cursor.execute("SELECT * FROM subathon ORDER BY id DESC LIMIT 1")
+            return await cursor.fetchone()
+    finally:
+        await cursor.close()
+        await sqldb.ensure_closed()
+
+async def subathon_countdown():
+    channel = bot.get_channel(CHANNEL_NAME)
+    while True:
+        subathon_state = await get_subaton_state()
+        if subathon_state and not subathon_state[4]: # If running
+            now = datetime.now()
+            if now >= subathon_state[2]: # End Time
+                await channel.send(f"Subathon has ended!")
+                sqldb = await get_mysql_connection()
+                try:
+                    async with sqldb.cursor() as cursor:
+                        await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
+                        await cursor.commit()
+                finally:
+                    await cursor.close()
+                    await sqldb.ensure_closed()
+            break
+        await asyncio.sleep(60) # Check every minute
+
+# Function to run at midnight each night
 async def midnight(channel):
     # Get the timezone once outside the loop
     sqldb = await get_mysql_connection()
@@ -5556,6 +5697,28 @@ async def setup_database():
                         reward_id VARCHAR(255),
                         sound_mapping TEXT, 
                         PRIMARY KEY (reward_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'subathon': '''
+                    CREATE TABLE IF NOT EXISTS subathon (
+                        id INT AUTO_INCREMENT,
+                        start_time DATETIME,
+                        end_time DATETIME,
+                        starting_minutes INT,
+                        paused BOOLEAN DEFAULT FALSE,
+                        remaining_minutes INT DEFAULT 0,
+                        PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'subathon_settings': '''
+                    CREATE TABLE IF NOT EXISTS subathon_settings (
+                        id INT AUTO_INCREMENT,
+                        starting_minutes INT,
+                        cheer_add INT,
+                        sub_add_1 INT,
+                        sub_add_2 INT,
+                        sub_add_3 INT,
+                        PRIMARY KEY (id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
             }
