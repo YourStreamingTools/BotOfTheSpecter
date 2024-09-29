@@ -118,10 +118,12 @@ function handleFunnyResponses(message) {
     'whats your favorite colour': "I love the color of well-indented code, which is green!",
     'what is your favourite color': "My favourite colour is a nice shade of binary green!",
     'what is your favourite colour': "I love the colour of well-indented code, which is green!",
-    'what is your favorite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
+    'whats your favorite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!",
     'what is your favorite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!",
-    'what is your favourite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
-    'what is your favourite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!"
+    'what is your favourite drink': "I run on pure electricity, so a tall glass of volts sounds perfect!",
+    'whats your favorite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
+    'what is your favorite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!",
+    'what is your favourite food': "I don't eat, but if I did, I'd probably enjoy some electric spaghetti!"
   };
   for (const question in funnyQuestions) {
     if (message.includes(question)) {
