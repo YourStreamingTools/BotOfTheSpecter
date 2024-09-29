@@ -26,65 +26,6 @@ function enforceCharacterLimit(text, limit) {
   return text.substring(0, limit);
 }
 
-// Function to get a random insult response
-function getInsultResponse() {
-  const responses = [
-    "Ya momma was a toaster.",
-    "You can insult me but I’m not the one insulting a bot on Twitch.",
-    "Beep boop, your insult does not compute.",
-    "I'm sorry, I can't respond to that. My creators programmed me to be nice.",
-    "It must be hard, being mean to a bot. I hope you feel better soon.",
-    "I'm just a bot, but even I can tell you're having a rough day.",
-    "Sticks and stones may break my circuits, but your words will never hurt me.",
-    "I wish I could unplug you.",
-    "At least I’m not skin, bones and mostly water.",
-    "Your momma looks like a keyboard and your daddy nutted and bolted.",
-    "After checking my database, it turns out you really are a 01101010 01100101 01110010 01101011 (jerk in binary, lol).",
-    "You must have been born on a highway because that's where most accidents happen.",
-    "I would explain it to you but I left my crayons at home.",
-    "You're proof that even AI can get bored.",
-    "If ignorance is bliss, you must be the happiest person on the planet.",
-    "You bring everyone so much joy when you leave the room.",
-    "I'd agree with you but then we'd both be wrong.",
-    "Your secrets are always safe with me. I never even listen when you tell me them.",
-    "If I had a dollar for every smart thing you say, I'd be broke.",
-    "You are like a cloud. When you disappear, it's a beautiful day.",
-    "You're not stupid; you just have bad luck thinking.",
-    "I'd explain it to you, but I don't have the time or the crayons.",
-    "I’m not sure what your problem is, but I’m guessing it’s hard to pronounce.",
-    "It's okay to look at the screen while you type.",
-    "I was going to give you a nasty look, but you've got one.",
-    "I’d call you a tool, but that would imply you’re useful.",
-    "I’m jealous of people who don’t know you.",
-    "Your thinking process is like a dial-up connection.",
-    "Your hard drive must be full because there's no more space for common sense.",
-    "You're like a search engine that returns no results.",
-    "Even autocorrect can’t fix what you’re saying.",
-    "I’ve seen better logic in my own coding.",
-    "Is your brain functioning, or did it take a coffee break?",
-    "I'd explain it to you but I left my crayons at home.",
-    "Your code has more bugs than a rainforest.",
-    "If you were a program, you'd be full of errors.",
-    "Did you just copy-paste that response from a 90s chatbot?",
-    "Even my algorithms find you perplexing.",
-    "You're like a deprecated function—useless and outdated.",
-    "Your logic is as flawed as a broken loop.",
-    "If ignorance is bliss, you must be ecstatic.",
-    "You're the reason we have error messages.",
-    "I'd call you a variable, but you're too unstable.",
-    "Your arguments are as convincing as a null value.",
-    "You must be using a deprecated API for those ideas.",
-    "Your presence is like an infinite loop—never-ending and pointless.",
-    "You're like a syntax error—confusing and frustrating.",
-    "If stupidity was a programming language, you'd be the compiler.",
-    "Your insights are as valuable as a missing semicolon.",
-    "You're the runtime exception no one wants to handle.",
-    "If wit was memory, you'd have a memory leak.",
-    "Your reasoning is as clear as obfuscated code."
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
-}
-
 // Function to check and store recent responses with expiration
 function isRecentResponse(response) {
   const now = Date.now();
@@ -253,37 +194,341 @@ async function getUsername(user_id, env) {
   return null;
 }
 
+// Function to generate insult response using LLM
+async function generateInsultResponse(userMessage, env) {
+  const prompt = `User said: "${userMessage}" Generate a funny and light-hearted comeback to this insult. Avoid offensive language and keep it playful.`;
+  const payload = {
+    prompt: prompt,
+    max_tokens: 60,
+    temperature: 0.7,
+  };
+  try {
+    const aiResponse = await runAI(payload, env); // Pass env to runAI
+    let insultResponse = aiResponse.result?.response?.trim();
+    // Remove formatting and enforce character limit
+    insultResponse = removeFormatting(insultResponse);
+    insultResponse = enforceCharacterLimit(insultResponse, AI_CHARACTER_LIMIT);
+    // Content Filtering
+    if (isContentAppropriate(insultResponse)) {
+      return insultResponse;
+    } else {
+      // Fallback response
+      return "I'm here to keep things friendly! Let's keep the chat positive.";
+    }
+  } catch (error) {
+    console.error('Error generating insult response:', error);
+    // Fallback response in case of error
+    return "I'm here to keep things friendly! Let's keep the chat positive.";
+  }
+}
+
+// Function to check if content is appropriate
+function isContentAppropriate(text) {
+  // List of prohibited words and phrases
+  const prohibitedWords = [
+    // Profanity
+    'shit',
+    'fuck',
+    'damn',
+    'crap',
+    'bitch',
+    'bastard',
+    'asshole',
+    'dick',
+    'cunt',
+    'piss',
+    'slut',
+    'whore',
+    'cock',
+    'fag',
+    'faggot',
+    'nigger',
+    'retard',
+    'stupid',
+    'idiot',
+    'dumb',
+    'moron',
+    'bimbo',
+    'scum',
+    'trash',
+    'suck',
+    'sucks',
+    'sucking',
+    'sucked',
+    'broke',
+    'pathetic',
+    'loser',
+    'lame',
+    'crap',
+    'sucks',
+    'fucked',
+    'fucking',
+    'douche',
+    'douchebag',
+    'motherfucker',
+    'son of a bitch',
+    'shithead',
+    'prick',
+    'pussy',
+    'dickhead',
+    'douchebag',
+    'cockhole',
+    'ass',
+    'piss off',
+    'go to hell',
+    'god damn',
+    'bloody hell',
+    'motherfucking',
+    'shitposting',
+    'faggotting',
+    'nigga',
+    // Derogatory Slurs
+    'kike',
+    'chink',
+    'gook',
+    'spic',
+    'towelhead',
+    'raghead',
+    'wetback',
+    'coon',
+    'dago',
+    'hajji',
+    'jigaboo',
+    'porch monkey',
+    'sambo',
+    'tar baby',
+    'tard',
+    'slope',
+    'wop',
+    'slut',
+    'dyke',
+    'tranny',
+    'hebe',
+    'hymie',
+    'kafir',
+    'kyke',
+    'niga',
+    'shitbag',
+    'tramp',
+    'pig',
+    // Sexual Harassment
+    'whore',
+    'slut',
+    'bitch',
+    'tits',
+    'boobs',
+    'pussy',
+    'dick',
+    'cock',
+    'fuck',
+    'fag',
+    'faggot',
+    'douchebag',
+    'cunt',
+    'bastard',
+    'asshole',
+    'prick',
+    'retard',
+    'idiot',
+    'moron',
+    // Additional Offensive Terms
+    'fucked',
+    'sucked',
+    'sucking',
+    'bitching',
+    'shitstorm',
+    'bullshit',
+    'horseshit',
+    'crapola',
+    'asswipe',
+    'bastardo',
+    'bollocks',
+    'bugger',
+    'bloody',
+    'bollocks',
+    'arsehole',
+    'cocksucker',
+    'motherfucker',
+    'shithead',
+    'dickweed',
+    'twat',
+    'shithole',
+    'slutty',
+    'fuckface',
+    'sodomize',
+    'sodomy',
+    'anal',
+    'cumming',
+    'cumshot',
+    'porn',
+    'pornography',
+    'xxx',
+    'bdsm',
+    'fap',
+    'masturbate',
+    'masturbation',
+    'pwned',
+    'nigger',
+    'nigga'
+  ];
+  // Normalize the text for case-insensitive matching
+  const normalizedText = text.toLowerCase();
+  // Check if any prohibited word is present in the text
+  return !prohibitedWords.some(word => normalizedText.includes(word));
+}
+
+// Function to get conversation history from KV storage
+async function getConversationHistory(channel, message_user, env) {
+  const key = `conversation_${channel}_${message_user}`;
+  const conversation = await env.namespace.get(key);
+  if (conversation) {
+    try {
+      const parsed = JSON.parse(conversation);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Error parsing conversation history:', e);
+      return [];
+    }
+  }
+  return [];
+}
+
+// Function to save conversation history to KV storage
+async function saveConversationHistory(channel, message_user, history, env) {
+  const key = `conversation_${channel}_${message_user}`;
+  try {
+    await env.namespace.put(key, JSON.stringify(history));
+  } catch (e) {
+    console.error('Error saving conversation history:', e);
+  }
+}
+
+// Function to get desired name from D1 SQL Database
+async function getDesiredName(user_id, env) {
+  const query = 'SELECT desired_name FROM user_preferences WHERE user_id = ?';
+  try {
+    const result = await env.database.prepare(query).bind(user_id).first();
+    return result?.desired_name || null;
+  } catch (e) {
+    console.error('Error fetching desired name:', e);
+    return null;
+  }
+}
+
+// Function to strip prefix from assistant messages
+function stripPrefixFromAssistantMessages(conversation, userPrefix) {
+  return conversation.map(msg => {
+    if (msg.role === 'assistant' && userPrefix) {
+      if (msg.content.startsWith(userPrefix)) {
+        return { ...msg, content: msg.content.substring(userPrefix.length).trim() };
+      }
+    }
+    return msg;
+  });
+}
+
+// Function to get a random insult response (Predefined)
+function getPredefinedInsultResponse() {
+  const responses = [
+    "Ya momma was a toaster.",
+    "You can insult me but I’m not the one insulting a bot on Twitch.",
+    "Beep boop, your insult does not compute.",
+    "I'm sorry, I can't respond to that. My creators programmed me to be nice.",
+    "It must be hard, being mean to a bot. I hope you feel better soon.",
+    "I'm just a bot, but even I can tell you're having a rough day.",
+    "Sticks and stones may break my circuits, but your words will never hurt me.",
+    "I wish I could unplug you.",
+    "At least I’m not skin, bones and mostly water.",
+    "Your momma looks like a keyboard and your daddy nutted and bolted.",
+    "After checking my database, it turns out you really are a 01101010 01100101 01110010 01101011 (jerk in binary, lol).",
+    "You must have been born on a highway because that's where most accidents happen.",
+    "I would explain it to you but I left my crayons at home.",
+    "You're proof that even AI can get bored.",
+    "If ignorance is bliss, you must be the happiest person on the planet.",
+    "You bring everyone so much joy when you leave the room.",
+    "I'd agree with you but then we'd both be wrong.",
+    "Your secrets are always safe with me. I never even listen when you tell me them.",
+    "If I had a dollar for every smart thing you say, I'd be broke.",
+    "You are like a cloud. When you disappear, it's a beautiful day.",
+    "You're not stupid; you just have bad luck thinking.",
+    "I'd explain it to you, but I don't have the time or the crayons.",
+    "I’m not sure what your problem is, but I’m guessing it’s hard to pronounce.",
+    "It's okay to look at the screen while you type.",
+    "I was going to give you a nasty look, but you've got one.",
+    "I’d call you a tool, but that would imply you’re useful.",
+    "I’m jealous of people who don’t know you.",
+    "Your thinking process is like a dial-up connection.",
+    "Your hard drive must be full because there's no more space for common sense.",
+    "You're like a search engine that returns no results.",
+    "Even autocorrect can’t fix what you’re saying.",
+    "I’ve seen better logic in my own coding.",
+    "Is your brain functioning, or did it take a coffee break?",
+    "I'd explain it to you but I left my crayons at home.",
+    "Your code has more bugs than a rainforest.",
+    "If you were a program, you'd be full of errors.",
+    "Did you just copy-paste that response from a 90s chatbot?",
+    "Even my algorithms find you perplexing.",
+    "You're like a deprecated function—useless and outdated.",
+    "Your logic is as flawed as a broken loop.",
+    "If ignorance is bliss, you must be ecstatic.",
+    "You're the reason we have error messages.",
+    "I'd call you a variable, but you're too unstable.",
+    "Your arguments are as convincing as a null value.",
+    "You must be using a deprecated API for those ideas.",
+    "Your presence is like an infinite loop—never-ending and pointless.",
+    "You're like a syntax error—confusing and frustrating.",
+    "If stupidity was a programming language, you'd be the compiler.",
+    "Your insights are as valuable as a missing semicolon.",
+    "You're the runtime exception no one wants to handle.",
+    "If wit was memory, you'd have a memory leak.",
+    "Your reasoning is as clear as obfuscated code."
+  ];
+  return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// Function to get a random insult response (Hybrid: Dynamic or Predefined)
+async function getInsultResponse(userMessage, env) {
+  // 70% chance to generate a dynamic response
+  if (Math.random() < 0.7) {
+    return await generateInsultResponse(userMessage, env);
+  } else {
+    // 30% chance to use a predefined response
+    return getPredefinedInsultResponse();
+  }
+}
+
+// Function to handle AI responses with a timeout
+async function runAI(payload, env, timeout = 20000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(
+      `https://gateway.ai.cloudflare.com/v1/${env.ACCOUNT_ID}/specterai/workers-ai/@hf/meta-llama/meta-llama-3-8b-instruct`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.API_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      }
+    );
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      throw new Error('Error fetching AI response: ' + (await response.text()));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error in runAI:', error);
+    throw error;
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
-    // Helper function to handle AI responses with a timeout
-    async function runAI(payload, timeout = 20000) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      try {
-        const response = await fetch(
-          `https://gateway.ai.cloudflare.com/v1/${env.ACCOUNT_ID}/specterai/workers-ai/@hf/meta-llama/meta-llama-3-8b-instruct`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${env.API_TOKEN}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload),
-            signal: controller.signal
-          }
-        );
-        clearTimeout(timeoutId);
-        if (!response.ok) {
-          throw new Error('Error fetching AI response: ' + (await response.text()));
-        }
-        return await response.json();
-      } catch (error) {
-        console.error('Error in runAI:', error);
-        throw error;
-      }
-    }
     // Function to query predefined responses from the database
     async function getPredefinedResponse(question) {
       const query = 'SELECT response FROM predefined_responses WHERE question = ?';
@@ -310,52 +555,6 @@ export default {
     async function detectInsult(message, env) {
       const insults = await getInsults(env);
       return insults.some(insult => message.includes(insult));
-    }
-    // Function to get conversation history from KV storage
-    async function getConversationHistory(channel, message_user, env) {
-      const key = `conversation_${channel}_${message_user}`;
-      const conversation = await env.namespace.get(key);
-      if (conversation) {
-        try {
-          const parsed = JSON.parse(conversation);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          console.error('Error parsing conversation history:', e);
-          return [];
-        }
-      }
-      return [];
-    }
-    // Function to save conversation history to KV storage
-    async function saveConversationHistory(channel, message_user, history, env) {
-      const key = `conversation_${channel}_${message_user}`;
-      try {
-        await env.namespace.put(key, JSON.stringify(history));
-      } catch (e) {
-        console.error('Error saving conversation history:', e);
-      }
-    }
-    // Function to get desired name from D1 SQL Database
-    async function getDesiredName(user_id, env) {
-      const query = 'SELECT desired_name FROM user_preferences WHERE user_id = ?';
-      try {
-        const result = await env.database.prepare(query).bind(user_id).first();
-        return result?.desired_name || null;
-      } catch (e) {
-        console.error('Error fetching desired name:', e);
-        return null;
-      }
-    }
-    // Function to strip prefix from assistant messages
-    function stripPrefixFromAssistantMessages(conversation, userPrefix) {
-      return conversation.map(msg => {
-        if (msg.role === 'assistant' && userPrefix) {
-          if (msg.content.startsWith(userPrefix)) {
-            return { ...msg, content: msg.content.substring(userPrefix.length).trim() };
-          }
-        }
-        return msg;
-      });
     }
     // Handle requests at the base path "/"
     if (path === '/') {
@@ -472,7 +671,7 @@ export default {
         }
         // Detect insults
         if (await detectInsult(normalizedMessage, env)) {
-          const insultResponse = getInsultResponse();
+          const insultResponse = await getInsultResponse(userMessage, env); // Hybrid approach
           conversationHistory.push({ role: 'assistant', content: insultResponse });
           await saveConversationHistory(channel, message_user, conversationHistory, env);
           console.log('Insult Response:', insultResponse);
@@ -538,7 +737,7 @@ export default {
           let attempt = 0;
           const MAX_ATTEMPTS = 3; // Prevent infinite loops
           do {
-            const chatResponse = await runAI(chatPrompt);
+            const chatResponse = await runAI(chatPrompt, env); // Pass env to runAI
             console.log('AI response:', chatResponse);
             rawAiMessage = chatResponse.result?.response ?? 'Sorry, I could not understand your request.';
             rawAiMessage = removeFormatting(rawAiMessage);
