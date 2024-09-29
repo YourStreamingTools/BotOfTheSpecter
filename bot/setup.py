@@ -333,6 +333,28 @@ async def setup_database():
                         sound_mapping TEXT, 
                         PRIMARY KEY (reward_id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'subathon': '''
+                    CREATE TABLE IF NOT EXISTS subathon (
+                        id INT AUTO_INCREMENT,
+                        start_time DATETIME,
+                        end_time DATETIME,
+                        starting_minutes INT,
+                        paused BOOLEAN DEFAULT FALSE,
+                        remaining_minutes INT DEFAULT 0,
+                        PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+                ''',
+                'subathon_settings': '''
+                    CREATE TABLE IF NOT EXISTS subathon_settings (
+                        id INT AUTO_INCREMENT,
+                        starting_minutes INT,
+                        cheer_add INT,
+                        sub_add_1 INT,
+                        sub_add_2 INT,
+                        sub_add_3 INT,
+                        PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
             }
             # Create tables
