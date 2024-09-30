@@ -5153,13 +5153,13 @@ async def start_subathon(ctx):
                 if settings:
                     starting_minutes = settings[1]
                     subathon_start_time = datetime.now()
-                    subathon_end_time = subathon_start_time + timedelta(menutes=starting_minutes)
-                    await cursor.excute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
-                    await cursor.commit()
+                    subathon_end_time = subathon_start_time + timedelta(minutes=starting_minutes)
+                    await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
+                    await sqldb.commit()
                     await ctx.send(f"Subathon started!")
                     asyncio.create_task(subathon_countdown())
                 else:
-                    ctx.send(f"Can't start subathon, please go to the dashboard and setup subathons.")
+                    await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
         await cursor.close()
         await sqldb.ensure_closed()
@@ -5171,8 +5171,8 @@ async def stop_subathon(ctx):
     try:
         async with sqldb.cursor() as cursor:
             if subathon_state and not subathon_state[4]: # If running
-                await cursor.execute("UDPATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
-                await cursor.commit()
+                await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
+                await sqldb.commit()
                 await ctx.send(f"Subathon ended!")
             else:
                 await ctx.send(f"No subathon active.")
@@ -5186,10 +5186,10 @@ async def pause_subathon(ctx):
     try:
         async with sqldb.cursor() as cursor:
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]:  # If subathon is running
-                remaining_minutes = (subathon_state[2] - datetime.now()).total_seconds() // 60  # [2] is end_time
+            if subathon_state and not subathon_state[4]: # If subathon is running
+                remaining_minutes = (subathon_state[2] - datetime.now()).total_seconds() // 60 # [2] is end_time
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state[0]))
-                await cursor.commit()
+                await sqldb.commit()
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
             else:
                 await ctx.send("No subathon is active or it's already paused!")
@@ -5203,10 +5203,10 @@ async def resume_subathon(ctx):
     try:
         async with sqldb.cursor() as cursor:
             subathon_state = await get_subathon_state()
-            if subathon_state and subathon_state[4]:  # If paused
-                subathon_end_time = datetime.now() + timedelta(minutes=subathon_state[5])  # [5] is remaining_minutes
+            if subathon_state and subathon_state[4]: # If paused
+                subathon_end_time = datetime.now() + timedelta(minutes=subathon_state[5]) # [5] is remaining_minutes
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state[0]))
-                await cursor.commit()
+                await sqldb.commit()
                 await ctx.send(f"Subathon resumed with {int(subathon_state[5])} minutes remaining!")
                 asyncio.create_task(subathon_countdown())
     finally:
@@ -5219,10 +5219,10 @@ async def addtime_subathon(ctx, minutes):
     try:
         async with sqldb.cursor() as cursor:
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]:  # If subathon is running
+            if subathon_state and not subathon_state[4]: # If subathon is running
                 subathon_end_time = subathon_state[2] + timedelta(minutes=minutes)
                 await cursor.execute("UPDATE subathon SET end_time = %s WHERE id = %s", (subathon_end_time, subathon_state[0]))
-                await cursor.commit()
+                await sqldb.commit()
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
             else:
                 await ctx.send("No subathon is active or it's paused!")
@@ -5234,7 +5234,7 @@ async def addtime_subathon(ctx, minutes):
 async def subathon_status(ctx):
     subathon_state = await get_subathon_state()
     if subathon_state:
-        if subathon_state[4]:  # If paused
+        if subathon_state[4]: # If paused
             await ctx.send(f"Subathon is paused with {subathon_state[5]} minutes remaining.")
         else:
             remaining = subathon_state[2] - datetime.now()
@@ -5266,7 +5266,7 @@ async def subathon_countdown():
                 try:
                     async with sqldb.cursor() as cursor:
                         await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
-                        await cursor.commit()
+                        await sqldb.commit()
                 finally:
                     await cursor.close()
                     await sqldb.ensure_closed()
