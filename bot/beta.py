@@ -24,6 +24,7 @@ import aiomysql
 from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands
+from twitchio.ext.commands.errors import CommandOnCooldown
 import streamlink
 import pytz
 from geopy.geocoders import Nominatim
@@ -802,7 +803,7 @@ class BotOfTheSpecter(commands.Bot):
 
     # Errors
     async def event_command_error(self, ctx, error: Exception) -> None:
-        if isinstance(error, commands.CommandOnCooldown):
+        if isinstance(error, CommandOnCooldown):
             command_name = ctx.command.name
             username = ctx.user.name
             retry_after = round(error.retry_after)
