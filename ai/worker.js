@@ -134,7 +134,8 @@ function handleDarkJokes(message) {
     'bad joke',
     'dirty joke',
     'inappropriate humor',
-    'dark humor'
+    'dark humor',
+    'morbid joke'
   ];
   for (const trigger of darkJokeTriggers) {
     if (message.includes(trigger)) {
