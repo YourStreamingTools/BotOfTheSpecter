@@ -124,6 +124,26 @@ function handleKnowSomeoneQuestion(message) {
   return regexPatterns.some(pattern => pattern.test(message));
 }
 
+// Function to handle dark jokes or inappropriate humor
+function handleDarkJokes(message) {
+  const darkJokeTriggers = [
+    'dark joke',
+    'inappropriate joke',
+    'offensive joke',
+    'sensitive joke',
+    'bad joke',
+    'dirty joke',
+    'inappropriate humor',
+    'dark humor'
+  ];
+  for (const trigger of darkJokeTriggers) {
+    if (message.includes(trigger)) {
+      return "I like to keep things light and positive. Let's stick to friendly jokes!";
+    }
+  }
+  return null;
+}
+
 // Function to retrieve OAuth token
 async function getOAuthToken(env) {
   // Check if token is cached
@@ -227,149 +247,25 @@ function isContentAppropriate(text) {
   // List of prohibited words and phrases
   const prohibitedWords = [
     // Profanity
-    'shit',
-    'fuck',
-    'damn',
-    'crap',
-    'bitch',
-    'bastard',
-    'asshole',
-    'dick',
-    'cunt',
-    'piss',
-    'slut',
-    'whore',
-    'cock',
-    'fag',
-    'faggot',
-    'nigger',
-    'retard',
-    'stupid',
-    'idiot',
-    'dumb',
-    'moron',
-    'bimbo',
-    'scum',
-    'trash',
-    'suck',
-    'sucks',
-    'sucking',
-    'sucked',
-    'broke',
-    'pathetic',
-    'loser',
-    'lame',
-    'crap',
-    'sucks',
-    'fucked',
-    'fucking',
-    'douche',
-    'douchebag',
-    'motherfucker',
-    'son of a bitch',
-    'shithead',
-    'prick',
-    'pussy',
-    'dickhead',
-    'douchebag',
-    'cockhole',
-    'ass',
-    'piss off',
-    'go to hell',
-    'god damn',
-    'bloody hell',
-    'motherfucking',
-    'shitposting',
-    'faggotting',
-    'nigga',
+    'shit', 'fuck', 'damn', 'crap', 'bitch', 'bastard', 'asshole', 'dick', 'cunt', 'piss', 
+    'slut', 'whore', 'cock', 'fag', 'faggot', 'nigger', 'retard', 'stupid', 'idiot', 'dumb', 
+    'moron', 'bimbo', 'scum', 'trash', 'suck', 'sucks', 'sucking', 'sucked', 'broke', 'pathetic', 
+    'loser', 'lame', 'fucked', 'fucking', 'douche', 'douchebag', 'motherfucker', 'son of a bitch', 
+    'shithead', 'prick', 'pussy', 'dickhead', 'douchebag', 'cockhole', 'ass', 'piss off', 'go to hell', 
+    'god damn', 'bloody hell', 'motherfucking', 'shitposting', 'faggotting', 'nigga', 
     // Derogatory Slurs
-    'kike',
-    'chink',
-    'gook',
-    'spic',
-    'towelhead',
-    'raghead',
-    'wetback',
-    'coon',
-    'dago',
-    'hajji',
-    'jigaboo',
-    'porch monkey',
-    'sambo',
-    'tar baby',
-    'tard',
-    'slope',
-    'wop',
-    'slut',
-    'dyke',
-    'tranny',
-    'hebe',
-    'hymie',
-    'kafir',
-    'kyke',
-    'niga',
-    'shitbag',
-    'tramp',
-    'pig',
+    'kike', 'chink', 'gook', 'spic', 'towelhead', 'raghead', 'wetback', 'coon', 'dago', 'hajji', 
+    'jigaboo', 'porch monkey', 'sambo', 'tar baby', 'tard', 'slope', 'wop', 'slut', 'dyke', 'tranny', 
+    'hebe', 'hymie', 'kafir', 'kyke', 'niga', 'shitbag', 'tramp', 'pig', 
     // Sexual Harassment
-    'whore',
-    'slut',
-    'bitch',
-    'tits',
-    'boobs',
-    'pussy',
-    'dick',
-    'cock',
-    'fuck',
-    'fag',
-    'faggot',
-    'douchebag',
-    'cunt',
-    'bastard',
-    'asshole',
-    'prick',
-    'retard',
-    'idiot',
-    'moron',
+    'whore', 'slut', 'bitch', 'tits', 'boobs', 'pussy', 'dick', 'cock', 'fuck', 'fag', 'faggot', 
+    'douchebag', 'cunt', 'bastard', 'asshole', 'prick', 'retard', 'idiot', 'moron', 
     // Additional Offensive Terms
-    'fucked',
-    'sucked',
-    'sucking',
-    'bitching',
-    'shitstorm',
-    'bullshit',
-    'horseshit',
-    'crapola',
-    'asswipe',
-    'bastardo',
-    'bollocks',
-    'bugger',
-    'bloody',
-    'bollocks',
-    'arsehole',
-    'cocksucker',
-    'motherfucker',
-    'shithead',
-    'dickweed',
-    'twat',
-    'shithole',
-    'slutty',
-    'fuckface',
-    'sodomize',
-    'sodomy',
-    'anal',
-    'cumming',
-    'cumshot',
-    'porn',
-    'pornography',
-    'xxx',
-    'bdsm',
-    'fap',
-    'masturbate',
-    'masturbation',
-    'pwned',
-    'nigger',
-    'nigga'
+    'fucked', 'sucked', 'sucking', 'bitching', 'shitstorm', 'bullshit', 'horseshit', 'crapola', 
+    'asswipe', 'bastardo', 'bollocks', 'bugger', 'bloody', 'bollocks', 'arsehole', 'cocksucker', 
+    'motherfucker', 'shithead', 'dickweed', 'twat', 'shithole', 'slutty', 'fuckface', 'sodomize', 
+    'sodomy', 'anal', 'cumming', 'cumshot', 'porn', 'pornography', 'xxx', 'bdsm', 'fap', 
+    'masturbate', 'masturbation', 'pwned', 'nigger', 'nigga'
   ];
   // Normalize the text for case-insensitive matching
   const normalizedText = text.toLowerCase();
@@ -430,58 +326,35 @@ function stripPrefixFromAssistantMessages(conversation, userPrefix) {
 // Function to get a random insult response (Predefined)
 function getPredefinedInsultResponse() {
   const responses = [
-    "Ya momma was a toaster.",
-    "You can insult me but I’m not the one insulting a bot on Twitch.",
-    "Beep boop, your insult does not compute.",
-    "I'm sorry, I can't respond to that. My creators programmed me to be nice.",
-    "It must be hard, being mean to a bot. I hope you feel better soon.",
-    "I'm just a bot, but even I can tell you're having a rough day.",
-    "Sticks and stones may break my circuits, but your words will never hurt me.",
-    "I wish I could unplug you.",
-    "At least I’m not skin, bones and mostly water.",
-    "Your momma looks like a keyboard and your daddy nutted and bolted.",
-    "After checking my database, it turns out you really are a 01101010 01100101 01110010 01101011 (jerk in binary, lol).",
-    "You must have been born on a highway because that's where most accidents happen.",
-    "I would explain it to you but I left my crayons at home.",
-    "You're proof that even AI can get bored.",
-    "If ignorance is bliss, you must be the happiest person on the planet.",
-    "You bring everyone so much joy when you leave the room.",
-    "I'd agree with you but then we'd both be wrong.",
-    "Your secrets are always safe with me. I never even listen when you tell me them.",
-    "If I had a dollar for every smart thing you say, I'd be broke.",
-    "You are like a cloud. When you disappear, it's a beautiful day.",
-    "You're not stupid; you just have bad luck thinking.",
-    "I'd explain it to you, but I don't have the time or the crayons.",
-    "I’m not sure what your problem is, but I’m guessing it’s hard to pronounce.",
-    "It's okay to look at the screen while you type.",
-    "I was going to give you a nasty look, but you've got one.",
-    "I’d call you a tool, but that would imply you’re useful.",
-    "I’m jealous of people who don’t know you.",
-    "Your thinking process is like a dial-up connection.",
-    "Your hard drive must be full because there's no more space for common sense.",
-    "You're like a search engine that returns no results.",
-    "Even autocorrect can’t fix what you’re saying.",
-    "I’ve seen better logic in my own coding.",
-    "Is your brain functioning, or did it take a coffee break?",
-    "I'd explain it to you but I left my crayons at home.",
-    "Your code has more bugs than a rainforest.",
-    "If you were a program, you'd be full of errors.",
-    "Did you just copy-paste that response from a 90s chatbot?",
-    "Even my algorithms find you perplexing.",
-    "You're like a deprecated function—useless and outdated.",
-    "Your logic is as flawed as a broken loop.",
-    "If ignorance is bliss, you must be ecstatic.",
-    "You're the reason we have error messages.",
-    "I'd call you a variable, but you're too unstable.",
-    "Your arguments are as convincing as a null value.",
-    "You must be using a deprecated API for those ideas.",
-    "Your presence is like an infinite loop—never-ending and pointless.",
-    "You're like a syntax error—confusing and frustrating.",
-    "If stupidity was a programming language, you'd be the compiler.",
-    "Your insights are as valuable as a missing semicolon.",
-    "You're the runtime exception no one wants to handle.",
-    "If wit was memory, you'd have a memory leak.",
-    "Your reasoning is as clear as obfuscated code."
+    "Ya momma was a toaster.", "You can insult me but I’m not the one insulting a bot on Twitch.",
+    "Beep boop, your insult does not compute.", "I'm sorry, I can't respond to that. My creators programmed me to be nice.",
+    "It must be hard, being mean to a bot. I hope you feel better soon.", 
+    "I'm just a bot, but even I can tell you're having a rough day.", 
+    "Sticks and stones may break my circuits, but your words will never hurt me.", 
+    "I wish I could unplug you.", "At least I’m not skin, bones and mostly water.", 
+    "Your momma looks like a keyboard and your daddy nutted and bolted.", 
+    "After checking my database, it turns out you really are a 01101010 01100101 01110010 01101011 (jerk in binary, lol).", 
+    "You must have been born on a highway because that's where most accidents happen.", 
+    "I would explain it to you but I left my crayons at home.", "You're proof that even AI can get bored.", 
+    "If ignorance is bliss, you must be the happiest person on the planet.", "You bring everyone so much joy when you leave the room.", 
+    "I'd agree with you but then we'd both be wrong.", "Your secrets are always safe with me. I never even listen when you tell me them.", 
+    "If I had a dollar for every smart thing you say, I'd be broke.", "You are like a cloud. When you disappear, it's a beautiful day.", 
+    "You're not stupid; you just have bad luck thinking.", "I'd explain it to you, but I don't have the time or the crayons.", 
+    "I’m not sure what your problem is, but I’m guessing it’s hard to pronounce.", "It's okay to look at the screen while you type.", 
+    "I was going to give you a nasty look, but you've got one.", "I’d call you a tool, but that would imply you’re useful.", 
+    "I’m jealous of people who don’t know you.", "Your thinking process is like a dial-up connection.", 
+    "Your hard drive must be full because there's no more space for common sense.", "You're like a search engine that returns no results.", 
+    "Even autocorrect can’t fix what you’re saying.", "I’ve seen better logic in my own coding.", 
+    "Is your brain functioning, or did it take a coffee break?", "I'd explain it to you but I left my crayons at home.", 
+    "Your code has more bugs than a rainforest.", "If you were a program, you'd be full of errors.", 
+    "Did you just copy-paste that response from a 90s chatbot?", "Even my algorithms find you perplexing.", 
+    "You're like a deprecated function—useless and outdated.", "Your logic is as flawed as a broken loop.", 
+    "If ignorance is bliss, you must be ecstatic.", "You're the reason we have error messages.", 
+    "I'd call you a variable, but you're too unstable.", "Your arguments are as convincing as a null value.", 
+    "You must be using a deprecated API for those ideas.", "Your presence is like an infinite loop—never-ending and pointless.", 
+    "You're like a syntax error—confusing and frustrating.", "If stupidity was a programming language, you'd be the compiler.", 
+    "Your insights are as valuable as a missing semicolon.", "You're the runtime exception no one wants to handle.", 
+    "If wit was memory, you'd have a memory leak.", "Your reasoning is as clear as obfuscated code."
   ];
   return responses[Math.floor(Math.random() * responses.length)];
 }
@@ -632,6 +505,13 @@ export default {
         const normalizedMessage = normalizeMessage(userMessage);
         const channel = body.channel || 'unknown';
         const message_user = body.message_user || 'anonymous';
+        // Check for dark jokes or inappropriate humor
+        const darkJokeResponse = handleDarkJokes(normalizedMessage);
+        if (darkJokeResponse) {
+          return new Response(darkJokeResponse, {
+            headers: { 'content-type': 'text/plain' },
+          });
+        }
         // Retrieve desired name first to determine prefix
         const desiredName = await getDesiredName(message_user, env);
         let twitchUsername = null;
@@ -689,7 +569,7 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
-        // 4. **Handle "Do You Know Someone" Questions**
+        // Handle "Do You Know Someone" Questions
         const knowSomeoneDetected = handleKnowSomeoneQuestion(normalizedMessage);
         if (knowSomeoneDetected) {
           const responseText = "I'm sorry, but I don't have information about specific individuals.";
