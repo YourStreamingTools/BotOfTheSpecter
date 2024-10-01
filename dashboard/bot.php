@@ -99,18 +99,20 @@ $setupMessage = "";
 $showButtons = false;
 
 // Handle the bot mod status
-if ($ModStatusOutput) {
-  $BotModMessage = "<p class='has-text-success'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
+if ($username === 'botofthespecter') {
+  $BotModMessage = "<p class='has-text-success'>Welcome to your own system!</p>";
   $showButtons = true;
 } else {
-  $showButtons = false;
-  $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p><br>
-  <form method='post'>
-    <button class='button is-success bot-button' type='submit' name='setupBot'>Run Setup</button>
-  </form>";
-  if ($username !== 'BotOfTheSpecter') {
-    $BotModMessage = "<p class='has-text-success'>Welcome to your own system!</p>";
-    $showButtons = true;
+  // If the user is not BotOfTheSpecter, check mod status
+  if ($ModStatusOutput) {
+      $BotModMessage = "<p class='has-text-success'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
+      $showButtons = true;
+  } else {
+      $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p><br>
+      <form method='post'>
+          <button class='button is-success bot-button' type='submit' name='setupBot'>Run Setup</button>
+      </form>";
+      $showButtons = false;
   }
 }
 
