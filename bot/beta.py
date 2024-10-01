@@ -1948,7 +1948,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                user_id = str(ctx.author.id)
+                user_id = ctx.author.id
                 await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
                 db_bits = await cursor.fetchone()
                 if db_bits:
@@ -1966,9 +1966,11 @@ class BotOfTheSpecter(commands.Bot):
                     async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
                         if response.status == 200:
                             data = await response.json()
-                            if data['data']:
-                                user_bits = data['data'][0]
-                                api_bits = user_bits['score']
+                            api_logger.info(f"Twitch Leaderboard: {data}")
+                            # Filter out only the data for the current user_id
+                            user_data = next((user for user in data['data'] if user['user_id'] == str(user_id)), None)
+                            if user_data:
+                                api_bits = user_data['score']
                                 # Compare API bits with the database bits and update if necessary
                                 if api_bits > db_bits:
                                     # Update the database with the higher bits from the API
