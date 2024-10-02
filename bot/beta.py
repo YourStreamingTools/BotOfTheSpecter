@@ -824,6 +824,7 @@ class BotOfTheSpecter(commands.Bot):
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
+                    chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                     return
                 if not message.author or not hasattr(message.author, 'name'):
                     return
