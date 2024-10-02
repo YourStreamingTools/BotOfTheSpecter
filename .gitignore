@@ -46,8 +46,7 @@ walkons/*
 soundalerts/*/*.mp3
 
 # Miscellaneous files
-cdn/Thumbs.db
-cdn/emotes/Thumbs.db
+*Thumbs.db
 dashboard/botcontrol.php
 dashboard/bottest.php
 
