@@ -803,15 +803,24 @@ class BotOfTheSpecter(commands.Bot):
         asyncio.get_event_loop().create_task(midnight(channel))
         await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
+    async def event_channel_joined(self, channel):
+        self.target_channel = channel 
+        bot_logger.info(f"Joined channel: {channel.name}")
+
     # Errors
     async def event_command_error(self, ctx, error: Exception) -> None:
-        if isinstance(error, CommandOnCooldown):
+        if isinstance(error, commands.CommandOnCooldown):
+            bot_logger.info(f"Cooldown error detected: {error}")
             command_name = ctx.command.name
-            username = ctx.user.name
             retry_after = round(error.retry_after)
-            await ctx.send(f'@{username} !{command_name} is on cooldown. Please wait {retry_after} seconds before using the command again.')
+            message = f"Command {command_name} is on cooldown try again in {retry_after} seconds." 
+            channel = self.get_channel(CHANNEL_NAME)
+            if channel:
+                await self.target_channel.send(message)
+            else:
+                bot_logger.error("Target channel not joined yet.") 
         else:
-            bot_logger.error(f"Error occurred: {error}")
+            bot_logger.error(f"Other error occurred: {error}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -980,7 +989,10 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     pass
             except Exception as e:
-                bot_logger.error(f"An error occurred in event_message: {e}")
+                if "NoneType" in e:
+                    pass
+                else:
+                    bot_logger.error(f"An error occurred in event_message: {e}")
             finally:
                 await cursor.close()
                 await sqldb.ensure_closed()
