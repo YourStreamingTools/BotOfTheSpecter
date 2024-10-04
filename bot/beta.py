@@ -3537,18 +3537,18 @@ async def get_display_name(user_id):
 async def command_permissions(user):
     # Check if the user is the bot owner
     if user.name == 'gfaundead':
-        twitch_logger.info(f"User is gfaUnDead. (Bot owner)")
+        twitch_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
         return True
     # Check if the user is the broadcaster
     elif user.name == CHANNEL_NAME:
-        twitch_logger.info(f"User {user.name} is the Broadcaster")
+        twitch_logger.info(f"Command Permission checked, {user.name} is the Broadcaster")
         return True
     # Check if the user is a moderator
-    is_mod = await is_user_mod(user.name)
-    if is_mod:
+    elif user.is_mod:
+        twitch_logger.info(f"Command Permission checked, {user.name} is a Moderator")
         return True
-    # If none of the above, the user is neither the bot owner, broadcaster, nor a moderator
-    twitch_logger.info(f"User {user.name} does not have required permissions.")
+    # If none of the above, the user does not have required permissions
+    twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires mod permission.")
     return False
 
 async def is_user_mod(username):
