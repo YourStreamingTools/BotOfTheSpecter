@@ -15,36 +15,8 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Payments";
 
-// Include Stripe PHP library and set the API key
-require_once('stripe-php/init.php');
-$stripeSecretKey = ''; // CHANGE TO MAKE THIS WORK
-\Stripe\Stripe::setApiKey($stripeSecretKey);
-
 // Connect to database
 require_once "../db_connect.php";
-require_once "stripe_customer.php";
-
-// Define your product and price IDs for each plan
-$plans = [
-    'standard' => [
-        'product' => '', // CHANGE TO MAKE THIS WORK
-        'priceId' => '', // CHANGE TO MAKE THIS WORK
-        'name' => 'Standard Plan',
-        'price' => '$5 USD',
-    ],
-    'premium' => [
-        'product' => '', // CHANGE TO MAKE THIS WORK
-        'priceId' => '', // CHANGE TO MAKE THIS WORK
-        'name' => 'Premium Plan',
-        'price' => '$10 USD',
-    ],
-    'ultimate' => [
-        'product' => '', // CHANGE TO MAKE THIS WORK
-        'priceId' => '', // CHANGE TO MAKE THIS WORK
-        'name' => 'Ultimate Plan',
-        'price' => '$15 USD',
-    ],
-];
 
 // Fetch the user's data from the database based on the access_token
 $access_token = $_SESSION['access_token'];
@@ -65,53 +37,42 @@ $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
-$stripeCustomerId = $user['stripe_customer_id'];
-$_SESSION['stripe_customer_id'] = $stripeCustomerId;
-$subscriptionId = $user['subscription_id'];
+$api_key = $user['api_key'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 include '../bot_control.php';
 include '../sqlite.php';
 
-// Check if the user is already a Stripe customer
-if (empty($stripeCustomerId)) {
-    $stripeCustomerId = createStripeCustomer($userEmail, $twitchDisplayName);
-    if ($stripeCustomerId) {
-        // Update the user's record with the new Stripe customer ID
-        $updateSTMT = $conn->prepare("UPDATE users SET stripe_customer_id = ? WHERE id = ?");
-        $updateSTMT->bind_param("si", $stripeCustomerId, $user_id);
-        $updateSTMT->execute();
-        $updateSTMT->close();
-    } else {
-        // Handle the case where the Stripe customer creation failed
-        die('Failed to create Stripe customer. Please try again later.');
+$plans = [
+    '1000' => ['name' => 'Standard Plan', 'price' => '$5.99 USD'],
+    '2000' => ['name' => 'Premium Plan', 'price' => '$9.99 USD'],
+    '3000' => ['name' => 'Ultimate Plan', 'price' => '$24.99 USD'],
+];
+$currentPlan = 'free';
+$twitchSubTier = fetchTwitchSubscriptionTier($authToken, $twitchUserId);
+if ($twitchSubTier) {
+    if (array_key_exists($twitchSubTier, $plans)) {
+        $currentPlan = $twitchSubTier; 
     }
 }
-
-// Check for status messages
-$status = isset($_GET['status']) ? $_GET['status'] : null;
-
-// Fetch the user's subscription status from Stripe
-$subscriptionActive = false;
-$currentPlan = 'free'; // Default to free
-
-if (!empty($subscriptionId)) {
-    try {
-        $subscription = \Stripe\Subscription::retrieve($subscriptionId);
-        if ($subscription->status === 'active') {
-            $subscriptionActive = true;
-            // Determine the current plan based on the subscription's price ID
-            $currentPriceId = $subscription->items->data[0]->price->id;
-            foreach ($plans as $planName => $planDetails) {
-                if ($planDetails['priceId'] === $currentPriceId) {
-                    $currentPlan = $planName;
-                    break;
-                }
-            }
-        }
-    } catch (\Exception $e) {
+function fetchTwitchSubscriptionTier($token, $twitchUserId) {
+    $url = "https://api.twitch.tv/helix/subscriptions?broadcaster_id=140296994&user_id=$twitchUserId";
+    $headers = [
+        "Authorization: Bearer $token",
+        "Client-ID: mrjucsmsnri89ifucl66jj1n35jkj8",
+    ];
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($response, true);
+    if (isset($data['data']) && count($data['data']) > 0) {
+        return $data['data'][0]['tier']; // Return the subscription tier
     }
+    return "free"; // No subscription found
 }
 ?>
 <!DOCTYPE html>
@@ -128,43 +89,18 @@ if (!empty($subscriptionId)) {
 <!-- /Navigation -->
 
 <div class="container">
-    <!-- Notifications -->
-    <?php if ($status === 'success'): ?>
-        <div class="notification is-success">
-            <button class="delete"></button>
-            Payment Successful! Your paid features are now enabled.
-        </div>
-    <?php elseif ($status === 'cancel'): ?>
-        <div class="notification is-danger">
-            <button class="delete"></button>
-            Payment Canceled. If this was a mistake, you can try again.
-        </div>
-    <?php endif; ?>
-
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title">Premium Features</h1>
-    <h2 class="subtitle" style="display: flex; align-items: center;">
-        <img src="https://cdn.botofthespecter.com/StripeClimate/StripeClimate-Small.png" width="64" height="64" alt="Stripe Climate" style="margin-right: 10px;">
-        <span>
-            At YourStreamingTools, we believe businesses have a critically important role in combating climate change. 
-            As the team behind BotOfTheSpecter, we're dedicated to making a positive impact on the environment. 
-            We're proud to fund next-generation carbon removal efforts. To support this cause, we're contributing 1% of our revenue to carbon removal. 
-            <a href="https://climate.stripe.com/tPEkBr" target="_blank">Learn more</a>
-        </span>
-    </h2>
-
     <div class="card-container">
         <!-- Free Plan -->
         <div class="card">
             <div class="card-content">
-                <div class="content">
-                    <h2 class="card-title">Free Plan<br>$0 USD</h2>
-                    <ul>
-                        <li><a class="feature-link" data-modal="modal-feature-basic">Basic Commands</a></li>
-                        <li><a class="feature-link" data-modal="modal-feature-limited-support">Limited Support</a></li>
-                    </ul>
-                </div>
+                <h2 class="card-title">Free Plan<br>$0 USD</h2>
+                <ul>
+                    <li><a class="feature-link" data-modal="modal-feature-basic">Basic Commands</a></li>
+                    <li><a class="feature-link" data-modal="modal-feature-limited-support">Limited Support</a></li>
+                </ul>
             </div>
             <?php if ($currentPlan === 'free'): ?>
                 <div class="card-footer">
@@ -172,11 +108,6 @@ if (!empty($subscriptionId)) {
                         <span>Current Plan</span>
                     </p>
                 </div>
-            <?php else: ?>
-                <form action="subscribe.php" method="POST">
-                    <input type="hidden" name="plan" value="free">
-                    <button type="submit" class="button is-primary">Switch to Free Plan</button>
-                </form>
             <?php endif; ?>
         </div>
         <?php foreach ($plans as $planKey => $planDetails): ?>
@@ -184,52 +115,34 @@ if (!empty($subscriptionId)) {
                 <div class="card-content">
                     <h2 class="card-title"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
                     <ul>
-                        <?php if ($planKey === 'standard'): ?>
+                        <?php if ($planKey === '1000'): ?>
                             <li><a class="feature-link" data-modal="modal-feature-song-weather">!song & !weather Commands</a></li>
                             <li><a class="feature-link" data-modal="modal-feature-support">Full Support</a></li>
                             <li><a class="feature-link" data-modal="modal-feature-beta">Exclusive Beta Features</a></li>
                             <li>Shared Bot (BotOfTheSpecter)</li>
-                        <?php elseif ($planKey === 'premium'): ?>
+                        <?php elseif ($planKey === '2000'): ?>
                             <li>Everything From Standard Plan</li>
                             <li><a class="feature-link" data-modal="modal-feature-personalized-support">Personalized Support</a></li>
                             <li><a class="feature-link" data-modal="modal-feature-ai">AI Features & Conversations</a></li>
                             <li>Shared Bot (BotOfTheSpecter)</li>
-                        <?php elseif ($planKey === 'ultimate'): ?>
+                        <?php elseif ($planKey === '3000'): ?>
                             <li>Everything from Premium Plan</li>
                             <li><a class="feature-link" data-modal="modal-feature-dedicated-bot">Dedicated bot (custom bot name)</a></li>
                         <?php endif; ?>
                     </ul>
                 </div>
-                <?php if ($currentPlan === $planKey): ?>
+                <?php if ($currentPlan === $planKey): ?> 
                     <div class="card-footer">
                         <p class="card-footer-item">
-                            <span>Current Plan</span>
-                        </p>
-                        <form action="cancel_subscription.php" method="POST" class="card-footer-item">
-                            <button type="submit" class="button is-danger">Cancel Subscription</button>
-                        </form>
+                            <span>Current Plan</span> 
+                        </p> 
                     </div>
-                <?php else: ?>
-                    <form action="subscribe.php" method="POST">
-                        <input type="hidden" name="plan" value="<?php echo $planKey; ?>">
-                        <?php if ($subscriptionActive): ?>
-                            <?php if (array_search($planKey, array_keys($plans)) > array_search($currentPlan, array_keys($plans))): ?>
-                                <button type="submit" class="button is-primary">Upgrade to <?php echo $planDetails['name']; ?></button>
-                            <?php else: ?>
-                                <button type="submit" class="button is-primary">Downgrade to <?php echo $planDetails['name']; ?></button>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <button type="submit" class="button is-primary">Subscribe to <?php echo $planDetails['name']; ?></button>
-                        <?php endif; ?>
-                    </form>
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
     </div>
 </div>
 
-<script src="https://js.stripe.com/v3/"></script>
-<script src="stripe.js"></script>
 <script src="modal.js"></script>
 </body>
 </html>
