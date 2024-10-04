@@ -44,12 +44,18 @@
           <a class="navbar-item" href="../sound-alerts.php">Sound Alerts</a>
         </div>
       </div>
-      <a class="navbar-item" href="../discordbot.php">Discord Bot</a>
-      <a class="navbar-item" href="../profile.php">Profile</a>
-      <a class="navbar-item" href="../overlays.php">Overlays</a>
-      <a class="navbar-item" href="../integrations.php">Integrations</a>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">Bot Integrations</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="../discordbot.php">Discord Bot</a>
+          <a class="navbar-item" href="../overlays.php">Overlays</a> 
+          <a class="navbar-item" href="../integrations.php#fourthwall">Fourthwall Integration</a> 
+          <a class="navbar-item" href="../integrations.php#kofi">Ko-fi Integration</a> 
+          <a class="navbar-item" href="../todolist">To Do List</a>
+        </div>
+      </div>
       <a class="navbar-item" href="../premium.php">Premium</a>
-      <a class="navbar-item" href="../todolist/index.php">To Do List</a>
+      <a class="navbar-item" href="../profile.php">Profile</a>
       <a class="navbar-item" href="../logout.php">Logout</a>
     </div>
     <div class="navbar-end">
