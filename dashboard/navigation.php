@@ -45,7 +45,7 @@
       <a class="navbar-item" href="../profile.php">Profile</a>
       <a class="navbar-item" href="../overlays.php">Overlays</a>
       <a class="navbar-item" href="../integrations.php">Integrations</a>
-      <a class="navbar-item" href="../payments/index.php">Payments</a>
+      <a class="navbar-item" href="../payments.php">Payments</a>
       <a class="navbar-item" href="../todolist/index.php">To Do List</a>
       <a class="navbar-item" href="../logout.php">Logout</a>
     </div>
