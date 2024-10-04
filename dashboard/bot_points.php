@@ -176,7 +176,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_raid" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Raid</label>
+                    <label class="label" for="point_amount_raid" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Raid Viewer</label>
                     <div class="control">
                         <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
