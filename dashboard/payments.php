@@ -47,7 +47,7 @@ include 'sqlite.php';
 // Define plans with features
 $plans = [
     '1000' => [
-        'name' => 'Standard Plan',
+        'name' => 'Twitch Tier 1',
         'price' => '$5.99 USD',
         'features' => [
             '!song & !weather Commands',
@@ -57,7 +57,7 @@ $plans = [
         ],
     ],
     '2000' => [
-        'name' => 'Premium Plan',
+        'name' => 'Twitch Tier 2',
         'price' => '$9.99 USD',
         'features' => [
             'Everything From Standard Plan',
@@ -67,7 +67,7 @@ $plans = [
         ],
     ],
     '3000' => [
-        'name' => 'Ultimate Plan',
+        'name' => 'Twitch Tier 3',
         'price' => '$24.99 USD',
         'features' => [
             'Everything from Premium Plan',
@@ -153,6 +153,12 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
                         <p class="card-footer-item">
                             <span>Current Plan</span> 
                         </p> 
+                    </div>
+                <?php else: ?>
+                    <div class="card-footer">
+                        <p class="card-footer-item">
+                            <span>Not Subscribed</span> 
+                        </p>
                     </div>
                 <?php endif; ?>
             </div>
