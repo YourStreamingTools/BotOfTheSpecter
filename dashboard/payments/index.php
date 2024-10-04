@@ -44,24 +44,36 @@ $greeting = 'Hello';
 include '../bot_control.php';
 include '../sqlite.php';
 
-// Define plans
+// Define plans with features
 $plans = [
-    '1000' => ['name' => 'Standard Plan', 'price' => '$5.99 USD', 'features' => [
-        '!song & !weather Commands',
-        'Full Support',
-        'Exclusive Beta Features',
-        'Shared Bot (BotOfTheSpecter)',
-    ]],
-    '2000' => ['name' => 'Premium Plan', 'price' => '$9.99 USD', 'features' => [
-        'Everything From Standard Plan',
-        'Personalized Support',
-        'AI Features & Conversations',
-        'Shared Bot (BotOfTheSpecter)',
-    ]],
-    '3000' => ['name' => 'Ultimate Plan', 'price' => '$24.99 USD', 'features' => [
-        'Everything from Premium Plan',
-        'Dedicated bot (custom bot name)',
-    ]],
+    '1000' => [
+        'name' => 'Standard Plan',
+        'price' => '$5.99 USD',
+        'features' => [
+            '!song & !weather Commands',
+            'Full Support',
+            'Exclusive Beta Features',
+            'Shared Bot (BotOfTheSpecter)',
+        ],
+    ],
+    '2000' => [
+        'name' => 'Premium Plan',
+        'price' => '$9.99 USD',
+        'features' => [
+            'Everything From Standard Plan',
+            'Personalized Support',
+            'AI Features & Conversations',
+            'Shared Bot (BotOfTheSpecter)',
+        ],
+    ],
+    '3000' => [
+        'name' => 'Ultimate Plan',
+        'price' => '$24.99 USD',
+        'features' => [
+            'Everything from Premium Plan',
+            'Dedicated bot (custom bot name)',
+        ],
+    ],
 ];
 
 // Check Twitch subscription tier
