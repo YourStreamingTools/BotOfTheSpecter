@@ -5769,7 +5769,7 @@ async def setup_database():
             await conn.commit()
             await cursor.execute('''
                 INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users)
-                SELECT 'Points', '10', '300', '500', '350', '250', '2', CONCAT('botofthespecter,', %s)
+                SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', %s)
                 WHERE NOT EXISTS (SELECT 1 FROM bot_settings)
             ''', (CHANNEL_NAME,))
             await conn.commit()
