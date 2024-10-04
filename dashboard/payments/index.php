@@ -44,12 +44,28 @@ $greeting = 'Hello';
 include '../bot_control.php';
 include '../sqlite.php';
 
+// Define plans
 $plans = [
-    '1000' => ['name' => 'Standard Plan', 'price' => '$5.99 USD'],
-    '2000' => ['name' => 'Premium Plan', 'price' => '$9.99 USD'],
-    '3000' => ['name' => 'Ultimate Plan', 'price' => '$24.99 USD'],
+    '1000' => ['name' => 'Standard Plan', 'price' => '$5.99 USD', 'features' => [
+        '!song & !weather Commands',
+        'Full Support',
+        'Exclusive Beta Features',
+        'Shared Bot (BotOfTheSpecter)',
+    ]],
+    '2000' => ['name' => 'Premium Plan', 'price' => '$9.99 USD', 'features' => [
+        'Everything From Standard Plan',
+        'Personalized Support',
+        'AI Features & Conversations',
+        'Shared Bot (BotOfTheSpecter)',
+    ]],
+    '3000' => ['name' => 'Ultimate Plan', 'price' => '$24.99 USD', 'features' => [
+        'Everything from Premium Plan',
+        'Dedicated bot (custom bot name)',
+    ]],
 ];
-$currentPlan = 'free';
+
+// Check Twitch subscription tier
+$currentPlan = 'free'; // Default to free
 $twitchSubTier = fetchTwitchSubscriptionTier($authToken, $twitchUserId);
 if ($twitchSubTier) {
     if (array_key_exists($twitchSubTier, $plans)) {
@@ -72,7 +88,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
     if (isset($data['data']) && count($data['data']) > 0) {
         return $data['data'][0]['tier']; // Return the subscription tier
     }
-    return "free"; // No subscription found
+    return false; // No subscription found
 }
 ?>
 <!DOCTYPE html>
@@ -115,20 +131,9 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
                 <div class="card-content">
                     <h2 class="card-title"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
                     <ul>
-                        <?php if ($planKey === '1000'): ?>
-                            <li><a class="feature-link" data-modal="modal-feature-song-weather">!song & !weather Commands</a></li>
-                            <li><a class="feature-link" data-modal="modal-feature-support">Full Support</a></li>
-                            <li><a class="feature-link" data-modal="modal-feature-beta">Exclusive Beta Features</a></li>
-                            <li>Shared Bot (BotOfTheSpecter)</li>
-                        <?php elseif ($planKey === '2000'): ?>
-                            <li>Everything From Standard Plan</li>
-                            <li><a class="feature-link" data-modal="modal-feature-personalized-support">Personalized Support</a></li>
-                            <li><a class="feature-link" data-modal="modal-feature-ai">AI Features & Conversations</a></li>
-                            <li>Shared Bot (BotOfTheSpecter)</li>
-                        <?php elseif ($planKey === '3000'): ?>
-                            <li>Everything from Premium Plan</li>
-                            <li><a class="feature-link" data-modal="modal-feature-dedicated-bot">Dedicated bot (custom bot name)</a></li>
-                        <?php endif; ?>
+                        <?php foreach ($planDetails['features'] as $feature): ?>
+                            <li><?php echo $feature; ?></li>
+                        <?php endforeach; ?>
                     </ul>
                 </div>
                 <?php if ($currentPlan === $planKey): ?> 
