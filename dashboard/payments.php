@@ -80,8 +80,10 @@ $plans = [
 $currentPlan = 'free'; // Default to free
 $twitchSubTier = fetchTwitchSubscriptionTier($authToken, $twitchUserId);
 if ($twitchSubTier) {
-    if (array_key_exists($twitchSubTier, $plans)) {
-        $currentPlan = $twitchSubTier; 
+    // Ensure the tier is treated as a string for comparison
+    $twitchSubTierString = (string) $twitchSubTier;
+    if (array_key_exists($twitchSubTierString, $plans)) {
+        $currentPlan = $twitchSubTierString; 
     }
 }
 function fetchTwitchSubscriptionTier($token, $twitchUserId) {
@@ -139,6 +141,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
             <?php endif; ?>
         </div>
         <?php foreach ($plans as $planKey => $planDetails): ?>
+            <?php $trimmedCurrentPlan = trim((string)$currentPlan); $trimmedPlanKey = trim((string)$planKey);?>
             <div class="card">
                 <div class="card-content">
                     <h2 class="card-title subtitle"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
@@ -148,7 +151,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
                         <?php endforeach; ?>
                     </ul>
                 </div>
-                <?php if ($currentPlan === $planKey): ?> 
+                <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?> 
                     <div class="card-footer">
                         <p class="card-footer-item">
                             <span>Current Plan</span> 
