@@ -703,9 +703,11 @@ async def process_eventsub_message(message):
                         await sqldb.commit()
                 elif event_type in ["stream.online", "stream.offline"]:
                     if event_type == "stream.online":
-                        await process_stream_online()
+                        bot_logger.info(f"Stream is now online!")
+                        await websocket_notice(event="STREAM_ONLINE")
                     else:
-                        await process_stream_offline()
+                        bot_logger.info(f"Stream is now offline.")
+                        await websocket_notice(event="STREAM_OFFLINE")
                 # Logging for unknown event types
                 else:
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -1294,8 +1296,9 @@ class BotOfTheSpecter(commands.Bot):
                         if status == 'Disabled':
                             return
                     chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
+                    bot_logger.info(f"Stream is now online!")
                     await ctx.send("Stream status has been forcibly set to online.")
-                    await process_stream_online()
+                    await websocket_notice(event="STREAM_ONLINE")
             except Exception as e:
                 chat_logger.error(f"Error in forceonline_command: {e}")
                 await ctx.send(f"An error occurred while executing the command. {e}")
@@ -1321,8 +1324,9 @@ class BotOfTheSpecter(commands.Bot):
                         if status == 'Disabled':
                             return
                     chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
+                    bot_logger.info(f"Stream is now offline.")
                     await ctx.send("Stream status has been forcibly set to offline.")
-                    await process_stream_offline()
+                    await websocket_notice(event="STREAM_OFFLINE")
             except Exception as e:
                 chat_logger.error(f"Error in forceoffline_command: {e}")
                 await ctx.send(f"An error occurred while executing the command. {e}")
@@ -3975,16 +3979,6 @@ async def process_weather_websocket(data):
     channel = bot.get_channel(CHANNEL_NAME)
     event_logger.info(f"Sending weather update: {message}")
     await channel.send(message)
-
-# Function to process the stream being online
-async def process_stream_online():
-    bot_logger.info(f"Stream is now online!")
-    await websocket_notice(event="STREAM_ONLINE")
-
-# Function to process the stream being offline
-async def process_stream_offline():
-    bot_logger.info(f"Stream is now offline.")
-    await websocket_notice(event="STREAM_OFFLINE")
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
