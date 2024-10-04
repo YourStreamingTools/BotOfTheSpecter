@@ -1,5 +1,12 @@
 <?php
 session_start();
+
+// Ensure the user is logged in
+if (!isset($_SESSION['access_token'])) {
+    header('Location: ../login.php');
+    exit();
+}
+
 require_once('stripe-php/init.php');
 require_once "../db_connect.php";
 
