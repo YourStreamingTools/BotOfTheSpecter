@@ -47,6 +47,7 @@ soundalerts/*/*.mp3
 
 # Miscellaneous files
 *Thumbs.db
+*.DS_Store
 dashboard/botcontrol.php
 dashboard/bottest.php
 
