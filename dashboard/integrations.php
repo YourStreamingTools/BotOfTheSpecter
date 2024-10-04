@@ -10,7 +10,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Integrations";
+$title = "Platform Integrations"; 
 
 // Connect to database
 require_once "db_connect.php";
@@ -53,8 +53,7 @@ include 'sqlite.php';
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <div class="columns is-desktop is-multiline box-container">
-    <!-- Fourthwall Integration -->
-    <div class="column bot-box content content-card">
+    <div class="column bot-box content content-card" id="fourthwall"> 
       <h2 class="subtitle">Fourthwall Integration</h2>
       <p>Follow the steps below to integrate Specter with your Fourthwall account:</p>
       <ol>
@@ -77,8 +76,7 @@ include 'sqlite.php';
       </ol>
       <p>That's it! Your Fourthwall account is now integrated with Specter.</p>
     </div>
-    <!-- Ko-Fi Integration -->
-    <div class="column bot-box content content-card">
+    <div class="column bot-box content content-card" id="kofi"> 
       <h2 class="subtitle">Ko-Fi Integration</h2>
       <p>Follow the steps below to integrate Specter with your Ko-Fi account:</p>
       <ol>
