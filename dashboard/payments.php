@@ -160,7 +160,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
                 <?php else: ?>
                     <div class="card-footer">
                         <p class="card-footer-item">
-                            <a href="https://www.twitch.tv/subs/gfaundead" class="button is-primary">
+                            <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary">
                                 <?php if ($currentPlan === 'free') { echo "Subscribe";
                                 } elseif ((int)$currentPlan < (int)$planKey) { echo "Upgrade";
                                 } else { echo "Downgrade"; }?>
