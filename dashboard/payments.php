@@ -124,7 +124,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
         <!-- Free Plan -->
         <div class="card">
             <div class="card-content">
-                <h2 class="card-title">Free Plan<br>$0 USD</h2>
+                <h2 class="card-title subtitle">Free Plan<br>$0 USD</h2>
                 <ul>
                     <li>Basic Commands</li>
                     <li>Limited Support</li>
@@ -141,7 +141,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
         <?php foreach ($plans as $planKey => $planDetails): ?>
             <div class="card">
                 <div class="card-content">
-                    <h2 class="card-title"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
+                    <h2 class="card-title subtitle"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
                     <ul>
                         <?php foreach ($planDetails['features'] as $feature): ?>
                             <li><?php echo $feature; ?></li>
