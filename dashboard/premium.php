@@ -85,9 +85,13 @@ if ($twitchSubTier) {
     if (array_key_exists($twitchSubTierString, $plans)) {
         $currentPlan = $twitchSubTierString; 
     }
+} else {
+    // Handle the case where no subscription was found (you may want to log this or handle errors)
+    $error_message = "Unable to retrieve subscription details.";
 }
+// Updated fetch function to return both tier and check if it's a gift
 function fetchTwitchSubscriptionTier($token, $twitchUserId) {
-    $url = "https://api.twitch.tv/helix/subscriptions?broadcaster_id=140296994&user_id=$twitchUserId";
+    $url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
     $headers = [
         "Authorization: Bearer $token",
         "Client-ID: mrjucsmsnri89ifucl66jj1n35jkj8",
@@ -97,13 +101,29 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $response = curl_exec($ch);
+    // Check for cURL errors
+    if (curl_errno($ch)) {
+        $error_message = curl_error($ch); // Capture the error message
+        curl_close($ch);
+        return false; // Return false if an error occurred
+    }
     curl_close($ch);
     $data = json_decode($response, true);
+    // Check if there's a subscription
     if (isset($data['data']) && count($data['data']) > 0) {
+        // Assuming you want the first subscription in the list
         return $data['data'][0]['tier']; // Return the subscription tier
     }
+    // Handle if no subscription found
+    $error_message = "No subscription found."; // Set an error message
     return false; // No subscription found
 }
+
+// Load beta users from the JSON file
+$betaUsersJson = file_get_contents('/var/www/api/authusers.json');
+$betaUsersData = json_decode($betaUsersJson, true);
+$betaUsers = $betaUsersData['users'] ?? [];
+$isBetaUser = in_array($twitchDisplayName, $betaUsers);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -120,6 +140,10 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
 
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <?php
+    echo "<p>Current Subscription Level: " . htmlspecialchars($currentPlan) . "</p>";
+    if (isset($error_message)) { echo "<p style='color: red;'>Error: " . htmlspecialchars($error_message) . "</p>"; }
+    ?>
     <br>
     <h1 class="title">Premium Features</h1>
     <div class="card-container">
@@ -132,7 +156,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
                     <li>Limited Support</li>
                 </ul>
             </div>
-            <?php if ($currentPlan === 'free'): ?>
+            <?php if ($currentPlan === 'free' && !$isBetaUser): ?>
                 <div class="card-footer">
                     <p class="card-footer-item">
                         <span>Current Plan</span>
@@ -141,7 +165,7 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
             <?php endif; ?>
         </div>
         <?php foreach ($plans as $planKey => $planDetails): ?>
-            <?php $trimmedCurrentPlan = trim((string)$currentPlan); $trimmedPlanKey = trim((string)$planKey);?>
+            <?php $trimmedCurrentPlan = trim((string)$currentPlan); $trimmedPlanKey = trim((string)$planKey); ?>
             <div class="card">
                 <div class="card-content">
                     <h2 class="card-title subtitle"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
@@ -151,28 +175,41 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
                         <?php endforeach; ?>
                     </ul>
                 </div>
-                <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?> 
-                    <div class="card-footer">
-                        <p class="card-footer-item">
-                            <span class="button is-primary">Current Plan</span> 
-                        </p> 
-                    </div>
-                <?php else: ?>
-                    <div class="card-footer">
-                        <p class="card-footer-item">
-                            <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary">
-                                <?php if ($currentPlan === 'free') { echo "Subscribe";
-                                } elseif ((int)$currentPlan < (int)$planKey) { echo "Upgrade";
-                                } else { echo "Downgrade"; }?>
-                            </a>
-                        </p>
-                    </div>
-                <?php endif; ?>
+                <div class="card-footer">
+                    <p class="card-footer-item">
+                        <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?> 
+                            <span class="button is-primary">Current Plan</span>
+                        <?php else: ?>
+                            <?php if (!$isBetaUser): ?>
+                                <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary">
+                                    <?php if ($currentPlan === 'free') { echo "Subscribe"; } 
+                                    elseif ((int)$currentPlan < (int)$planKey) { echo "Upgrade"; } 
+                                    else { echo "Downgrade"; } ?>
+                                </a>
+                            <?php else: ?>
+                                <span>No subscription required for beta users</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </p>
+                </div>
             </div>
         <?php endforeach; ?>
+        <!-- Show a special plan for beta users -->
+        <?php if ($isBetaUser): ?>
+            <div class="card">
+                <div class="card-content">
+                    <h2 class="card-title subtitle">Exclusive Beta Plan<br>Free Access Forever!</h2>
+                    <ul>
+                        <li>All Features FOREVER</li>
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <p class="card-footer-item">Thank you for helping make BotOfTheSpecter!</p>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 
-<script src="modal.js"></script>
 </body>
 </html>
