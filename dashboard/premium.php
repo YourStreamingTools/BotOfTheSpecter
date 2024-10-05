@@ -140,10 +140,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
 
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-    <?php
-    echo "<p>Current Subscription Level: " . htmlspecialchars($currentPlan) . "</p>";
-    if (isset($error_message)) { echo "<p style='color: red;'>Error: " . htmlspecialchars($error_message) . "</p>"; }
-    ?>
+    <?php if (isset($error_message)) { echo "<p style='color: red;'>Error: " . htmlspecialchars($error_message) . "</p>"; } ?>
     <br>
     <h1 class="title">Premium Features</h1>
     <div class="card-container">
@@ -177,17 +174,17 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                 </div>
                 <div class="card-footer">
                     <p class="card-footer-item">
-                        <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?> 
-                            <span class="button is-primary">Current Plan</span>
+                        <?php if ($isBetaUser): ?>
+                            <span>No subscription required for beta users</span>
                         <?php else: ?>
-                            <?php if (!$isBetaUser): ?>
+                            <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?> 
+                                <span class="button is-primary">Current Plan</span>
+                            <?php else: ?>
                                 <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary">
                                     <?php if ($currentPlan === 'free') { echo "Subscribe"; } 
                                     elseif ((int)$currentPlan < (int)$planKey) { echo "Upgrade"; } 
                                     else { echo "Downgrade"; } ?>
                                 </a>
-                            <?php else: ?>
-                                <span>No subscription required for beta users</span>
                             <?php endif; ?>
                         <?php endif; ?>
                     </p>
