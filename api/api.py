@@ -833,9 +833,7 @@ async def websocket_stream_offline(api_key: str = Query(...)):
     include_in_schema=False
 )
 async def authorized_users(api_key: str = Query(...)):
-    valid = await verify_admin_key(api_key)
-    if not valid:
-        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    await verify_admin_key(api_key)
     auth_users_path = "/home/fastapi/authusers.json"
     if not os.path.exists(auth_users_path):
         raise HTTPException(status_code=404, detail="File not found")
