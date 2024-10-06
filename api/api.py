@@ -8,7 +8,6 @@ import uvicorn
 import datetime
 import logging
 import asyncio
-import stripe
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse
@@ -30,11 +29,6 @@ SFTP_HOST = "10.240.0.169"
 SFTP_USER = os.getenv("SFPT_USERNAME")
 SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
 WEATHER_API = os.getenv('WEATHER_API')
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
-STRIPE_PRICE_STANDARD = os.getenv("STRIPE_PRICE_STANDARD")
-STRIPE_PRICE_PREMIUM = os.getenv("STRIPE_PRICE_PREMIUM")
-STRIPE_PRICE_ULTIMATE = os.getenv("STRIPE_PRICE_ULTIMATE")
 
 # Setup Logger
 logging.basicConfig(
@@ -42,9 +36,6 @@ logging.basicConfig(
     filename="/home/fastapi/log.txt",
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
-# Initialize Stripe
-stripe.api_key = STRIPE_SECRET_KEY
 
 # Define the tags metadata
 tags_metadata = [
@@ -870,121 +861,6 @@ async def read_root():
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
-
-# Stripe Webhook Endpoint (Admin Only)
-@app.post("/stripe", include_in_schema=False, tags=["Webhooks"])
-async def stripe_webhook(request: Request, admin_key: str = Query(...)):
-    # Verify the admin API key
-    await verify_admin_key(admin_key)
-    payload = await request.body()
-    sig_header = request.headers.get('stripe-signature')
-    if sig_header is None:
-        logging.warning("Missing Stripe signature header.")
-        raise HTTPException(status_code=400, detail="Missing signature.")
-    try:
-        event = stripe.Webhook.construct_event(
-            payload=payload, sig_header=sig_header, secret=STRIPE_WEBHOOK_SECRET
-        )
-    except stripe.error.SignatureVerificationError as e:
-        logging.error(f"Invalid signature: {e}")
-        raise HTTPException(status_code=400, detail="Invalid signature.")
-    except Exception as e:
-        logging.error(f"Error parsing webhook: {e}")
-        raise HTTPException(status_code=400, detail="Webhook error.")
-    event_type = event['type']
-    data_object = event['data']['object']
-    logging.info(f"Received Stripe event: {event_type}")
-    # Handle the event
-    if event_type == 'customer.subscription.created':
-        await handle_subscription_created(data_object)
-    elif event_type == 'customer.subscription.updated':
-        await handle_subscription_updated(data_object)
-    elif event_type == 'customer.subscription.deleted':
-        await handle_subscription_deleted(data_object)
-    elif event_type == 'invoice.payment_succeeded':
-        await handle_payment_succeeded(data_object)
-    elif event_type == 'invoice.payment_failed':
-        await handle_payment_failed(data_object)
-    else:
-        logging.info(f"Ignored event type: {event_type}")
-    return {"status": "success"}
-
-# Stripe Webhook Event Handler Functions
-async def handle_subscription_created(subscription):
-    customer_id = subscription['customer']
-    subscription_id = subscription['id']
-    price_id = subscription['items']['data'][0]['price']['id']
-    plan = get_plan_from_price_id(price_id)
-    if plan == 'unknown':
-        logging.warning(f"Received subscription with unknown price ID: {price_id}")
-        return
-    # Connect to MySQL and update the user's subscription_id
-    conn = await get_mysql_connection()
-    try:
-        async with conn.cursor() as cur:
-            await cur.execute("UPDATE users SET subscription_id = %s WHERE stripe_customer_id = %s", (subscription_id, customer_id))
-            await conn.commit()
-        logging.info(f"Subscription created: {subscription_id} for customer {customer_id} with plan {plan}")
-    except Exception as e:
-        logging.error(f"Error updating subscription: {e}")
-    finally:
-        conn.close()
-
-async def handle_subscription_updated(subscription):
-    customer_id = subscription['customer']
-    subscription_id = subscription['id']
-    price_id = subscription['items']['data'][0]['price']['id']
-    plan = get_plan_from_price_id(price_id)
-    if plan == 'unknown':
-        logging.warning(f"Received updated subscription with unknown price ID: {price_id}")
-        return
-    # Connect to MySQL and update the user's subscription_id
-    conn = await get_mysql_connection()
-    try:
-        async with conn.cursor() as cur:
-            await cur.execute("UPDATE users SET subscription_id = %s WHERE stripe_customer_id = %s", (subscription_id, customer_id))
-            await conn.commit()
-        logging.info(f"Subscription updated: {subscription_id} for customer {customer_id} with plan {plan}")
-    except Exception as e:
-        logging.error(f"Error updating subscription: {e}")
-    finally:
-        conn.close()
-
-async def handle_subscription_deleted(subscription):
-    customer_id = subscription['customer']
-    subscription_id = subscription['id']
-    # Connect to MySQL and remove the subscription_id
-    conn = await get_mysql_connection()
-    try:
-        async with conn.cursor() as cur:
-            await cur.execute("UPDATE users SET subscription_id = NULL WHERE stripe_customer_id = %s", (customer_id,))
-            await conn.commit()
-        logging.info(f"Subscription deleted: {subscription_id} for customer {customer_id}")
-    except Exception as e:
-        logging.error(f"Error deleting subscription: {e}")
-    finally:
-        conn.close()
-
-async def handle_payment_succeeded(invoice):
-    customer_id = invoice['customer']
-    subscription_id = invoice['subscription']
-    # Implement any logic needed on successful payment, such as sending a notification
-    logging.info(f"Payment succeeded for subscription {subscription_id} and customer {customer_id}")
-
-async def handle_payment_failed(invoice):
-    customer_id = invoice['customer']
-    subscription_id = invoice['subscription']
-    # Implement any logic needed on payment failure, such as sending a notification
-    logging.warning(f"Payment failed for subscription {subscription_id} and customer {customer_id}")
-
-# Helper Function to Map Price IDs to Plans
-def get_plan_from_price_id(price_id):
-    price_to_plan = {
-        STRIPE_PRICE_STANDARD: 'standard',
-        STRIPE_PRICE_PREMIUM: 'premium',
-        STRIPE_PRICE_ULTIMATE: 'ultimate',
-    }
-    return price_to_plan.get(price_id, 'unknown')
 
 if __name__ == "__main__":
     uvicorn.run(
