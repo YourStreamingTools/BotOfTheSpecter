@@ -71,7 +71,7 @@ $plans = [
         'price' => '$24.99 USD',
         'features' => [
             'Everything from Tier 2',
-            'Dedicated bot (custom bot name)',
+            'Dedicated bot (custom bot name) [feature coming soon]',
         ],
     ],
 ];
