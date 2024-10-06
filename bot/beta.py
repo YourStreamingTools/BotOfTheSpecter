@@ -24,7 +24,6 @@ import aiomysql
 from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands
-from twitchio.ext.commands.errors import CommandOnCooldown
 import streamlink
 import pytz
 from geopy.geocoders import Nominatim
@@ -52,10 +51,11 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.9"
+VERSION = "5.0"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+ADMIN_API_KEY = os.getenv('ADMIN_KEY')
 OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
@@ -63,7 +63,7 @@ TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "subathon", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
@@ -1206,21 +1206,27 @@ class BotOfTheSpecter(commands.Bot):
         await channel.send(message)
 
     async def get_ai_response(self, user_message, user_id):
-        try:
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "message": user_message,
-                    "channel": CHANNEL_NAME,
-                    "message_user": user_id
-                }
-                async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
-                    response.raise_for_status()  # Notice bad responses
-                    ai_response = await response.text()  # Read response as plain text
-                    api_logger.info(f"AI response received: {ai_response}")
-                    return ai_response
-        except aiohttp.ClientError as e:
-            bot_logger.error(f"Error getting AI response: {e}")
-            return "Sorry, I could not understand your request."
+        premium_tier = await check_premium_feature()
+        if premium_tier in (2000, 3000, 4000):
+            # Premium feature access granted
+            try:
+                async with aiohttp.ClientSession() as session:
+                    payload = {
+                        "message": user_message,
+                        "channel": CHANNEL_NAME,
+                        "message_user": user_id
+                    }
+                    async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
+                        response.raise_for_status()
+                        ai_response = await response.text()
+                        api_logger.info(f"AI response received: {ai_response}")
+                        return ai_response
+            except aiohttp.ClientError as e:
+                bot_logger.error(f"Error getting AI response: {e}")
+                return "Sorry, I could not understand your request."
+        else:
+            # No premium access
+            return "This channel doesn't have a premium subscription to use this feature."
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='userinfo')
@@ -1409,16 +1415,21 @@ class BotOfTheSpecter(commands.Bot):
                 result = await cursor.fetchone()
                 if result and result[0] == 'Disabled':
                     return
-            if not location:
-                location = await get_streamer_weather()
-            if location:
-                # Make API request to fetch weather data
-                async with aiohttp.ClientSession() as session:
-                    response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
-                    result = await response.json()
-                    api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
+            premium_tier = await check_premium_feature()
+            if premium_tier in (1000, 2000, 3000, 4000):
+                # Premium feature access granted
+                if not location:
+                    location = await get_streamer_weather()
+                if location:
+                    async with aiohttp.ClientSession() as session:
+                        response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
+                        result = await response.json()
+                        api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
+                else:
+                    await ctx.send("Unable to retrieve location.")
             else:
-                await ctx.send("Unable to retrieve location.")
+                # No premium access
+                await ctx.send(f"This channel doesn't have a premium subscription to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1693,10 +1704,13 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                global stream_online
-                if not stream_online:
-                    await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
-                    return
+            global stream_online
+            if not stream_online:
+                await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
+                return
+            premium_tier = await check_premium_feature()
+            if premium_tier in (1000, 2000, 3000, 4000):
+                # Premium feature access granted
                 await ctx.send("Please stand by, checking what song is currently playing...")
                 try:
                     song_info = await get_current_song()
@@ -1705,6 +1719,9 @@ class BotOfTheSpecter(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"An error occurred while getting current song: {e}")
                     await ctx.send("Sorry, there was an error retrieving the current song.")
+            else:
+                # No premium access
+                await ctx.send(f"This channel doesn't have a premium subscription to use this command.") 
         finally:
             await sqldb.ensure_closed()
 
@@ -3495,6 +3512,17 @@ class BotOfTheSpecter(commands.Bot):
             await subathon_status(ctx)
         else:
             ctx.send(f"{user} Invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+
+    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
+    @commands.command(name="premium")
+    async def premium_command(self, ctx):
+        premium_tier = await check_premium_feature()
+        if premium_tier == 4000:
+            await ctx.send(f'{CHANNEL_NAME} has Premium "Exclusive" access!')
+        elif premium_tier:
+            await ctx.send(f'{CHANNEL_NAME} has Premium "Tier {premium_tier}" access!')
+        else:
+            await ctx.send(f"{CHANNEL_NAME} does not have premium access.")
 
 # Functions for all the commands
 ##
@@ -5397,6 +5425,39 @@ async def known_users():
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
         await sqldb.ensure_closed()
+
+async def check_premium_feature():
+    try:
+        twitch_user_url = "https://api.twitch.tv/helix/users"
+        twitch_subscriptions_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id={CHANNEL_ID}"
+        beta_users_url = f"https://api.botofthespecter.com/authorizedusers?api_key={ADMIN_API_KEY}"
+        headers = {
+            "Client-ID": CLIENT_ID,
+            "Authorization": f"Bearer {CHANNEL_AUTH}",
+        }
+        async with aiohttp.ClientSession() as session:
+            # Check Display Name and get Auth List from Specter API
+            async with session.get(twitch_user_url, headers=headers) as response:
+                response.raise_for_status()
+                user_data = await response.json()
+                display_name = user_data["data"][0]["display_name"]
+            # Check if the user is in the authorized list
+            async with session.get(beta_users_url) as response:
+                response.raise_for_status()
+                auth_data = await response.json()
+                if display_name in auth_data["users"]:  
+                    return 4000
+            # If user not found in Auth List, check if they're a subscriber
+            async with session.get(twitch_subscriptions_url, headers=headers) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if data.get("data"):
+                    return int(data["data"][0]["tier"])
+                else:
+                    return 0  # Return 0 if not subscribed
+    except aiohttp.ClientError as e:
+        twitch_logger.error(f"Error checking user/subscription: {e}")
+        return False  # Return False for any API error
 
 async def get_mysql_connection():
     return await aiomysql.connect(
