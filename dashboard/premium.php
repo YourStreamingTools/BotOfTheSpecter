@@ -60,7 +60,7 @@ $plans = [
         'name' => 'Twitch Tier 2',
         'price' => '$9.99 USD',
         'features' => [
-            'Everything From Standard Plan',
+            'Everything From Tier 1',
             'Personalized Support',
             'AI Features & Conversations',
             'Shared Bot (BotOfTheSpecter)',
@@ -70,7 +70,7 @@ $plans = [
         'name' => 'Twitch Tier 3',
         'price' => '$24.99 USD',
         'features' => [
-            'Everything from Premium Plan',
+            'Everything from Tier 2',
             'Dedicated bot (custom bot name)',
         ],
     ],
