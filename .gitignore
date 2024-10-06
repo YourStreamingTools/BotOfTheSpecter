@@ -51,6 +51,9 @@ soundalerts/*/*.mp3
 dashboard/botcontrol.php
 dashboard/bottest.php
 
+# Ignoring the next update changelog file
+bot/changelog/5.0.md
+
 # Ignoring entire directories
 /app
 /api/app
