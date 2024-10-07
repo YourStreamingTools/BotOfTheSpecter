@@ -109,9 +109,9 @@ if ($username === 'botofthespecter') {
       $showButtons = true;
   } else {
       $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p><br>
-      <form method='post'>
+      <!--<form method='post'>
           <button class='button is-success bot-button' type='submit' name='setupBot'>Run Setup</button>
-      </form>";
+      </form>-->";
       $showButtons = false;
   }
 }
@@ -129,7 +129,7 @@ if (isset($_POST['setupBot'])) {
   // Add a delay before refreshing the page
   sleep(3);
   // Refresh the page after the delay
-  header('Location: sound-alerts.php');
+  header('Location: bot.php');
   exit();
 }
 $today = new DateTime();
