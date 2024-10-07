@@ -51,7 +51,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.9"
+VERSION = "4.9.1"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -4818,6 +4818,33 @@ async def websocket_notice_tts(event, text=None):
             else:
                 bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
 
+# Function to connect to the websocket server and push a subathon notice
+async def websocket_notice_subathon(event, additional_data=None):
+    async with ClientSession() as session:
+        params = {
+            'code': API_TOKEN,
+            'event': event
+        }
+        # Handling specific subathon events
+        if event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
+            if additional_data:
+                params.update(additional_data)  # Update with additional data as a dictionary
+            else:
+                bot_logger.error(f"Event '{event}' requires additional parameters.")
+                return
+        else:
+            bot_logger.error(f"Event '{event}' is not recognized.")
+            return
+        # URL-encode the parameters
+        encoded_params = urlencode(params)
+        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
+        # Send the HTTP request
+        async with session.get(url) as response:
+            if response.status == 200:
+                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+            else:
+                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+
 # Function to connect to the websocket server and push a SOUND_ALERT notice
 async def websocket_notice_sound_alert(event, sound=None):
     async with ClientSession() as session:
@@ -5143,6 +5170,9 @@ async def start_subathon(ctx):
                     await sqldb.commit()
                     await ctx.send(f"Subathon started!")
                     asyncio.create_task(subathon_countdown())
+                    # Send websocket notice
+                    additional_data = {'starting_minutes': starting_minutes}
+                    await websocket_notice_subathon("SUBATHON_START", additional_data)
                 else:
                     await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -5159,6 +5189,8 @@ async def stop_subathon(ctx):
                 await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
                 await sqldb.commit()
                 await ctx.send(f"Subathon ended!")
+                # Send websocket notice
+                await websocket_notice_subathon("SUBATHON_STOP")
             else:
                 await ctx.send(f"No subathon active.")
     finally:
@@ -5176,6 +5208,9 @@ async def pause_subathon(ctx):
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state[0]))
                 await sqldb.commit()
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
+                # Send websocket notice
+                additional_data = {'remaining_minutes': remaining_minutes}
+                await websocket_notice_subathon("SUBATHON_PAUSE", additional_data)
             else:
                 await ctx.send("No subathon is active or it's already paused!")
     finally:
@@ -5194,6 +5229,9 @@ async def resume_subathon(ctx):
                 await sqldb.commit()
                 await ctx.send(f"Subathon resumed with {int(subathon_state[5])} minutes remaining!")
                 asyncio.create_task(subathon_countdown())
+                # Send websocket notice
+                additional_data = {'remaining_minutes': subathon_state[5]}
+                await websocket_notice_subathon("SUBATHON_RESUME", additional_data)
     finally:
         await cursor.close()
         await sqldb.ensure_closed()
@@ -5209,6 +5247,9 @@ async def addtime_subathon(ctx, minutes):
                 await cursor.execute("UPDATE subathon SET end_time = %s WHERE id = %s", (subathon_end_time, subathon_state[0]))
                 await sqldb.commit()
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
+                # Send websocket notice
+                additional_data = {'added_minutes': minutes}
+                await websocket_notice_subathon("SUBATHON_ADD_TIME", additional_data)
             else:
                 await ctx.send("No subathon is active or it's paused!")
     finally:
