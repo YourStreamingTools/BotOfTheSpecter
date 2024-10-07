@@ -5795,6 +5795,12 @@ async def setup_database():
                 WHERE NOT EXISTS (SELECT 1 FROM bot_settings)
             ''', (CHANNEL_NAME,))
             await conn.commit()
+            await cursor.execute('''
+                INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3)
+                SELECT 60, 5, 10, 20, 30
+                WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)
+            ''')
+            await conn.commit()
     except aiomysql.Error as err:
         bot_logger.error(err)
     finally:
