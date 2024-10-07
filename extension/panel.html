@@ -21,7 +21,14 @@
         <div class="section">
             <h2 class="title">BotOfTheSpecter Panel</h2>
             <p>This panel is in heavy development</p> 
+            <p id="viewer-name"></p> 
         </div>
     </div>
+    <script>
+        window.Twitch.ext.onAuthorized((auth) => {
+            var viewerName = auth.token.userName; 
+            document.getElementById('viewer-name').textContent = "Hello, " + viewerName + "!";
+        });
+    </script>
 </body>
 </html>
