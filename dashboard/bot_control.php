@@ -124,7 +124,6 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
     $statusOutput = shell_exec("python $statusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     $message = '';
-
     switch ($action) {
         case 'run':
             if ($pid > 0) {
@@ -164,7 +163,6 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
             }
             break;
     }
-
     return $message;
 }
 
@@ -173,7 +171,6 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
     $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     $message = '';
-
     switch ($action) {
         case 'run':
             if ($pid > 0) {
@@ -213,7 +210,6 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
             }
             break;
     }
-
     return $message;
 }
 
@@ -285,13 +281,17 @@ if ($discordBotSystemStatus) {
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
     if (file_exists($versionFilePath)) {
         $versionContent = file_get_contents($versionFilePath);
+        if ($versionContent === false) {
+            return "<div class='status-message error'>Failed to read version information.</div>";
+        }
+        $versionContent = trim($versionContent);
         $output = "<div class='status-message'>" . ucfirst($type) . " Running Version: $versionContent</div>";
         if ($versionContent !== $newVersion) {
             $output .= "<div class='status-message'>Update (V$newVersion) is available.</div>";
         }
         return $output;
     } else {
-        return "<div class='status-message'>Version information not available.</div>";
+        return "<div class='status-message error'>Version information not available.</div>";
     }
 }
 ?>
