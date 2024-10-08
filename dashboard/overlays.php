@@ -121,6 +121,15 @@ include 'sqlite.php';
                 <code>https://overlay.botofthespecter.com/discord.php?code=API_KEY_HERE</code>
             </div>
         </div>
+        <!-- Subathon Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Subathon:</h4>
+                <p><em>Display subathon countdown timer.
+                    <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
+                <code>https://overlay.botofthespecter.com/subathon.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
         <!-- All Audio Overlays -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
