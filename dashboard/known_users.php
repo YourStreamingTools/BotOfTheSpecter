@@ -31,16 +31,21 @@ $_SESSION['username'] = $username;
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
+$betaAccess = ($user['beta_access'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $_SESSION['twitch_user_id'] = $twitchUserId;
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
+$api_key = $user['api_key'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 $statusOutput = 'Bot Status: Unknown';
+$betaStatusOutput = 'Bot Status: Unknown';
 $pid = '';
+$versionRunning = '';
+$betaVersionRunning = '';
 include 'bot_control.php';
 include 'sqlite.php';
 
@@ -186,15 +191,12 @@ const totalUsers = <?php echo $totalUsers; ?>;
 let loadedUsers = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Document loaded. Initializing editing functionality...');
-
   // Initialize the editing functionality
   document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       const userId = this.getAttribute('data-user-id');
       const editBox = document.getElementById('edit-box-' + userId);
       const welcomeMessage = document.getElementById('welcome-message-' + userId);
-
       if (editBox.style.display === 'none') {
         console.log(`Editing welcome message for user ID ${userId}`);
         editBox.style.display = 'block';
@@ -206,7 +208,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   });
-
   // Fetch the banned status for each user asynchronously
   fetchBannedStatuses();
 });
@@ -214,7 +215,6 @@ document.addEventListener('DOMContentLoaded', function() {
 function fetchBannedStatuses() {
   const usernames = document.querySelectorAll('.username');
   let remainingRequests = usernames.length;
-
   usernames.forEach(usernameElement => {
     const username = usernameElement.dataset.username;
     fetchBannedStatus(username, usernameElement, () => {
@@ -259,7 +259,6 @@ function fetchBannedStatus(username, usernameElement, callback) {
         } else {
           console.log(`${username} is not banned`);
         }
-
         // Update the cache
         const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
         bannedUsersCache[username] = response.banned;
@@ -317,7 +316,8 @@ function toggleStatus(username, isChecked) {
   xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
 }
 </script>
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
 <script src="/js/search.js"></script>
 </body>
 </html>
