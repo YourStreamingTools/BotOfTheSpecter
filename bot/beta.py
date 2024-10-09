@@ -1423,6 +1423,9 @@ class BotOfTheSpecter(commands.Bot):
                 if location:
                     async with aiohttp.ClientSession() as session:
                         response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
+                        if response.status == 404:
+                            await ctx.send(f'Sorry, "{location}" not found, please try again.')
+                            return
                         result = await response.json()
                         api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
                 else:
@@ -3228,11 +3231,11 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 outcomes = [
-                    f"and survives!"
-                    f"and gets shot!"
+                    "and survives!",
+                    "and gets shot!"
                 ]
                 result = random.choice(outcomes)
-                message = f"{ctx.author.name} pulls the trigger...{result}"
+                message = f"{ctx.author.name} pulls the trigger... {result}"
                 await ctx.send(message)
         finally:
             await sqldb.ensure_closed()
