@@ -54,6 +54,7 @@
           <a class="navbar-item" href="../todolist">To Do List</a>
         </div>
       </div>
+      <a class="navbar-item" href="../subathon.php">Subathon Settings</a>
       <a class="navbar-item" href="../premium.php">Premium</a>
       <a class="navbar-item" href="../profile.php">Profile</a>
       <a class="navbar-item" href="../logout.php">Logout</a>
