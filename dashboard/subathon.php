@@ -78,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
+    <h1 class="title">Subathon Settings</h1>
     <?php if ($message): ?>
         <div class="notification is-success">
             <?php echo htmlspecialchars($message); ?>
@@ -89,30 +90,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
             <div class="control">
                 <input class="input" type="number" name="starting_minutes" id="starting_minutes" value="<?php echo htmlspecialchars($starting_minutes); ?>" required>
             </div>
+            <p class="help">The total time (in minutes) that the subathon will run. Default is 60 minutes.</p>
         </div>
         <div class="field">
             <label class="label" for="cheer_add">Cheer Add:</label>
             <div class="control">
                 <input class="input" type="number" name="cheer_add" id="cheer_add" value="<?php echo htmlspecialchars($cheer_add); ?>" required>
             </div>
+            <p class="help">The number of minutes added to the subathon for each cheer received (per 100 bits). Default is 5 minutes.</p>
         </div>
         <div class="field">
             <label class="label" for="sub_add_1">Sub Add 1:</label>
             <div class="control">
                 <input class="input" type="number" name="sub_add_1" id="sub_add_1" value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
             </div>
+            <p class="help">The number of minutes added for each Tier 1 subscription received.</p>
         </div>
         <div class="field">
             <label class="label" for="sub_add_2">Sub Add 2:</label>
             <div class="control">
                 <input class="input" type="number" name="sub_add_2" id="sub_add_2" value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
             </div>
+            <p class="help">The number of minutes added for each Tier 2 subscription received.</p>
         </div>
         <div class="field">
             <label class="label" for="sub_add_3">Sub Add 3:</label>
             <div class="control">
                 <input class="input" type="number" name="sub_add_3" id="sub_add_3" value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
             </div>
+            <p class="help">The number of minutes added for each Tier 3 subscription received.</p>
         </div>
         <div class="control">
             <button class="button is-primary" type="submit" name="update_settings">Update Settings</button>
