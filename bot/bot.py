@@ -62,7 +62,7 @@ TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "subathon", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
 
