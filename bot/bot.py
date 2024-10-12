@@ -3176,7 +3176,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
+    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
     @commands.command(name="roulette")
     async def roulette_command(self, ctx):
         sqldb = await get_mysql_connection()
