@@ -97,7 +97,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
         <tr>
             <th>Command</th>
             <th>Functionality</th>
-            <th>Example Response</th>
             <th>Usage Level</th>
             <th>Status</th>
             <th>Action</th>
@@ -108,7 +107,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
         <tr>
             <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
             <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
-            <td><?php echo htmlspecialchars($command['response']); ?></td>
             <td><?php echo htmlspecialchars($command['level']); ?></td>
             <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
             <td>
