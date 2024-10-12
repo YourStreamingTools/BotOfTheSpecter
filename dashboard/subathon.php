@@ -84,6 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
             <?php echo htmlspecialchars($message); ?>
         </div>
     <?php endif; ?>
+    <div class="notification is-warning">
+        Donation Adding is not yet tested and added to the subathon timer. Until this function is fully tested, you can use the "!subathon addtime" command action by yourself or a mod followed by the time to add. For example, "!subathon addtime 10" will add 10 minutes to the time.
+    </div>
     <form method="POST" action="">
         <div class="field">
             <label class="label" for="starting_minutes">Starting Minutes:</label>
@@ -100,21 +103,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
             <p class="help">The number of minutes added to the subathon for each cheer received (per 100 bits). Default is 5 minutes.</p>
         </div>
         <div class="field">
-            <label class="label" for="sub_add_1">Sub Add 1:</label>
+            <label class="label" for="sub_add_1">Tier 1 Subscription:</label>
             <div class="control">
                 <input class="input" type="number" name="sub_add_1" id="sub_add_1" value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
             </div>
             <p class="help">The number of minutes added for each Tier 1 subscription received.</p>
         </div>
         <div class="field">
-            <label class="label" for="sub_add_2">Sub Add 2:</label>
+            <label class="label" for="sub_add_2">Tier 2 Subscription:</label>
             <div class="control">
                 <input class="input" type="number" name="sub_add_2" id="sub_add_2" value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
             </div>
             <p class="help">The number of minutes added for each Tier 2 subscription received.</p>
         </div>
         <div class="field">
-            <label class="label" for="sub_add_3">Sub Add 3:</label>
+            <label class="label" for="sub_add_3">Tier 3 Subscription:</label>
             <div class="control">
                 <input class="input" type="number" name="sub_add_3" id="sub_add_3" value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
             </div>
