@@ -85,7 +85,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
         </div>
     <?php endif; ?>
     <div class="notification is-warning">
-        Donation Adding is not yet tested and added to the subathon timer. Until this function is fully tested, you can use the "!subathon addtime" command action by yourself or a mod followed by the time to add. For example, "!subathon addtime 10" will add 10 minutes to the time.
+        The donation feature for adding time to the subathon is not yet fully tested. Until this feature is ready, you can manually add time using a command.<br>
+        <strong>Instructions:</strong>
+        <ul>
+            <li>Type <code>!subathon addtime [minutes]</code> in the chat.</li>
+            <li>For example, if you want to add 10 minutes, type <code>!subathon addtime 10</code>.</li>
+        </ul>
+        Please use this method until the donation feature is confirmed to be working properly.
     </div>
     <form method="POST" action="">
         <div class="field">
@@ -93,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
             <div class="control">
                 <input class="input" type="number" name="starting_minutes" id="starting_minutes" value="<?php echo htmlspecialchars($starting_minutes); ?>" required>
             </div>
-            <p class="help">The total time (in minutes) that the subathon will run. Default is 60 minutes.</p>
+            <p class="help">This is the default starting time (in minutes) for the subathon timer when it begins. It indicates how long the subathon will run before any additional time is added. The default value is 60 minutes.</p>
         </div>
         <div class="field">
             <label class="label" for="cheer_add">Cheer Add:</label>
