@@ -89,6 +89,7 @@ if (isset($_POST['runBot'])) {
 
 if (isset($_POST['killBot'])) {
     $statusOutput = handleTwitchBotAction('kill', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
+    $versionRunning = "";
 }
 
 if (isset($_POST['restartBot'])) {
@@ -106,6 +107,7 @@ if (isset($_POST['runBetaBot'])) {
 
 if (isset($_POST['killBetaBot'])) {
     $betaStatusOutput = handleTwitchBotAction('kill', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
+    $betaVersionRunning = "";
 }
 
 if (isset($_POST['restartBetaBot'])) {
