@@ -83,6 +83,8 @@ $discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, 
 // Handle standard bot actions
 if (isset($_POST['runBot'])) {
     $statusOutput = handleTwitchBotAction('run', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
+    sleep(5);
+    $versionRunning = getRunningVersion($versionFilePath, $newVersion);
 }
 
 if (isset($_POST['killBot'])) {
@@ -91,11 +93,15 @@ if (isset($_POST['killBot'])) {
 
 if (isset($_POST['restartBot'])) {
     $statusOutput = handleTwitchBotAction('restart', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
+    sleep(5);
+    $versionRunning = getRunningVersion($versionFilePath, $newVersion);
 }
 
 // Handle beta bot actions
 if (isset($_POST['runBetaBot'])) {
     $betaStatusOutput = handleTwitchBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
+    sleep(5);
+    $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
 
 if (isset($_POST['killBetaBot'])) {
@@ -104,15 +110,13 @@ if (isset($_POST['killBetaBot'])) {
 
 if (isset($_POST['restartBetaBot'])) {
     $betaStatusOutput = handleTwitchBotAction('restart', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
-    sleep(1);
+    sleep(5);
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
 
 // Handle Discord bot actions
 if (isset($_POST['runDiscordBot'])) {
     $discordStatusOutput = handleDiscordBotAction('run', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
-    sleep(1);
-    $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
 
 if (isset($_POST['killDiscordBot'])) {
