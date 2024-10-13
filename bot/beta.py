@@ -5489,7 +5489,8 @@ async def check_premium_feature():
             async with session.get(beta_users_url) as response:
                 response.raise_for_status()
                 auth_data = await response.json()
-                if display_name in auth_data["users"]:  
+                auth_data = {key: value.lower() if isinstance(value, str) else value for key, value in auth_data.items()}
+                if display_name in auth_data["users"]:
                     return 4000
             # If user not found in Auth List, check if they're a subscriber
             async with session.get(twitch_subscriptions_url, headers=headers) as response:
@@ -5501,7 +5502,7 @@ async def check_premium_feature():
                     return 0  # Return 0 if not subscribed
     except aiohttp.ClientError as e:
         twitch_logger.error(f"Error checking user/subscription: {e}")
-        return False  # Return False for any API error
+        return 0  # Return 0 for any API error
 
 async def get_mysql_connection():
     return await aiomysql.connect(
