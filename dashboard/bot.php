@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 // Initialize the session
 session_start();
+$today = new DateTime();
 
 // check if user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -56,23 +57,18 @@ $discordUser = $discordUserResult->fetch_assoc();
 $guild_id = $discordUser['guild_id'] ?? null;
 $live_channel_id = $discordUser['live_channel_id'] ?? null;
 
-// Twitch API URL
+// Twitch API to check is the bot is modded
 $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
-
 $checkModConnect = curl_init($checkMod);
 $headers = [
     "Client-ID: {$clientID}",
     "Authorization: Bearer {$authToken}"
 ];
-
 curl_setopt($checkModConnect, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($checkModConnect, CURLOPT_RETURNTRANSFER, true);
-
 $response = curl_exec($checkModConnect);
-
 $BotIsMod = false; // Default to false until we know for sure
-
 if ($response === false) {
     // Handle error - you might want to log this or take other action
     $error = 'Curl error: ' . curl_error($checkModConnect);
@@ -97,7 +93,6 @@ $ModStatusOutput = $BotIsMod;
 $BotModMessage = "";
 $setupMessage = "";
 $showButtons = false;
-
 // Handle the bot mod status
 if ($username === 'botofthespecter') {
   $BotModMessage = "<p class='has-text-success'>Welcome to your own system!</p>";
@@ -132,7 +127,6 @@ if (isset($_POST['setupBot'])) {
   header('Location: bot.php');
   exit();
 }
-$today = new DateTime();
 ?>
 <!DOCTYPE html>
 <html lang="en">
