@@ -836,6 +836,7 @@ class BotOfTheSpecter(commands.Bot):
         await builtin_commands_creation()
         await known_users()
         await channel_point_rewards()
+        asyncio.get_event_loop().create_task(token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(specter_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
@@ -5945,9 +5946,6 @@ bot = BotOfTheSpecter(
 
 # Run the bot
 def start_bot():
-    # Schedule bot tasks
-    asyncio.get_event_loop().create_task(token_refresh())
-
     # Start the bot
     bot.run()
 
