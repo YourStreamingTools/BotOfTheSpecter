@@ -547,23 +547,7 @@ async def process_eventsub_message(message):
                 elif event_type == "channel.hype_train.end":
                     event_logger.info(f"Hype Train End Event Data: {event_data}")
                     level = event_data["level"]
-                    top_contributions = event_data.get("top_contributions", [])
-                    await channel.send(f"The Hype Train has ended at level {level}! Top contributions:")
-                    for contribution in top_contributions:
-                        user_name = contribution["user_name"]
-                        contribution_type = contribution["type"]
-                        if contribution_type == "subscription":
-                            contribution_type = "subscriptions"
-                        total_formatted = "{:,}".format(contribution["total"])
-                        total = total_formatted
-                        if contribution_type == "subscriptions":
-                            tier_mapping = {
-                                "500": "Tier 1",
-                                "1000": "Tier 2",
-                                "2500": "Tier 3"
-                            }
-                            total = tier_mapping.get(total, total)
-                        await channel.send(f"{user_name} contributed {total} {contribution_type}.")
+                    await channel.send(f"The Hype Train has ended at level {level}!")
                 elif event_type == 'channel.update':
                     global current_game
                     global stream_title
