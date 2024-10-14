@@ -122,8 +122,11 @@ if (isset($_GET['log'])) {
           <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
         </select>
       </div>
-      <div class="logs-options">
-        Times are in GMT+10
+      <div class="logs-options" id="logs-options">
+        Log Time is GMT+<span id="timezone-offset"></span>
+        <div id="current-time-display" class="current-time-display">
+          Current Log Time: <span id="current-log-time"></span>
+        </div>
       </div>
       <!-- Buttons Container - Hidden initially -->
       <div class="buttons-container" style="display: none;">
@@ -267,6 +270,31 @@ loadMoreButton.addEventListener('click', () => {
 
 // Auto-refresh interval (every 5 seconds)
 setInterval(autoUpdateLog, autoRefreshInterval);
+
+// Function to dynamically update current log time in 24-hour format with seconds
+function updateCurrentLogTime() {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const formattedTime = `${hours}:${minutes}:${seconds}`;
+  document.getElementById('current-log-time').innerText = formattedTime;
+}
+
+// Call the function to update the time every second
+setInterval(updateCurrentLogTime, 1000);
+
+// Function to check for daylight savings and adjust the GMT offset
+function updateGMTOffset() {
+  const now = new Date();
+  const timezoneOffset = now.getTimezoneOffset();
+  const isDaylightSavings = timezoneOffset === -660; // GMT+11 = -660 minutes offset
+  const timezoneElement = document.getElementById('timezone-offset');
+  timezoneElement.innerText = isDaylightSavings ? '11' : '10';
+}
+
+// Update the GMT offset on page load
+updateGMTOffset();
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
