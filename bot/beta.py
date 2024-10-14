@@ -584,36 +584,53 @@ async def process_eventsub_message(message):
                     message = f"Thank you so much {user} for your ${value_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
                     await channel.send(message)
                 elif event_type == 'channel.moderate':
-                    moderator_user_name = event_data["event"]["moderator_user_name"]
-                    if event_data["event"]["action"] == "timeout":
-                        timeout_info = event_data["event"]["timeout"]
-                        user_name = timeout_info["user_name"]
-                        reason = timeout_info["reason"]
-                        expires_at = datetime.strptime(timeout_info["expires_at"], "%Y-%m-%dT%H:%M:%SZ")
-                        expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                    moderator_user_name = event_data["event"].get("moderator_user_name", "Unknown Moderator")
+                    # Handle timeout action
+                    if event_data["event"].get("action") == "timeout":
+                        timeout_info = event_data["event"].get("timeout", {})
+                        user_name = timeout_info.get("user_name", "Unknown User")
+                        reason = timeout_info.get("reason", "No reason provided")
+                        expires_at_str = timeout_info.get("expires_at")
+                        if expires_at_str:
+                            try:
+                                expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
+                                expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                            except ValueError:
+                                expires_at_formatted = "Invalid expiration time"
+                        else:
+                            expires_at_formatted = "No expiration time provided"
                         discord_message = f'{user_name} has been timed out, their timeout expires at {expires_at_formatted} for the reason "{reason}"'
                         discord_title = "New User Timeout!"
                         discord_image = "clock.png"
-                    elif event_data["event"]["action"] == "untimeout":
-                        untimeout_info = event_data["event"]["untimeout"]
-                        user_name = untimeout_info["user_name"]
+                    # Handle untimeout action
+                    elif event_data["event"].get("action") == "untimeout":
+                        untimeout_info = event_data["event"].get("untimeout", {})
+                        user_name = untimeout_info.get("user_name", "Unknown User")
                         discord_message = f"{user_name} has had their timeout removed by {moderator_user_name}."
                         discord_title = "New Untimeout User!"
                         discord_image = "clock.png"
-                    elif event_data["event"]["action"] == "ban":
-                        banned_info = event_data["event"]["ban"]
-                        banned_user_name = banned_info["user_name"]
-                        reason = banned_info["reason"]
+                    # Handle ban action
+                    elif event_data["event"].get("action") == "ban":
+                        banned_info = event_data["event"].get("ban", {})
+                        banned_user_name = banned_info.get("user_name", "Unknown User")
+                        reason = banned_info.get("reason", "No reason provided")
                         discord_message = f'{banned_user_name} has been banned for "{reason}" by {moderator_user_name}'
                         discord_title = "New User Ban!"
                         discord_image = "ban.png"
-                    elif event_data["event"]["action"] == "unban":
-                        unban_info = event_data["event"]["unban"]
-                        banned_user_name = unban_info["user_name"]
+                    # Handle unban action
+                    elif event_data["event"].get("action") == "unban":
+                        unban_info = event_data["event"].get("unban", {})
+                        banned_user_name = unban_info.get("user_name", "Unknown User")
                         discord_message = f'{banned_user_name} has been unbanned by {moderator_user_name}'
                         discord_title = "New Unban!"
                         discord_image = "ban.png"
-                    await send_to_discord_mod(discord_message, discord_title, discord_image)
+                    # Check if the necessary data is available
+                    if discord_message and discord_title and discord_image:
+                        # Send to Discord if all checks pass
+                        await send_to_discord_mod(discord_message, discord_title, discord_image)
+                    else:
+                        # Log the incomplete event for later analysis
+                        twitch_logger.info(f"Incomplete mod event: {event_data}")
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
