@@ -231,11 +231,12 @@ async def subscribe_to_events(session_id):
         "channel.channel_points_custom_reward_redemption.add",
         "channel.poll.begin",
         "channel.poll.progress",
-        "channel.poll.end"
+        "channel.poll.end",
+        "automod.message.hold"
     ]
     v2topics = [
         "channel.follow",
-        "channel.update",
+        "channel.update"
     ]
     responses = []
     async with aiohttp.ClientSession() as session:
@@ -246,6 +247,19 @@ async def subscribe_to_events(session_id):
                     "version": "1",
                     "condition": {
                         "to_broadcaster_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            elif v1topic == "automod.message.hold":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
                     },
                     "transport": {
                         "method": "websocket",
@@ -708,6 +722,15 @@ async def process_eventsub_message(message):
                     else:
                         bot_logger.info(f"Stream is now offline.")
                         await websocket_notice(event="STREAM_OFFLINE")
+                elif event_type == "automod.message.hold":
+                    messageContent = event_data["event"]["message"]
+                    messageAuthor = event_data["event"]["user_name"]
+                    messageAuthorID = event_data["event"]["user_id"]
+                    spam_pattern = await get_spam_patterns()
+                    for pattern in spam_pattern:
+                        if pattern.search(messageContent):
+                            bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            await ban_user(messageAuthor, messageAuthorID)
                 # Logging for unknown event types
                 else:
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
