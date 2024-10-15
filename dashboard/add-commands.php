@@ -187,9 +187,6 @@ document.getElementById("openModalButton").addEventListener("click", function() 
 document.getElementById("closeModalButton").addEventListener("click", function() {
     document.getElementById("customVariablesModal").classList.remove("is-active");
 });
-document.getElementById("closeModalButtonFooter").addEventListener("click", function() {
-    document.getElementById("customVariablesModal").classList.remove("is-active");
-});
 </script>
 </body>
 </html>
