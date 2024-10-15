@@ -349,11 +349,11 @@ async def setup_database():
                     CREATE TABLE IF NOT EXISTS subathon_settings (
                         id INT AUTO_INCREMENT,
                         starting_minutes INT,
-                        donation_add INT,
                         cheer_add INT,
                         sub_add_1 INT,
                         sub_add_2 INT,
                         sub_add_3 INT,
+                        donation_add INT,
                         PRIMARY KEY (id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
