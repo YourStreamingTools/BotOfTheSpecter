@@ -59,6 +59,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <!-- Header -->
     <?php include('header.php'); ?>
+    <style>
+        .custom-width { width: 90vw; max-width: none; }
+        .variable-item { margin-bottom: 1.5rem; }
+        .variable-title { color: #ffdd57; }
+    </style>
     <!-- /Header -->
 </head>
 <body>
@@ -107,20 +112,84 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </h3>
         </div>
         <div class="column">
-            <h3 class='has-text-info'>
-                Custom Variables to use while adding commands:<br>
-                <ul>
-                    <li>(count): Using this option allows you to count how many times that command has been used and output that count in the command.</li>
-                    <li>(customapi.URL): Using this option allows you to get JSON API responses in chat. e.g. <code>(customapi.https://api.botofthespecter.com/joke.php?api=APIKEY)</code></li>
-                    <li>(daysuntil.DATE): Using this option allows you to calculate the difference between two dates. e.g. <code>(daysuntil.2024-12-25)</code></li>
-                    <li>(user): Using this option allows you to tag a user in any spot of the command. When triggering the command, you have to tag the user, e.g. <code>!mycommand @BotOfTheSpecter</code></li>
-                    <li>(command.COMMAND): Using this option allows you to call other custom commands from one command, e.g. <code>!raidtools (command.raid1) (command.raid2) (command.raid3)</code></li>
-                </ul>
-            </h3>
+            <button class="button is-info" id="openModalButton">View Custom Variables</button>
+            <div class="modal" id="customVariablesModal">
+                <div class="modal-background"></div>
+                <div class="modal-card custom-width">
+                    <header class="modal-card-head has-background-dark">
+                        <p class="modal-card-title has-text-white">Custom Variables to use while adding commands</p>
+                        <button class="delete" aria-label="close" id="closeModalButton"></button>
+                    </header>
+                    <section class="modal-card-body has-background-dark has-text-white">
+                        <div class="columns is-desktop is-multiline">
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(count)</span>: This counts how many times the command has been used and shows that number.
+                                <br><span class="has-text-weight-bold">Example:</span> `This command has been used (count) times.`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "This command has been used 5 times."
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(customapi.URL)</span>: This gets information from a URL and posts it in chat. You can use this to get jokes, weather, or any other data from a website.
+                                <br><span class="has-text-weight-bold">Example:</span> `(customapi.https://api.botofthespecter.com/joke?api_key=APIKEY)`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "Why don’t skeletons fight each other? They don’t have the guts."
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(daysuntil.DATE)</span>: This shows how many days until a specific date, like a holiday or event.
+                                <br><span class="has-text-weight-bold">Example:</span> `There are (daysuntil.2024-12-25) days until Christmas.`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "There are 75 days until Christmas."
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(user)</span>: This lets you tag someone by name when they use the command. If no one is tagged, it will tag the person who used the command.
+                                <br><span class="has-text-weight-bold">Example:</span> `(user) is awesome!`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "BotOfTheSpecter is awesome!"
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(command.COMMAND)</span>: This allows you to trigger other commands inside of one command. You can combine multiple commands to post different messages.
+                                <br><span class="has-text-weight-bold">Example:</span> `Use these raid calls: (command.raid1) (command.raid2) (command.raid3)`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> 
+                                <br> "Use these raid calls:"
+                                <br> "Raid 1 message."
+                                <br> "Raid 2 message."
+                                <br> "Raid 3 message."
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(random.percent)</span>: This generates a random percentage between 0% and 100%, or any custom range you define.
+                                <br><span class="has-text-weight-bold">Example:</span> `You have a (random.percent) chance of winning this game.`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "You have a 67% chance of winning this game."
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(random.number)</span>: This picks a random number between two numbers you specify, or by default between 0 and 100.
+                                <br><span class="has-text-weight-bold">Example:</span> `You've broken (random.number) hearts!`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "You've broken 42 hearts!"
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(random.pick.*)</span>: This randomly picks an item from a list you provide. It could be used to pick random items, people, or anything else.
+                                <br><span class="has-text-weight-bold">Example:</span> `Your spirit animal is: (random.pick.cat.dog.eagle.tiger)`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "Your spirit animal is: tiger"
+                            </div>
+                            <div class="column is-4">
+                                <span class="has-text-weight-bold variable-title">(math.*)</span>: This solves simple math problems.
+                                <br><span class="has-text-weight-bold">Example:</span> `2+2 = (math.2+2)`
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "2+2 = 4"
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script>
+document.getElementById("openModalButton").addEventListener("click", function() {
+    document.getElementById("customVariablesModal").classList.add("is-active");
+});
+document.getElementById("closeModalButton").addEventListener("click", function() {
+    document.getElementById("customVariablesModal").classList.remove("is-active");
+});
+document.getElementById("closeModalButtonFooter").addEventListener("click", function() {
+    document.getElementById("customVariablesModal").classList.remove("is-active");
+});
+</script>
 </body>
 </html>
