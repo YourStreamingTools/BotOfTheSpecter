@@ -114,6 +114,127 @@ class BotOfTheSpecterWebsocketServer:
             return await handler(request)
         return middleware_handler
 
+    async def event(self, sid, event, data):
+        # Handle generic events for SocketIO.
+        self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
+
+    async def connect(self, sid, environ, auth):
+        # Handle the connect event for SocketIO.
+        self.logger.info(f"Connect event: {sid}")
+        if environ["REMOTE_ADDR"] in ['0.0.0.0', self.ip]:
+            self.logger.debug(f"Client [{sid}] is a local user with elevated access")
+        self.logger.debug(environ)
+        await self.sio.emit("WELCOME", {"message": "Please register your code"}, to=sid)
+
+    async def disconnect(self, sid):
+        # Handle the disconnect event for SocketIO.
+        self.logger.info(f"Disconnect event: {sid}")
+        # Iterate through all registered clients and remove the disconnected SID
+        for code, sids in list(self.registered_clients.items()):
+            if sid in sids:
+                sids.remove(sid)
+                self.logger.info(f"Unregistered SID [{sid}] from code [{code}]")
+                if not sids:
+                    del self.registered_clients[code]
+                    self.logger.info(f"No more clients for code [{code}]. Removed code from registered clients.")
+                break
+        else:
+            self.logger.info(f"SID [{sid}] not found in registered clients.")
+        # Log the current state of registered clients after disconnect
+        self.logger.info(f"Current registered clients: {self.registered_clients}")
+
+    async def register(self, sid, data):
+        # Handle the register event for SocketIO.
+        code = data.get("code")
+        name = data.get("name", f"Unnamed-{sid}")
+        self.logger.info(f"Register event received from SID {sid} with code: {code} and name: {name}")
+        if code:
+            # Initialize the list for the code if it doesn't exist
+            if code not in self.registered_clients:
+                self.registered_clients[code] = []
+            # Check if there's already a client with the same name
+            for client in self.registered_clients[code]:
+                if client['name'] == name:
+                    # Disconnect the old session
+                    old_sid = client['sid']
+                    self.logger.info(f"Disconnecting old session [{old_sid}] for name [{name}] before registering new session [{sid}]")
+                    await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate session for name {name}"}, to=old_sid)
+                    await self.sio.disconnect(old_sid)
+                    # Remove the old client
+                    self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
+                    break
+            # Register the new client
+            client_data = {"sid": sid, "name": name}
+            self.registered_clients[code].append(client_data)
+            self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
+            # Send success message to the new client
+            await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
+            self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
+        else:
+            self.logger.warning("Code not provided during registration")
+            await self.sio.emit("ERROR", {"message": "Registration failed: code missing"}, to=sid)
+        # Log the current state of registered clients after registration
+        self.logger.info(f"Current registered clients: {self.registered_clients}")
+
+    async def index(self, request):
+        # Redirect to the main page
+        raise web.HTTPFound(location="https://botofthespecter.com")
+    
+    async def heartbeat(self, request):
+        if request.method == 'OPTIONS':
+            response = web.Response(status=204)
+        else:
+            response = web.json_response({"status": "OK"})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+
+    async def list_clients(self, request):
+        # List the registered clients.
+        return web.json_response(self.registered_clients)
+
+    async def list_clients_event(self, sid):
+        # Handle the LIST_CLIENTS event for SocketIO.
+        self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
+        await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
+
+    async def notify_http(self, request):
+        code = request.query.get("code")
+        event = request.query.get("event")
+        text = request.query.get("text")
+        if not code or not event:
+            raise web.HTTPBadRequest(text="400 Bad Request: code or event is missing")
+        data = {k: v for k, v in request.query.items()}
+        self.logger.info(f"Notify request data: {data}")
+        event = event.upper().replace(" ", "_")
+        count = 0
+        if event == "TTS" and text:
+            await self.tts_queue.put((text, code))
+            self.logger.info(f"TTS request added to queue: {text}")
+        elif event == "FOURTHWALL":
+            await self.handle_fourthwall_event(code, data)
+        elif event == "KOFI":
+            await self.handle_kofi_event(code, data)
+        else:
+            if code in self.registered_clients:
+                for client in self.registered_clients[code]:
+                    sid = client['sid']
+                    await self.sio.emit(event, data, to=sid)
+                    self.logger.info(f"Emitted event '{event}' to client {sid}")
+                    count += 1
+            self.logger.info(f"Broadcasted event to {count} clients")
+        return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
+
+    async def notify(self, sid, data):
+        self.logger.info(f"Notify event from SID [{sid}]: {data}")
+        event = data.get('event')
+        if not event:
+            self.logger.error('Missing event information for NOTIFY event')
+            return
+        # Broadcast the event to all clients
+        await self.sio.emit(event, data, sid)
+
     async def process_tts_queue(self):
         while True:
             text, session_id = await self.tts_queue.get()
@@ -219,56 +340,6 @@ class BotOfTheSpecterWebsocketServer:
         # Broadcast the walkon event to all clients
         await self.sio.emit("WALKON", walkon_data)
 
-    async def index(self, request):
-        # Redirect to the main page
-        raise web.HTTPFound(location="https://botofthespecter.com")
-    
-    async def heartbeat(self, request):
-        if request.method == 'OPTIONS':
-            response = web.Response(status=204)
-        else:
-            response = web.json_response({"status": "OK"})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        return response
-
-    async def list_clients(self, request):
-        # List the registered clients.
-        return web.json_response(self.registered_clients)
-
-    async def list_clients_event(self, sid):
-        # Handle the LIST_CLIENTS event for SocketIO.
-        self.logger.info(f"LIST_CLIENTS event from SID [{sid}]")
-        await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
-
-    async def notify_http(self, request):
-        code = request.query.get("code")
-        event = request.query.get("event")
-        text = request.query.get("text")
-        if not code or not event:
-            raise web.HTTPBadRequest(text="400 Bad Request: code or event is missing")
-        data = {k: v for k, v in request.query.items()}
-        self.logger.info(f"Notify request data: {data}")
-        event = event.upper().replace(" ", "_")
-        count = 0
-        if event == "TTS" and text:
-            await self.tts_queue.put((text, code))
-            self.logger.info(f"TTS request added to queue: {text}")
-        elif event == "FOURTHWALL":
-            await self.handle_fourthwall_event(code, data)
-        elif event == "KOFI":
-            await self.handle_kofi_event(code, data)
-        else:
-            if code in self.registered_clients:
-                for client in self.registered_clients[code]:
-                    sid = client['sid']
-                    await self.sio.emit(event, data, to=sid)
-                    self.logger.info(f"Emitted event '{event}' to client {sid}")
-                    count += 1
-            self.logger.info(f"Broadcasted event to {count} clients")
-        return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
-
     async def handle_fourthwall_event(self, code, data):
         # Log and broadcast the FOURTHWALL event to the clients
         self.logger.info(f"Handling FOURTHWALL event with data: {data}")
@@ -293,15 +364,6 @@ class BotOfTheSpecterWebsocketServer:
                 count += 1
         self.logger.info(f"Broadcasted KOFI event to {count} clients")
 
-    async def notify(self, sid, data):
-        self.logger.info(f"Notify event from SID [{sid}]: {data}")
-        event = data.get('event')
-        if not event:
-            self.logger.error('Missing event information for NOTIFY event')
-            return
-        # Broadcast the event to all clients
-        await self.sio.emit(event, data, sid)
-
     def generate_speech(self, text):
         input_text = texttospeech.SynthesisInput(text=text)
         voice = texttospeech.VoiceSelectionParams(
@@ -319,68 +381,6 @@ class BotOfTheSpecterWebsocketServer:
         except Exception as e:
             self.logger.error(f"Failed to generate speech: {e}")
             return None
-
-    async def event(self, sid, event, data):
-        # Handle generic events for SocketIO.
-        self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
-
-    async def connect(self, sid, environ, auth):
-        # Handle the connect event for SocketIO.
-        self.logger.info(f"Connect event: {sid}")
-        if environ["REMOTE_ADDR"] in ['0.0.0.0', self.ip]:
-            self.logger.debug(f"Client [{sid}] is a local user with elevated access")
-        self.logger.debug(environ)
-        await self.sio.emit("WELCOME", {"message": "Please register your code"}, to=sid)
-
-    async def disconnect(self, sid):
-        # Handle the disconnect event for SocketIO.
-        self.logger.info(f"Disconnect event: {sid}")
-        # Iterate through all registered clients and remove the disconnected SID
-        for code, sids in list(self.registered_clients.items()):
-            if sid in sids:
-                sids.remove(sid)
-                self.logger.info(f"Unregistered SID [{sid}] from code [{code}]")
-                if not sids:
-                    del self.registered_clients[code]
-                    self.logger.info(f"No more clients for code [{code}]. Removed code from registered clients.")
-                break
-        else:
-            self.logger.info(f"SID [{sid}] not found in registered clients.")
-        # Log the current state of registered clients after disconnect
-        self.logger.info(f"Current registered clients: {self.registered_clients}")
-
-    async def register(self, sid, data):
-        # Handle the register event for SocketIO.
-        code = data.get("code")
-        name = data.get("name", f"Unnamed-{sid}")
-        self.logger.info(f"Register event received from SID {sid} with code: {code} and name: {name}")
-        if code:
-            # Initialize the list for the code if it doesn't exist
-            if code not in self.registered_clients:
-                self.registered_clients[code] = []
-            # Check if there's already a client with the same name
-            for client in self.registered_clients[code]:
-                if client['name'] == name:
-                    # Disconnect the old session
-                    old_sid = client['sid']
-                    self.logger.info(f"Disconnecting old session [{old_sid}] for name [{name}] before registering new session [{sid}]")
-                    await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate session for name {name}"}, to=old_sid)
-                    await self.sio.disconnect(old_sid)
-                    # Remove the old client
-                    self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
-                    break
-            # Register the new client
-            client_data = {"sid": sid, "name": name}
-            self.registered_clients[code].append(client_data)
-            self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
-            # Send success message to the new client
-            await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
-            self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
-        else:
-            self.logger.warning("Code not provided during registration")
-            await self.sio.emit("ERROR", {"message": "Registration failed: code missing"}, to=sid)
-        # Log the current state of registered clients after registration
-        self.logger.info(f"Current registered clients: {self.registered_clients}")
 
     async def deaths(self, sid, data):
         self.logger.info(f"Death event from SID [{sid}]: {data}")
