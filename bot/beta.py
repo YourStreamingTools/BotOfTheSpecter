@@ -232,7 +232,9 @@ async def subscribe_to_events(session_id):
         "channel.poll.begin",
         "channel.poll.progress",
         "channel.poll.end",
-        "automod.message.hold"
+        "automod.message.hold",
+        "channel.suspicious_user.message",
+        "channel.chat.user_message_hold"
     ]
     v2topics = [
         "channel.follow",
@@ -254,6 +256,32 @@ async def subscribe_to_events(session_id):
                     }
                 }
             elif v1topic == "automod.message.hold":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            elif v1topic == "channel.suspicious_user.message":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            elif v1topic == "channel.chat.user_message_hold":
                 payload = {
                     "type": v1topic,
                     "version": "1",
@@ -724,15 +752,37 @@ async def process_eventsub_message(message):
                         bot_logger.info(f"Stream is now offline.")
                         await websocket_notice(event="STREAM_OFFLINE")
                 elif event_type == "automod.message.hold":
-                    event_logger.info(f"Got a AutoMod Message Hold: {event_data}")
+                    event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
                     messageContent = event_data["event"]["message"]
                     messageAuthor = event_data["event"]["user_name"]
                     messageAuthorID = event_data["event"]["user_id"]
                     spam_pattern = await get_spam_patterns()
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
-                            bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             await ban_user(messageAuthor, messageAuthorID)
+                elif event_type == "channel.chat.user_message_hold":
+                    event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
+                    messageContent = event_data["event"]["message"]["text"]
+                    messageAuthor = event_data["event"]["user_name"]
+                    messageAuthorID = event_data["event"]["user_id"]
+                    spam_pattern = await get_spam_patterns()
+                    for pattern in spam_pattern:
+                        if pattern.search(messageContent):
+                            twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            await ban_user(messageAuthor, messageAuthorID)
+                elif event_type == "channel.suspicious_user.message":
+                    event_logger.info(f"Got a Suspicious User Message: {event_data}")
+                    messageContent = event_data["event"]["message"]["text"]
+                    messageAuthor = event_data["event"]["user_name"]
+                    messageAuthorID = event_data["event"]["user_id"]
+                    lowTrustStatus = event_data["event"]["low_trust_status"]
+                    banEvasionTypes = event_data["event"]["types"]
+                    if banEvasionTypes:
+                        twitch_logger.info(f"Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
+                    if lowTrustStatus == "active_monitoring":
+                        bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
+                        await ban_user(messageAuthor, messageAuthorID)
                 # Logging for unknown event types
                 else:
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
