@@ -926,15 +926,10 @@ class BotOfTheSpecter(commands.Bot):
                                 # Handle (user) and (author)
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
-                                    if user_mention:
-                                        user_name = user_mention.group(1)
-                                    else:
-                                        # Default to message author's name
-                                        user_name = messageAuthor
+                                    user_name = user_mention.group(1) if user_mention else messageAuthor
                                     response = response.replace('(user)', user_name)
                                 if '(author)' in response:
-                                    user_name = messageAuthor
-                                    response = response.replace('(author)', user_name)
+                                    response = response.replace('(author)', messageAuthor)
                                 # Handle (command.)
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
