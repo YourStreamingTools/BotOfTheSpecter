@@ -1363,7 +1363,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
-                await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
+                await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead. Check me out on my website: https://botofthespecter.com")
         finally:
             await sqldb.ensure_closed()
 
@@ -4496,6 +4496,11 @@ async def process_cheer_event(user_id, user_name, bits):
                     (user_id, user_name, new_points)
                 )
             await sqldb.commit()
+            # Add time to subathon if it's running
+            subathon_state = await get_subathon_state()
+            if subathon_state and not subathon_state[4]:  # If subathon is running
+                cheer_add_time = int(settings['cheer_add'])  # Retrieve the time to add for cheers
+                await addtime_subathon(channel, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
             await send_to_discord(discord_message, "New Cheer!", image)
             await channel.send(f"Thank you {user_name} for {bits} bits!")
@@ -4542,13 +4547,23 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                 event_logger.info(f"Updated points for user_id: {user_id} to {new_points}")
             else:
-                await cursor.execute(
-                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                    (user_id, user_name, new_points)
-                )
+                await cursor.execute("INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)", (user_id, user_name, new_points))
                 event_logger.info(f"Inserted new bot points for user_id: {user_id} with {new_points} points")
             await sqldb.commit()
             event_logger.info("Database changes committed successfully")
+            # Add time to subathon based on sub_plan
+            subathon_state = await get_subathon_state()
+            if subathon_state and not subathon_state[4]:  # If subathon is running
+                if sub_plan == 'Tier 1':
+                    sub_add_time = int(settings['sub_add_1'])
+                elif sub_plan == 'Tier 2':
+                    sub_add_time = int(settings['sub_add_2'])
+                elif sub_plan == 'Tier 3':
+                    sub_add_time = int(settings['sub_add_3'])
+                else:
+                    sub_add_time = 0  # Default to 0 if no matching tier
+                channel = bot.get_channel(CHANNEL_NAME)
+                await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
@@ -4563,7 +4578,6 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
-            channel = bot.get_channel(CHANNEL_NAME)
             try:
                 await channel.send(message)
                 event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
@@ -4596,10 +4610,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
                 event_logger.info(f"Inserted new subscription for user_id: {user_id}, sub_plan: {sub_plan}, months: {event_months}")
             # Insert stream credits data
-            await cursor.execute(
-                'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
-                (user_name, "subscriptions", f"{sub_plan} - {event_months} months")
-            )
+            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_bot_settings()
@@ -4620,14 +4631,24 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                 event_logger.info(f"Inserted new bot points for user_id: {user_id} with {new_points} points")
             await sqldb.commit()
             event_logger.info("Database changes committed successfully")
-            # Prepare and send notification messages
-            if subscriber_message.strip():
-                message = f'Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: "{subscriber_message}"'
-            else:
-                message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months!"
-            discord_message = f"{user_name} just subscribed at {sub_plan}!"
+            # Add time to subathon based on sub_plan
+            subathon_state = await get_subathon_state()
+            if subathon_state and not subathon_state[4]:  # If subathon is running
+                if sub_plan == 'Tier 1':
+                    sub_add_time = int(settings['sub_add_1'])
+                elif sub_plan == 'Tier 2':
+                    sub_add_time = int(settings['sub_add_2'])
+                elif sub_plan == 'Tier 3':
+                    sub_add_time = int(settings['sub_add_3'])
+                else:
+                    sub_add_time = 0  # Default to 0 if no matching tier
+                channel = bot.get_channel(CHANNEL_NAME)
+                await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
+            # Send notification messages
+            message = f"Thank you {user_name} for resubscribing! You are now a {sub_plan} subscriber for {event_months} months! {subscriber_message}"
+            discord_message = f"{user_name} just resubscribed at {sub_plan}!"
             try:
-                await send_to_discord(discord_message, "New Subscriber!", "sub.png")
+                await send_to_discord(discord_message, "New Resubscription!", "sub.png")
                 event_logger.info("Sent message to Discord")
             except Exception as e:
                 event_logger.error(f"Failed to send message to Discord: {e}")
@@ -4637,7 +4658,6 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
-            channel = bot.get_channel(CHANNEL_NAME)
             try:
                 await channel.send(message)
                 event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
@@ -5924,6 +5944,7 @@ async def setup_database():
                         sub_add_1 INT,
                         sub_add_2 INT,
                         sub_add_3 INT,
+                        donation_add INT,
                         PRIMARY KEY (id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
