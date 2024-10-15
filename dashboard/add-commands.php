@@ -152,14 +152,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <br> "Raid 3 message."
                             </div>
                             <div class="column is-4">
-                                <span class="has-text-weight-bold variable-title">(random.percent)</span>: This generates a random percentage between 0% and 100%, or any custom range you define.
-                                <br><span class="has-text-weight-bold">Example:</span> <code>You have a (random.percent) chance of winning this game.</code>
-                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "You have a 67% chance of winning this game."
+                                <span class="has-text-weight-bold variable-title">(random.percent)</span>: This generates a random percentage between 0% and 100%, or any custom range you define. You can specify a range by using a dot followed by the numbers, like (random.percent.0-200), which will give you a random percentage between those two numbers.
+                                <br><span class="has-text-weight-bold">Example:</span> <code>You have a (random.percent.0-200) chance of winning this game.</code>
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "You have a 167% chance of winning this game."
                             </div>
                             <div class="column is-4">
-                                <span class="has-text-weight-bold variable-title">(random.number)</span>: This picks a random number between two numbers you specify, or by default between 0 and 100.
-                                <br><span class="has-text-weight-bold">Example:</span> <code>You've broken (random.number) hearts!</code>
-                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "You've broken 42 hearts!"
+                                <span class="has-text-weight-bold variable-title">(random.number)</span>: This picks a random number between two numbers you specify, or by default between 0 and 100. You can specify a range by using a dot followed by the numbers, like (random.number.1-1000), which will give you a random number within that range.
+                                <br><span class="has-text-weight-bold">Example:</span> <code>You've broken (random.number.1-1000) hearts!</code>
+                                <br><span class="has-text-weight-bold">In Twitch Chat:</span> "You've broken 583 hearts!"
                             </div>
                             <div class="column is-4">
                                 <span class="has-text-weight-bold variable-title">(random.pick.*)</span>: This randomly picks an item from a list you provide. It could be used to pick random items, people, or anything else.
