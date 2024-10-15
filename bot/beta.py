@@ -894,7 +894,8 @@ class BotOfTheSpecter(commands.Bot):
                             response = result[0]
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
-                                '(random.percent)', '(random.number)', '(random.pick.', '(math.', '(call.'
+                                '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
+                                '(random.pick.', '(math.', '(call.'
                             ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
