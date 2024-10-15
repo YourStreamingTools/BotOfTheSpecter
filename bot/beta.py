@@ -892,15 +892,20 @@ class BotOfTheSpecter(commands.Bot):
                     if result:
                         if result[1] == 'Enabled':
                             response = result[0]
-                            switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', '(command.', '(call.']
+                            switches = [
+                                '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
+                                '(random.percent)', '(random.number)', '(random.pick.', '(math.', '(call.'
+                            ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
+                                # Handle (customapi.)
                                 if '(customapi.' in response:
                                     url_match = re.search(r'\(customapi\.(\S+)\)', response)
                                     if url_match:
                                         url = url_match.group(1)
                                         api_response = fetch_api_response(url)
                                         response = response.replace(f"(customapi.{url})", api_response)
+                                # Handle (count)
                                 if '(count)' in response:
                                     try:
                                         await update_custom_count(command)
@@ -908,6 +913,7 @@ class BotOfTheSpecter(commands.Bot):
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
+                                # Handle (daysuntil.)
                                 if '(daysuntil.' in response:
                                     get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
                                     if get_date:
@@ -916,6 +922,7 @@ class BotOfTheSpecter(commands.Bot):
                                         current_date = datetime.now().date()
                                         days_left = (event_date - current_date).days
                                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                                # Handle (user) and (author)
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
                                     if user_mention:
@@ -927,6 +934,7 @@ class BotOfTheSpecter(commands.Bot):
                                 if '(author)' in response:
                                     user_name = messageAuthor
                                     response = response.replace('(author)', user_name)
+                                # Handle (command.)
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
                                     if command_match:
@@ -939,6 +947,7 @@ class BotOfTheSpecter(commands.Bot):
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
                                             await channel.send(f"The command {sub_command} is no longer available.")
+                                # Handle (call.)
                                 if '(call.' in response:
                                     calling_match = re.search(r'\(call\.(\w+)\)', response)
                                     if calling_match:
@@ -946,6 +955,48 @@ class BotOfTheSpecter(commands.Bot):
                                         await self.call_command(match_call, message)
                                     else:
                                         pass
+                                # Handle (random.percent)
+                                if '(random.percent)' in response:
+                                    random_percent = random.randint(0, 100)
+                                    response = response.replace('(random.percent)', f'{random_percent}%')
+                                # Handle user-defined (random.percent.x-y)
+                                if '(random.percent.' in response:
+                                    random_percent_match = re.search(r'\(random\.percent\.(\d+)-(\d+)\)', response)
+                                    if random_percent_match:
+                                        lower_bound = int(random_percent_match.group(1))
+                                        upper_bound = int(random_percent_match.group(2))
+                                        random_percent = random.randint(lower_bound, upper_bound)
+                                        response = response.replace(f'(random.percent.{lower_bound}-{upper_bound})', f'{random_percent}%')
+                                # Handle (random.number)
+                                if '(random.number)' in response:
+                                    random_number = random.randint(0, 100)
+                                    response = response.replace('(random.number)', str(random_number))
+                                # Handle user-defined (random.number.x-y)
+                                if '(random.number.' in response:
+                                    random_number_match = re.search(r'\(random\.number\.(\d+)-(\d+)\)', response)
+                                    if random_number_match:
+                                        lower_bound = int(random_number_match.group(1))
+                                        upper_bound = int(random_number_match.group(2))
+                                        random_number = random.randint(lower_bound, upper_bound)
+                                        response = response.replace(f'(random.number.{lower_bound}-{upper_bound})', str(random_number))
+                                # Handle (random.pick.*)
+                                if '(random.pick.' in response:
+                                    random_pick_match = re.search(r'\(random\.pick\.(.+?)\)', response)
+                                    if random_pick_match:
+                                        items = random_pick_match.group(1).split('.')
+                                        chosen_item = random.choice(items)
+                                        response = response.replace(f'(random.pick.{random_pick_match.group(1)})', chosen_item)
+                                # Handle (math.x+y)
+                                if '(math.' in response:
+                                    math_match = re.search(r'\(math\.(.+)\)', response)
+                                    if math_match:
+                                        math_expression = math_match.group(1)
+                                        try:
+                                            math_result = eval(math_expression)
+                                            response = response.replace(f'(math.{math_expression})', str(math_result))
+                                        except Exception as e:
+                                            chat_logger.error(f"Math expression error: {e}")
+                                            response = response.replace(f'(math.{math_expression})', "Error")
                             # Send the individual responses
                             if len(responses_to_send) > 1:
                                 for resp in responses_to_send:
