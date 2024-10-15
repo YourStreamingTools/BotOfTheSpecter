@@ -192,7 +192,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title is-4">Upload Sound Alerts</h1>
-    <p class='has-text-danger'>This is a beta feature. Uploading and mapping sound alerts will only work in version 4.8+</p><br>
+    <div class="notification is-danger">This is a beta feature. Uploading and mapping sound alerts will only work in version 4.8+</div>
     <div class="upload-container" style="width: 100%; max-width: 500px;">
         <?php if (!empty($status)) : ?>
             <div class="message"><?php echo $status; ?></div>
