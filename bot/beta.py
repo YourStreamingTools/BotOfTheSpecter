@@ -724,6 +724,7 @@ async def process_eventsub_message(message):
                         bot_logger.info(f"Stream is now offline.")
                         await websocket_notice(event="STREAM_OFFLINE")
                 elif event_type == "automod.message.hold":
+                    event_logger.info(f"Got a AutoMod Message Hold: {event_data}")
                     messageContent = event_data["event"]["message"]
                     messageAuthor = event_data["event"]["user_name"]
                     messageAuthorID = event_data["event"]["user_id"]
