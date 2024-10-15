@@ -938,7 +938,7 @@ class BotOfTheSpecter(commands.Bot):
                                         await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
                                         sub_response = await cursor.fetchone()
                                         if sub_response:
-                                            response = response.replace(f"(command.{sub_command})", sub_response[0])
+                                            response = response.replace(f"(command.{sub_command})", "")
                                             responses_to_send.append(sub_response[0])
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
@@ -949,8 +949,6 @@ class BotOfTheSpecter(commands.Bot):
                                     if calling_match:
                                         match_call = calling_match.group(1)
                                         await self.call_command(match_call, message)
-                                    else:
-                                        pass
                                 # Handle (random.percent)
                                 if '(random.percent)' in response:
                                     random_percent = random.randint(0, 100)
@@ -993,13 +991,10 @@ class BotOfTheSpecter(commands.Bot):
                                         except Exception as e:
                                             chat_logger.error(f"Math expression error: {e}")
                                             response = response.replace(f'(math.{math_expression})', "Error")
-                            # Send the individual responses
-                            if len(responses_to_send) > 1:
-                                for resp in responses_to_send:
-                                    chat_logger.info(f"{command} command ran with response: {resp}")
-                                    await channel.send(resp)
-                            else:
-                                await channel.send(response)
+                            await channel.send(response)
+                            for resp in responses_to_send:
+                                chat_logger.info(f"{command} command ran with response: {resp}")
+                                await channel.send(resp)
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
