@@ -4225,30 +4225,24 @@ async def timed_message():
         global scheduled_tasks
         global stream_online
         if stream_online:
-            await cursor.execute('SELECT interval_count, message FROM timed_messages')
+            await cursor.execute('SELECT interval_count, message FROM timed_messages ORDER BY interval_count')
             messages = await cursor.fetchall()
             bot_logger.info(f"Timed Messages: {messages}")
-            # Store the messages currently scheduled
-            current_messages = [task.get_name() for task in scheduled_tasks]
-            # Check for messages to add or remove
+            # Clear any old tasks
+            for task in scheduled_tasks:
+                task.cancel()
+            scheduled_tasks.clear()
+            # Sequentially schedule messages
+            previous_time = datetime.now()
             for interval, message in messages:
-                if message in current_messages:
-                    # Message already scheduled, continue to next message
-                    continue
-                bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
                 time_now = datetime.now()
-                send_time = time_now + timedelta(minutes=int(interval))
-                wait_time = (send_time - time_now).total_seconds()
+                next_time = previous_time + timedelta(minutes=int(interval))
+                wait_time = (next_time - time_now).total_seconds()
                 bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
                 task = asyncio.create_task(send_timed_message(message, wait_time))
-                task.set_name(message)  # Set a name for the task
-                scheduled_tasks.append(task)  # Keep track of the task
-            # Check for messages to remove
-            for task in scheduled_tasks:
-                if task.get_name() not in [message for _, message in messages]:
-                    # Message no longer in database, cancel the task
-                    task.cancel()
-                    scheduled_tasks.remove(task)
+                task.set_name(message)
+                scheduled_tasks.append(task)
+                previous_time = next_time  # Update previous_time for the next interval
         else:
             # Cancel all scheduled tasks if the stream goes offline
             for task in scheduled_tasks:
