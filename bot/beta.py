@@ -4175,13 +4175,6 @@ async def process_stream_online_websocket():
     await send_online_message(message)
     await send_to_discord_stream_online(message, image)
 
-# Function to process the stream being offline
-async def process_stream_offline_websocket():
-    global stream_online
-    stream_online = False  # Update the stream status
-    await clear_seen_today()
-    await clear_credits_data()
-
 # Function to send the online message to channel
 async def send_online_message(message):
     await asyncio.sleep(5)
@@ -4191,6 +4184,27 @@ async def send_online_message(message):
         await channel.send(message)
     else:
         bot_logger.error("Failed to send message")
+
+# Function to process the stream being offline
+async def process_stream_offline_websocket():
+    global stream_online, scheduled_clear_task
+    stream_online = False  # Update the stream status
+    # Cancel any previous scheduled task to avoid duplication
+    if 'scheduled_clear_task' in globals() and scheduled_clear_task:
+        scheduled_clear_task.cancel()
+    # Schedule the clearing task with a 5-minute delay
+    scheduled_clear_task = asyncio.create_task(delayed_clear_tables())
+    bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
+
+# Function to clear both tables if the stream remains offline after 5 minutes
+async def delayed_clear_tables():
+    global stream_online
+    await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
+    if not stream_online:  # If the stream is still offline, clear the tables
+        await clear_seen_today()
+        await clear_credits_data()
+    else:
+        bot_logger.info("Stream is back online. Skipping table clear.")
 
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
