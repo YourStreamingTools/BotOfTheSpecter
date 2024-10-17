@@ -31,7 +31,6 @@ $username = $user['username'];
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
 $is_admin = ($user['is_admin'] == 1);
-$betaAccess = ($user['beta_access'] == 1);
 $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
@@ -127,6 +126,27 @@ if (isset($_POST['setupBot'])) {
   header('Location: bot.php');
   exit();
 }
+
+$betaAccess = false; // Default to false until we know
+if ($user['beta_access'] == 1) {
+  $betaAccess = true;
+} else {
+  $twitch_subscriptions_url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
+  $headers = [
+    "Client-ID: {$clientID}",
+    "Authorization: Bearer {$authToken}"
+  ];
+  $ch = curl_init($twitch_subscriptions_url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  $data = json_decode($response, true);
+  if (isset($data['data'][0]));
+    $tier = $data['data'][0]['tier'];
+    if (in_array($tier, ["1000", "2000", "3000"]));
+    $betaAccess = true;
+};
 ?>
 <!DOCTYPE html>
 <html lang="en">
