@@ -1,12 +1,8 @@
 <?php 
-ini_set('display_errors', 1); 
-ini_set('display_startup_errors', 1); 
-error_reporting(E_ALL);
-
 // Initialize the session
 session_start();
 
-// check if user is logged in
+// Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
     exit();
