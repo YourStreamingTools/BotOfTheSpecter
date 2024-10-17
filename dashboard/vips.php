@@ -50,33 +50,26 @@ do {
         'Client-ID: ' . $clientID
     ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
     // Execute cURL request
     $response = curl_exec($curl);
-
     if ($response === false) {
         // Handle cURL error
         echo 'cURL error: ' . curl_error($curl);
         exit;
     }
-
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     if ($httpCode !== 200) {
         // Handle non-successful HTTP response
         $HTTPError = 'HTTP error: ' . $httpCode;
         exit;
     }
-
     curl_close($curl);
-
     // Process and append VIP information to the array
     $vipsData = json_decode($response, true);
     $allVIPs = array_merge($allVIPs, $vipsData['data']);
-
     // Check if there are more pages of VIPs
     $cursor = $vipsData['pagination']['cursor'] ?? null;
     $vipsURL = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID&after=$cursor";
-
 } while ($cursor);
 
 // Number of VIPs per page
@@ -101,39 +94,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   // Extract the username and action from the form submission
   $VIPusername = trim($_POST['vip-username']);
   $action = $_POST['action'];
-
   // Fetch the user ID using the external API
   $userID = file_get_contents("https://decapi.me/twitch/id/$VIPusername");
-
   if ($userID) {
       // Set up the Twitch API endpoint and headers
-      $url = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID&user_id=$userID";
+      $addVIP = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID&user_id=$userID";
       $headers = [
           "Client-ID: $clientID",
           "Authorization: Bearer $accessToken",
           "Content-Type: application/json"
       ];
-
       // Initialize cURL session
       $ch = curl_init();
-
       // Set cURL options for adding or removing VIP
       curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
       curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
       if ($action === 'add') {
-          curl_setopt($ch, CURLOPT_URL, $url);
+          curl_setopt($ch, CURLOPT_URL, $addVIP);
           curl_setopt($ch, CURLOPT_POST, true);
       } elseif ($action === 'remove') {
-          curl_setopt($ch, CURLOPT_URL, $url);
+          curl_setopt($ch, CURLOPT_URL, $addVIP);
           curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
       }
-
       // Execute the API request
       $response = curl_exec($ch);
       $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
       curl_close($ch);
-
       // Handle API response
       if ($httpcode == 204) {
         $VIPUserStatus = "Operation successful: User '$VIPusername' has been $action" . "ed as a VIP.";
