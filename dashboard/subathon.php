@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
             <?php echo htmlspecialchars($message); ?>
         </div>
     <?php endif; ?>
-    <div class="notification is-danger">Beta Feature, will only work in 5.0+</div>
+    <div class="notification is-danger">5.0+ Feature</div>
     <div class="notification is-warning">
         The donation feature for adding time to the subathon is not yet fully tested. Until this feature is ready, you can manually add time using a command.<br>
         <strong>Instructions:</strong>
