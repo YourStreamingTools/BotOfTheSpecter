@@ -153,6 +153,10 @@ if ($user['beta_access'] == 1) {
   <head>
     <!-- Header -->
     <?php include('header.php'); ?>
+    <style>
+        .variable-item { margin-bottom: 1.5rem; }
+        .variable-title { color: #ffdd57; }
+    </style>
     <!-- /Header -->
   </head>
 <body>
@@ -225,21 +229,23 @@ if ($user['beta_access'] == 1) {
     </div>
     <?php } ?>
     <!-- Websocket Notices Section -->
-    <div class="column is-5 bot-box">
-      <h4 class="title is-4" style="text-align: center;">Websocket Notices
+    <div class="column is-5 bot-box" style="position: relative;">
+      <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+      <h4 class="title is-4" style="text-align: center;">
+        Websocket Service
         <span id="heartbeatIcon" style="margin-left: 10px;">
           <i id="heartbeat" class="fas fa-heartbeat" style="color: green;"></i>
         </span>
       </h4>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
         <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-          <button class="button is-primary bot-button" onclick="sendStreamEvent('STREAM_ONLINE')">Mark Stream as Online</button>
+          <button class="button is-primary bot-button" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
           <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
         </div>
       </div>
       <div style="display: flex; align-items: center;">
         <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-          <button class="button is-danger bot-button" onclick="sendStreamEvent('STREAM_OFFLINE')">Mark Stream as Offline</button>
+          <button class="button is-danger bot-button" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
           <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
         </div>
       </div>
@@ -336,7 +342,34 @@ if ($user['beta_access'] == 1) {
   </div>
 </div>
 
+<div class="modal" id="websocket-service-modal">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head has-background-dark">
+      <p class="modal-card-title has-text-white">Websocket Service Information</p>
+      <button class="delete" aria-label="close" id="websocket-service-modal-close"></button>
+    </header>
+    <section class="modal-card-body has-background-dark has-text-white">
+      <p><span class="has-text-weight-bold variable-title">Force Online Status</span>:<br>
+        Clicking this button will set your status to online across the entire system, even if your stream is currently offline. By doing so, both the Twitch Chat Bot and Discord Bot will be notifiied of your desire to appear as online.
+      </p>
+        <br>
+      <p><span class="has-text-weight-bold variable-title">Force Offline Status</span>:<br>
+        This button will mark you as offline in the system, even if you are online. When clicked, it will notify both the Twitch Chat Bot and Discord Bot that you wish to be displayed as offline.<br>
+        Additionally, after 5 minutes, if you remain offline, this action will clear the "Credits" overlay data and the "Seen Users" list for welcome messages.
+      </p>
+    </section>
+  </div>
+</div>
+
 <script>
+document.getElementById("websocket-service-modal-open").addEventListener("click", function() {
+    document.getElementById("websocket-service-modal").classList.add("is-active");
+});
+document.getElementById("websocket-service-modal-close").addEventListener("click", function() {
+    document.getElementById("websocket-service-modal").classList.remove("is-active");
+});
+
 window.addEventListener('error', function(event) {
   console.error('Error message:', event.message);
   console.error('Script error:', event.filename, 'line:', event.lineno, 'column:', event.colno);
