@@ -103,7 +103,6 @@ if (isset($_GET['code'])) {
 
     if (isset($userInfo['data']) && count($userInfo['data']) > 0) {
         $twitchDisplayName = $userInfo['data'][0]['display_name'];
-        $userEmail = $userInfo['data'][0]['email'];
 
         // Read the list of authorized users from the JSON file located in a specific directory
         $authUsersJson = file_get_contents('/var/www/api/authusers.json');
@@ -119,7 +118,8 @@ if (isset($_GET['code'])) {
         $twitchUsername = $userInfo['data'][0]['login'];
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
         $twitchUserId = $userInfo['data'][0]['id'];
-        $_SESSION['user_email'] = $userEmail;
+        $_SESSION['username'] = $twitchUsername;
+        $_SESSION['twitch_user_id'] = $twitchUserId;
 
         // Database connect
         require_once "db_connect.php";
@@ -128,7 +128,6 @@ if (isset($_GET['code'])) {
         $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, is_admin)
         VALUES ('$twitchUsername', '$accessToken', '$refreshToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', 0)
         ON DUPLICATE KEY UPDATE access_token = '$accessToken', refresh_token = '$refreshToken', profile_image = '$profileImageUrl', twitch_user_id = '$twitchUserId', twitch_display_name = '$twitchDisplayName', last_login = ?";
-
         $stmt = mysqli_prepare($conn, $insertQuery);
         $last_login = date('Y-m-d H:i:s');
 
