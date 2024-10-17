@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $addVIP = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID&user_id=$userID";
       $headers = [
           "Client-ID: $clientID",
-          "Authorization: Bearer $accessToken",
+          'Authorization: Bearer ' . $authToken,
           "Content-Type: application/json"
       ];
       // Initialize cURL session
