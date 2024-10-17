@@ -151,6 +151,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                 <ul>
                     <li>Basic Commands</li>
                     <li>Limited Support</li>
+                    <li>Shared Bot (BotOfTheSpecter)</li>
                 </ul>
             </div>
             <?php if ($currentPlan === 'free' && !$isBetaUser): ?>
