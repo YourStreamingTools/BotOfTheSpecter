@@ -125,7 +125,7 @@ if (isset($_GET['log'])) {
       <div class="logs-options" id="logs-options">
         Log Time is GMT+<span id="timezone-offset"></span>
         <div id="current-time-display" class="current-time-display">
-          Current Log Time: <span id="current-log-time"></span>
+          Current Log Time:<br><span id="current-log-time"></span>
         </div>
       </div>
       <!-- Buttons Container - Hidden initially -->
@@ -274,10 +274,13 @@ setInterval(autoUpdateLog, autoRefreshInterval);
 // Function to dynamically update current log time in 24-hour format with seconds
 function updateCurrentLogTime() {
   const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
   const hours = String(now.getHours()).padStart(2, '0');
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const seconds = String(now.getSeconds()).padStart(2, '0');
-  const formattedTime = `${hours}:${minutes}:${seconds}`;
+  const formattedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   document.getElementById('current-log-time').innerText = formattedTime;
 }
 
