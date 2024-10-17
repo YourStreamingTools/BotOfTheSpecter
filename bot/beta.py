@@ -1931,6 +1931,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
+                mentioned_username = mentioned_username.lstrip('@')
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a hug to them.")
@@ -1977,6 +1978,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
+                mentioned_username = mentioned_username.lstrip('@')
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a kiss to them.")
