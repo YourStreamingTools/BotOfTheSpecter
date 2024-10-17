@@ -27,19 +27,16 @@ try {
     $usrDBconn = new mysqli($mysqlhost, $mysqlusername, $mysqlpassword);
     // Check connection
     if ($usrDBconn->connect_error) {
-        echo "<script>console.error('Connection failed: " . $usrDBconn->connect_error . "');</script>";
         die();
     }
     // Create the database if it doesn't exist
     $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
     if ($usrDBconn->query($sql) === TRUE) {
-        echo "<script>console.log('Database created successfully');</script>";
     } else {
-        echo "<script>console.error('Error creating database: " . $usrDBconn->error . "');</script>";
+        die();
     }
     // Select the database
     if (!$usrDBconn->select_db($dbname)) {
-        echo "<script>console.error('Error selecting database: " . $usrDBconn->error . "');</script>";
         die();
     }
     // List of table creation statements
@@ -286,12 +283,7 @@ try {
     ];
     // Execute each table creation query
     foreach ($tables as $table_name => $sql) {
-        if ($usrDBconn->query($sql) === TRUE) {
-            echo "<script>console.log('Table \'$table_name\' created successfully.');</script>";
-        } else {
-            echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>";
-        }
-    }
+        if ($usrDBconn->query($sql) === TRUE) {} else { echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>"; }}
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
