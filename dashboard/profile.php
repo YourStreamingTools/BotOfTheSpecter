@@ -1,4 +1,3 @@
-<?php ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL); ?>
 <?php
 // Initialize the session
 session_start();
@@ -137,8 +136,8 @@ function get_timezones() {
                 foreach ($timezones as $tz => $offset) {
                     $offset_prefix = $offset < 0 ? '-' : '+';
                     $offset_hours = gmdate('H:i', abs($offset));
-                    $selected = ($tz == $timezone) ? 'selected' : '';
-                    echo "<option value=\"$tz\" $selected>(UTC $offset_prefix$offset_hours) $tz</option>";
+                    $selected = ($tz == $timezone) ? ' selected' : '';
+                    echo "<option value=\"$tz\"$selected>(UTC $offset_prefix$offset_hours) $tz</option>";
                 }
                 ?>
               </select>
