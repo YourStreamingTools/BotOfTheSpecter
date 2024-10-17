@@ -200,7 +200,7 @@ if ($displayMessageData) {
                     </div>
                     <div class="field">
                         <label class="label" for="edit_interval">New Interval:</label>
-                        <div class="control"><button class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required></div>
+                        <div class="control"><input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required></div>
                     </div>
                     <div class="field">
                         <label class="label" for="edit_message_content">New Message:</label>
