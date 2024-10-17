@@ -51,10 +51,11 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "4.9.2"
+VERSION = "5.0"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+ADMIN_API_KEY = os.getenv('ADMIN_KEY')
 OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
@@ -230,11 +231,14 @@ async def subscribe_to_events(session_id):
         "channel.channel_points_custom_reward_redemption.add",
         "channel.poll.begin",
         "channel.poll.progress",
-        "channel.poll.end"
+        "channel.poll.end",
+        "automod.message.hold",
+        "channel.suspicious_user.message",
+        "channel.chat.user_message_hold"
     ]
     v2topics = [
         "channel.follow",
-        "channel.update",
+        "channel.update"
     ]
     responses = []
     async with aiohttp.ClientSession() as session:
@@ -245,6 +249,45 @@ async def subscribe_to_events(session_id):
                     "version": "1",
                     "condition": {
                         "to_broadcaster_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            elif v1topic == "automod.message.hold":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            elif v1topic == "channel.suspicious_user.message":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            elif v1topic == "channel.chat.user_message_hold":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
                     },
                     "transport": {
                         "method": "websocket",
@@ -532,23 +575,7 @@ async def process_eventsub_message(message):
                 elif event_type == "channel.hype_train.end":
                     event_logger.info(f"Hype Train End Event Data: {event_data}")
                     level = event_data["level"]
-                    top_contributions = event_data.get("top_contributions", [])
-                    await channel.send(f"The Hype Train has ended at level {level}! Top contributions:")
-                    for contribution in top_contributions:
-                        user_name = contribution["user_name"]
-                        contribution_type = contribution["type"]
-                        if contribution_type == "subscription":
-                            contribution_type = "subscriptions"
-                        total_formatted = "{:,}".format(contribution["total"])
-                        total = total_formatted
-                        if contribution_type == "subscriptions":
-                            tier_mapping = {
-                                "500": "Tier 1",
-                                "1000": "Tier 2",
-                                "2500": "Tier 3"
-                            }
-                            total = tier_mapping.get(total, total)
-                        await channel.send(f"{user_name} contributed {total} {contribution_type}.")
+                    await channel.send(f"The Hype Train has ended at level {level}!")
                 elif event_type == 'channel.update':
                     global current_game
                     global stream_title
@@ -569,36 +596,53 @@ async def process_eventsub_message(message):
                     message = f"Thank you so much {user} for your ${value_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
                     await channel.send(message)
                 elif event_type == 'channel.moderate':
-                    moderator_user_name = event_data["event"]["moderator_user_name"]
-                    if event_data["event"]["action"] == "timeout":
-                        timeout_info = event_data["event"]["timeout"]
-                        user_name = timeout_info["user_name"]
-                        reason = timeout_info["reason"]
-                        expires_at = datetime.strptime(timeout_info["expires_at"], "%Y-%m-%dT%H:%M:%SZ")
-                        expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                    moderator_user_name = event_data["event"].get("moderator_user_name", "Unknown Moderator")
+                    # Handle timeout action
+                    if event_data["event"].get("action") == "timeout":
+                        timeout_info = event_data["event"].get("timeout", {})
+                        user_name = timeout_info.get("user_name", "Unknown User")
+                        reason = timeout_info.get("reason", "No reason provided")
+                        expires_at_str = timeout_info.get("expires_at")
+                        if expires_at_str:
+                            try:
+                                expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
+                                expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+                            except ValueError:
+                                expires_at_formatted = "Invalid expiration time"
+                        else:
+                            expires_at_formatted = "No expiration time provided"
                         discord_message = f'{user_name} has been timed out, their timeout expires at {expires_at_formatted} for the reason "{reason}"'
                         discord_title = "New User Timeout!"
                         discord_image = "clock.png"
-                    elif event_data["event"]["action"] == "untimeout":
-                        untimeout_info = event_data["event"]["untimeout"]
-                        user_name = untimeout_info["user_name"]
+                    # Handle untimeout action
+                    elif event_data["event"].get("action") == "untimeout":
+                        untimeout_info = event_data["event"].get("untimeout", {})
+                        user_name = untimeout_info.get("user_name", "Unknown User")
                         discord_message = f"{user_name} has had their timeout removed by {moderator_user_name}."
                         discord_title = "New Untimeout User!"
                         discord_image = "clock.png"
-                    elif event_data["event"]["action"] == "ban":
-                        banned_info = event_data["event"]["ban"]
-                        banned_user_name = banned_info["user_name"]
-                        reason = banned_info["reason"]
+                    # Handle ban action
+                    elif event_data["event"].get("action") == "ban":
+                        banned_info = event_data["event"].get("ban", {})
+                        banned_user_name = banned_info.get("user_name", "Unknown User")
+                        reason = banned_info.get("reason", "No reason provided")
                         discord_message = f'{banned_user_name} has been banned for "{reason}" by {moderator_user_name}'
                         discord_title = "New User Ban!"
                         discord_image = "ban.png"
-                    elif event_data["event"]["action"] == "unban":
-                        unban_info = event_data["event"]["unban"]
-                        banned_user_name = unban_info["user_name"]
+                    # Handle unban action
+                    elif event_data["event"].get("action") == "unban":
+                        unban_info = event_data["event"].get("unban", {})
+                        banned_user_name = unban_info.get("user_name", "Unknown User")
                         discord_message = f'{banned_user_name} has been unbanned by {moderator_user_name}'
                         discord_title = "New Unban!"
                         discord_image = "ban.png"
-                    await send_to_discord_mod(discord_message, discord_title, discord_image)
+                    # Check if the necessary data is available
+                    if discord_message and discord_title and discord_image:
+                        # Send to Discord if all checks pass
+                        await send_to_discord_mod(discord_message, discord_title, discord_image)
+                    else:
+                        # Log the incomplete event for later analysis
+                        twitch_logger.info(f"Incomplete mod event: {event_data}")
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
@@ -707,6 +751,38 @@ async def process_eventsub_message(message):
                     else:
                         bot_logger.info(f"Stream is now offline.")
                         await websocket_notice(event="STREAM_OFFLINE")
+                elif event_type == "automod.message.hold":
+                    event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
+                    messageContent = event_data["event"]["message"]
+                    messageAuthor = event_data["event"]["user_name"]
+                    messageAuthorID = event_data["event"]["user_id"]
+                    spam_pattern = await get_spam_patterns()
+                    for pattern in spam_pattern:
+                        if pattern.search(messageContent):
+                            twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            await ban_user(messageAuthor, messageAuthorID)
+                elif event_type == "channel.chat.user_message_hold":
+                    event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
+                    messageContent = event_data["event"]["message"]["text"]
+                    messageAuthor = event_data["event"]["user_name"]
+                    messageAuthorID = event_data["event"]["user_id"]
+                    spam_pattern = await get_spam_patterns()
+                    for pattern in spam_pattern:
+                        if pattern.search(messageContent):
+                            twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            await ban_user(messageAuthor, messageAuthorID)
+                elif event_type == "channel.suspicious_user.message":
+                    event_logger.info(f"Got a Suspicious User Message: {event_data}")
+                    messageContent = event_data["event"]["message"]["text"]
+                    messageAuthor = event_data["event"]["user_name"]
+                    messageAuthorID = event_data["event"]["user_id"]
+                    lowTrustStatus = event_data["event"]["low_trust_status"]
+                    banEvasionTypes = event_data["event"]["types"]
+                    if banEvasionTypes:
+                        twitch_logger.info(f"Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
+                    if lowTrustStatus == "active_monitoring":
+                        bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
+                        await ban_user(messageAuthor, messageAuthorID)
                 # Logging for unknown event types
                 else:
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -795,6 +871,7 @@ class BotOfTheSpecter(commands.Bot):
         await builtin_commands_creation()
         await known_users()
         await channel_point_rewards()
+        asyncio.get_event_loop().create_task(token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(specter_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
@@ -866,15 +943,21 @@ class BotOfTheSpecter(commands.Bot):
                     if result:
                         if result[1] == 'Enabled':
                             response = result[0]
-                            switches = ['(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', '(command.', '(call.']
+                            switches = [
+                                '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
+                                '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
+                                '(random.pick.', '(math.', '(call.'
+                            ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
+                                # Handle (customapi.)
                                 if '(customapi.' in response:
                                     url_match = re.search(r'\(customapi\.(\S+)\)', response)
                                     if url_match:
                                         url = url_match.group(1)
                                         api_response = fetch_api_response(url)
                                         response = response.replace(f"(customapi.{url})", api_response)
+                                # Handle (count)
                                 if '(count)' in response:
                                     try:
                                         await update_custom_count(command)
@@ -882,6 +965,7 @@ class BotOfTheSpecter(commands.Bot):
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
+                                # Handle (daysuntil.)
                                 if '(daysuntil.' in response:
                                     get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
                                     if get_date:
@@ -890,17 +974,14 @@ class BotOfTheSpecter(commands.Bot):
                                         current_date = datetime.now().date()
                                         days_left = (event_date - current_date).days
                                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                                # Handle (user) and (author)
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
-                                    if user_mention:
-                                        user_name = user_mention.group(1)
-                                    else:
-                                        # Default to message author's name
-                                        user_name = messageAuthor
+                                    user_name = user_mention.group(1) if user_mention else messageAuthor
                                     response = response.replace('(user)', user_name)
                                 if '(author)' in response:
-                                    user_name = messageAuthor
-                                    response = response.replace('(author)', user_name)
+                                    response = response.replace('(author)', messageAuthor)
+                                # Handle (command.)
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
                                     if command_match:
@@ -908,25 +989,63 @@ class BotOfTheSpecter(commands.Bot):
                                         await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
                                         sub_response = await cursor.fetchone()
                                         if sub_response:
-                                            response = response.replace(f"(command.{sub_command})", sub_response[0])
+                                            response = response.replace(f"(command.{sub_command})", "")
                                             responses_to_send.append(sub_response[0])
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
                                             await channel.send(f"The command {sub_command} is no longer available.")
+                                # Handle (call.)
                                 if '(call.' in response:
                                     calling_match = re.search(r'\(call\.(\w+)\)', response)
                                     if calling_match:
                                         match_call = calling_match.group(1)
                                         await self.call_command(match_call, message)
-                                    else:
-                                        pass
-                            # Send the individual responses
-                            if len(responses_to_send) > 1:
-                                for resp in responses_to_send:
-                                    chat_logger.info(f"{command} command ran with response: {resp}")
-                                    await channel.send(resp)
-                            else:
-                                await channel.send(response)
+                                # Handle (random.percent)
+                                if '(random.percent)' in response:
+                                    random_percent = random.randint(0, 100)
+                                    response = response.replace('(random.percent)', f'{random_percent}%')
+                                # Handle user-defined (random.percent.x-y)
+                                if '(random.percent.' in response:
+                                    random_percent_match = re.search(r'\(random\.percent\.(\d+)-(\d+)\)', response)
+                                    if random_percent_match:
+                                        lower_bound = int(random_percent_match.group(1))
+                                        upper_bound = int(random_percent_match.group(2))
+                                        random_percent = random.randint(lower_bound, upper_bound)
+                                        response = response.replace(f'(random.percent.{lower_bound}-{upper_bound})', f'{random_percent}%')
+                                # Handle (random.number)
+                                if '(random.number)' in response:
+                                    random_number = random.randint(0, 100)
+                                    response = response.replace('(random.number)', str(random_number))
+                                # Handle user-defined (random.number.x-y)
+                                if '(random.number.' in response:
+                                    random_number_match = re.search(r'\(random\.number\.(\d+)-(\d+)\)', response)
+                                    if random_number_match:
+                                        lower_bound = int(random_number_match.group(1))
+                                        upper_bound = int(random_number_match.group(2))
+                                        random_number = random.randint(lower_bound, upper_bound)
+                                        response = response.replace(f'(random.number.{lower_bound}-{upper_bound})', str(random_number))
+                                # Handle (random.pick.*)
+                                if '(random.pick.' in response:
+                                    random_pick_match = re.search(r'\(random\.pick\.(.+?)\)', response)
+                                    if random_pick_match:
+                                        items = random_pick_match.group(1).split('.')
+                                        chosen_item = random.choice(items)
+                                        response = response.replace(f'(random.pick.{random_pick_match.group(1)})', chosen_item)
+                                # Handle (math.x+y)
+                                if '(math.' in response:
+                                    math_match = re.search(r'\(math\.(.+)\)', response)
+                                    if math_match:
+                                        math_expression = math_match.group(1)
+                                        try:
+                                            math_result = eval(math_expression)
+                                            response = response.replace(f'(math.{math_expression})', str(math_result))
+                                        except Exception as e:
+                                            chat_logger.error(f"Math expression error: {e}")
+                                            response = response.replace(f'(math.{math_expression})', "Error")
+                            await channel.send(response)
+                            for resp in responses_to_send:
+                                chat_logger.info(f"{command} command ran with response: {resp}")
+                                await channel.send(resp)
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -1205,21 +1324,27 @@ class BotOfTheSpecter(commands.Bot):
         await channel.send(message)
 
     async def get_ai_response(self, user_message, user_id):
-        try:
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "message": user_message,
-                    "channel": CHANNEL_NAME,
-                    "message_user": user_id
-                }
-                async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
-                    response.raise_for_status()  # Notice bad responses
-                    ai_response = await response.text()  # Read response as plain text
-                    api_logger.info(f"AI response received: {ai_response}")
-                    return ai_response
-        except aiohttp.ClientError as e:
-            bot_logger.error(f"Error getting AI response: {e}")
-            return "Sorry, I could not understand your request."
+        premium_tier = await check_premium_feature()
+        if premium_tier in (2000, 3000, 4000):
+            # Premium feature access granted
+            try:
+                async with aiohttp.ClientSession() as session:
+                    payload = {
+                        "message": user_message,
+                        "channel": CHANNEL_NAME,
+                        "message_user": user_id
+                    }
+                    async with session.post('https://ai.botofthespecter.com/', json=payload) as response:
+                        response.raise_for_status()
+                        ai_response = await response.text()
+                        api_logger.info(f"AI response received: {ai_response}")
+                        return ai_response
+            except aiohttp.ClientError as e:
+                bot_logger.error(f"Error getting AI response: {e}")
+                return "Sorry, I could not understand your request."
+        else:
+            # No premium access
+            return "This channel doesn't have a premium subscription to use this feature."
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='commands', aliases=['cmds'])
@@ -1265,7 +1390,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                 chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
-                await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead.")
+                await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead. Check me out on my website: https://botofthespecter.com")
         finally:
             await sqldb.ensure_closed()
 
@@ -1384,19 +1509,24 @@ class BotOfTheSpecter(commands.Bot):
                 result = await cursor.fetchone()
                 if result and result[0] == 'Disabled':
                     return
-            if not location:
-                location = await get_streamer_weather()
-            if location:
-                # Make API request to fetch weather data
-                async with aiohttp.ClientSession() as session:
-                    response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
-                    if response.status == 404:
-                        await ctx.send(f'Sorry, "{location}" not found, please try again.')
-                        return
-                    result = await response.json()
-                    api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
+            premium_tier = await check_premium_feature()
+            if premium_tier in (1000, 2000, 3000, 4000):
+                # Premium feature access granted
+                if not location:
+                    location = await get_streamer_weather()
+                if location:
+                    async with aiohttp.ClientSession() as session:
+                        response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
+                        if response.status == 404:
+                            await ctx.send(f'Sorry, "{location}" not found, please try again.')
+                            return
+                        result = await response.json()
+                        api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
+                else:
+                    await ctx.send("Unable to retrieve location.")
             else:
-                await ctx.send("Unable to retrieve location.")
+                # No premium access
+                await ctx.send(f"This channel doesn't have a premium subscription to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1671,6 +1801,9 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
+            premium_tier = await check_premium_feature()
+            if premium_tier in (1000, 2000, 3000, 4000):
+                # Premium feature access granted
                 global stream_online
                 if not stream_online:
                     await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
@@ -1683,6 +1816,9 @@ class BotOfTheSpecter(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"An error occurred while getting current song: {e}")
                     await ctx.send("Sorry, there was an error retrieving the current song.")
+            else:
+                # No premium access
+                await ctx.send(f"This channel doesn't have a premium subscription to use this command.") 
         finally:
             await sqldb.ensure_closed()
 
@@ -1771,6 +1907,11 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
+                is_valid_user = await is_valid_twitch_user(mentioned_username)
+                if not is_valid_user:
+                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a hug to them.")
+                    await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
+                    return
                 if mentioned_username:
                     target_user = mentioned_username.lstrip('@')
                     # Increment hug count in the database
@@ -1812,6 +1953,11 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
+                is_valid_user = await is_valid_twitch_user(mentioned_username)
+                if not is_valid_user:
+                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a kiss to them.")
+                    await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
+                    return
                 if mentioned_username:
                     target_user = mentioned_username.lstrip('@')
                     # Increment kiss count in the database
@@ -4004,13 +4150,6 @@ async def process_stream_online_websocket():
     await send_online_message(message)
     await send_to_discord_stream_online(message, image)
 
-# Function to process the stream being offline
-async def process_stream_offline_websocket():
-    global stream_online
-    stream_online = False  # Update the stream status
-    await clear_seen_today()
-    await clear_credits_data()
-
 # Function to send the online message to channel
 async def send_online_message(message):
     await asyncio.sleep(5)
@@ -4020,6 +4159,27 @@ async def send_online_message(message):
         await channel.send(message)
     else:
         bot_logger.error("Failed to send message")
+
+# Function to process the stream being offline
+async def process_stream_offline_websocket():
+    global stream_online, scheduled_clear_task
+    stream_online = False  # Update the stream status
+    # Cancel any previous scheduled task to avoid duplication
+    if 'scheduled_clear_task' in globals() and scheduled_clear_task:
+        scheduled_clear_task.cancel()
+    # Schedule the clearing task with a 5-minute delay
+    scheduled_clear_task = asyncio.create_task(delayed_clear_tables())
+    bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
+
+# Function to clear both tables if the stream remains offline after 5 minutes
+async def delayed_clear_tables():
+    global stream_online
+    await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
+    if not stream_online:  # If the stream is still offline, clear the tables
+        await clear_seen_today()
+        await clear_credits_data()
+    else:
+        bot_logger.info("Stream is back online. Skipping table clear.")
 
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
@@ -4054,30 +4214,24 @@ async def timed_message():
         global scheduled_tasks
         global stream_online
         if stream_online:
-            await cursor.execute('SELECT interval_count, message FROM timed_messages')
+            await cursor.execute('SELECT interval_count, message FROM timed_messages ORDER BY interval_count')
             messages = await cursor.fetchall()
             bot_logger.info(f"Timed Messages: {messages}")
-            # Store the messages currently scheduled
-            current_messages = [task.get_name() for task in scheduled_tasks]
-            # Check for messages to add or remove
+            # Clear any old tasks
+            for task in scheduled_tasks:
+                task.cancel()
+            scheduled_tasks.clear()
+            # Sequentially schedule messages
+            previous_time = datetime.now()
             for interval, message in messages:
-                if message in current_messages:
-                    # Message already scheduled, continue to next message
-                    continue
-                bot_logger.info(f"Timed Message: {message} has a {interval} minute wait.")
                 time_now = datetime.now()
-                send_time = time_now + timedelta(minutes=int(interval))
-                wait_time = (send_time - time_now).total_seconds()
+                next_time = previous_time + timedelta(minutes=int(interval))
+                wait_time = (next_time - time_now).total_seconds()
                 bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
                 task = asyncio.create_task(send_timed_message(message, wait_time))
-                task.set_name(message)  # Set a name for the task
-                scheduled_tasks.append(task)  # Keep track of the task
-            # Check for messages to remove
-            for task in scheduled_tasks:
-                if task.get_name() not in [message for _, message in messages]:
-                    # Message no longer in database, cancel the task
-                    task.cancel()
-                    scheduled_tasks.remove(task)
+                task.set_name(message)
+                scheduled_tasks.append(task)
+                previous_time = next_time  # Update previous_time for the next interval
         else:
             # Cancel all scheduled tasks if the stream goes offline
             for task in scheduled_tasks:
@@ -4376,6 +4530,11 @@ async def process_cheer_event(user_id, user_name, bits):
                     (user_id, user_name, new_points)
                 )
             await sqldb.commit()
+            # Add time to subathon if it's running
+            subathon_state = await get_subathon_state()
+            if subathon_state and not subathon_state[4]:  # If subathon is running
+                cheer_add_time = int(settings['cheer_add'])  # Retrieve the time to add for cheers
+                await addtime_subathon(channel, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
             await send_to_discord(discord_message, "New Cheer!", image)
             await channel.send(f"Thank you {user_name} for {bits} bits!")
@@ -4422,13 +4581,23 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                 event_logger.info(f"Updated points for user_id: {user_id} to {new_points}")
             else:
-                await cursor.execute(
-                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                    (user_id, user_name, new_points)
-                )
+                await cursor.execute("INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)", (user_id, user_name, new_points))
                 event_logger.info(f"Inserted new bot points for user_id: {user_id} with {new_points} points")
             await sqldb.commit()
             event_logger.info("Database changes committed successfully")
+            # Add time to subathon based on sub_plan
+            subathon_state = await get_subathon_state()
+            if subathon_state and not subathon_state[4]:  # If subathon is running
+                if sub_plan == 'Tier 1':
+                    sub_add_time = int(settings['sub_add_1'])
+                elif sub_plan == 'Tier 2':
+                    sub_add_time = int(settings['sub_add_2'])
+                elif sub_plan == 'Tier 3':
+                    sub_add_time = int(settings['sub_add_3'])
+                else:
+                    sub_add_time = 0  # Default to 0 if no matching tier
+                channel = bot.get_channel(CHANNEL_NAME)
+                await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
@@ -4443,7 +4612,6 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
-            channel = bot.get_channel(CHANNEL_NAME)
             try:
                 await channel.send(message)
                 event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
@@ -4476,10 +4644,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                 await cursor.execute('INSERT INTO subscription_data (user_id, user_name, sub_plan, months) VALUES (%s, %s, %s, %s)', (user_id, user_name, sub_plan, event_months))
                 event_logger.info(f"Inserted new subscription for user_id: {user_id}, sub_plan: {sub_plan}, months: {event_months}")
             # Insert stream credits data
-            await cursor.execute(
-                'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
-                (user_name, "subscriptions", f"{sub_plan} - {event_months} months")
-            )
+            await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_bot_settings()
@@ -4500,14 +4665,24 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                 event_logger.info(f"Inserted new bot points for user_id: {user_id} with {new_points} points")
             await sqldb.commit()
             event_logger.info("Database changes committed successfully")
-            # Prepare and send notification messages
-            if subscriber_message.strip():
-                message = f'Thank you {user_name} for subscribing at {sub_plan} for {event_months} months! Your message: "{subscriber_message}"'
-            else:
-                message = f"Thank you {user_name} for subscribing at {sub_plan} for {event_months} months!"
-            discord_message = f"{user_name} just subscribed at {sub_plan}!"
+            # Add time to subathon based on sub_plan
+            subathon_state = await get_subathon_state()
+            if subathon_state and not subathon_state[4]:  # If subathon is running
+                if sub_plan == 'Tier 1':
+                    sub_add_time = int(settings['sub_add_1'])
+                elif sub_plan == 'Tier 2':
+                    sub_add_time = int(settings['sub_add_2'])
+                elif sub_plan == 'Tier 3':
+                    sub_add_time = int(settings['sub_add_3'])
+                else:
+                    sub_add_time = 0  # Default to 0 if no matching tier
+                channel = bot.get_channel(CHANNEL_NAME)
+                await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
+            # Send notification messages
+            message = f"Thank you {user_name} for resubscribing! You are now a {sub_plan} subscriber for {event_months} months! {subscriber_message}"
+            discord_message = f"{user_name} just resubscribed at {sub_plan}!"
             try:
-                await send_to_discord(discord_message, "New Subscriber!", "sub.png")
+                await send_to_discord(discord_message, "New Resubscription!", "sub.png")
                 event_logger.info("Sent message to Discord")
             except Exception as e:
                 event_logger.error(f"Failed to send message to Discord: {e}")
@@ -4517,7 +4692,6 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
-            channel = bot.get_channel(CHANNEL_NAME)
             try:
                 await channel.send(message)
                 event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
@@ -5417,6 +5591,40 @@ async def known_users():
     finally:
         await sqldb.ensure_closed()
 
+async def check_premium_feature():
+    try:
+        twitch_user_url = "https://api.twitch.tv/helix/users"
+        twitch_subscriptions_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id={CHANNEL_ID}"
+        beta_users_url = f"https://api.botofthespecter.com/authorizedusers?api_key={ADMIN_API_KEY}"
+        headers = {
+            "Client-ID": CLIENT_ID,
+            "Authorization": f"Bearer {CHANNEL_AUTH}",
+        }
+        async with aiohttp.ClientSession() as session:
+            # Check Display Name and get Auth List from Specter API
+            async with session.get(twitch_user_url, headers=headers) as response:
+                response.raise_for_status()
+                user_data = await response.json()
+                display_name = user_data["data"][0]["display_name"]
+            # Check if the user is in the authorized list
+            async with session.get(beta_users_url) as response:
+                response.raise_for_status()
+                auth_data = await response.json()
+                auth_data = {key: value.lower() if isinstance(value, str) else value for key, value in auth_data.items()}
+                if display_name in auth_data["users"]:
+                    return 4000
+            # If user not found in Auth List, check if they're a subscriber
+            async with session.get(twitch_subscriptions_url, headers=headers) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if data.get("data"):
+                    return int(data["data"][0]["tier"])
+                else:
+                    return 0  # Return 0 if not subscribed
+    except aiohttp.ClientError as e:
+        twitch_logger.error(f"Error checking user/subscription: {e}")
+        return 0  # Return 0 for any API error
+
 async def get_mysql_connection():
     return await aiomysql.connect(
         host=SQL_HOST,
@@ -5770,6 +5978,7 @@ async def setup_database():
                         sub_add_1 INT,
                         sub_add_2 INT,
                         sub_add_3 INT,
+                        donation_add INT,
                         PRIMARY KEY (id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
                 '''
@@ -5818,9 +6027,6 @@ bot = BotOfTheSpecter(
 
 # Run the bot
 def start_bot():
-    # Schedule bot tasks
-    asyncio.get_event_loop().create_task(token_refresh())
-
     # Start the bot
     bot.run()
 
