@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // Define variables for standard bot
 $versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt';
 $newVersion = file_get_contents("/var/www/api/bot_version_control.txt") ?: 'N/A';
