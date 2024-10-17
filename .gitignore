@@ -52,7 +52,7 @@ dashboard/botcontrol.php
 dashboard/bottest.php
 
 # Ignoring the next update changelog file
-bot/changelog/5.0.md
+bot/changelog/5.1.md
 
 # Ignoring entire directories
 /app
