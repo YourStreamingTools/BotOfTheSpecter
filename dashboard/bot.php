@@ -95,13 +95,13 @@ if ($username === 'botofthespecter') {
 } else {
   // If the user is not BotOfTheSpecter, check mod status
   if ($ModStatusOutput) {
-      $BotModMessage = "<p class='has-text-success'>BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</p>";
+      $BotModMessage = '<div class="notification is-success has-text-black has-text-weight-bold">BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</div>';
       $showButtons = true;
   } else {
-      $BotModMessage = "<p class='has-text-danger'>BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</p><br>
-      <!--<form method='post'>
-          <button class='button is-success bot-button' type='submit' name='setupBot'>Run Setup</button>
-      </form>-->";
+      $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</div>
+      <!--<form method="post">
+          <button class="button is-success bot-button" type="submit" name="setupBot">Run Setup</button>
+      </form>-->';
       $showButtons = false;
   }
 }
@@ -165,7 +165,7 @@ if ($user['beta_access'] == 1) {
   <br>
   <?php echo $BotModMessage; ?>
   <?php echo $setupMessage; ?>
-  <?php if ($betaAccess) { echo "<p class='has-text-danger'>If you wish to start the Beta Version of the bot, please ensure that the Stable Bot is stopped first as this will cause two sets of data and will cause issues.</p><br>"; } ?>
+  <?php if ($betaAccess) { echo '<div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div>'; } ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
     <!-- Stable Bot Section -->
