@@ -54,8 +54,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       // Update the database with the new values
       $timezone = $_POST["timezone"];
       $weather_location = $_POST["weather_location"];
-      $updateQuery = $db->prepare("INSERT INTO 'profile' SET timezone = ?, weather_location = ? ON DUPLICATE KEY UPDATE timezone = ?, weather_location = ?");
-      $updateQuery->execute([$timezone, $weather_location, $timezone, $weather_location]);
+      $updateQuery = $db->prepare("INSERT INTO profile (timezone, weather_location) VALUES (?, ?) ON DUPLICATE KEY UPDATE timezone = VALUES(timezone), weather_location = VALUES(weather_location)");
+      $updateQuery->execute([$timezone, $weather_location]);
       $status = "Profile updated successfully!";
   } else {
     $status = "Error: Please provide both timezone and weather location.";
