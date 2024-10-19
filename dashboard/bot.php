@@ -165,7 +165,7 @@ if ($user['beta_access'] == 1) {
   <br>
   <?php echo $BotModMessage; ?>
   <?php echo $setupMessage; ?>
-  <?php if ($$betaAccess && $showButtons) { echo '<div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div>'; } ?>
+  <?php if ($betaAccess && $showButtons) { echo '<div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div>'; } ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
     <!-- Stable Bot Section -->
