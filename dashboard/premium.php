@@ -109,7 +109,7 @@ function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_messa
     $data = json_decode($response, true);
     // Check if the HTTP status is 404 (user not subscribed)
     if ($http_status == 404 && isset($data['message']) && strpos($data['message'], 'does not subscribe') !== false) {
-        $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
+        $error_message = "Error: You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
         return false; // No subscription found
     }
     // Check if there's a subscription
@@ -117,7 +117,7 @@ function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_messa
         return $data['data'][0]['tier']; // Return the subscription tier
     }
     // Handle if no subscription found
-    $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
+    $error_message = "Error: You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
     return false; // No subscription found
 }
 
@@ -142,7 +142,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
 
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-    <?php if (isset($error_message)) { echo "<p style='color: red;'>Error: " . htmlspecialchars($error_message) . "</p>"; } ?>
+    <?php if (isset($error_message)) { echo "<p style='color: red;'> " . htmlspecialchars($error_message) . "</p>"; } ?>
     <br>
     <h1 class="title">Premium Features</h1>
     <div class="card-container">
