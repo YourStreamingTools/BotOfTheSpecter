@@ -75,16 +75,19 @@ $plans = [
 // Check Twitch subscription tier
 $currentPlan = 'free'; // Default to free
 $error_message = ''; // Initialize error message
-$twitchSubTier = fetchTwitchSubscriptionTier($access_token, $twitchUserId, $error_message);
-if ($twitchSubTier) {
-    // Ensure the tier is treated as a string for comparison
-    $twitchSubTierString = (string) $twitchSubTier;
-    if (array_key_exists($twitchSubTierString, $plans)) {
-        $currentPlan = $twitchSubTierString; 
+// Only fetch subscription tier if the user is not a beta user
+if (!$isBetaUser) {
+    $twitchSubTier = fetchTwitchSubscriptionTier($access_token, $twitchUserId, $error_message);
+    if ($twitchSubTier) {
+        // Ensure the tier is treated as a string for comparison
+        $twitchSubTierString = (string) $twitchSubTier;
+        if (array_key_exists($twitchSubTierString, $plans)) {
+            $currentPlan = $twitchSubTierString; 
+        }
+    } else {
+        // Handle the case where no subscription was found or any error occurred
+        $error_message = !empty($error_message) ? $error_message : "Unable to retrieve subscription details.";
     }
-} else {
-    // Handle the case where no subscription was found or any error occurred
-    $error_message = !empty($error_message) ? $error_message : "Unable to retrieve subscription details.";
 }
 // Updated fetch function to return both tier and check if it's a gift
 function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_message) {
