@@ -9,7 +9,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Payments";
+$title = "Premium Features";
 
 // Connect to database
 require_once "db_connect.php";
@@ -74,7 +74,8 @@ $plans = [
 
 // Check Twitch subscription tier
 $currentPlan = 'free'; // Default to free
-$twitchSubTier = fetchTwitchSubscriptionTier($authToken, $twitchUserId);
+$error_message = ''; // Initialize error message
+$twitchSubTier = fetchTwitchSubscriptionTier($access_token, $twitchUserId, $error_message);
 if ($twitchSubTier) {
     // Ensure the tier is treated as a string for comparison
     $twitchSubTierString = (string) $twitchSubTier;
@@ -82,14 +83,14 @@ if ($twitchSubTier) {
         $currentPlan = $twitchSubTierString; 
     }
 } else {
-    // Handle the case where no subscription was found (you may want to log this or handle errors)
-    $error_message = "Unable to retrieve subscription details.";
+    // Handle the case where no subscription was found or any error occurred
+    $error_message = !empty($error_message) ? $error_message : "Unable to retrieve subscription details.";
 }
 // Updated fetch function to return both tier and check if it's a gift
-function fetchTwitchSubscriptionTier($token, $twitchUserId) {
+function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_message) {
     $url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
     $headers = [
-        "Authorization: Bearer $token",
+        "Authorization: Bearer $access_token",
         "Client-ID: mrjucsmsnri89ifucl66jj1n35jkj8",
     ];
     $ch = curl_init();
@@ -103,11 +104,16 @@ function fetchTwitchSubscriptionTier($token, $twitchUserId) {
         curl_close($ch);
         return false; // Return false if an error occurred
     }
+    $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     $data = json_decode($response, true);
+    // Check if the HTTP status is 404 (user not subscribed)
+    if ($http_status == 404 && isset($data['message']) && strpos($data['message'], 'does not subscribe') !== false) {
+        $error_message = "No subscription found."; // Set an error message
+        return false; // No subscription found
+    }
     // Check if there's a subscription
     if (isset($data['data']) && count($data['data']) > 0) {
-        // Assuming you want the first subscription in the list
         return $data['data'][0]['tier']; // Return the subscription tier
     }
     // Handle if no subscription found
