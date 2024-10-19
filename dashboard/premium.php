@@ -109,7 +109,7 @@ function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_messa
     $data = json_decode($response, true);
     // Check if the HTTP status is 404 (user not subscribed)
     if ($http_status == 404 && isset($data['message']) && strpos($data['message'], 'does not subscribe') !== false) {
-        $error_message = "No subscription found."; // Set an error message
+        $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
         return false; // No subscription found
     }
     // Check if there's a subscription
@@ -117,7 +117,7 @@ function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_messa
         return $data['data'][0]['tier']; // Return the subscription tier
     }
     // Handle if no subscription found
-    $error_message = "No subscription found."; // Set an error message
+    $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; // Set an error message
     return false; // No subscription found
 }
 
