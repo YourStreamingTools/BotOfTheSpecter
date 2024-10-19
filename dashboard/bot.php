@@ -98,7 +98,7 @@ if ($username === 'botofthespecter') {
       $BotModMessage = '<div class="notification is-success has-text-black has-text-weight-bold">BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</div>';
       $showButtons = true;
   } else {
-      $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not a mod on your channel, please mod the bot on your channel before moving forward.</div>
+      $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not a mod on your channel, please mod the bot on your Twitch Channel before moving forward.<br>You can do this by going to your Twitch Streamer Dashboard, Community, Roles Manager.</div>
       <!--<form method="post">
           <button class="button is-success bot-button" type="submit" name="setupBot">Run Setup</button>
       </form>-->';
@@ -165,7 +165,7 @@ if ($user['beta_access'] == 1) {
   <br>
   <?php echo $BotModMessage; ?>
   <?php echo $setupMessage; ?>
-  <?php if ($betaAccess) { echo '<div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div>'; } ?>
+  <?php if ($$betaAccess && $showButtons) { echo '<div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div>'; } ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
     <!-- Stable Bot Section -->
@@ -188,7 +188,7 @@ if ($user['beta_access'] == 1) {
     </div>
     <?php endif; ?>
     <!-- Beta Bot Section -->
-    <?php if ($betaAccess) { ?>
+    <?php if ($betaAccess && $showButtons) { ?>
     <div class="column is-5 bot-box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
