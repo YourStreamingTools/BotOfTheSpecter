@@ -347,7 +347,7 @@ if ($user['beta_access'] == 1) {
     </header>
     <section class="modal-card-body has-background-dark has-text-white">
       <p><span class="has-text-weight-bold variable-title">Force Online Status</span>:<br>
-        Clicking this button will set your status to online across the entire system, even if your stream is currently offline. By doing so, both the Twitch Chat Bot and Discord Bot will be notifiied of your desire to appear as online.
+        Clicking this button will set your status to online across the entire system, even if your stream is currently offline. By doing so, both the Twitch Chat Bot and Discord Bot will be notifiedof your desire to appear as online.
       </p>
         <br>
       <p><span class="has-text-weight-bold variable-title">Force Offline Status</span>:<br>
