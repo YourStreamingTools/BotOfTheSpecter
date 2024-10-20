@@ -251,87 +251,16 @@ if ($user['beta_access'] == 1) {
       <h4 class="title is-4 has-text-centered">API Limits</h4>
       <div class="status-message" style="font-size: 18px; padding: 15px; background-color: #2c3e50; color: #ecf0f1; border-radius: 8px;">
         <!-- Song Identification Section -->
-        <div class="api-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
-          <?php
-          $shazamFile = "/var/www/api/shazam.txt";
-          $shazam_reset_day = 23;
-          $today = new DateTime(); // Initialize today's date
-          if ($today->format('d') >= $shazam_reset_day) {
-            $shazam_next_reset = new DateTime('first day of next month');
-            $shazam_next_reset->setDate($shazam_next_reset->format('Y'), $shazam_next_reset->format('m'), $shazam_reset_day);
-          } else {
-            $shazam_next_reset = new DateTime($today->format('Y-m') . "-$shazam_reset_day");
-          }
-          $days_until_reset = $today->diff($shazam_next_reset)->days;
-          $reset_date_shazam = $shazam_next_reset->format('F j, Y');
-          if (file_exists($shazamFile)) {
-            $shazam_requests_remaining = file_get_contents($shazamFile);
-            $last_modified_shazam = date("F j, Y, g:i A T", filemtime($shazamFile));
-            if (is_numeric($shazam_requests_remaining)) {
-              echo "<p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>" . $shazam_requests_remaining . "</span> 
-              (<span title='Next reset date: $reset_date_shazam'>" . $days_until_reset . " days until reset</span>)</p>";
-            } else {
-              echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
-            }
-            echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_shazam</span></p>";
-          } else {
-            echo "<p style='color: #e74c3c;'>No song identification data available.</p>";
-          }
-          ?>
+        <div class="api-section" id="shazam-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
+          <p>Loading Shazam data...</p>
         </div>
         <!-- Exchange Rate Section -->
-        <div class="api-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
-          <?php
-          $exchangerateFile = "/var/www/api/exchangerate.txt";
-          $exchangerate_reset_day = 14;
-          if ($today->format('d') >= $exchangerate_reset_day) {
-            $exchangerate_next_reset = new DateTime('first day of next month');
-            $exchangerate_next_reset->setDate($exchangerate_next_reset->format('Y'), $exchangerate_next_reset->format('m'), $exchangerate_reset_day);
-          } else {
-            $exchangerate_next_reset = new DateTime($today->format('Y-m') . "-$exchangerate_reset_day");
-          }
-          $days_until_reset = $today->diff($exchangerate_next_reset)->days;
-          $reset_date_exchangerate = $exchangerate_next_reset->format('F j, Y');
-          if (file_exists($exchangerateFile)) {
-            $exchangerate_requests_remaining = file_get_contents($exchangerateFile);
-            $last_modified_exchangerate = date("F j, Y, g:i A T", filemtime($exchangerateFile));
-            if (is_numeric($exchangerate_requests_remaining)) {
-              echo "<p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>" . $exchangerate_requests_remaining . "</span> 
-              (<span title='Next reset date: $reset_date_exchangerate'>" . $days_until_reset . " days until reset</span>)</p>";
-            } else {
-              echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
-            }
-            echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_exchangerate</span></p>";
-          } else {
-            echo "<p style='color: #e74c3c;'>No exchange rate data available.</p>";
-          }
-          ?>
+        <div class="api-section" id="exchangerate-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
+          <p>Loading Exchange Rate data...</p>
         </div>
         <!-- Weather Usage Section -->
-        <div class="api-section">
-          <?php
-          $weatherFile = "/var/www/api/weather.txt";
-          // Calculate midnight of the next day
-          $midnight = new DateTime('tomorrow midnight');
-          // Calculate the time remaining until midnight
-          $time_until_midnight = $today->diff($midnight);
-          $hours_until_midnight = $time_until_midnight->h;
-          $minutes_until_midnight = $time_until_midnight->i;
-          $seconds_until_midnight = $time_until_midnight->s;
-          if (file_exists($weatherFile)) {
-            $weather_requests_remaining = file_get_contents($weatherFile);
-            $last_modified_weather = date("F j, Y, g:i A T", filemtime($weatherFile));
-            if (is_numeric($weather_requests_remaining)) {
-              echo "<p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>" . $weather_requests_remaining . "</span><br> 
-              (<span title='Resets at midnight'>" . $hours_until_midnight . " hours, " . $minutes_until_midnight . " minutes, and " . $seconds_until_midnight . " seconds until reset</span>)</p>";
-            } else {
-              echo "<p style='color: #e74c3c;'>Sorry, I can't seem to find how many requests are left.</p>";
-            }
-            echo "<p>Last checked: <span style='color: #f39c12;'>$last_modified_weather</span></p>";
-          } else {
-            echo "<p style='color: #e74c3c;'>No weather requests data available.</p>";
-          }
-          ?>
+        <div class="api-section" id="weather-section">
+          <p>Loading Weather data...</p>
         </div>
       </div>
     </div>
@@ -442,6 +371,36 @@ function checkHeartbeat() {
 setInterval(checkHeartbeat, 5000);
 // Initial check
 checkHeartbeat();
+
+function updateApiLimits() {
+    fetch('/api_limits.php')
+    .then(response => response.json())
+    .then(data => {
+        // Update Shazam Section
+        document.getElementById('shazam-section').innerHTML = `
+            <p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>${data.shazam.requests_remaining}</span> 
+            (<span title='Next reset date: ${data.shazam.reset_date}'>${data.shazam.days_until_reset} days until reset</span>)</p>
+            <p>Last checked: <span style='color: #f39c12;'>${data.shazam.last_modified}</span></p>
+        `;
+        // Update Exchange Rate Section
+        document.getElementById('exchangerate-section').innerHTML = `
+            <p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>${data.exchangerate.requests_remaining}</span> 
+            (<span title='Next reset date: ${data.exchangerate.reset_date}'>${data.exchangerate.days_until_reset} days until reset</span>)</p>
+            <p>Last checked: <span style='color: #f39c12;'>${data.exchangerate.last_modified}</span></p>
+        `;
+        // Update Weather Section
+        document.getElementById('weather-section').innerHTML = `
+            <p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>${data.weather.requests_remaining}</span><br> 
+            (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes, and ${data.weather.seconds_until_midnight} seconds until reset</span>)</p>
+            <p>Last checked: <span style='color: #f39c12;'>${data.weather.last_modified}</span></p>
+        `;
+    })
+    .catch(error => {
+        console.error('Error fetching API limits:', error);
+    });
+}
+updateApiLimits();
+setInterval(updateApiLimits, 60000);
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
