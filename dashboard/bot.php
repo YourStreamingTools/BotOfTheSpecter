@@ -355,7 +355,7 @@ if ($user['beta_access'] == 1) {
         Additionally, after 5 minutes, if you remain offline, this action will clear the "Credits" overlay data and the "Seen Users" list for welcome messages.
       </p>
       <br>
-      <a href="https://wiki.botofthespecter.com/tiki-index.php?page=Websocket%20Service" class="button is-info">View More Information</a>
+      <a href="https://wiki.botofthespecter.com/tiki-index.php?page=Websocket%20Service" target="_blank" class="button is-info">View More Information</a>
     </section>
   </div>
 </div>
