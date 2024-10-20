@@ -284,6 +284,14 @@ try {
     // Execute each table creation query
     foreach ($tables as $table_name => $sql) {
         if ($usrDBconn->query($sql) === TRUE) {} else { echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>"; }}
+    // Ensure 'Default' category exists
+    $usrDBconn->query("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')");
+    // Ensure default options for showobs exist
+    $usrDBconn->query("INSERT INTO showobs (font, color, list, shadow, bold, font_size) SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22 WHERE NOT EXISTS (SELECT 1 FROM showobs)");
+    // Ensure default options for bot_settings exist
+    $usrDBconn->query("INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users) SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', '$username') WHERE NOT EXISTS (SELECT 1 FROM bot_settings)");
+    // Ensure default options for subathon_settings exist
+    $usrDBconn->query("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) SELECT 60, 5, 10, 20, 30 WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)");
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
