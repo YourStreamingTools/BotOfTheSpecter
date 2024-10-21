@@ -24,7 +24,7 @@ try {
     }
     // Close the connection after creating the database
     $usrDBconn->close();
-    // Reconnect to the server specify the database
+    // Reconnect to the server specifying the database
     $usrDBconn = new mysqli($mysqlhost, $mysqlusername, $mysqlpassword, $dbname);
     // Check connection again
     if ($usrDBconn->connect_error) {
@@ -420,6 +420,7 @@ try {
         $tableExists = $usrDBconn->query("SHOW TABLES LIKE '$table_name'")->num_rows > 0;
         // Create the table if it doesn't exist
         if (!$tableExists) {
+            echo "<script>console.log('Table $table_name does not exist, creating it...');</script>";
             if ($usrDBconn->query($sql) === TRUE) {
                 echo "<script>console.log('Table $table_name created successfully.');</script>";
             } else {
@@ -430,18 +431,16 @@ try {
         // Check for columns that need to be added
         if (isset($columns[$table_name])) {
             foreach ($columns[$table_name] as $column_name => $column_definition) {
-                $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
+                $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
                 if (!$result) {
-                    echo "<script>console.error('Error checking column existence: " . addslashes($usrDBconn->error) . "');</script>";
+                    echo "<script>console.error('Error checking column existence in table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
                     continue;
                 }
                 if ($result->num_rows == 0) {
-                    // Column doesn't exist, alter table to add it
+                    // Column doesn't exist, log and alter table to add it
                     $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
-                    echo "<script>console.log('Executing SQL: " . addslashes($alter_sql) . "');</script>";
-                    if ($usrDBconn->query($alter_sql) === TRUE) {
-                        echo "<script>console.log('Column $column_name added to table $table_name');</script>";
-                    } else {
+                    echo "<script>console.log('Column $column_name does not exist, adding it to table $table_name...');</script>";
+                    if ($usrDBconn->query($alter_sql) === TRUE) { } else {
                         echo "<script>console.error('Error adding column $column_name to table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
                     }
                 }
