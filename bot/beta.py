@@ -5136,12 +5136,16 @@ async def builtin_commands_creation():
             existing_commands = [row[0] for row in await cursor.fetchall()]
             # Filter out existing commands
             new_commands = [command for command in all_commands if command not in existing_commands]
-            # Insert new commands
+            # Insert new commands with their permissions
             if new_commands:
-                values = [(command, 'Enabled') for command in new_commands]
+                values = []
+                for command in new_commands:
+                    # Determine permission type
+                    permission = 'everyone' if command in builtin_commands else 'mod'
+                    values.append((command, 'Enabled', permission))
                 # Insert query with placeholders for each command
-                insert_query = "INSERT INTO builtin_commands (command, status) VALUES (%s, %s)"
-                await cursor.executemany(insert_query, values)  # Use executemany here
+                insert_query = "INSERT INTO builtin_commands (command, status, permission) VALUES (%s, %s, %s)"
+                await cursor.executemany(insert_query, values)
                 await sqldb.commit()
                 for command in new_commands:
                     bot_logger.info(f"Command '{command}' added to database successfully.")
