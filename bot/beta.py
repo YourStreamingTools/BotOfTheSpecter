@@ -5129,23 +5129,38 @@ async def builtin_commands_creation():
             # Create placeholders for the query
             placeholders = ', '.join(['%s'] * len(all_commands))
             # Construct the query string with the placeholders
-            query = f"SELECT command FROM builtin_commands WHERE command IN ({placeholders})"
+            query = f"SELECT command, permission FROM builtin_commands WHERE command IN ({placeholders})"
             # Execute the query with the tuple of all commands
             await cursor.execute(query, tuple(all_commands))
             # Fetch the existing commands from the database
-            existing_commands = [row[0] for row in await cursor.fetchall()]
+            existing_commands = await cursor.fetchall()
+            existing_command_dict = {row[0]: row[1] for row in existing_commands}  # command: permission
             # Filter out existing commands
-            new_commands = [command for command in all_commands if command not in existing_commands]
+            new_commands = [command for command in all_commands if command not in existing_command_dict]
+            # Check for commands with NULL permission and update accordingly
+            commands_to_update = []
+            for command in existing_command_dict:
+                permission = existing_command_dict[command]
+                if permission is None:
+                    new_permission = 'mod' if command in mod_commands else 'everyone'
+                    commands_to_update.append((new_permission, command))
+            # Update NULL permissions
+            if commands_to_update:
+                update_query = "UPDATE builtin_commands SET permission = %s WHERE command = %s"
+                await cursor.executemany(update_query, commands_to_update)
+                await sqldb.commit()
+                for command in commands_to_update:
+                    bot_logger.info(f"Command '{command[1]}' updated with permission '{command[0]}.'")
             # Insert new commands with their permissions
             if new_commands:
                 values = []
                 for command in new_commands:
                     # Determine permission type
-                    permission = 'everyone' if command in builtin_commands else 'mod'
+                    permission = 'mod' if command in mod_commands else 'everyone'
                     values.append((command, 'Enabled', permission))
                 # Insert query with placeholders for each command
                 insert_query = "INSERT INTO builtin_commands (command, status, permission) VALUES (%s, %s, %s)"
-                await cursor.executemany(insert_query, values)
+                await cursor.executemany(insert_query, values)  # Use executemany here
                 await sqldb.commit()
                 for command in new_commands:
                     bot_logger.info(f"Command '{command}' added to database successfully.")
