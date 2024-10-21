@@ -3,7 +3,7 @@
 $mysqlhost = "sql.botofthespecter.com";
 $mysqlusername = ""; // CHANGE TO MAKE THIS WORK
 $mysqlpassword = ""; // CHANGE TO MAKE THIS WORK
-$dbname = $username;
+$dbname = $_SESSION['username'];
 
 // Initialize all variables as empty arrays or values
 $commands = [];
@@ -29,15 +29,18 @@ try {
     if ($usrDBconn->connect_error) {
         die("Connection failed: " . $usrDBconn->connect_error);
     }
-    // Create the database if it doesn't exist
-    $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
-    if ($usrDBconn->query($sql) === TRUE) {
-        // Select the database
-        if (!$usrDBconn->select_db($dbname)) {
-            die("Failed to select database: " . $usrDBconn->error);
+    // Select the database (if it already exists)
+    if (!$usrDBconn->select_db($dbname)) {
+        // If the database doesn't exist, create it
+        $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
+        if ($usrDBconn->query($sql) === TRUE) {
+            // Try selecting the database again after creation
+            if (!$usrDBconn->select_db($dbname)) {
+                die("Failed to select database after creation: " . $usrDBconn->error);
+            }
+        } else {
+            die("Failed to create database: " . $usrDBconn->error);
         }
-    } else {
-        die("Failed to create database: " . $usrDBconn->error);
     }
     // List of table creation statements
     $tables = [
@@ -444,6 +447,7 @@ try {
                 if ($result->num_rows == 0) {
                     // Column doesn't exist, alter table to add it
                     $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
+                    echo "<script>console.log('Executing SQL: $alter_sql');</script>";
                     if ($usrDBconn->query($alter_sql) === TRUE) {
                         echo "<script>console.log('Column $column_name added to table $table_name');</script>";
                     } else {
