@@ -440,6 +440,7 @@ try {
         if (isset($columns[$table_name])) {
             foreach ($columns[$table_name] as $column_name => $column_definition) {
                 $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
+                if (!$result) { echo "<script>console.error('Error checking column existence: " . $usrDBconn->error . "');</script>"; continue;}
                 if ($result->num_rows == 0) {
                     // Column doesn't exist, alter table to add it
                     $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
