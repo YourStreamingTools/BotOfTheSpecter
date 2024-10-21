@@ -153,6 +153,8 @@ if ($user['beta_access'] == 1) {
     <style>
         .variable-item { margin-bottom: 1.5rem; }
         .variable-title { color: #ffdd57; }
+        #last-modified-info { display: inline; }
+        #last-modified-time { display: inline; }
     </style>
     <!-- /Header -->
   </head>
@@ -193,7 +195,26 @@ if ($user['beta_access'] == 1) {
     <div class="column is-5 bot-box" id="beta-bot-status">
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
-      <?php echo $betaVersionRunning; ?><br>
+      <?php echo $betaVersionRunning; ?>
+      <div id="last-modified-info">
+        Last Changed: <span id="last-modified-time"><?php
+        $file = '/var/www/bot/beta.py';
+        if (file_exists($file)) {
+          $fileModifiedTime = filemtime($file);
+          $timeAgo = time() - $fileModifiedTime;
+          if ($timeAgo < 60) {
+            echo $timeAgo . ' seconds ago';
+          } elseif ($timeAgo < 3600) {
+            echo floor($timeAgo / 60) . ' minutes ago';
+          } elseif ($timeAgo < 86400) {
+            echo floor($timeAgo / 3600) . ' hours ago';
+          } else {
+            echo floor($timeAgo / 86400) . ' days ago';
+          }
+        }
+        ?>
+        </span>
+      </div><br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button>
@@ -402,6 +423,24 @@ function updateApiLimits() {
 }
 updateApiLimits();
 setInterval(updateApiLimits, 60000);
+
+function checkLastModified() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "", true);
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            var response = xhr.responseText.trim();
+            var lastModifiedStart = response.indexOf('<span id="last-modified-time">') + '<span id="last-modified-time">'.length;
+            var lastModifiedEnd = response.indexOf('</span>', lastModifiedStart);
+            var lastModifiedTime = response.substring(lastModifiedStart, lastModifiedEnd);
+            document.getElementById("last-modified-time").innerText = lastModifiedTime;
+        }
+    };
+    xhr.send();
+}
+checkLastModified();
+setInterval(checkLastModified, 300000);
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
