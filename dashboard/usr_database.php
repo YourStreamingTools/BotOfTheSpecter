@@ -458,6 +458,6 @@ try {
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
-    echo "Connection failed: " . $e->getMessage();
+    echo "<script>console.error('Connection failed: " . addslashes($e->getMessage()) . "');</script>";
 }
 ?>
