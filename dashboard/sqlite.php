@@ -31,10 +31,13 @@ try {
     }
     // Create the database if it doesn't exist
     $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
-    if ($usrDBconn->query($sql) === TRUE) {} else { die(); }
-    // Select the database
-    if (!$usrDBconn->select_db($dbname)) {
-        die();
+    if ($usrDBconn->query($sql) === TRUE) {
+        // Select the database
+        if (!$usrDBconn->select_db($dbname)) {
+            die("Failed to select database: " . $usrDBconn->error);
+        }
+    } else {
+        die("Failed to create database: " . $usrDBconn->error);
     }
     // List of table creation statements
     $tables = [
