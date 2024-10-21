@@ -1,4 +1,8 @@
 <?php
+// Initialize the session
+session_start();
+
+// Database
 $mysqlhost = "sql.botofthespecter.com";
 $mysqlusername = ""; // CHANGE TO MAKE THIS WORK
 $mysqlpassword = ""; // CHANGE TO MAKE THIS WORK
