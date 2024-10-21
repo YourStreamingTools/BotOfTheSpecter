@@ -14,7 +14,7 @@ try {
     // Check if the database exists, if not, create it
     $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
     if ($usrDBconn->query($sql) === TRUE) {
-        echo "<script>console.log('Database `$dbname` created or already exists.');</script>";
+        echo "<script>console.log('Database $dbname created or already exists.');</script>";
     } else {
         die("Error creating database: " . $usrDBconn->error);
     }
@@ -420,6 +420,7 @@ try {
                 echo "<script>console.log('Table $table_name created successfully.');</script>";
             } else {
                 echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>";
+                echo "<script>console.error('Error creating table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
                 continue;
             }
         }
@@ -427,15 +428,18 @@ try {
         if (isset($columns[$table_name])) {
             foreach ($columns[$table_name] as $column_name => $column_definition) {
                 $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
-                if (!$result) { echo "<script>console.error('Error checking column existence: " . $usrDBconn->error . "');</script>"; continue;}
+                if (!$result) {
+                    echo "<script>console.error('Error checking column existence: " . addslashes($usrDBconn->error) . "');</script>";
+                    continue;
+                }
                 if ($result->num_rows == 0) {
                     // Column doesn't exist, alter table to add it
                     $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
-                    echo "<script>console.log('Executing SQL: $alter_sql');</script>";
+                    echo "<script>console.log('Executing SQL: " . addslashes($alter_sql) . "');</script>";
                     if ($usrDBconn->query($alter_sql) === TRUE) {
                         echo "<script>console.log('Column $column_name added to table $table_name');</script>";
                     } else {
-                        echo "<script>console.error('Error adding column $column_name to table $table_name: " . $usrDBconn->error . "');</script>";
+                        echo "<script>console.error('Error adding column $column_name to table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
                     }
                 }
             }
@@ -452,5 +456,6 @@ try {
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
-    echo "<script>console.error('Exception caught: " . $e->getMessage() . "');</script>";
+    echo "Connection failed: " . $e->getMessage();
 }
+?>
