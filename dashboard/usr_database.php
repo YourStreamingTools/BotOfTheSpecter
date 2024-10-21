@@ -419,7 +419,6 @@ try {
             if ($usrDBconn->query($sql) === TRUE) {
                 echo "<script>console.log('Table $table_name created successfully.');</script>";
             } else {
-                echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>";
                 echo "<script>console.error('Error creating table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
                 continue;
             }
