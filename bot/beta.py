@@ -1071,7 +1071,7 @@ class BotOfTheSpecter(commands.Bot):
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
                             # User is permitted, skip URL blocking
                             return
-                        if command_permissions(messageAuthor):
+                        if command_permissions("mod", messageAuthor):
                             # User is a mod or is the broadcaster, they are by default permitted.
                             return
                         # Fetch link whitelist from the database
@@ -1383,7 +1383,7 @@ class BotOfTheSpecter(commands.Bot):
                         if status == 'Disabled':
                             chat_logger.warning(f"Command 'commands' is disabled and cannot be run by {ctx.author.name}.")
                             return
-                    is_mod = await command_permissions(ctx.author)
+                    is_mod = await command_permissions("mod", ctx.author)
                     if is_mod:
                         # If the user is a mod, include both mod_commands and builtin_commands
                         mod_commands_list = ", ".join(sorted(f"!{command}" for command in mod_commands))
@@ -1420,7 +1420,7 @@ class BotOfTheSpecter(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
     @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
-        if await command_permissions(ctx.author):
+        if await command_permissions("mod", ctx.author):
             sqldb = await get_mysql_connection()
             try:
                 async with sqldb.cursor() as cursor:
@@ -1448,7 +1448,7 @@ class BotOfTheSpecter(commands.Bot):
     async def forceoffline_command(self, ctx):
         global stream_online
         global current_game
-        if await command_permissions(ctx.author):
+        if await command_permissions("mod", ctx.author):
             sqldb = await get_mysql_connection()
             try:
                 async with sqldb.cursor() as cursor:
@@ -1744,7 +1744,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     permit_user = permit_user.lstrip('@')
                     if permit_user:
                         permitted_users[permit_user] = time.time() + 30
@@ -1769,7 +1769,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     if title is None:
                         await ctx.send("Stream titles cannot be blank. You must provide a title for the stream.")
                         return
@@ -1794,7 +1794,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     if game is None:
                         await ctx.send("You must provide a game for the stream.")
                         return
@@ -2423,7 +2423,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     marker_description = description if description else f"Marker made by {ctx.author.name}"
                     marker_payload = {
                         "user_id": CHANNEL_ID,
@@ -2627,7 +2627,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     chat_logger.info("Edit Typos Command ran.")
                     try:
                         # Determine the target user: mentioned user or the command caller
@@ -2684,7 +2684,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     # Ensure a username is mentioned
                     if mentioned_username is None:
                         chat_logger.error("Command missing username parameter.")
@@ -2788,7 +2788,7 @@ class BotOfTheSpecter(commands.Bot):
                     total_death_count = total_death_count_result[0] if total_death_count_result else 0
                     chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
-                    if await command_permissions(ctx.author):
+                    if await command_permissions("mod", ctx.author):
                         chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {game_death_count}")
                         await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                 except Exception as e:
@@ -2811,7 +2811,7 @@ class BotOfTheSpecter(commands.Bot):
                         return
                 else:
                     chat_logger.info("No status found for Death Add Command.")
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     global current_game
                     if current_game is None:
                         await ctx.send("Current game is not set. Can not add death to nothing.")
@@ -2864,7 +2864,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                if await command_permissions("mod", ctx.author):
                     global current_game
                     if current_game is None:
                         await ctx.send("Current game is not set. Can't remove from nothing.")
@@ -3091,7 +3091,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-            if command_permissions(ctx.author):
+            if command_permissions("mod", ctx.author):
                 API_URL = "https://api.botofthespecter.com/versions"
                 async with ClientSession() as session:
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
@@ -3131,7 +3131,7 @@ class BotOfTheSpecter(commands.Bot):
                     status = result[0]
                     if status == 'Disabled':
                         return
-            if await command_permissions(ctx.author):
+            if await command_permissions("mod", ctx.author):
                 chat_logger.info(f"Shoutout command running from {ctx.author.name}")
                 if not user_to_shoutout:
                     chat_logger.error(f"Shoutout command missing username parameter.")
@@ -3192,7 +3192,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             # Check if the user is a moderator or the broadcaster
-            if command_permissions(ctx.author):
+            if command_permissions("mod", ctx.author):
                 # Parse the command and response from the message
                 try:
                     command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
@@ -3223,7 +3223,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             # Check if the user is a moderator or the broadcaster
-            if command_permissions(ctx.author):
+            if command_permissions("mod", ctx.author):
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
@@ -3253,7 +3253,7 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
             # Check if the user is a moderator or the broadcaster
-            if command_permissions(ctx.author):
+            if command_permissions("mod", ctx.author):
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
@@ -3488,7 +3488,7 @@ class BotOfTheSpecter(commands.Bot):
                 action = action.lower()
                 # Check permissions for actions other than viewing
                 if action in ['add', 'edit', 'remove', 'complete', 'done']:
-                    if not await command_permissions(user):
+                    if not await command_permissions("mod", user):
                         await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
                         return
                 if action == 'add':
@@ -3624,7 +3624,7 @@ class BotOfTheSpecter(commands.Bot):
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
         user = ctx.author
         if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
-            if not await command_permissions(user):
+            if not await command_permissions("mod", user):
                 await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
                 return
         if action == "start":
@@ -3694,7 +3694,11 @@ async def get_display_name(user_id):
                 return None
 
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
-async def command_permissions(user):
+async def command_permissions(setting, user):
+    # Check if the setting allows everyone
+    if setting == "everyone":
+        twitch_logger.info(f"Command Permission granted to {user.name}. (Everyone allowed)")
+        return True
     # Check if the user is the bot owner
     if user.name == 'gfaundead':
         twitch_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
@@ -3703,12 +3707,16 @@ async def command_permissions(user):
     elif user.name == CHANNEL_NAME:
         twitch_logger.info(f"Command Permission checked, {user.name} is the Broadcaster")
         return True
-    # Check if the user is a moderator
-    elif user.is_mod:
+    # Check if the user is a moderator and the setting is "mod"
+    elif setting == "mod" and user.is_mod:
         twitch_logger.info(f"Command Permission checked, {user.name} is a Moderator")
         return True
+    # Check if the user is a VIP and the setting is "vip"
+    elif setting == "vip" and user.is_vip:
+        twitch_logger.info(f"Command Permission checked, {user.name} is a VIP")
+        return True
     # If none of the above, the user does not have required permissions
-    twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires mod permission.")
+    twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires {setting} permission.")
     return False
 
 async def is_user_mod(username):
