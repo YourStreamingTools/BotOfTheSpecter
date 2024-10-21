@@ -64,6 +64,7 @@ try {
             CREATE TABLE IF NOT EXISTS builtin_commands (
                 command VARCHAR(255),
                 status VARCHAR(255),
+                permission VARCHAR(255),
                 PRIMARY KEY (command)
             ) ENGINE=InnoDB",
         'user_typos' => "
