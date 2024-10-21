@@ -27,7 +27,7 @@ try {
     $usrDBconn = new mysqli($mysqlhost, $mysqlusername, $mysqlpassword);
     // Check connection
     if ($usrDBconn->connect_error) {
-        die();
+        die("Connection failed: " . $usrDBconn->connect_error);
     }
     // Create the database if it doesn't exist
     $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
@@ -440,6 +440,7 @@ try {
             }
         } else {
             echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>";
+            continue;
         }
     }
     // Ensure 'Default' category exists
@@ -447,7 +448,7 @@ try {
     // Ensure default options for showobs exist
     $usrDBconn->query("INSERT INTO showobs (font, color, list, shadow, bold, font_size) SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22 WHERE NOT EXISTS (SELECT 1 FROM showobs)");
     // Ensure default options for bot_settings exist
-    $usrDBconn->query("INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users) SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', '$username') WHERE NOT EXISTS (SELECT 1 FROM bot_settings)");
+    $usrDBconn->query("INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users) SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM bot_settings)");
     // Ensure default options for subathon_settings exist
     $usrDBconn->query("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) SELECT 60, 5, 10, 20, 30 WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)");
     // Close the connection
