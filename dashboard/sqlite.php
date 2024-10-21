@@ -1,4 +1,7 @@
 <?php
+// Initialize the session
+session_start();
+
 // User Specter Database
 $mysqlhost = "sql.botofthespecter.com";
 $mysqlusername = ""; // CHANGE TO MAKE THIS WORK
