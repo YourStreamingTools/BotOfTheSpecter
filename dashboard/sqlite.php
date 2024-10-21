@@ -29,18 +29,20 @@ try {
     if ($usrDBconn->connect_error) {
         die("Connection failed: " . $usrDBconn->connect_error);
     }
-    // Select the database (if it already exists)
-    if (!$usrDBconn->select_db($dbname)) {
-        // If the database doesn't exist, create it
-        $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
-        if ($usrDBconn->query($sql) === TRUE) {
-            // Try selecting the database again after creation
-            if (!$usrDBconn->select_db($dbname)) {
-                die("Failed to select database after creation: " . $usrDBconn->error);
-            }
-        } else {
-            die("Failed to create database: " . $usrDBconn->error);
-        }
+    // Check if the database exists, if not, create it
+    $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
+    if ($usrDBconn->query($sql) === TRUE) {
+        echo "<script>console.log('Database `$dbname` created or already exists.');</script>";
+    } else {
+        die("Error creating database: " . $usrDBconn->error);
+    }
+    // Close the connection after creating the database
+    $usrDBconn->close();
+    // Reconnect to the server specify the database
+    $usrDBconn = new mysqli($mysqlhost, $mysqlusername, $mysqlpassword, $dbname);
+    // Check connection again
+    if ($usrDBconn->connect_error) {
+        die("Reconnection failed: " . $usrDBconn->connect_error);
     }
     // List of table creation statements
     $tables = [
