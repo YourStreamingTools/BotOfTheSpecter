@@ -423,27 +423,33 @@ try {
             'category_id' => "INT(11)"
         ]
     ];
-    // Execute each table creation query
+    // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
-        if ($usrDBconn->query($sql) === TRUE) {
-            // Check if columns need to be added
-            if (isset($columns[$table_name])) {
-                foreach ($columns[$table_name] as $column_name => $column_definition) {
-                    $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
-                    if ($result->num_rows == 0) {
-                        // Column doesn't exist, alter table to add it
-                        $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
-                        if ($usrDBconn->query($alter_sql) === TRUE) {
-                            echo "<script>console.log('Column $column_name added to table $table_name');</script>";
-                        } else {
-                            echo "<script>console.error('Error adding column $column_name to table $table_name: " . $usrDBconn->error . "');</script>";
-                        }
+        // Check if the table exists
+        $tableExists = $usrDBconn->query("SHOW TABLES LIKE '$table_name'")->num_rows > 0;
+        // Create the table if it doesn't exist
+        if (!$tableExists) {
+            if ($usrDBconn->query($sql) === TRUE) {
+                echo "<script>console.log('Table $table_name created successfully.');</script>";
+            } else {
+                echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>";
+                continue;
+            }
+        }
+        // Check for columns that need to be added
+        if (isset($columns[$table_name])) {
+            foreach ($columns[$table_name] as $column_name => $column_definition) {
+                $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
+                if ($result->num_rows == 0) {
+                    // Column doesn't exist, alter table to add it
+                    $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
+                    if ($usrDBconn->query($alter_sql) === TRUE) {
+                        echo "<script>console.log('Column $column_name added to table $table_name');</script>";
+                    } else {
+                        echo "<script>console.error('Error adding column $column_name to table $table_name: " . $usrDBconn->error . "');</script>";
                     }
                 }
             }
-        } else {
-            echo "<script>console.error('Error creating table \'$table_name\': " . $usrDBconn->error . "');</script>";
-            continue;
         }
     }
     // Ensure 'Default' category exists
