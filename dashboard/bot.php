@@ -189,13 +189,6 @@ if (file_exists($restartLog)) {
   <head>
     <!-- Header -->
     <?php include('header.php'); ?>
-    <style>
-      .variable-item { margin-bottom: 1.5rem; }
-      .variable-title { color: #ffdd57; }
-      #last-info { display: inline-block;}
-      #last-modified-info, #last-restart-info { margin-right: 20px; }
-      #last-modified-time, #last-restart-time { display: inline; }
-    </style>
     <!-- /Header -->
   </head>
 <body>
@@ -213,7 +206,8 @@ if (file_exists($restartLog)) {
   <div class="columns is-desktop is-multiline box-container">
     <!-- Stable Bot Section -->
     <?php if ($showButtons): ?>
-    <div class="column is-5 bot-box" id="bot-status">
+    <div class="column is-5 bot-box" id="bot-status" style="position: relative;">
+      <i class="fas fa-question-circle" id="stable-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
       <?php echo $statusOutput; ?>
       <?php echo $versionRunning; ?><br>
@@ -232,15 +226,11 @@ if (file_exists($restartLog)) {
     <?php endif; ?>
     <!-- Beta Bot Section -->
     <?php if ($betaAccess && $showButtons) { ?>
-    <div class="column is-5 bot-box" id="beta-bot-status">
+    <div class="column is-5 bot-box" id="beta-bot-status" style="position: relative;">
+      <i class="fas fa-question-circle" id="beta-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?>
-      <div id="last-info">
-        <span id="last-modified-info">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span>
-        <br>
-        <span id="last-restart-info">Last Restarted: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
-      </div>
       <br>
       <div class="buttons">
         <form action="" method="post">
@@ -257,7 +247,8 @@ if (file_exists($restartLog)) {
     <?php } ?>
     <!-- Discord Bot Section -->
     <?php if ($guild_id && $live_channel_id) { ?>
-    <div class="column is-5 bot-box" id="discord-bot-status">
+    <div class="column is-5 bot-box" id="discord-bot-status" style="position: relative;">
+      <i class="fas fa-question-circle" id="discord-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4">Discord Bot:</h4>
       <?php echo $discordStatusOutput; ?><br>
       <div class="buttons">
@@ -316,6 +307,49 @@ if (file_exists($restartLog)) {
   </div>
 </div>
 
+<div class="modal" id="stable-bot-modal">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head has-background-dark">
+      <p class="modal-card-title has-text-white">Stable Bot Information</p>
+      <button class="delete" aria-label="close" id="stable-bot-modal-close"></button>
+    </header>
+    <section class="modal-card-body has-background-dark has-text-white">
+      <p></p>
+    </section>
+  </div>
+</div>
+
+<div class="modal" id="beta-bot-modal">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head has-background-dark">
+      <p class="modal-card-title has-text-white">Beta Bot Information</p>
+      <button class="delete" aria-label="close" id="beta-bot-modal-close"></button>
+    </header>
+    <section class="modal-card-body has-background-dark has-text-white">
+      <div id="last-info">
+        <span id="last-modified-info">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span>
+        <br>
+        <span id="last-restart-info">Last Restarted: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal" id="discord-bot-modal">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head has-background-dark">
+      <p class="modal-card-title has-text-white">Discord Bot Information</p>
+      <button class="delete" aria-label="close" id="discord-bot-modal-close"></button>
+    </header>
+    <section class="modal-card-body has-background-dark has-text-white">
+      <p></p>
+    </section>
+  </div>
+</div>
+
 <div class="modal" id="websocket-service-modal">
   <div class="modal-background"></div>
   <div class="modal-card">
@@ -339,11 +373,27 @@ if (file_exists($restartLog)) {
 </div>
 
 <script>
-document.getElementById("websocket-service-modal-open").addEventListener("click", function() {
-    document.getElementById("websocket-service-modal").classList.add("is-active");
-});
-document.getElementById("websocket-service-modal-close").addEventListener("click", function() {
-    document.getElementById("websocket-service-modal").classList.remove("is-active");
+const modalIds = [
+  { open: "stable-bot-modal-open", close: "stable-bot-modal-close" },
+  { open: "beta-bot-modal-open", close: "beta-bot-modal-close" },
+  { open: "discord-bot-modal-open", close: "discord-bot-modal-close" },
+  { open: "websocket-service-modal-open", close: "websocket-service-modal-close" }
+];
+
+modalIds.forEach(modal => {
+  const openButton = document.getElementById(modal.open);
+  const closeButton = document.getElementById(modal.close);
+  
+  if (openButton) {
+    openButton.addEventListener("click", function() {
+      document.getElementById(modal.close.replace('-close', '')).classList.add("is-active");
+    });
+  }
+  if (closeButton) {
+    closeButton.addEventListener("click", function() {
+      document.getElementById(modal.close.replace('-close', '')).classList.remove("is-active");
+    });
+  }
 });
 
 window.addEventListener('error', function(event) {
