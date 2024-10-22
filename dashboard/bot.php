@@ -345,7 +345,18 @@ if (file_exists($restartLog)) {
       <button class="delete" aria-label="close" id="discord-bot-modal-close"></button>
     </header>
     <section class="modal-card-body has-background-dark has-text-white">
-      <p></p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Run Discord Bot</span>:
+        This button runs the bot for your Discord server using the shared Discord bot "BotOfTheSpecter". 
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Stop Discord Bot</span>:
+        This button stops the bot from running in your server.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Restart Discord Bot</span>:
+        This button restarts the Discord bot, allowing it to refresh its connection and settings.
+      </p>
     </section>
   </div>
 </div>
