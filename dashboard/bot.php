@@ -287,7 +287,8 @@ if (file_exists($restartLog)) {
       </div>
     </div>
     <!-- API System -->
-    <div class="column is-5 bot-box">
+    <div class="column is-5 bot-box" style="position: relative;">
+      <i class="fas fa-question-circle" id="api-limits-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4 has-text-centered">API Limits</h4>
       <div class="status-message" style="font-size: 18px; padding: 15px; background-color: #2c3e50; color: #ecf0f1; border-radius: 8px;">
         <!-- Song Identification Section -->
@@ -401,12 +402,37 @@ if (file_exists($restartLog)) {
   </div>
 </div>
 
+<div class="modal" id="api-limits-modal">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head has-background-dark">
+      <p class="modal-card-title has-text-white">API Limits</p>
+      <button class="delete" aria-label="close" id="api-limits-modal-close"></button>
+    </header>
+    <section class="modal-card-body has-background-dark has-text-white">
+      <p>
+        <span class="has-text-weight-bold variable-title">Song Identifications Left:</span>
+        Indicates the number of song identification requests we have remaining.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Exchange Rate Checks Left:</span>
+        Represents the number of exchange rate checks available.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Weather Requests Left:</span>
+        Shows how many weather requests we can make.
+      </p>
+    </section>
+  </div>
+</div>
+
 <script>
 const modalIds = [
   { open: "stable-bot-modal-open", close: "stable-bot-modal-close" },
   { open: "beta-bot-modal-open", close: "beta-bot-modal-close" },
   { open: "discord-bot-modal-open", close: "discord-bot-modal-close" },
-  { open: "websocket-service-modal-open", close: "websocket-service-modal-close" }
+  { open: "websocket-service-modal-open", close: "websocket-service-modal-close" },
+  { open: "api-limits-modal-open", close: "api-limits-modal-close" }
 ];
 
 modalIds.forEach(modal => {
