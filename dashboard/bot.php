@@ -328,11 +328,18 @@ if (file_exists($restartLog)) {
       <button class="delete" aria-label="close" id="beta-bot-modal-close"></button>
     </header>
     <section class="modal-card-body has-background-dark has-text-white">
-      <div id="last-info">
-        <span id="last-modified-info">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span>
-        <br>
-        <span id="last-restart-info">Last Restarted: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
-      </div>
+      <p>
+        <span class="has-text-weight-bold variable-title">Run Beta Bot</span>:
+        This button runs the Beta version of the Twitch bot "BotOfTheSpecter". <span class="has-text-weight-light">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span>
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Restart Beta Bot</span>:<br>
+        This button restarts the Beta version of the Twitch bot, refreshing its connection and settings. <span class="has-text-weight-light">You are running a version that you started, <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Stop Beta Bot</span>:
+        This button stops the Beta version of the Twitch bot from running.<br>
+      </p>
     </section>
   </div>
 </div>
