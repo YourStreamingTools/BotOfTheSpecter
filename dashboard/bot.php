@@ -144,6 +144,45 @@ if ($user['beta_access'] == 1) {
     if (in_array($tier, ["1000", "2000", "3000"]));
     $betaAccess = true;
 };
+
+$lastModifiedOutput = '';
+$lastRestartOutput = '';
+
+// Last Changed Time
+$betaFile = '/var/www/bot/beta.py';
+if (file_exists($betaFile)) {
+    $betaFileModifiedTime = filemtime($betaFile);
+    $timeAgo = time() - $betaFileModifiedTime;
+    if ($timeAgo < 60) {
+        $lastModifiedOutput = $timeAgo . ' seconds ago';
+    } elseif ($timeAgo < 3600) {
+        $lastModifiedOutput = floor($timeAgo / 60) . ' minutes ago';
+    } elseif ($timeAgo < 86400) {
+        $lastModifiedOutput = floor($timeAgo / 3600) . ' hours ago';
+    } else {
+        $lastModifiedOutput = floor($timeAgo / 86400) . ' days ago';
+    }
+} else {
+    $lastModifiedOutput = 'File not found'; // Optional error handling
+}
+
+// Last Restarted Time
+$restartLog = '/var/www/logs/version/' . $username . '_beta_version_control.txt';
+if (file_exists($restartLog)) {
+    $restartFileTime = filemtime($restartLog);
+    $restartTimeAgo = time() - $restartFileTime;
+    if ($restartTimeAgo < 60) {
+        $lastRestartOutput = $restartTimeAgo . ' seconds ago';
+    } elseif ($restartTimeAgo < 3600) {
+        $lastRestartOutput = floor($restartTimeAgo / 60) . ' minutes ago';
+    } elseif ($restartTimeAgo < 86400) {
+        $lastRestartOutput = floor($restartTimeAgo / 3600) . ' hours ago';
+    } else {
+        $lastRestartOutput = floor($restartTimeAgo / 86400) . ' days ago';
+    }
+} else {
+    $lastRestartOutput = 'Never'; // Message if restart log file does not exist
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -151,10 +190,11 @@ if ($user['beta_access'] == 1) {
     <!-- Header -->
     <?php include('header.php'); ?>
     <style>
-        .variable-item { margin-bottom: 1.5rem; }
-        .variable-title { color: #ffdd57; }
-        #last-modified-info { display: inline; }
-        #last-modified-time { display: inline; }
+      .variable-item { margin-bottom: 1.5rem; }
+      .variable-title { color: #ffdd57; }
+      #last-info { display: inline-block;}
+      #last-modified-info, #last-restart-info { margin-right: 20px; }
+      #last-modified-time, #last-restart-time { display: inline; }
     </style>
     <!-- /Header -->
   </head>
@@ -196,25 +236,12 @@ if ($user['beta_access'] == 1) {
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
       <?php echo $betaStatusOutput; ?>
       <?php echo $betaVersionRunning; ?>
-      <div id="last-modified-info">
-        Last Changed: <span id="last-modified-time"><?php
-        $file = '/var/www/bot/beta.py';
-        if (file_exists($file)) {
-          $fileModifiedTime = filemtime($file);
-          $timeAgo = time() - $fileModifiedTime;
-          if ($timeAgo < 60) {
-            echo $timeAgo . ' seconds ago';
-          } elseif ($timeAgo < 3600) {
-            echo floor($timeAgo / 60) . ' minutes ago';
-          } elseif ($timeAgo < 86400) {
-            echo floor($timeAgo / 3600) . ' hours ago';
-          } else {
-            echo floor($timeAgo / 86400) . ' days ago';
-          }
-        }
-        ?>
-        </span>
-      </div><br>
+      <div id="last-info">
+        <span id="last-modified-info">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span>
+        <br>
+        <span id="last-restart-info">Last Restarted: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
+      </div>
+      <br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button>
@@ -433,8 +460,10 @@ function checkLastModified() {
             var response = xhr.responseText.trim();
             var lastModifiedStart = response.indexOf('<span id="last-modified-time">') + '<span id="last-modified-time">'.length;
             var lastModifiedEnd = response.indexOf('</span>', lastModifiedStart);
-            var lastModifiedTime = response.substring(lastModifiedStart, lastModifiedEnd);
-            document.getElementById("last-modified-time").innerText = lastModifiedTime;
+            var lastModifiedTime = response.substring(lastModifiedStart, lastModifiedEnd).trim();
+            if (lastModifiedTime) {
+                document.getElementById("last-modified-time").innerText = lastModifiedTime;
+            }
         }
     };
     xhr.send();
