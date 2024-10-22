@@ -315,7 +315,18 @@ if (file_exists($restartLog)) {
       <button class="delete" aria-label="close" id="stable-bot-modal-close"></button>
     </header>
     <section class="modal-card-body has-background-dark has-text-white">
-      <p></p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Run Bot</span>:
+        This button runs the stable version of the bot.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Stop Bot</span>:
+        This button stops the stable version of the bot from running.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Restart Bot</span>:
+        This button restarts the stable version of the bot, refreshing its connection and settings.
+      </p>
     </section>
   </div>
 </div>
