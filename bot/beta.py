@@ -5513,7 +5513,7 @@ async def add_task(ctx, params, user_id, sqldb):
                 task_id = cursor.lastrowid
                 await sqldb.commit()
                 category_name = await fetch_category_name(cursor, category_id)
-                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or 'Unknown'}".')
+                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or ("Unknown" if category_name is None else category_name)}".')
             except (ValueError, IndexError):
                 await ctx.send(f"{user.name}, please provide a valid task description and optional category ID.")
         else:
