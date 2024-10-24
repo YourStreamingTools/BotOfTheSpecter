@@ -571,7 +571,7 @@ function checkLastModified() {
 
 function updateBotStatuses() {
   fetch('/bot_control.php')
-  location.reload(); 
+    location.reload(); 
 }
 
 setInterval(checkHeartbeat, 5000);
