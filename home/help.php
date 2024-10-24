@@ -17,9 +17,6 @@
 <body>
 <div class="navbar is-fixed-top is-dark has-text-light" role="navigation" aria-label="main navigation">
     <div class="navbar-brand is-dark has-text-light">
-        <a class="navbar-item is-dark has-text-light" href="../">
-            <span>BotOfTheSpecter</span>
-        </a>
         <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
@@ -37,6 +34,9 @@
                 </div>
             </div>
         </div>
+        <a class="navbar-item is-dark has-text-light" href="../">
+            <span>BotOfTheSpecter</span>
+        </a>
         <div class="navbar-end is-dark has-text-light">
             <div class="navbar-item is-dark has-text-light">
                 <a href="https://dashboard.botofthespecter.com/" class="button is-light">LOGIN</a>
