@@ -206,11 +206,12 @@ if (file_exists($restartLog)) {
   <div class="columns is-desktop is-multiline box-container">
     <!-- Stable Bot Section -->
     <?php if ($showButtons): ?>
-    <div class="column is-5 bot-box" id="bot-status" style="position: relative;">
+    <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
       <i class="fas fa-question-circle" id="stable-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
-      <?php echo $statusOutput; ?>
-      <?php echo $versionRunning; ?><br>
+      <div id="stableStatus"><?php echo $statusOutput; ?></div>
+      <div id="stableVersion"><?php echo $versionRunning; ?></div>
+      <br>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger bot-button" type="submit" name="killBot">Stop Bot</button>
@@ -226,11 +227,11 @@ if (file_exists($restartLog)) {
     <?php endif; ?>
     <!-- Beta Bot Section -->
     <?php if ($betaAccess && $showButtons) { ?>
-    <div class="column is-5 bot-box" id="beta-bot-status" style="position: relative;">
+      <div class="column is-5 bot-box" id="beta-bot-status" style="position: relative;">
       <i class="fas fa-question-circle" id="beta-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
-      <?php echo $betaStatusOutput; ?>
-      <?php echo $betaVersionRunning; ?>
+      <div id="betaStatus"><?php echo $betaStatusOutput; ?></div>
+      <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
       <br>
       <div class="buttons">
         <form action="" method="post">
@@ -250,7 +251,7 @@ if (file_exists($restartLog)) {
     <div class="column is-5 bot-box" id="discord-bot-status" style="position: relative;">
       <i class="fas fa-question-circle" id="discord-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4">Discord Bot:</h4>
-      <?php echo $discordStatusOutput; ?><br>
+      <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
       <div class="buttons">
         <form action="" method="post">
           <button class="button is-danger bot-button" type="submit" name="killDiscordBot">Stop Discord Bot</button>
@@ -568,19 +569,29 @@ function checkLastModified() {
   xhr.send();
 }
 
-function checkBotStatuses() {
+function updateBotStatuses() {
   fetch('/bot_control.php')
-    .catch(error => console.error('Error:', error));
+    .then(response => response.text())
+    .then(data => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(data, 'text/html');
+      document.getElementById('stableStatus').innerHTML = doc.getElementById('stableStatus').innerHTML;
+      document.getElementById('stableVersion').innerHTML = doc.getElementById('stableVersion').innerHTML;
+      document.getElementById('betaStatus').innerHTML = doc.getElementById('betaStatus').innerHTML;
+      document.getElementById('betaVersion').innerHTML = doc.getElementById('betaVersion').innerHTML;
+      document.getElementById('discordStatus').innerHTML = doc.getElementById('discordStatus').innerHTML;
+    })
+    .catch(error => console.error('Error fetching bot statuses:', error));
 }
 
 setInterval(checkHeartbeat, 5000);
 setInterval(updateApiLimits, 60000);
 setInterval(checkLastModified, 300000);
-setInterval(checkBotStatuses, 60000);
+setInterval(updateBotStatuses, 60000);
 checkHeartbeat();
 updateApiLimits();
 checkLastModified();
-checkBotStatuses();
+updateBotStatuses();
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
