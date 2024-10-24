@@ -16,29 +16,36 @@
     <meta name="twitter:image" content="https://botofthespecter.yourcdnonline.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
-<nav class="navbar is-dark" role="navigation" aria-label="main navigation">
+<div class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
     <div class="navbar-brand">
-        <!-- Dropdown Menu on the Left -->
-        <div class="navbar-item has-dropdown is-hoverable">
-            <a class="navbar-link has-text-light">Menu</a>
-            <div class="navbar-dropdown">
-                <a href="index.php" class="navbar-item has-text-light">Home</a>
-                <a href="privacy-policy.php" class="navbar-item has-text-light">Privacy Policy</a>
-                <a href="terms-of-service.php" class="navbar-item has-text-light">Terms of Service</a>
+        <a class="navbar-item" href="../">
+            <span>BotOfTheSpecter</span>
+        </a>
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+        </a>
+    </div>
+    <div id="navbarBasic" class="navbar-menu">
+        <div class="navbar-start">
+            <div class="navbar-item has-dropdown is-hoverable">
+                <a class="navbar-link">Menu</a>
+                <div class="navbar-dropdown">
+                    <a href="index.php" class="navbar-item has-text-light">Home</a>
+                    <a href="privacy-policy.php" class="navbar-item has-text-light">Privacy Policy</a>
+                    <a href="terms-of-service.php" class="navbar-item has-text-light">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+        <div class="navbar-end">
+            <div class="navbar-item">
+                <a href="https://dashboard.botofthespecter.com/" class="button is-light">LOGIN</a>
             </div>
         </div>
     </div>
-    <!-- Center: Website Name -->
-    <div class="navbar-item is-centered">
-        <h1 class="title has-text-light">BotOfTheSpecter</h1>
-    </div>
-    <!-- Right: Login Button -->
-    <div class="navbar-end">
-        <div class="navbar-item">
-            <a href="https://dashboard.botofthespecter.com/" class="button is-light">LOGIN</a>
-        </div>
-    </div>
-</nav>
+</div>
+
 <!-- Main Content -->
 <section class="section">
     <div class="container">
