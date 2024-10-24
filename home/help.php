@@ -29,11 +29,11 @@
     <div id="navbarBasic" class="navbar-menu">
         <div class="navbar-start">
             <div class="navbar-item has-dropdown is-hoverable">
-                <a class="navbar-link">Menu</a>
+                <a class="navbar-link is-dark has-text-light">Menu</a>
                 <div class="navbar-dropdown">
-                    <a href="index.php" class="navbar-item has-text-light">Home</a>
-                    <a href="privacy-policy.php" class="navbar-item has-text-light">Privacy Policy</a>
-                    <a href="terms-of-service.php" class="navbar-item has-text-light">Terms of Service</a>
+                    <a href="index.php" class="navbar-item is-dark has-text-light">Home</a>
+                    <a href="privacy-policy.php" class="navbar-item is-dark has-text-light">Privacy Policy</a>
+                    <a href="terms-of-service.php" class="navbar-item is-dark has-text-light">Terms of Service</a>
                 </div>
             </div>
         </div>
