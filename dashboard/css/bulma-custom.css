@@ -450,8 +450,27 @@ input[type="submit"]:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.variable-item { margin-bottom: 1.5rem; }
-.variable-title { color: #ffdd57; }
-#last-info { display: inline-block;}
-#last-modified-info, #last-restart-info { margin-right: 20px; }
-#last-modified-time, #last-restart-time { display: inline; }
+.variable-item {
+    margin-bottom: 1.5rem;
+}
+
+.variable-title {
+    color: #ffdd57;
+}
+
+#last-info {
+    display: inline-block;
+}
+
+#last-modified-info, #last-restart-info {
+    margin-right: 20px;
+}
+
+#last-modified-time, #last-restart-time {
+    display: inline;
+}
+
+.button-size {
+    width: 150px;
+    min-width: 150px;
+}
