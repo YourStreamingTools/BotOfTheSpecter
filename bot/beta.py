@@ -143,9 +143,7 @@ async def token_refresh():
                 sleep_time = 300  # Check again in 5 minutes
             else:
                 sleep_time = 60  # Check every minute when close to expiration
-            # Log only when the check frequency changes or is about to refresh
-            twitch_logger.info(f"Next token check in {sleep_time // 60} minutes. Token is still valid for {time_until_expiration // 60} minutes and {time_until_expiration % 60} seconds.")
-            await asyncio.sleep(sleep_time)  # Wait before checking again, based on the time until expiration
+            await asyncio.sleep(sleep_time)
 
 async def refresh_token(current_refresh_token):
     global CHANNEL_AUTH, REFRESH_TOKEN
@@ -1314,7 +1312,7 @@ class BotOfTheSpecter(commands.Bot):
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id)
         # Split the response if it's longer than 500 characters
-        messages = [ai_response[i:i+490] for i in range(0, len(ai_response), 490)]
+        messages = [ai_response[i:i+500] for i in range(0, len(ai_response), 500)]
         # Send each part of the response as a separate message
         for part in messages:
             await self.send_message_to_channel(f"{part}")
@@ -4248,6 +4246,7 @@ async def process_kofi_event(data):
         event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
 async def process_weather_websocket(data):
+    channel = bot.get_channel(CHANNEL_NAME)
     # Convert weather_data from string to dictionary
     try:
         weather_data = ast.literal_eval(data.get('weather_data', '{}'))
@@ -4267,7 +4266,6 @@ async def process_weather_websocket(data):
     message = (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
                f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) with {humidity}%.")
     # Get the channel and send the message
-    channel = bot.get_channel(CHANNEL_NAME)
     event_logger.info(f"Sending weather update: {message}")
     await channel.send(message)
 
@@ -4277,6 +4275,7 @@ async def process_stream_online_websocket():
     global current_game
     stream_online = True
     asyncio.get_event_loop().create_task(timed_message())
+    channel = bot.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
         headers = {
@@ -4302,18 +4301,8 @@ async def process_stream_online_websocket():
         image = ""
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
-    await send_online_message(message)
+    await channel.send(message)
     await send_to_discord_stream_online(message, image)
-
-# Function to send the online message to channel
-async def send_online_message(message):
-    await asyncio.sleep(5)
-    channel = bot.get_channel(CHANNEL_NAME)
-    if channel:
-        bot_logger.info(f"Attempted to send message: {message}")
-        await channel.send(message)
-    else:
-        bot_logger.error("Failed to send message")
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
@@ -4399,8 +4388,8 @@ async def send_timed_message(message, delay):
     await asyncio.sleep(delay)
     try:
         if stream_online:
-            channel = bot.get_channel(CHANNEL_NAME)
             bot_logger.info(f"Sending Timed Message: {message}")
+            channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
         else:
             bot_logger.info("Stream is offline. Message not sent.")
@@ -4591,6 +4580,7 @@ async def handle_ad_break(duration_seconds):
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4634,20 +4624,19 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
             await send_to_discord(discord_message, "New Raid!", "raid.png")
             await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
-            channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
     finally:
         await sqldb.ensure_closed()
 
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
             # Check existing bits data
             await cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (user_id, user_name))
             existing_bits = await cursor.fetchone()
-            channel = bot.get_channel(CHANNEL_NAME)
             # Update or insert bits data
             if existing_bits:
                 total_bits = existing_bits[0] + bits
@@ -4699,6 +4688,7 @@ async def process_cheer_event(user_id, user_name, bits):
 
 # Function for Subscriptions
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4751,7 +4741,6 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                     sub_add_time = int(settings['sub_add_3'])
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
-                channel = bot.get_channel(CHANNEL_NAME)
                 await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
@@ -4779,6 +4768,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
 
 # Function for Resubscriptions with Messages
 async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4831,7 +4821,6 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                     sub_add_time = int(settings['sub_add_3'])
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
-                channel = bot.get_channel(CHANNEL_NAME)
                 await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
             message = f"Thank you {user_name} for resubscribing! You are now a {sub_plan} subscriber for {event_months} months! {subscriber_message}"
@@ -4859,6 +4848,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
 
 # Function for Gift Subscriptions
 async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4875,13 +4865,13 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                     message = f"Thank you {gifter_user_name} for gifting a {givent_sub_plan} subscription to {number_gifts} members!"
                 discord_message = f"{gifter_user_name} just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
-            channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
     finally:
         await sqldb.ensure_closed()
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         followed_at_twitch = followed_at_twitch[:26]
@@ -4919,7 +4909,6 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
         await websocket_notice("TWITCH_FOLLOW", user=user_name)
-        channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
     finally:
         await sqldb.ensure_closed()
