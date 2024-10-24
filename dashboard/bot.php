@@ -571,7 +571,7 @@ function checkLastModified() {
 
 function updateBotStatuses() {
   fetch('/bot_control.php')
-  .catch(error => console.error('Error fetching bot statuses:', error));
+  location.reload(); 
 }
 
 setInterval(checkHeartbeat, 5000);
