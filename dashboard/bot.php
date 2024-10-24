@@ -569,19 +569,12 @@ function checkLastModified() {
   xhr.send();
 }
 
-function updateBotStatuses() {
-  fetch('/bot_control.php')
-    location.reload(); 
-}
-
 setInterval(checkHeartbeat, 5000);
 setInterval(updateApiLimits, 60000);
 setInterval(checkLastModified, 300000);
-setInterval(updateBotStatuses, 60000);
 checkHeartbeat();
 updateApiLimits();
 checkLastModified();
-updateBotStatuses();
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
