@@ -571,17 +571,7 @@ function checkLastModified() {
 
 function updateBotStatuses() {
   fetch('/bot_control.php')
-    .then(response => response.text())
-    .then(data => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(data, 'text/html');
-      document.getElementById('stableStatus').innerHTML = doc.getElementById('stableStatus').innerHTML;
-      document.getElementById('stableVersion').innerHTML = doc.getElementById('stableVersion').innerHTML;
-      document.getElementById('betaStatus').innerHTML = doc.getElementById('betaStatus').innerHTML;
-      document.getElementById('betaVersion').innerHTML = doc.getElementById('betaVersion').innerHTML;
-      document.getElementById('discordStatus').innerHTML = doc.getElementById('discordStatus').innerHTML;
-    })
-    .catch(error => console.error('Error fetching bot statuses:', error));
+  .catch(error => console.error('Error fetching bot statuses:', error));
 }
 
 setInterval(checkHeartbeat, 5000);
