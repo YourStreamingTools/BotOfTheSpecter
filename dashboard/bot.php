@@ -570,15 +570,6 @@ function checkLastModified() {
 
 function checkBotStatuses() {
   fetch('/bot_control.php')
-    .then(response => response.json())
-    .then(data => {
-      console.log(data.statusOutput);
-      console.log(data.botSystemStatus);
-      console.log(data.betaStatusOutput);
-      console.log(data.betaBotSystemStatus);
-      console.log(data.discordStatusOutput);
-      console.log(data.discordBotSystemStatus);
-    })
     .catch(error => console.error('Error:', error));
 }
 
