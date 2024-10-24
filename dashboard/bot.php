@@ -214,13 +214,13 @@ if (file_exists($restartLog)) {
         <br>
         <div class="buttons">
           <form action="" method="post">
-            <button class="button is-danger bot-button" type="submit" name="killBot">Stop Bot</button>
+            <button class="button is-danger bot-button button-size" type="submit" name="killBot">Stop Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-success bot-button" type="submit" name="runBot">Run Bot</button>
+            <button class="button is-success bot-button button-size" type="submit" name="runBot">Run Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-warning bot-button" type="submit" name="restartBot">Restart Bot</button>
+            <button class="button is-warning bot-button button-size" type="submit" name="restartBot">Restart Bot</button>
           </form>
         </div>
       </div>
@@ -235,13 +235,13 @@ if (file_exists($restartLog)) {
         <br>
         <div class="buttons">
           <form action="" method="post">
-            <button class="button is-danger bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button>
+            <button class="button is-danger bot-button button-size" type="submit" name="killBetaBot">Stop Beta Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-success bot-button" type="submit" name="runBetaBot">Run Beta Bot</button>
+            <button class="button is-success bot-button button-size" type="submit" name="runBetaBot">Run Beta Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-warning bot-button" type="submit" name="restartBetaBot">Restart Beta Bot</button>
+            <button class="button is-warning bot-button button-size" type="submit" name="restartBetaBot">Restart Beta Bot</button>
           </form>
         </div>
       </div>
@@ -254,13 +254,13 @@ if (file_exists($restartLog)) {
         <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
         <div class="buttons">
           <form action="" method="post">
-            <button class="button is-danger bot-button" type="submit" name="killDiscordBot">Stop Discord Bot</button>
+            <button class="button is-danger bot-button button-size" type="submit" name="killDiscordBot">Stop Discord Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-success bot-button" type="submit" name="runDiscordBot">Run Discord Bot</button>
+            <button class="button is-success bot-button button-size" type="submit" name="runDiscordBot">Run Discord Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-warning bot-button" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
+            <button class="button is-warning bot-button button-size" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
           </form>
         </div>
       </div>
