@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - Help</title>
     <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="navbar.js" defer></script>
     <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
     <link rel="apple-touch-icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
