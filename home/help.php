@@ -16,8 +16,8 @@
 </head>
 <body>
 <div class="navbar is-fixed-top is-dark has-text-light" role="navigation" aria-label="main navigation">
-    <div class="navbar-brand">
-        <a class="navbar-item" href="../">
+    <div class="navbar-brand is-dark has-text-light">
+        <a class="navbar-item is-dark has-text-light" href="../">
             <span>BotOfTheSpecter</span>
         </a>
         <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
@@ -26,19 +26,19 @@
             <span aria-hidden="true"></span>
         </a>
     </div>
-    <div id="navbarBasic" class="navbar-menu">
-        <div class="navbar-start">
+    <div id="navbarBasic" class="navbar-menu is-dark has-text-light">
+        <div class="navbar-start is-dark has-text-light">
             <div class="navbar-item has-dropdown is-hoverable">
                 <a class="navbar-link is-dark has-text-light">Menu</a>
-                <div class="navbar-dropdown">
+                <div class="navbar-dropdown is-dark has-text-light">
                     <a href="index.php" class="navbar-item is-dark has-text-light">Home</a>
                     <a href="privacy-policy.php" class="navbar-item is-dark has-text-light">Privacy Policy</a>
                     <a href="terms-of-service.php" class="navbar-item is-dark has-text-light">Terms of Service</a>
                 </div>
             </div>
         </div>
-        <div class="navbar-end">
-            <div class="navbar-item">
+        <div class="navbar-end is-dark has-text-light">
+            <div class="navbar-item is-dark has-text-light">
                 <a href="https://dashboard.botofthespecter.com/" class="button is-light">LOGIN</a>
             </div>
         </div>
