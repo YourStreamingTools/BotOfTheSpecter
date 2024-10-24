@@ -184,7 +184,7 @@ if (file_exists($restartLog)) {
     $lastRestartOutput = 'Never'; // Message if restart log file does not exist
 }
 ?>
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <!-- Header -->
