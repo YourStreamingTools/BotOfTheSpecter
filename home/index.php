@@ -16,7 +16,7 @@
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
-<div class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
+<div class="navbar is-fixed-top is-dark" role="navigation" aria-label="main navigation">
     <div class="navbar-brand">
         <a class="navbar-item" href="../">
             <span>BotOfTheSpecter</span>
