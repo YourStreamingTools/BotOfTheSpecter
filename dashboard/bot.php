@@ -523,63 +523,63 @@ function checkHeartbeat() {
 }
 
 function updateApiLimits() {
-    fetch('/api_limits.php')
-    .then(response => response.json())
-    .then(data => {
-        // Update Shazam Section
-        document.getElementById('shazam-section').innerHTML = `
-            <p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>${data.shazam.requests_remaining}</span> 
-            (<span title='Next reset date: ${data.shazam.reset_date}'>${data.shazam.days_until_reset} days until reset</span>)</p>
-            <p>Last checked: <span style='color: #f39c12;'>${data.shazam.last_modified}</span></p>
-        `;
-        // Update Exchange Rate Section
-        document.getElementById('exchangerate-section').innerHTML = `
-            <p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>${data.exchangerate.requests_remaining}</span> 
-            (<span title='Next reset date: ${data.exchangerate.reset_date}'>${data.exchangerate.days_until_reset} days until reset</span>)</p>
-            <p>Last checked: <span style='color: #f39c12;'>${data.exchangerate.last_modified}</span></p>
-        `;
-        // Update Weather Section
-        document.getElementById('weather-section').innerHTML = `
-            <p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>${data.weather.requests_remaining}</span><br> 
-            (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes, and ${data.weather.seconds_until_midnight} seconds until reset</span>)</p>
-            <p>Last checked: <span style='color: #f39c12;'>${data.weather.last_modified}</span></p>
-        `;
-    })
-    .catch(error => {
-        console.error('Error fetching API limits:', error);
-    });
+  fetch('/api_limits.php')
+  .then(response => response.json())
+  .then(data => {
+    // Update Shazam Section
+    document.getElementById('shazam-section').innerHTML = `
+      <p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>${data.shazam.requests_remaining}</span> 
+      (<span title='Next reset date: ${data.shazam.reset_date}'>${data.shazam.days_until_reset} days until reset</span>)</p>
+      <p>Last checked: <span style='color: #f39c12;'>${data.shazam.last_modified}</span></p>
+    `;
+    // Update Exchange Rate Section
+    document.getElementById('exchangerate-section').innerHTML = `
+      <p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>${data.exchangerate.requests_remaining}</span> 
+      (<span title='Next reset date: ${data.exchangerate.reset_date}'>${data.exchangerate.days_until_reset} days until reset</span>)</p>
+      <p>Last checked: <span style='color: #f39c12;'>${data.exchangerate.last_modified}</span></p>
+    `;
+    // Update Weather Section
+    document.getElementById('weather-section').innerHTML = `
+      <p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>${data.weather.requests_remaining}</span><br> 
+      (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes, and ${data.weather.seconds_until_midnight} seconds until reset</span>)</p>
+      <p>Last checked: <span style='color: #f39c12;'>${data.weather.last_modified}</span></p>
+    `;
+  })
+  .catch(error => {
+    console.error('Error fetching API limits:', error);
+  });
 }
 
 function checkLastModified() {
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "", true);
-    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            var response = xhr.responseText.trim();
-            var lastModifiedStart = response.indexOf('<span id="last-modified-time">') + '<span id="last-modified-time">'.length;
-            var lastModifiedEnd = response.indexOf('</span>', lastModifiedStart);
-            var lastModifiedTime = response.substring(lastModifiedStart, lastModifiedEnd).trim();
-            if (lastModifiedTime) {
-                document.getElementById("last-modified-time").innerText = lastModifiedTime;
-            }
-        }
-    };
-    xhr.send();
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", "", true);
+  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4 && xhr.status === 200) {
+      var response = xhr.responseText.trim();
+      var lastModifiedStart = response.indexOf('<span id="last-modified-time">') + '<span id="last-modified-time">'.length;
+      var lastModifiedEnd = response.indexOf('</span>', lastModifiedStart);
+      var lastModifiedTime = response.substring(lastModifiedStart, lastModifiedEnd).trim();
+      if (lastModifiedTime) {
+        document.getElementById("last-modified-time").innerText = lastModifiedTime;
+      }
+    }
+  };
+  xhr.send();
 }
 
 function checkBotStatuses() {
-    fetch('bot_control.php')
-        .then(response => response.json())
-        .then(data => {
-            console.log(data.statusOutput);
-            console.log(data.botSystemStatus);
-            console.log(data.betaStatusOutput);
-            console.log(data.betaBotSystemStatus);
-            console.log(data.discordStatusOutput);
-            console.log(data.discordBotSystemStatus);
-        })
-        .catch(error => console.error('Error:', error));
+  fetch('/bot_control.php')
+    .then(response => response.json())
+    .then(data => {
+      console.log(data.statusOutput);
+      console.log(data.botSystemStatus);
+      console.log(data.betaStatusOutput);
+      console.log(data.betaBotSystemStatus);
+      console.log(data.discordStatusOutput);
+      console.log(data.discordBotSystemStatus);
+    })
+    .catch(error => console.error('Error:', error));
 }
 
 setInterval(checkHeartbeat, 5000);
