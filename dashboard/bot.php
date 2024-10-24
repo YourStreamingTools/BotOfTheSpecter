@@ -521,10 +521,6 @@ function checkHeartbeat() {
       heartbeatIcon.style.color = 'red';
     });
 }
-// Check heartbeat every 5 seconds
-setInterval(checkHeartbeat, 5000);
-// Initial check
-checkHeartbeat();
 
 function updateApiLimits() {
     fetch('/api_limits.php')
@@ -553,8 +549,6 @@ function updateApiLimits() {
         console.error('Error fetching API limits:', error);
     });
 }
-updateApiLimits();
-setInterval(updateApiLimits, 60000);
 
 function checkLastModified() {
     var xhr = new XMLHttpRequest();
@@ -573,8 +567,29 @@ function checkLastModified() {
     };
     xhr.send();
 }
-checkLastModified();
+
+function checkBotStatuses() {
+    fetch('bot_control.php')
+        .then(response => response.json())
+        .then(data => {
+            console.log(data.statusOutput);
+            console.log(data.botSystemStatus);
+            console.log(data.betaStatusOutput);
+            console.log(data.betaBotSystemStatus);
+            console.log(data.discordStatusOutput);
+            console.log(data.discordBotSystemStatus);
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+setInterval(checkHeartbeat, 5000);
+setInterval(updateApiLimits, 60000);
 setInterval(checkLastModified, 300000);
+setInterval(checkBotStatuses, 60000);
+checkHeartbeat();
+updateApiLimits();
+checkLastModified();
+checkBotStatuses();
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
