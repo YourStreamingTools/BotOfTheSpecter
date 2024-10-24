@@ -201,75 +201,74 @@ if (file_exists($restartLog)) {
   <br>
   <?php echo $BotModMessage; ?>
   <?php echo $setupMessage; ?>
-  <?php if ($betaAccess && $showButtons) { echo '<div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div>'; } ?>
+  <?php if ($betaAccess && $showButtons): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div><?php endif; ?>
   <br>
   <div class="columns is-desktop is-multiline box-container">
     <!-- Stable Bot Section -->
     <?php if ($showButtons): ?>
-    <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
-      <i class="fas fa-question-circle" id="stable-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-      <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
-      <div id="stableStatus"><?php echo $statusOutput; ?></div>
-      <div id="stableVersion"><?php echo $versionRunning; ?></div>
-      <br>
-      <div class="buttons">
-        <form action="" method="post">
-          <button class="button is-danger bot-button" type="submit" name="killBot">Stop Bot</button>
-        </form>
-        <form action="" method="post">
-          <button class="button is-success bot-button" type="submit" name="runBot">Run Bot</button>
-        </form>
-        <form action="" method="post">
-          <button class="button is-warning bot-button" type="submit" name="restartBot">Restart Bot</button>
-        </form>
+      <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
+        <i class="fas fa-question-circle" id="stable-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
+        <div id="stableStatus"><?php echo $statusOutput; ?></div>
+        <div id="stableVersion"><?php echo $versionRunning; ?></div>
+        <br>
+        <div class="buttons">
+          <form action="" method="post">
+            <button class="button is-danger bot-button" type="submit" name="killBot">Stop Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-success bot-button" type="submit" name="runBot">Run Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-warning bot-button" type="submit" name="restartBot">Restart Bot</button>
+          </form>
+        </div>
       </div>
-    </div>
     <?php endif; ?>
     <!-- Beta Bot Section -->
-    <?php if ($betaAccess && $showButtons) { ?>
+    <?php if ($betaAccess && $showButtons): ?>
       <div class="column is-5 bot-box" id="beta-bot-status" style="position: relative;">
-      <i class="fas fa-question-circle" id="beta-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-      <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
-      <div id="betaStatus"><?php echo $betaStatusOutput; ?></div>
-      <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
-      <br>
-      <div class="buttons">
-        <form action="" method="post">
-          <button class="button is-danger bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button>
-        </form>
-        <form action="" method="post">
-          <button class="button is-success bot-button" type="submit" name="runBetaBot">Run Beta Bot</button>
-        </form>
-        <form action="" method="post">
-          <button class="button is-warning bot-button" type="submit" name="restartBetaBot">Restart Beta Bot</button>
-        </form>
+        <i class="fas fa-question-circle" id="beta-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
+        <div id="betaStatus"><?php echo $betaStatusOutput; ?></div>
+        <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
+        <br>
+        <div class="buttons">
+          <form action="" method="post">
+            <button class="button is-danger bot-button" type="submit" name="killBetaBot">Stop Beta Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-success bot-button" type="submit" name="runBetaBot">Run Beta Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-warning bot-button" type="submit" name="restartBetaBot">Restart Beta Bot</button>
+          </form>
+        </div>
       </div>
-    </div>
-    <?php } ?>
+    <?php endif; ?>
     <!-- Discord Bot Section -->
-    <?php if ($guild_id && $live_channel_id) { ?>
-    <div class="column is-5 bot-box" id="discord-bot-status" style="position: relative;">
-      <i class="fas fa-question-circle" id="discord-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-      <h4 class="title is-4">Discord Bot:</h4>
-      <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
-      <div class="buttons">
-        <form action="" method="post">
-          <button class="button is-danger bot-button" type="submit" name="killDiscordBot">Stop Discord Bot</button>
-        </form>
-        <form action="" method="post">
-          <button class="button is-success bot-button" type="submit" name="runDiscordBot">Run Discord Bot</button>
-        </form>
-        <form action="" method="post">
-          <button class="button is-warning bot-button" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
-        </form>
+    <?php if ($guild_id && $live_channel_id): ?>
+      <div class="column is-5 bot-box" id="discord-bot-status" style="position: relative;">
+        <i class="fas fa-question-circle" id="discord-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <h4 class="title is-4">Discord Bot:</h4>
+        <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
+        <div class="buttons">
+          <form action="" method="post">
+            <button class="button is-danger bot-button" type="submit" name="killDiscordBot">Stop Discord Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-success bot-button" type="submit" name="runDiscordBot">Run Discord Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-warning bot-button" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
+          </form>
+        </div>
       </div>
-    </div>
-    <?php } ?>
+    <?php endif; ?>
     <!-- Websocket Notices Section -->
     <div class="column is-5 bot-box" style="position: relative;">
       <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-      <h4 class="title is-4" style="text-align: center;">
-        Websocket Service
+      <h4 class="title is-4" style="text-align: center;">Websocket Service
         <span id="heartbeatIcon" style="margin-left: 10px;">
           <i id="heartbeat" class="fas fa-heartbeat" style="color: green;"></i>
         </span>
