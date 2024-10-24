@@ -6,6 +6,7 @@
     <title>BotOfTheSpecter - Terms of Service</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
     <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="navbar.js" defer></script>
     <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
     <link rel="apple-touch-icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
