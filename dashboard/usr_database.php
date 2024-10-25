@@ -265,6 +265,27 @@ try {
                 category VARCHAR(255) NOT NULL,
                 PRIMARY KEY (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'showobs' => "
+            CREATE TABLE IF NOT EXISTS showobs (
+                id INT(11) NOT NULL AUTO_INCREMENT,
+                font VARCHAR(50) NOT NULL DEFAULT 'Arial',
+                color VARCHAR(50) NOT NULL DEFAULT 'Black',
+                list VARCHAR(10) NOT NULL DEFAULT 'Bullet',
+                shadow TINYINT(1) NOT NULL DEFAULT 0,
+                bold TINYINT(1) NOT NULL DEFAULT 0,
+                font_size INT(11) NOT NULL DEFAULT 22,
+                PRIMARY KEY (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=latin1",
+        'todos' => "
+            CREATE TABLE IF NOT EXISTS todos (
+                id INT(255) NOT NULL AUTO_INCREMENT,
+                objective VARCHAR(255) NOT NULL,
+                category VARCHAR(255) DEFAULT NULL,
+                completed VARCHAR(3) NOT NULL DEFAULT 'No',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=latin1",
         'quote_category' => "
             CREATE TABLE IF NOT EXISTS quote_category (
                 id INT(11) NOT NULL AUTO_INCREMENT,
