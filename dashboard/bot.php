@@ -247,7 +247,7 @@ if (file_exists($restartLog)) {
       </div>
     <?php endif; ?>
     <!-- Discord Bot Section -->
-    <?php if ($guild_id && $live_channel_id): ?>
+    <?php if ($guild_id && $live_channel_id && $showButtons): ?>
       <div class="column is-5 bot-box" id="discord-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="discord-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4">Discord Bot:</h4>
@@ -265,6 +265,7 @@ if (file_exists($restartLog)) {
         </div>
       </div>
     <?php endif; ?>
+    <?php if ($showButtons): ?>
     <!-- Websocket Notices Section -->
     <div class="column is-5 bot-box" style="position: relative;">
       <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
@@ -305,6 +306,7 @@ if (file_exists($restartLog)) {
         </div>
       </div>
     </div>
+    <?php endif; ?>
   </div>
 </div>
 
