@@ -271,6 +271,12 @@ try {
                 quote_id INT(11),
                 category_id INT(11),
                 PRIMARY KEY (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'sound_alerts' => "
+            CREATE TABLE IF NOT EXISTS sound_alerts (
+                reward_id VARCHAR(255) NOT NULL,
+                sound_mapping TXT,
+                PRIMARY KEY (reward_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
