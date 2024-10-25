@@ -1351,7 +1351,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("commands",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("commands",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1387,7 +1387,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("bot",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("bot",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1411,7 +1411,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("version",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1440,7 +1440,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("version",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result  # Unpack the status and permissions
@@ -1471,7 +1471,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("version",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1513,7 +1513,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("roadmap",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roadmap",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1536,7 +1536,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("weather",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("weather",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1575,7 +1575,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("points",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("points",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1613,7 +1613,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("time",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("time",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1679,7 +1679,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("joke",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("joke",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1711,7 +1711,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("quote",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quote",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1747,7 +1747,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("quoteadd",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quoteadd",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1772,7 +1772,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("removequote",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removequote",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1803,7 +1803,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the permit command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("permit",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("permit",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1831,7 +1831,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the settitle command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("settitle",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("settitle",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1859,7 +1859,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the setgame command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("setgame",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("setgame",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1892,7 +1892,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the song command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("song",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("song",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1931,7 +1931,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the timer command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("timer",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("timer",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -1974,7 +1974,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the stoptimer command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("stoptimer",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("stoptimer",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2003,7 +2003,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the checktimer command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("checktimer",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checktimer",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2034,7 +2034,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the hug command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("hug",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("hug",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2087,7 +2087,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch the status and permissions for the kiss command
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("kiss",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kiss",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2136,7 +2136,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("ping",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("ping",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2174,7 +2174,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("translate",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("translate",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2218,7 +2218,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("cheerleader",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("cheerleader",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2264,7 +2264,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("mybits",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("mybits",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2331,7 +2331,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("lurk",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurk",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2380,7 +2380,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("lurking",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurking",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2427,7 +2427,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("lurklead",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurklead",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2480,7 +2480,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("unlurk",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("unlurk",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2530,7 +2530,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("clip",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("clip",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2590,7 +2590,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("marker",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("marker",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2630,7 +2630,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("subscription",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("subscription",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2684,7 +2684,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("uptime",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("uptime",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2735,7 +2735,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("typo",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typo",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2773,7 +2773,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("typos",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typos",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2806,7 +2806,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("edittypos",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("edittypos",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2863,7 +2863,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("removetypos",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removetypos",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2906,7 +2906,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("steam",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("steam",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -2965,7 +2965,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("deaths",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deaths",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3002,7 +3002,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("deathadd",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathadd",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3053,7 +3053,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("deathremove",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathremove",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3100,7 +3100,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("game",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("game",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3125,7 +3125,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("followage",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("followage",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3202,7 +3202,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("schedule",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("schedule",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3290,7 +3290,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("checkupdate",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checkupdate",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3334,7 +3334,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("shoutout",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("shoutout",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3390,7 +3390,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("addcommand",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("addcommand",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3421,7 +3421,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("removecommand",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removecommand",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3452,7 +3452,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("disablecommand",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("disablecommand",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3483,7 +3483,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("slots",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("slots",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3513,7 +3513,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("kill",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kill",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3569,7 +3569,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("roulette",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roulette",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3597,7 +3597,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("rps",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("rps",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3634,7 +3634,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("story",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("story",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
@@ -3664,7 +3664,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Check if the 'convert' command is enabled
-                await cursor.execute("SELECT status, permissions FROM builtin_commands WHERE command=%s", ("convert",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("convert",))
                 result = await cursor.fetchone()
                 if result:
                     status, permissions = result
