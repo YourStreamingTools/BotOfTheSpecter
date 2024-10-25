@@ -275,7 +275,7 @@ try {
         'sound_alerts' => "
             CREATE TABLE IF NOT EXISTS sound_alerts (
                 reward_id VARCHAR(255) NOT NULL,
-                sound_mapping TXT,
+                sound_mapping TEXT,
                 PRIMARY KEY (reward_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
