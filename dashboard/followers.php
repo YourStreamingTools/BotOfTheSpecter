@@ -148,7 +148,7 @@ function fetchFollowers($url, $authToken, $clientID) {
   <!-- Followers Content Container -->
   <div id="followers-content">
     <h1 class="title is-4">Your Followers:</h1>
-    <h3 id="live-data">Loading new followers...</h3><br>
+    <h3 id="live-data">Loading followers...</h3><br>
     <div id="followers-list" class="columns is-multiline">
       <!-- AJAX appended followers -->
     </div>
