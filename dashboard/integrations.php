@@ -1,4 +1,4 @@
-<?php 
+<?php
 // Initialize the session
 session_start();
 
@@ -30,6 +30,7 @@ $twitchUserId = $user['twitch_user_id'];
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 $refreshToken = $user['refresh_token'];
+$api_key = $user['api_key'];
 $timezone = 'Australia/Sydney';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
