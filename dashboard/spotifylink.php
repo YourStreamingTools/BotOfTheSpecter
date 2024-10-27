@@ -37,9 +37,12 @@ $greeting = 'Hello';
 include 'bot_control.php';
 include 'sqlite.php';
 
+// Set variables
 $client_secret = ''; // CHANGE TO MAKE THIS WORK
 $client_id = ''; // CHANGE TO MAKE THIS WORK
 $redirect_uri = urlencode('https://dashboard.botofthespecter.com/spotifylink.php');
+$message = '';
+$messageType = '';
 
 // Check if we received a code from Spotify (callback handling)
 if (isset($_GET['code'])) {
@@ -53,7 +56,6 @@ if (isset($_GET['code'])) {
         'client_id' => $client_id,
         'client_secret' => $client_secret
     ];
-
     $options = [
         'http' => [
             'method'  => 'POST',
@@ -61,10 +63,8 @@ if (isset($_GET['code'])) {
             'content' => http_build_query($data)
         ]
     ];
-
     $response = file_get_contents($token_url, false, stream_context_create($options));
     $tokens = json_decode($response, true);
-
     if (isset($tokens['access_token'], $tokens['refresh_token'])) {
         $access_token = $tokens['access_token'];
         $refresh_token = $tokens['refresh_token'];
@@ -72,9 +72,11 @@ if (isset($_GET['code'])) {
         $insertSTMT = $conn->prepare("INSERT INTO spotify_tokens (user_id, access_token, refresh_token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), refresh_token = VALUES(refresh_token)");
         $insertSTMT->bind_param("iss", $user_id, $access_token, $refresh_token);
         $insertSTMT->execute();
-        echo "Your Spotify account has been successfully linked!";
+        $message = "Your Spotify account has been successfully linked!";
+        $messageType = "is-success";
     } else {
-        echo "Failed to retrieve tokens from Spotify. Please try again.";
+        $message = "Failed to retrieve tokens from Spotify. Please try again.";
+        $messageType = "is-danger";
     }
     exit();
 }
@@ -87,7 +89,8 @@ $spotifyResult = $spotifySTMT->get_result();
 
 if ($spotifyResult->num_rows > 0) {
     // User is already linked to Spotify
-    echo "Your Spotify account is already linked.";
+    $message = "Your Spotify account is already linked.";
+    $messageType = "is-info";
 } else {
     // User is not linked, proceed with authorization flow
     $scopes = 'user-read-playback-state user-modify-playback-state';
@@ -97,19 +100,24 @@ if ($spotifyResult->num_rows > 0) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Headder -->
-    <?php include('header.php'); ?>
-    <!-- /Headder -->
-  </head>
+    <head>
+        <!-- Headder -->
+        <?php include('header.php'); ?>
+        <!-- /Headder -->
+    </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <br>
+    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <br>
+    <?php if ($message): ?>
+        <div class="notification <?php echo $messageType; ?>">
+            <?php echo $message; ?>
+        </div>
+    <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
