@@ -113,10 +113,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="container">
   <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
-  <div id="loadingNoticeBox" class="notification is-warning">
-    <p id="loadingNotice">Please wait while we load the users and their status... (0/<?php echo $totalUsers; ?>)</p>
+  <div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'is-warning' : 'is-info'; ?>">
+    <p id="loadingNotice">
+      <?php 
+      if ($totalUsers > 0) {
+          echo "Please wait while we load the users and their status... (0/$totalUsers)";
+      } else {
+          echo "There are no users to display.";
+      }
+      ?>
+    </p>
   </div>
-  <div id="content" style="display: none;">
+  <div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
     <h2 class="title is-4">Known Users & Welcome Messages</h2>
     <p class="has-text-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</p>
     
