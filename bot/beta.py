@@ -1554,6 +1554,8 @@ class BotOfTheSpecter(commands.Bot):
                                 async with aiohttp.ClientSession() as session:
                                     response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
                                     result = await response.json()
+                                    if "detail" in result and "Error: 404: Location" in result["detail"]:
+                                        await ctx.send(f"Error: The location '{location}' was not found.")
                                     api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
                             else:
                                 await ctx.send("Unable to retrieve location.")
