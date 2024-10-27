@@ -295,6 +295,7 @@ input[type="submit"]:hover {
 /* Dark mode table styles */
 .table {
     width: 100%;
+    table-layout: fixed;
     background-color: #1f1f1f;
     color: #e0e0e0;
     border-collapse: collapse;
