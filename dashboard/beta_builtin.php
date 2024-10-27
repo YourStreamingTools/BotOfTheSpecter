@@ -102,13 +102,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <td>
                 <form method="post">
                     <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
-                    <select name="usage_level" onchange="this.form.submit()">
-                        <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
-                            <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
-                                <?php echo $displayValue; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="select is-fullwidth">
+                        <select name="usage_level" onchange="this.form.submit()">
+                            <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
+                                <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
+                                    <?php echo $displayValue; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </form>
             </td>
             <td><?php echo htmlspecialchars($command['status']); ?></td>
