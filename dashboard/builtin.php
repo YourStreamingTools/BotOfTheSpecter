@@ -83,6 +83,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
 <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
 <br>
 <h4 class="title is-4">Bot Commands</h4>
+<div class="notification is-info">Beta Users can change the permission level for the command, making commands any usage level.<br><a href="beta_builtin.php" class="button is-primary mt-4">Go to Beta Built-in Commands</a></div>
 <div class="field">
     <div class="control">
         <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
