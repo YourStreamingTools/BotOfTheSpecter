@@ -3826,6 +3826,33 @@ async def command_permissions(setting, user):
     elif setting == "vip" and user.is_vip:
         twitch_logger.info(f"Command Permission checked, {user.name} is a VIP")
         return True
+    # Check if the user is a subscriber for all-subs or t1-sub
+    elif setting in ["all-subs", "t1-sub"]:
+        if user.is_subscriber:
+            twitch_logger.info(f"Command Permission checked, {user.name} is a Subscriber")
+            return True
+    # Check for Tier 2 or Tier 3 subscription using the Twitch API
+    elif setting in ["t2-sub", "t3-sub"]:
+        user_id = user.id
+        headers = {
+            "Client-ID": CLIENT_ID,
+            "Authorization": f"Bearer {CHANNEL_AUTH}"
+        }
+        params = {
+            "broadcaster_id": CHANNEL_ID,
+            "user_id": user_id
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+                if subscription_response.status == 200:
+                    subscription_data = await subscription_response.json()
+                    subscriptions = subscription_data.get('data', [])
+                    if subscriptions:
+                        for subscription in subscriptions:
+                            tier = subscription['tier']
+                            if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000"):
+                                twitch_logger.info(f"Command Permission checked, {user.name} has the required subscription tier ({tier}).")
+                                return True
     # If none of the above, the user does not have required permissions
     twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires {setting} permission.")
     return False
