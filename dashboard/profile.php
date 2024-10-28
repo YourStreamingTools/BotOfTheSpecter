@@ -51,12 +51,13 @@ $last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezo
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   // Check if timezone and weather_location are set
   if (isset($_POST["timezone"]) && isset($_POST["weather_location"])) {
-      // Update the database with the new values
-      $timezone = $_POST["timezone"];
-      $weather_location = $_POST["weather_location"];
-      $updateQuery = $db->prepare("INSERT INTO profile (timezone, weather_location) VALUES (?, ?) ON DUPLICATE KEY UPDATE timezone = VALUES(timezone), weather_location = VALUES(weather_location)");
-      $updateQuery->execute([$timezone, $weather_location]);
-      $status = "Profile updated successfully!";
+    // Update the database with the new values, using id = 1
+    $timezone = $_POST["timezone"];
+    $weather_location = $_POST["weather_location"];
+    // Insert or update the row where id is 1
+    $updateQuery = $db->prepare("INSERT INTO profile (id, timezone, weather_location) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE timezone = VALUES(timezone), weather_location = VALUES(weather_location)");
+    $updateQuery->execute([$timezone, $weather_location]);
+    $status = "Profile updated successfully!";
   } else {
     $status = "Error: Please provide both timezone and weather location.";
   }
