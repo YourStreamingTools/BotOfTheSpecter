@@ -649,7 +649,7 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         raise HTTPException(status_code=401, detail="Invalid API Key")
     # Fetch weather data
     try:
-        lat, lon = await get_lat_lon(location)
+        lat, lon = await get_weather_lat_lon(location)
         if lat is None or lon is None:
             raise HTTPException(status_code=404, detail=f"Location '{location}' not found.")
         weather_data_metric = await fetch_weather_data(lat, lon, units='metric')
@@ -666,8 +666,8 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
                 remaining_requests = int(log_file.read().strip())
         except FileNotFoundError:
             remaining_requests = 1000  # If log file does not exist, we start with the max requests
-        # Reduce remaining requests by 1
-        remaining_requests -= 1
+        # Reduce remaining requests by 2 (one for metric, one for imperial units)
+        remaining_requests -= 2
         # Log the new remaining request count
         with open(log_file_path, "w") as log_file:
             log_file.write(str(remaining_requests))
@@ -687,7 +687,7 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 # Functions to fetch weather data
-async def get_lat_lon(location):
+async def get_weather_lat_lon(location):
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
             data = await response.json()
