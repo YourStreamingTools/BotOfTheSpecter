@@ -93,7 +93,7 @@ if ($spotifyResult->num_rows > 0) {
     $messageType = "is-info";
 } else {
     // User is not linked, proceed with authorization flow
-    $scopes = 'user-read-playback-state user-modify-playback-state';
+    $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
     header("Location: https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri");
     exit();
 }
