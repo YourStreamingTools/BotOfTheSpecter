@@ -52,7 +52,7 @@ if (isset($_GET['code'])) {
     $data = [
         'grant_type' => 'authorization_code',
         'code' => $auth_code,
-        'redirect_uri' => urldecode($redirect_uri),
+        'redirect_uri' => $redirect_uri,
         'client_id' => $client_id,
         'client_secret' => $client_secret
     ];
@@ -82,7 +82,6 @@ if (isset($_GET['code'])) {
         $message = "Failed to retrieve tokens from Spotify. Please try again.";
         $messageType = "is-danger";
     }
-    exit();
 }
 
 // Check if user is already linked to Spotify
