@@ -177,7 +177,7 @@ async def refresh_token(current_refresh_token):
                         REFRESH_TOKEN = new_refresh_token
                         # Calculate the next refresh time to be 5 minutes before the 4-hour mark
                         next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes, so we refresh before actual expiration
-                        log_message = "Refreshed token. New Access Token: {}, New Refresh Token: {}".format(new_access_token, new_refresh_token)
+                        log_message = "Refreshed token. New Access Token: {}".format(new_access_token)
                         twitch_logger.info(log_message)
                         return new_refresh_token, next_refresh_time
                     else:
