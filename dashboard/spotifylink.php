@@ -52,7 +52,7 @@ if (isset($_GET['code'])) {
     $data = [
         'grant_type' => 'authorization_code',
         'code' => $auth_code,
-        'redirect_uri' => $redirect_uri,
+        'redirect_uri' => urldecode($redirect_uri),
         'client_id' => $client_id,
         'client_secret' => $client_secret
     ];
@@ -60,10 +60,14 @@ if (isset($_GET['code'])) {
         'http' => [
             'method'  => 'POST',
             'header'  => "Content-Type: application/x-www-form-urlencoded",
-            'content' => http_build_query($data)
+            'content' => http_build_query($data),
+            'ignore_errors' => true
         ]
     ];
     $response = file_get_contents($token_url, false, stream_context_create($options));
+    if ($response === FALSE) {
+        die("Failed to contact Spotify. Please check your API credentials and network connection.");
+    }
     $tokens = json_decode($response, true);
     if (isset($tokens['access_token'], $tokens['refresh_token'])) {
         $access_token = $tokens['access_token'];
