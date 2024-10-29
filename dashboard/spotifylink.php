@@ -43,6 +43,7 @@ $client_id = ''; // CHANGE TO MAKE THIS WORK
 $redirect_uri = 'https://dashboard.botofthespecter.com/spotifylink.php';
 $message = '';
 $messageType = '';
+$spotifyUserInfo = [];
 
 // Check if we received a code from Spotify (callback handling)
 if (isset($_GET['code'])) {
@@ -92,13 +93,27 @@ $spotifyResult = $spotifySTMT->get_result();
 
 if ($spotifyResult->num_rows > 0) {
     // User is already linked to Spotify
-    $message = "Your Spotify account is already linked.";
-    $messageType = "is-info";
+    $spotifyRow = $spotifyResult->fetch_assoc();
+    $spotifyAccessToken = $spotifyRow['access_token'];
+    // Get Spotify profile data
+    $profileUrl = 'https://api.spotify.com/v1/me';
+    $profileOptions = [
+        'http' => [
+            'method' => 'GET',
+            'header' => "Authorization: Bearer $spotifyAccessToken",
+            'ignore_errors' => true
+        ]
+    ];
+    $profileResponse = file_get_contents($profileUrl, false, stream_context_create($profileOptions));
+    $spotifyUserInfo = json_decode($profileResponse, true);
+    if (!isset($spotifyUserInfo['id'])) {
+        $message = "Failed to fetch Spotify user data. Please relink your account.";
+        $messageType = "is-danger";
+    }
 } else {
     // User is not linked, proceed with authorization flow
     $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
-    header("Location: https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri");
-    exit();
+    $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
 }
 ?>
 <!DOCTYPE html>
@@ -119,6 +134,22 @@ if ($spotifyResult->num_rows > 0) {
     <?php if ($message): ?>
         <div class="notification <?php echo $messageType; ?>">
             <?php echo $message; ?>
+        </div>
+    <?php endif; ?>
+    <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
+        <h2 class="subtitle">Spotify Profile Information:</h2>
+        <p><strong>Spotify Username:</strong> <?php echo htmlspecialchars($spotifyUserInfo['display_name']); ?></p>
+        <p><strong>Spotify ID:</strong> <?php echo htmlspecialchars($spotifyUserInfo['id']); ?></p>
+        <?php if (!empty($spotifyUserInfo['images'][0]['url'])): ?>
+            <img src="<?php echo $spotifyUserInfo['images'][0]['url']; ?>" width="100" height="100" alt="Spotify Profile Picture">
+        <?php else: ?>
+            <p><em>No profile image available.</em></p>
+        <?php endif; ?>
+    <?php else: ?>
+        <!-- Relink Spotify Account Button -->
+        <div class="notification is-info">
+            <p><strong>It looks like your Spotify account needs to be linked.</strong></p>
+            <a href="<?php echo $authURL; ?>" class="button is-primary">Relink Spotify Account</a>
         </div>
     <?php endif; ?>
 </div>
