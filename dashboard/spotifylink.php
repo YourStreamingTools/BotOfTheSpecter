@@ -41,6 +41,7 @@ include 'sqlite.php';
 $client_secret = ''; // CHANGE TO MAKE THIS WORK
 $client_id = ''; // CHANGE TO MAKE THIS WORK
 $redirect_uri = 'https://dashboard.botofthespecter.com/spotifylink.php';
+$authURL = '';
 $message = '';
 $messageType = '';
 $spotifyUserInfo = [];
@@ -85,8 +86,8 @@ if (isset($_GET['code'])) {
     }
 }
 
-// Check if user is already linked to Spotify
-$spotifySTMT = $conn->prepare("SELECT access_token, refresh_token FROM spotify_tokens WHERE user_id = ?");
+// Fetch Spotify Profile Information if linked
+$spotifySTMT = $conn->prepare("SELECT access_token FROM spotify_tokens WHERE user_id = ?");
 $spotifySTMT->bind_param("i", $user_id);
 $spotifySTMT->execute();
 $spotifyResult = $spotifySTMT->get_result();
@@ -109,9 +110,12 @@ if ($spotifyResult->num_rows > 0) {
     if (!isset($spotifyUserInfo['id'])) {
         $message = "Failed to fetch Spotify user data. Please relink your account.";
         $messageType = "is-danger";
+        // Set authorization URL to trigger reauthorization if profile data fetch fails
+        $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+        $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
     }
 } else {
-    // User is not linked, proceed with authorization flow
+    // User not linked, set authorization URL
     $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
     $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
 }
