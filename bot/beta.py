@@ -13,7 +13,6 @@ import random
 import base64
 import uuid
 from urllib.parse import urlencode
-from enum import Enum
 import ast
 
 # Third-party imports
@@ -21,7 +20,6 @@ import aiohttp
 from aiohttp import ClientSession
 import socketio
 import aiomysql
-from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands
 import streamlink
@@ -62,6 +60,8 @@ CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
+SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
+SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
@@ -102,27 +102,36 @@ api_logger = loggers['api']
 chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
 
-# Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
-translator = GoogleTranslator
+# Setup Globals
+global stream_online
+global current_game
+global stream_title
+global bot_started
+global SPOTIFY_REFRESH_TOKEN
+global SPOTIFY_ACCESS_TOKEN
+global next_spotify_refresh_time
+
+# Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
+translator = GoogleTranslator()
 scheduled_tasks = asyncio.Queue()
 sio = socketio.AsyncClient()
 ureg = UnitRegistry()
 permitted_users = {}
 bot_logger.info("Bot script started.")
 connected = set()
-scheduled_tasks = []
 pending_removals = {}
 last_poll_progress_update = 0
-global stream_online
-global current_game
-global stream_title
-global bot_started
+
+# Initialize global variables
 bot_started = datetime.now()
 stream_online = False
 current_game = None
+SPOTIFY_REFRESH_TOKEN = None
+SPOTIFY_ACCESS_TOKEN = None
+next_spotify_refresh_time = None
 
 # Setup Token Refresh
-async def token_refresh():
+async def twitch_token_refresh():
     global REFRESH_TOKEN
     # Initial sleep for 5 minutes before first token refresh
     initial_sleep_time = 300  # 5 minutes
@@ -179,6 +188,81 @@ async def refresh_token(current_refresh_token):
         # Log the error if token refresh fails
         twitch_logger.error(f"Token refresh failed: {e}")
         return current_refresh_token, next_refresh_time
+
+# Setup Spotify Access
+async def spotify_token_refresh():
+    global SPOTIFY_REFRESH_TOKEN, SPOTIFY_ACCESS_TOKEN, next_spotify_refresh_time
+    # Connect to the database to retrieve the user's Spotify tokens
+    sqldb = await get_spotify_settings()
+    async with sqldb.cursor() as cursor:
+        # Fetch the user ID for the specified CHANNEL_NAME
+        await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
+        user_row = await cursor.fetchone()
+        user_id = user_row["id"]
+        # Fetch the Spotify tokens associated with the user_id
+        await cursor.execute("SELECT access_token, refresh_token FROM spotify_tokens WHERE user_id = %s", (user_id,))
+        tokens_row = await cursor.fetchone()
+        if not tokens_row:
+            bot_logger.info(f"No Spotify tokens found for user {CHANNEL_NAME}.")
+            await sqldb.ensure_closed()
+            return
+        SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
+        SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
+    await sqldb.ensure_closed()
+    # Initial sleep for 5 minutes before the first token refresh
+    initial_sleep_time = 300  # 5 minutes
+    await asyncio.sleep(initial_sleep_time)
+    # Perform the first token refresh after the initial sleep
+    SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
+    # Set next refresh time to 4 hours minus 5 minutes from now
+    next_spotify_refresh_time = time.time() + 4 * 60 * 60 - 300
+    while True:
+        current_time = time.time()
+        time_until_expiration = next_spotify_refresh_time - current_time
+        if current_time >= next_spotify_refresh_time:
+            SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
+        else:
+            # Adjust sleep interval based on time left until expiration
+            if time_until_expiration > 3600:
+                sleep_time = 3600
+            elif time_until_expiration > 300:
+                sleep_time = 300
+            else:
+                sleep_time = 60
+            await asyncio.sleep(sleep_time)
+
+async def refresh_spotify_token(current_refresh_token, user_id):
+    global SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
+    url = "https://accounts.spotify.com/api/token"
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": current_refresh_token,
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET,
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=data) as response:
+                if response.status == 200:
+                    tokens = await response.json()
+                    new_access_token = tokens.get("access_token")
+                    new_refresh_token = tokens.get("refresh_token", current_refresh_token)
+                    next_refresh_time = time.time() + 4 * 60 * 60 - 300 # Refresh before expiration
+                    # Update token variables
+                    SPOTIFY_ACCESS_TOKEN = new_access_token
+                    SPOTIFY_REFRESH_TOKEN = new_refresh_token
+                    next_spotify_refresh_time = next_refresh_time
+                    # Save the new tokens in the database
+                    sqldb = await get_spotify_settings()
+                    async with sqldb.cursor() as cursor:
+                        await cursor.execute("UPDATE spotify_tokens SET access_token = %s, refresh_token = %s, expires_at = %s WHERE user_id = %s", (new_access_token, new_refresh_token, datetime.now() + timedelta(hours=4), user_id))
+                        await sqldb.commit()
+                    await sqldb.ensure_closed()
+                    return new_access_token, new_refresh_token, next_refresh_time
+                else:
+                    bot_logger.error(f"Spotify token refresh failed: HTTP {response.status}")
+    except Exception as e:
+        bot_logger.error(f"Spotify token refresh error: {e}")
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -869,7 +953,8 @@ class BotOfTheSpecter(commands.Bot):
         await builtin_commands_creation()
         await known_users()
         await channel_point_rewards()
-        asyncio.get_event_loop().create_task(token_refresh())
+        asyncio.get_event_loop().create_task(twitch_token_refresh())
+        asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(specter_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
@@ -5931,6 +6016,7 @@ async def check_premium_feature():
         twitch_logger.error(f"Error checking user/subscription: {e}")
         return 0  # Return 0 for any API error
 
+# Connect to database
 async def get_mysql_connection():
     return await aiomysql.connect(
         host=SQL_HOST,
@@ -5939,6 +6025,7 @@ async def get_mysql_connection():
         db=CHANNEL_NAME
     )
 
+# Connect to database to get Spam Patterns
 async def get_spam_patterns():
     # Connect to your MySQL database
     conn = await aiomysql.connect(
@@ -5956,6 +6043,16 @@ async def get_spam_patterns():
         # Compile the regular expressions
         compiled_patterns = [re.compile(row[0], re.IGNORECASE) for row in results]
     return compiled_patterns
+
+# Connect to database to get Spotify Settings
+async def get_spotify_settings():
+    # Connect to your MySQL database
+    return await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db="website",
+    )
 
 # Here is the BOT
 bot = BotOfTheSpecter(
