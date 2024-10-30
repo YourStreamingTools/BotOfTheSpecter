@@ -319,8 +319,7 @@ async def subscribe_to_events(session_id):
         "channel.poll.progress",
         "channel.poll.end",
         "automod.message.hold",
-        "channel.suspicious_user.message",
-        "channel.chat.user_message_hold"
+        "channel.suspicious_user.message"
     ]
     v2topics = [
         "channel.follow",
@@ -395,7 +394,6 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    event_logger.info(f"WebSocket subscription successful for {v1topic}")
                     responses.append(await response.json())
     async with aiohttp.ClientSession() as session:
         for v2topic in v2topics:
@@ -427,7 +425,6 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    event_logger.info(f"WebSocket subscription successful for {v2topic}")
                     responses.append(await response.json())
 
 async def receive_messages(twitch_websocket, keepalive_timeout):
