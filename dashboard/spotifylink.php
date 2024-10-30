@@ -74,10 +74,22 @@ if (isset($_GET['code'])) {
     if (isset($tokens['access_token'], $tokens['refresh_token'])) {
         $access_token = $tokens['access_token'];
         $refresh_token = $tokens['refresh_token'];
-        // Save the tokens in the database linked to the user
-        $insertSTMT = $conn->prepare("INSERT INTO spotify_tokens (user_id, access_token, refresh_token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), refresh_token = VALUES(refresh_token)");
-        $insertSTMT->bind_param("iss", $user_id, $access_token, $refresh_token);
-        $insertSTMT->execute();
+        // Check if the spotify_tokens entry exists for this user
+        $checkStmt = $conn->prepare("SELECT 1 FROM spotify_tokens WHERE user_id = ?");
+        $checkStmt->bind_param("i", $user_id);
+        $checkStmt->execute();
+        $exists = $checkStmt->get_result()->num_rows > 0;
+        if ($exists) {
+            // Update existing tokens for the user
+            $updateStmt = $conn->prepare("UPDATE spotify_tokens SET access_token = ?, refresh_token = ? WHERE user_id = ?");
+            $updateStmt->bind_param("ssi", $access_token, $refresh_token, $user_id);
+            $updateStmt->execute();
+        } else {
+            // Insert new tokens if none exist for this user
+            $insertStmt = $conn->prepare("INSERT INTO spotify_tokens (user_id, access_token, refresh_token) VALUES (?, ?, ?)");
+            $insertStmt->bind_param("iss", $user_id, $access_token, $refresh_token);
+            $insertStmt->execute();
+        }
         $message = "Your Spotify account has been successfully linked!";
         $messageType = "is-success";
     } else {
