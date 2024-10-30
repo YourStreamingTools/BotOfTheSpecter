@@ -259,7 +259,7 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                         await cursor.execute("UPDATE spotify_tokens SET access_token = %s, refresh_token = %s, expires_at = %s WHERE user_id = %s", (new_access_token, new_refresh_token, datetime.now() + timedelta(hours=4), user_id))
                         await sqldb.commit()
                     await sqldb.ensure_closed()
-                    bot_logger.info(f"Spotify Tokens found: {new_access_token}")
+                    bot_logger.info(f"New Spotify Token: {new_access_token}")
                     return new_access_token, new_refresh_token, next_refresh_time
                 else:
                     bot_logger.error(f"Spotify token refresh failed: HTTP {response.status}")
