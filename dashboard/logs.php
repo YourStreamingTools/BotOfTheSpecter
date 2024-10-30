@@ -109,6 +109,7 @@ if (isset($_GET['log'])) {
         <label for="logs-select">Select a log to view:</label>
         <select id="logs-select" class="logs-select">
           <option>SELECT A LOG TYPE</option>
+          <option value="script" <?php echo $logType === 'script' ? 'selected' : ''; ?>>Application Log</option>
           <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
           <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
           <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>>Twitch Log</option>
