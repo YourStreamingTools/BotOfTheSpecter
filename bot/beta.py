@@ -137,14 +137,14 @@ async def twitch_token_refresh():
     initial_sleep_time = 300  # 5 minutes
     await asyncio.sleep(initial_sleep_time)
     # Perform the first token refresh after the initial sleep
-    REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
+    REFRESH_TOKEN, next_refresh_time = await twitch_refresh_token(REFRESH_TOKEN)
     # Calculate the next refresh time to be 4 hours minus 5 minutes from now
     next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes for refresh
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
         if current_time >= next_refresh_time:
-            REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
+            REFRESH_TOKEN, next_refresh_time = await twitch_refresh_token(REFRESH_TOKEN)
         else:
             if time_until_expiration > 3600:  # More than 1 hour until expiration
                 sleep_time = 3600  # Check again in 1 hour
@@ -154,7 +154,7 @@ async def twitch_token_refresh():
                 sleep_time = 60  # Check every minute when close to expiration
             await asyncio.sleep(sleep_time)
 
-async def refresh_token(current_refresh_token):
+async def twitch_refresh_token(current_refresh_token):
     global CHANNEL_AUTH, REFRESH_TOKEN
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
@@ -208,6 +208,7 @@ async def spotify_token_refresh():
             return
         SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
         SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
+        bot_logger.info(f"Spotify Tokens found: {SPOTIFY_ACCESS_TOKEN}")
     await sqldb.ensure_closed()
     # Initial sleep for 5 minutes before the first token refresh
     initial_sleep_time = 300  # 5 minutes
@@ -258,6 +259,7 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                         await cursor.execute("UPDATE spotify_tokens SET access_token = %s, refresh_token = %s, expires_at = %s WHERE user_id = %s", (new_access_token, new_refresh_token, datetime.now() + timedelta(hours=4), user_id))
                         await sqldb.commit()
                     await sqldb.ensure_closed()
+                    bot_logger.info(f"Spotify Tokens found: {new_access_token}")
                     return new_access_token, new_refresh_token, next_refresh_time
                 else:
                     bot_logger.error(f"Spotify token refresh failed: HTTP {response.status}")
