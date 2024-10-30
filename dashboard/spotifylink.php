@@ -154,17 +154,17 @@ if ($spotifyResult->num_rows > 0) {
     <?php endif; ?>
     <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
         <h2 class="subtitle">Spotify Profile Information:</h2>
-        <p><strong>Spotify Username:</strong> <?php echo htmlspecialchars($spotifyUserInfo['display_name']); ?></p>
-        <p><strong>Spotify ID:</strong> <?php echo htmlspecialchars($spotifyUserInfo['id']); ?></p>
+        <p>Spotify Username: <?php echo htmlspecialchars($spotifyUserInfo['display_name']); ?></p>
+        <p>Spotify ID: <?php echo htmlspecialchars($spotifyUserInfo['id']); ?></p>
         <?php if (!empty($spotifyUserInfo['images'][0]['url'])): ?>
-            <img src="<?php echo $spotifyUserInfo['images'][0]['url']; ?>" width="100" height="100" alt="Spotify Profile Picture">
+            <img id='profile-image' class='round-image' src="<?php echo $spotifyUserInfo['images'][0]['url']; ?>" width="100" height="100" alt="<?php echo htmlspecialchars($spotifyUserInfo['id']); ?> spotify profile picture">
         <?php else: ?>
             <p><em>No profile image available.</em></p>
         <?php endif; ?>
     <?php else: ?>
         <!-- Relink Spotify Account Button -->
         <div class="notification is-info">
-            <p><strong>It looks like your Spotify account needs to be linked.</strong></p>
+            <p>It looks like your Spotify account needs to be linked.</p>
             <a href="<?php echo $authURL; ?>" class="button is-primary">Relink Spotify Account</a>
         </div>
     <?php endif; ?>
