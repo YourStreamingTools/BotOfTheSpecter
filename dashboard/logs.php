@@ -115,6 +115,7 @@ if (isset($_GET['log'])) {
           <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>>API Log</option>
           <option value="chat_history" <?php echo $logType === 'chat_history' ? 'selected' : ''; ?>>Chat History</option>
           <option value="event_log" <?php echo $logType === 'event_log' ? 'selected' : ''; ?>>Event Log</option>
+          <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>>Websocket Log</option>
           <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
         </select>
       </div>
