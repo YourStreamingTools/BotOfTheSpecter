@@ -104,9 +104,8 @@ if (isset($_GET['log'])) {
 <div class="container">
   <div class="logs-container">
     <div class="logs-sidebar">
-      <h2 class="logs-title">Pick a log file</h2>
+      <p class="logs-title">Select a log to view:</p>
       <div>
-        <label for="logs-select">Select a log to view:</label>
         <select id="logs-select" class="logs-select">
           <option>SELECT A LOG TYPE</option>
           <option value="script" <?php echo $logType === 'script' ? 'selected' : ''; ?>>Script Logs</option>
