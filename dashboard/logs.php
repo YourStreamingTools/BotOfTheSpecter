@@ -104,12 +104,12 @@ if (isset($_GET['log'])) {
 <div class="container">
   <div class="logs-container">
     <div class="logs-sidebar">
-      <h2 class="logs-title">Logs</h2>
+      <h2 class="logs-title">Pick a log file</h2>
       <div>
         <label for="logs-select">Select a log to view:</label>
         <select id="logs-select" class="logs-select">
           <option>SELECT A LOG TYPE</option>
-          <option value="script" <?php echo $logType === 'script' ? 'selected' : ''; ?>>Application Log</option>
+          <option value="script" <?php echo $logType === 'script' ? 'selected' : ''; ?>>Script Logs</option>
           <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
           <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
           <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>>Twitch Log</option>
@@ -135,7 +135,7 @@ if (isset($_GET['log'])) {
     </div>
     <div class="logs-log-area">
       <div id="logs-logDisplay" class="logs-log-content">
-        <h3 class="logs-title" id="log-title">Logs</h3>
+        <h3 class="logs-title" id="log-title"></h3>
         <textarea id="logs-log-textarea" readonly><?php echo htmlspecialchars($logContent); ?></textarea>
       </div>
     </div>
@@ -153,9 +153,6 @@ const loadMoreButton = document.getElementById("load-more");
 const logSelect = document.getElementById("logs-select");
 const buttonsContainer = document.querySelector(".buttons-container"); // Target the buttons container
 const autoRefreshInterval = 5000; // Auto-refresh interval in milliseconds (5 seconds by default)
-
-// Get the h2 element where the log title will be displayed
-const logTitle = document.getElementById("log-title");
 
 // Function to update the log title with the selected log type
 function updateLogTitle(logname) {
