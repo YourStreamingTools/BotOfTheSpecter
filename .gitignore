@@ -2,6 +2,7 @@
 bot/.env
 app/.env
 api/.env
+websocket/.env
 
 # Build and distribution directories
 app/dist/
