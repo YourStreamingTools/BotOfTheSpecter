@@ -207,17 +207,17 @@ async def spotify_token_refresh():
             bot_logger.info(f"No Spotify tokens found for user {CHANNEL_NAME}.")
             await sqldb.ensure_closed()
             return
+        bot_logger.info(f"Spotify Tokens found for {CHANNEL_NAME}: {tokens_row['access_token']}")
         SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
         SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
-        bot_logger.info(f"Spotify Tokens found: {SPOTIFY_ACCESS_TOKEN}")
     await sqldb.ensure_closed()
     # Initial sleep for 5 minutes before the first token refresh
     initial_sleep_time = 300  # 5 minutes
     await asyncio.sleep(initial_sleep_time)
     # Perform the first token refresh after the initial sleep
     SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
-    # Set next refresh time to 4 hours minus 5 minutes from now
-    next_spotify_refresh_time = time.time() + 4 * 60 * 60 - 300
+    # Set next refresh time to 55 minutes from now (1 hour - 5 minutes buffer)
+    next_spotify_refresh_time = time.time() + 60 * 60 - 300
     while True:
         current_time = time.time()
         time_until_expiration = next_spotify_refresh_time - current_time
@@ -233,6 +233,7 @@ async def spotify_token_refresh():
                 sleep_time = 60
             await asyncio.sleep(sleep_time)
 
+# Function to refresh Spotify token
 async def refresh_spotify_token(current_refresh_token, user_id):
     global SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
     url = "https://accounts.spotify.com/api/token"
@@ -249,7 +250,7 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                     tokens = await response.json()
                     new_access_token = tokens.get("access_token")
                     new_refresh_token = tokens.get("refresh_token", current_refresh_token)
-                    next_refresh_time = time.time() + 4 * 60 * 60 - 300 # Refresh before expiration
+                    next_refresh_time = time.time() + 60 * 60 - 300
                     # Update token variables
                     SPOTIFY_ACCESS_TOKEN = new_access_token
                     SPOTIFY_REFRESH_TOKEN = new_refresh_token
@@ -257,10 +258,13 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                     # Save the new tokens in the database
                     sqldb = await get_spotify_settings()
                     async with sqldb.cursor() as cursor:
-                        await cursor.execute("UPDATE spotify_tokens SET access_token = %s, refresh_token = %s, expires_at = %s WHERE user_id = %s", (new_access_token, new_refresh_token, datetime.now() + timedelta(hours=4), user_id))
+                        await cursor.execute(
+                            "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s, expires_at = %s WHERE user_id = %s",
+                            (new_access_token, new_refresh_token, datetime.now() + timedelta(hours=4), user_id)
+                        )
                         await sqldb.commit()
                     await sqldb.ensure_closed()
-                    bot_logger.info(f"New Spotify Token: {new_access_token}")
+                    bot_logger.info(f"New Spotify Token for {CHANNEL_NAME}: {new_access_token}")
                     return new_access_token, new_refresh_token, next_refresh_time
                 else:
                     bot_logger.error(f"Spotify token refresh failed: HTTP {response.status}")
@@ -945,7 +949,7 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_name = channel_name
 
     async def event_ready(self):
-        bot_logger.info(f'Logged in as | {self.nick}')
+        bot_logger.info(f'Logged in as "{self.nick}"')
         channel = self.get_channel(self.channel_name)
         await check_stream_online()
         await update_version_control()
