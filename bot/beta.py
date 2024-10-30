@@ -70,7 +70,7 @@ builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", 
 # Logs
 webroot = "/var/www/"
 logs_directory = os.path.join(webroot, "logs")
-log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log"]
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
 
 # Ensure directories exist
 for log_type in log_types:
@@ -101,6 +101,7 @@ twitch_logger = loggers['twitch']
 api_logger = loggers['api']
 chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
+websocket_logger = loggers['websocket']
 
 # Setup Globals
 global stream_online
@@ -889,39 +890,39 @@ async def connect():
 
 @sio.event
 async def connect_error(data):
-    bot_logger.error(f"Failed to connect to the SpecterWebsocket Server: {data}")
+    websocket_logger.error(f"Failed to connect to the SpecterWebsocket Server: {data}")
 
 @sio.event
 async def disconnect():
-    bot_logger.info("Disconnected from SpecterWebsocket Server.")
+    websocket_logger.info("Disconnected from SpecterWebsocket Server.")
 
 @sio.event
 async def message(data):
-    bot_logger.info(f"Received message: {data}")
+    websocket_logger.info(f"Received message: {data}")
 
 @sio.event
 async def STREAM_ONLINE(data):
-    event_logger.info(f"Received STREAM_ONLINE event: {data}")
+    websocket_logger.info(f"Received STREAM_ONLINE event: {data}")
     await process_stream_online_websocket()
 
 @sio.event
 async def STREAM_OFFLINE(data):
-    event_logger.info(f"Received STREAM_OFFLINE event: {data}")
+    websocket_logger.info(f"Received STREAM_OFFLINE event: {data}")
     await process_stream_offline_websocket()
 
 @sio.event
 async def FOURTHWALL(data):
-    event_logger.info(f"Received FOURTHWALL event: {data}")
+    websocket_logger.info(f"Received FOURTHWALL event: {data}")
     await process_fourthwall_event(data)
 
 @sio.event
 async def KOFI(data):
-    event_logger.info(f"Received KOFI event: {data}")
+    websocket_logger.info(f"Received KOFI event: {data}")
     await process_kofi_event(data)
 
 @sio.event
 async def WEATHER_DATA(data):
-    event_logger.info(f"Received WEATHER_DATA event: {data}")
+    websocket_logger.info(f"Received WEATHER_DATA event: {data}")
     await process_weather_websocket(data)
 
 # Connect and manage reconnection
