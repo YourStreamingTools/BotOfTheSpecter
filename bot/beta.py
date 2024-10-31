@@ -1493,7 +1493,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -1522,7 +1522,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceoffline')
     async def forceoffline_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -1831,7 +1831,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
@@ -1856,7 +1856,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
@@ -1887,7 +1887,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
@@ -1915,7 +1915,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
@@ -1943,7 +1943,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
@@ -2647,34 +2647,26 @@ class BotOfTheSpecter(commands.Bot):
                                 clip_id = clip_data['data'][0]['id']
                                 clip_url = f"http://clips.twitch.tv/{clip_id}"
                                 await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
+                                marker_description = f"Clip creation by {ctx.author.name}"
+                                if await make_stream_marker(marker_description):
+                                    twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
+                                else:
+                                    twitch_logger.info("Failed to create a stream marker for the clip.")
                             else:
-                                await ctx.send("Failed to create clip.")
+                                marker_description = f"Failed to create clip."
+                                if await make_stream_marker(marker_description):
+                                    twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
+                                else:
+                                    twitch_logger.info("Failed to create a stream marker for the clip.")
+                                await ctx.send(marker_description)
                                 twitch_logger.error(f"Clip Error Code: {clip_response.status}")
-                        # Create a stream marker
-                        marker_description = f"Clip creation attempt by {ctx.author.name}"
-                        marker_payload = {
-                            "user_id": CHANNEL_ID,
-                            "description": marker_description
-                        }
-                        marker_headers = {
-                            "Client-ID": CLIENT_ID,
-                            "Authorization": f"Bearer {CHANNEL_AUTH}",
-                            "Content-Type": "application/json"
-                        }
-                        async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
-                            if marker_response.status == 200:
-                                marker_data = await marker_response.json()
-                                marker_created_at = marker_data['data'][0]['created_at']
-                                twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
-                            else:
-                                twitch_logger.info("Failed to create a stream marker for the clip.")
         except Exception as e:
             twitch_logger.error(f"Error in clip_command: {e}")
             await ctx.send("An error occurred while executing the clip command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
         global stream_online
@@ -2688,28 +2680,14 @@ class BotOfTheSpecter(commands.Bot):
                     if status == 'Disabled':
                         return
                     if not stream_online:
-                        await ctx.send("Sorry, I can only do this command while the stream is online.")
+                        await ctx.send("Sorry, I can only make a marker while the stream is online.")
                         return
                     if await command_permissions(permissions, ctx.author):
                         marker_description = description if description else f"Marker made by {ctx.author.name}"
-                        marker_payload = {
-                            "user_id": CHANNEL_ID,
-                            "description": marker_description
-                        }
-                        marker_headers = {
-                            "Client-ID": CLIENT_ID,
-                            "Authorization": f"Bearer {CHANNEL_AUTH}",
-                            "Content-Type": "application/json"
-                        }
-                        try:
-                            async with aiohttp.ClientSession() as session:
-                                async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
-                                    if marker_response.status == 200:
-                                        await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
-                                    else:
-                                        await ctx.send("Failed to create a stream marker.")
-                        except aiohttp.ClientError as e:
-                            twitch_logger.error(f"Error creating stream marker: {e}")
+                        if await make_stream_marker(marker_description):
+                            await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
+                        else:
+                            await ctx.send("Failed to create a stream marker.")
                     else:
                         await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
@@ -2891,7 +2869,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
@@ -2948,7 +2926,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
@@ -3086,7 +3064,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(self, ctx):
         global current_game
@@ -3137,7 +3115,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(self, ctx):
         global current_game
@@ -3375,7 +3353,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -3419,7 +3397,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
@@ -3475,7 +3453,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -3506,7 +3484,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -3537,7 +3515,7 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -4743,6 +4721,11 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             await send_to_discord(discord_message, "New Raid!", "raid.png")
             await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
             await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
+            marker_description = f"New Raid from {from_broadcaster_name}"
+            if await make_stream_marker(marker_description):
+                twitch_logger.info(f"A stream marker was created: {marker_description}.")
+            else:
+                twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
@@ -4801,6 +4784,11 @@ async def process_cheer_event(user_id, user_name, bits):
             await send_to_discord(discord_message, "New Cheer!", image)
             await channel.send(f"Thank you {user_name} for {bits} bits!")
             await websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits)
+            marker_description = f"New Cheer from {user_name}"
+            if await make_stream_marker(marker_description):
+                twitch_logger.info(f"A stream marker was created: {marker_description}.")
+            else:
+                twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
@@ -4876,7 +4864,11 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             # Retrieve the channel object
             try:
                 await channel.send(message)
-                event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
+                marker_description = f"New Subscription from {user_name}"
+                if await make_stream_marker(marker_description):
+                    twitch_logger.info(f"A stream marker was created: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
             except Exception as e:
                 event_logger.error(f"Failed to send message to channel {CHANNEL_NAME}: {e}")
     except Exception as e:
@@ -4956,7 +4948,11 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             # Retrieve the channel object
             try:
                 await channel.send(message)
-                event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
+                marker_description = f"New Subscription from {user_name}"
+                if await make_stream_marker(marker_description):
+                    twitch_logger.info(f"A stream marker was created: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
             except Exception as e:
                 event_logger.error(f"Failed to send message to channel {CHANNEL_NAME}: {e}")
     except Exception as e:
@@ -4976,14 +4972,21 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 message = f"Thank you for gifting a {givent_sub_plan} subscription to {number_gifts} members! {number_gifts} members are now a {givent_sub_plan} subscriber!"
                 discord_message = f"An Anonymous Gifter just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
+                giftsubfrom = "Anonymous"
             else:
+                giftsubfrom = gifter_user_name
                 if total_gifted > 1:
-                    message = f"Thank you {gifter_user_name} for gifting a {givent_sub_plan} subscription to {number_gifts} members! You have gifted a total of {total_gifted} to the community!"
+                    message = f"Thank you {giftsubfrom} for gifting a {givent_sub_plan} subscription to {number_gifts} members! You have gifted a total of {total_gifted} to the community!"
                 else:
-                    message = f"Thank you {gifter_user_name} for gifting a {givent_sub_plan} subscription to {number_gifts} members!"
-                discord_message = f"{gifter_user_name} just gifted {number_gifts} of gift subscriptions!"
+                    message = f"Thank you {giftsubfrom} for gifting a {givent_sub_plan} subscription to {number_gifts} members!"
+                discord_message = f"{giftsubfrom} just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
             await channel.send(message)
+            marker_description = f"New Gift Subs from {giftsubfrom}"
+            if await make_stream_marker(marker_description):
+                twitch_logger.info(f"A stream marker was created: {marker_description}.")
+            else:
+                twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
@@ -5028,6 +5031,11 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         await send_to_discord(discord_message, "New Follower!", "follow.png")
         await websocket_notice("TWITCH_FOLLOW", user=user_name)
         await channel.send(message)
+        marker_description = f"New Twitch Follower: {user_name}"
+        if await make_stream_marker(marker_description):
+            twitch_logger.info(f"A stream marker was created: {marker_description}.")
+        else:
+            twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
@@ -6019,6 +6027,28 @@ async def check_premium_feature():
     except aiohttp.ClientError as e:
         twitch_logger.error(f"Error checking user/subscription: {e}")
         return 0  # Return 0 for any API error
+
+# Make a Stream Marker for events
+async def make_stream_marker(description: str):
+    payload = {
+        "user_id": CHANNEL_ID,
+        "description": description
+    }
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Content-Type": "application/json"
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post('https://api.twitch.tv/helix/streams/markers', headers=headers, json=payload) as marker_response:
+                if marker_response.status == 200:
+                    return True
+                else:
+                    return False
+    except aiohttp.ClientError as e:
+        twitch_logger.error(f"Error creating stream marker: {e}")
+        return False
 
 # Connect to database
 async def get_mysql_connection():
