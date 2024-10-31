@@ -156,7 +156,7 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
   <?php } else { ?>
     <h4 class="subtitle is-5">Thank you for linking your account.<br>
       We're constantly adding new Specter features to the Discord Bot, so keep an eye on the Discord server for updates.</h4>
-    <button class="button is-link" onclick="discordBotInvite()">BotOfTheSpecter Discord Bot Invite</button>
+    <button class="button is-link" onclick="discordBotDashboard()">BotOfTheSpecter Discord Bot Dashboard</button>
     <br>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { ?>
       <?php if ($buildStatus) { ?>
@@ -263,8 +263,8 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
   </script>
 <?php } else { ?>
   <script>
-    function discordBotInvite() {
-      window.open("https://discord.com/oauth2/authorize?client_id=1170683250797187132&scope=applications.commands%20bot&permissions=8", "_blank");
+    function discordBotDashboard() {
+      window.open("https://discord.botofthespecter.com/", "_blank");
     }
   </script>
 <?php } ?>
