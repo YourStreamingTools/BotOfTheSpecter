@@ -42,11 +42,9 @@ if (isset($params['access_token'])) {
             'method' => 'GET'
         )
     );
-
     $user_context = stream_context_create($user_options);
     $user_response = file_get_contents($user_url, false, $user_context);
     $user_data = json_decode($user_response, true);
-
     // Save user information to the database
     if (isset($user_data['id'])) {
         $access_token = $_SESSION['access_token'];
@@ -56,16 +54,10 @@ if (isset($params['access_token'])) {
         $userResult = $userSTMT->get_result();
         $user = $userResult->fetch_assoc();
         $twitchUserId = $user['id'];
-
         $discord_id = $user_data['id'];
-
-        // Use INSERT ... ON DUPLICATE KEY UPDATE to insert or update the row
-        $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) 
-                ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
-
+        $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
         $insertStmt = $conn->prepare($sql);
         $insertStmt->bind_param("is", $twitchUserId, $discord_id);
-
         if ($insertStmt->execute()) {
             // Redirect back to discordbot.php
             header('Location: discordbot.php');
