@@ -147,6 +147,10 @@ if ($spotifyResult->num_rows > 0) {
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
+    <!-- Info Box for Beta Feature -->
+    <div class="notification is-warning">
+        Beta Feature: This Spotify linking feature is currently in beta and is available from Version 5.1+. Your feedback is appreciated as we improve this functionality.
+    </div>
     <?php if ($message): ?>
         <div class="notification <?php echo $messageType; ?>">
             <?php echo $message; ?>
@@ -164,7 +168,7 @@ if ($spotifyResult->num_rows > 0) {
     <?php else: ?>
         <!-- Relink Spotify Account Button -->
         <div class="notification is-info">
-            <p>It looks like your Spotify account needs to be linked.</p>
+            <p>It looks like your Spotify account needs to be linked. Click the button below to start the linking process.</p>
             <a href="<?php echo $authURL; ?>" class="button is-primary">Relink Spotify Account</a>
         </div>
     <?php endif; ?>
