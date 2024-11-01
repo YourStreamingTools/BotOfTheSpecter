@@ -211,26 +211,17 @@ async def spotify_token_refresh():
         SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
         SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
     await sqldb.ensure_closed()
-    # Initial sleep for 5 minutes before the first token refresh
-    initial_sleep_time = 300  # 5 minutes
-    await asyncio.sleep(initial_sleep_time)
-    # Perform the first token refresh after the initial sleep
+    await asyncio.sleep(300)  # 5 minutes initial sleep
     SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
     # Set next refresh time to 55 minutes from now (1 hour - 5 minutes buffer)
     next_spotify_refresh_time = time.time() + 60 * 60 - 300
     while True:
         current_time = time.time()
-        time_until_expiration = next_spotify_refresh_time - current_time
         if current_time >= next_spotify_refresh_time:
             SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
         else:
-            # Adjust sleep interval based on time left until expiration
-            if time_until_expiration > 3600:
-                sleep_time = 3600
-            elif time_until_expiration > 300:
-                sleep_time = 300
-            else:
-                sleep_time = 60
+            time_until_expiration = next_spotify_refresh_time - current_time
+            sleep_time = min(60, max(300, time_until_expiration))  # Adjust sleep time dynamically
             await asyncio.sleep(sleep_time)
 
 # Function to refresh Spotify token
@@ -249,25 +240,25 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                 if response.status == 200:
                     tokens = await response.json()
                     new_access_token = tokens.get("access_token")
-                    new_refresh_token = tokens.get("refresh_token", current_refresh_token)
-                    next_refresh_time = time.time() + 60 * 60 - 300
-                    # Update token variables
+                    new_refresh_token = tokens.get("refresh_token", current_refresh_token) # Use existing if not provided
+                    expires_in = tokens.get("expires_in", 3600) # Default to 1 hour if not provided
+                    next_refresh_time = time.time() + expires_in - 300 # Refresh 5 minutes before expiration
                     SPOTIFY_ACCESS_TOKEN = new_access_token
                     SPOTIFY_REFRESH_TOKEN = new_refresh_token
-                    next_spotify_refresh_time = next_refresh_time
                     # Save the new tokens in the database
                     sqldb = await get_spotify_settings()
                     async with sqldb.cursor() as cursor:
                         await cursor.execute(
                             "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s, expires_at = %s WHERE user_id = %s",
-                            (new_access_token, new_refresh_token, datetime.now() + timedelta(hours=4), user_id)
+                            (new_access_token, new_refresh_token, datetime.now() + timedelta(seconds=expires_in), user_id)
                         )
                         await sqldb.commit()
                     await sqldb.ensure_closed()
                     bot_logger.info(f"New Spotify Token for {CHANNEL_NAME}: {new_access_token}")
                     return new_access_token, new_refresh_token, next_refresh_time
                 else:
-                    bot_logger.error(f"Spotify token refresh failed: HTTP {response.status}")
+                    error_response = await response.json()
+                    bot_logger.error(f"Spotify token refresh failed: HTTP {response.status} - {error_response}")
     except Exception as e:
         bot_logger.error(f"Spotify token refresh error: {e}")
 
