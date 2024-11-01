@@ -251,8 +251,8 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                     sqldb = await get_spotify_settings()
                     async with sqldb.cursor() as cursor:
                         await cursor.execute(
-                            "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s, expires_at = %s WHERE user_id = %s",
-                            (new_access_token, new_refresh_token, datetime.now() + timedelta(seconds=expires_in), user_id)
+                            "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s WHERE user_id = %s",
+                            (new_access_token, new_refresh_token, user_id)
                         )
                         await sqldb.commit()
                     await sqldb.ensure_closed()
