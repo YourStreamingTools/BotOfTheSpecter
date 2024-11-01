@@ -256,7 +256,6 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                         )
                         await sqldb.commit()
                     await sqldb.ensure_closed()
-                    bot_logger.info(f"New Spotify Token for {CHANNEL_NAME}: {new_access_token}")
                     return new_access_token, new_refresh_token, next_refresh_time
                 else:
                     error_response = await response.json()
@@ -1992,6 +1991,12 @@ class BotOfTheSpecter(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
+                # Check Spotify for the current song
+                song_info = await get_spotify_current_song()
+                if song_info:
+                    await ctx.send(song_info)
+                    return
+                # If no song on Spotify, check the alternative method if premium
                 premium_tier = await check_premium_feature()
                 if premium_tier in (1000, 2000, 3000, 4000):
                     # Premium feature access granted
@@ -2005,7 +2010,7 @@ class BotOfTheSpecter(commands.Bot):
                         await ctx.send("Sorry, there was an error retrieving the current song.")
                 else:
                     # No premium access
-                    await ctx.send("This channel doesn't have a premium subscription to use this command.")
+                    await ctx.send("This channel doesn't have a premium subscription to use the alternative method.")
         finally:
             await sqldb.ensure_closed()
 
@@ -4486,6 +4491,26 @@ async def send_timed_message(message, delay):
             chat_logger.info(f'Stream is offline. "{message}" Message not sent.')
     except asyncio.CancelledError:
         bot_logger.info(f"Task cancelled for {message}")
+
+# Function to get the song via Spotify
+async def get_spotify_current_song():
+    global SPOTIFY_ACCESS_TOKEN
+    headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                # Extract song name, artist, etc. based on Spotify's response structure
+                song_name = data["item"]["name"]
+                artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
+                return f"{song_name} by {artist_name}"
+            elif response.status == 204:
+                # 204 No Content means no song is currently playing
+                return None
+            else:
+                # Handle potential Spotify API errors
+                api_logger.error(f"Spotify API error: {response.status}")
+                return None
 
 # Function to get the current playing song
 async def get_current_song():
