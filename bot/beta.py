@@ -983,7 +983,7 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 bot_logger.error("Target channel not joined yet.") 
         else:
-            bot_logger.error(f"Other error occurred: {error}")
+            bot_logger.error(f"Error: {error}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -4467,7 +4467,8 @@ async def timed_message():
                 time_now = datetime.now()
                 next_time = previous_time + timedelta(minutes=int(interval))
                 wait_time = (next_time - time_now).total_seconds()
-                bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
+                message_send_in = next_time - time_now
+                bot_logger.info(f"Scheduling message: '{message}' to be sent in {message_send_in}")
                 task = asyncio.create_task(send_timed_message(message, wait_time))
                 task.set_name(message)
                 scheduled_tasks.append(task)
@@ -4484,11 +4485,11 @@ async def send_timed_message(message, delay):
     await asyncio.sleep(delay)
     try:
         if stream_online:
-            bot_logger.info(f"Sending Timed Message: {message}")
+            chat_logger.info(f"Sending Timed Message: {message}")
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
         else:
-            bot_logger.info("Stream is offline. Message not sent.")
+            chat_logger.info(f'Stream is offline. "{message}" Message not sent.')
     except asyncio.CancelledError:
         bot_logger.info(f"Task cancelled for {message}")
 
@@ -5202,7 +5203,6 @@ async def websocket_notice(event, channel=None, user=None, death=None, game=None
                 params['channel'] = channel
                 params['user'] = user
             else:
-                bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
                 return
         elif event == "DEATHS" and death and game:
             params['death-text'] = death
@@ -5236,9 +5236,7 @@ async def websocket_notice(event, channel=None, user=None, death=None, game=None
         # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
         # Send the HTTP request
         async with session.get(url) as response:
-            if response.status == 200:
-                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
-            else:
+            if not response.status == 200:
                 bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
 
 # Function to connect to the websocket server and push a TTS notice
@@ -5573,7 +5571,6 @@ async def channel_point_rewards():
                                 )
                             else:
                                 # Update existing reward
-                                api_logger.info(f"Updating existing reward: {reward_id}, {reward_title}, {reward_cost}")
                                 await cursor.execute(
                                     "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
                                     "WHERE reward_id = %s",
@@ -5901,7 +5898,7 @@ async def midnight(channel):
             # Reload the .env file at midnight
             load_dotenv()
             # Log or handle any environment variable updates
-            bot_logger.info("Reloaded environment variables from .env file.")
+            bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
             cur_date = current_time.strftime("%d %B %Y")
             cur_time = current_time.strftime("%I %p")
@@ -5986,7 +5983,6 @@ async def known_users():
                         for vip in vip_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "VIP", "VIP"))
                         await sqldb.commit()
-                    api_logger.info(f"Added VIPs to the database: {vip_list}")
                 else:
                     api_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
     except Exception as e:
