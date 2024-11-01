@@ -196,7 +196,7 @@ async def spotify_token_refresh():
     try:
         # Connect to the database to retrieve the user's Spotify tokens
         sqldb = await get_spotify_settings()
-        async with sqldb.cursor() as cursor:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             # Fetch the user ID for the specified CHANNEL_NAME
             await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
             user_row = await cursor.fetchone()
@@ -208,7 +208,6 @@ async def spotify_token_refresh():
                 bot_logger.info(f"No Spotify tokens found for user {CHANNEL_NAME}.")
                 await sqldb.ensure_closed()
                 return
-            bot_logger.info(f"Spotify Tokens found for {CHANNEL_NAME}: {tokens_row['access_token']}")
             SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
             SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
         await sqldb.ensure_closed()
