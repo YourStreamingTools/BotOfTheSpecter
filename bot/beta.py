@@ -1994,7 +1994,7 @@ class BotOfTheSpecter(commands.Bot):
                 # Check Spotify for the current song
                 song_info = await get_spotify_current_song()
                 if song_info:
-                    await ctx.send(song_info)
+                    await ctx.send(f"The current song is: {song_info}")
                     return
                 # If no song on Spotify, check the alternative method if premium
                 premium_tier = await check_premium_feature()
