@@ -9,7 +9,7 @@
       <span aria-hidden="true"></span>
     </a>
   </div>
-  <div id="navbarBasic" class="navbar-menu">
+  <div id="navbarBasic" class="navbar-menu is-flex-touch is-flex-desktop">
     <div class="navbar-start">
       <a class="navbar-item" href="../bot.php">Dashboard</a>
       <div class="navbar-item has-dropdown is-hoverable">
@@ -46,8 +46,8 @@
       <div class="navbar-item has-dropdown is-hoverable">
         <a class="navbar-link">Bot Settings</a>
         <div class="navbar-dropdown">
-        <a class="navbar-item" href="../builtin.php">Built-in Commands</a>
-        <a class="navbar-item" href="../subathon.php">Subathon Settings</a>
+          <a class="navbar-item" href="../builtin.php">Built-in Commands</a>
+          <a class="navbar-item" href="../subathon.php">Subathon Settings</a>
         </div>
       </div>
       <div class="navbar-item has-dropdown is-hoverable">
