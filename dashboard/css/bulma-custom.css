@@ -66,6 +66,10 @@ a.navbar-item:hover {
     background-color: #333333;
 }
 
+.has-dropdown {
+    background-color: #333333;
+}
+
 .popup-link {
     color: #ffffff;
     text-decoration: none;
