@@ -9,7 +9,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Twitch VIPs";
+$title = "Twitch Data - VIPs";
 
 // Connect to database
 require_once "db_connect.php";
