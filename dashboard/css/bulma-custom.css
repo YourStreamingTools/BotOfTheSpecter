@@ -1,10 +1,3 @@
-@media (max-width: 1565px) and (min-width: 1020px) {
-    #navbarBasic .navbar-end, #navbarBasic .navbar-start {
-        display: block;
-        text-align: center;
-    }
-}
-
 html, body {
     background-color: #101010;
     color: #e0e0e0;
