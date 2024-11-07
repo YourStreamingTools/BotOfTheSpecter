@@ -98,12 +98,10 @@ $ModStatusOutput = $BotIsMod;
 
 // Handle the bot mod status
 if ($username === 'botofthespecter') {
-  $BotModMessage = '<div class="notification is-success has-text-black has-text-weight-bold">Welcome to your own system!</div>';
   $showButtons = true;
 } else {
   // If the user is not BotOfTheSpecter, check mod status
   if ($ModStatusOutput) {
-    $BotModMessage = '<div class="notification is-success has-text-black has-text-weight-bold">BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</div>';
     $showButtons = true;
   } else {
     $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not currently a moderator on your channel. To continue, please add BotOfTheSpecter as a mod on your Twitch channel.<br>You can do this by navigating to your Twitch Streamer Dashboard, then going to Community > Roles Manager.<br>After you have made BotOfTheSpecter a mod, refresh this page to access your controls.</div>';
