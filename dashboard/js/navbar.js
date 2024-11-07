@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   // Get all "navbar-burger" elements
-  const $navbarBurgers = Array.from(document.querySelectorAll('.navbar-burger'));
+  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
   // Add a click event on each of them
-  $navbarBurgers.forEach(el => {
+  $navbarBurgers.forEach( el => {
     el.addEventListener('click', () => {
       // Get the target from the "data-target" attribute
       const target = el.dataset.target;
