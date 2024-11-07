@@ -58,8 +58,9 @@ a.navbar-item:hover {
     background-color: #333333;
 }
 
-.navbar-divider {
-    background-color: #333333;
+.navbar-dropdown {
+    background-color: #333333 !important;
+    color: #ffffff;
 }
 
 .navbar-link {
