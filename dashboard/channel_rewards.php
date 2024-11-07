@@ -9,7 +9,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Channel Point Rewards";
+$title = "Twitch Data - Channel Point Rewards";
 
 // Connect to database
 require_once "db_connect.php";
