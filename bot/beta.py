@@ -4459,7 +4459,8 @@ async def timed_message():
         global scheduled_tasks
         global stream_online
         if stream_online:
-            await cursor.execute('SELECT interval_count, message FROM timed_messages ORDER BY interval_count')
+            # Fetch enabled messages with their interval and ID from the database
+            await cursor.execute('SELECT id, interval_count, message FROM timed_messages WHERE status = "true" ORDER BY interval_count')
             messages = await cursor.fetchall()
             bot_logger.info(f"Timed Messages: {messages}")
             # Clear any old tasks
@@ -4468,14 +4469,14 @@ async def timed_message():
             scheduled_tasks.clear()
             # Sequentially schedule messages
             previous_time = datetime.now()
-            for interval, message in messages:
+            for message_id, interval, message in messages:
                 time_now = datetime.now()
                 next_time = previous_time + timedelta(minutes=int(interval))
                 wait_time = (next_time - time_now).total_seconds()
                 message_send_in = next_time - time_now
-                bot_logger.info(f"Scheduling message: '{message}' to be sent in {message_send_in}")
-                task = asyncio.create_task(send_timed_message(message, wait_time))
-                task.set_name(message)
+                bot_logger.info(f"Scheduling message ID: {message_id} - '{message}' to be sent in {message_send_in}")
+                task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
+                task.set_name(f"Message ID: {message_id}")
                 scheduled_tasks.append(task)
                 previous_time = next_time  # Update previous_time for the next interval
         else:
@@ -4485,18 +4486,18 @@ async def timed_message():
             scheduled_tasks.clear()  # Clear the list of tasks
     await sqldb.ensure_closed()
 
-async def send_timed_message(message, delay):
+async def send_timed_message(message_id, message, delay):
     global stream_online
     await asyncio.sleep(delay)
     try:
         if stream_online:
-            chat_logger.info(f"Sending Timed Message: {message}")
+            chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
             channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
         else:
-            chat_logger.info(f'Stream is offline. "{message}" Message not sent.')
+            chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
     except asyncio.CancelledError:
-        bot_logger.info(f"Task cancelled for {message}")
+        bot_logger.info(f"Task cancelled for Message ID: {message_id} - {message}")
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
