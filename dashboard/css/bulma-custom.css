@@ -66,7 +66,7 @@ a.navbar-item:hover {
     background-color: #333333;
 }
 
-.has-dropdown {
+.has-dropdown .navbar-item {
     background-color: #333333;
 }
 
