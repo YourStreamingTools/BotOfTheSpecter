@@ -42,7 +42,6 @@ $versionRunning = '';
 $betaVersionRunning = '';
 include 'bot_control.php';
 include 'sqlite.php';
-include 'usr_database.php';
 
 // Fetch Discord user data
 $discordUserSTMT = $conn->prepare("SELECT guild_id, live_channel_id FROM discord_users WHERE user_id = ?");
@@ -566,5 +565,6 @@ updateApiLimits();
 checkLastModified();
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<?php include 'usr_database.php'; ?>
 </body>
 </html>
