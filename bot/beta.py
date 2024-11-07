@@ -3880,28 +3880,28 @@ async def get_display_name(user_id):
 async def command_permissions(setting, user):
     # Check if the setting allows everyone
     if setting == "everyone":
-        twitch_logger.info(f"Command Permission granted to {user.name}. (Everyone allowed)")
+        chat_logger.info(f"Command Permission granted to {user.name}. (Everyone allowed)")
         return True
     # Check if the user is the bot owner
     if user.name == 'gfaundead':
-        twitch_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
+        chat_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
         return True
     # Check if the user is the broadcaster
     elif user.name == CHANNEL_NAME:
-        twitch_logger.info(f"Command Permission checked, {user.name} is the Broadcaster")
+        chat_logger.info(f"Command Permission checked, {user.name} is the Broadcaster")
         return True
     # Check if the user is a moderator and the setting is "mod"
     elif setting == "mod" and user.is_mod:
-        twitch_logger.info(f"Command Permission checked, {user.name} is a Moderator")
+        chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
         return True
     # Check if the user is a VIP and the setting is "vip"
     elif setting == "vip" and user.is_vip:
-        twitch_logger.info(f"Command Permission checked, {user.name} is a VIP")
+        chat_logger.info(f"Command Permission checked, {user.name} is a VIP")
         return True
     # Check if the user is a subscriber for all-subs or t1-sub
     elif setting in ["all-subs", "t1-sub"]:
         if user.is_subscriber:
-            twitch_logger.info(f"Command Permission checked, {user.name} is a Subscriber")
+            chat_logger.info(f"Command Permission checked, {user.name} is a Subscriber")
             return True
     # Check for Tier 2 or Tier 3 subscription using the Twitch API
     elif setting in ["t2-sub", "t3-sub"]:
@@ -3923,7 +3923,7 @@ async def command_permissions(setting, user):
                         for subscription in subscriptions:
                             tier = subscription['tier']
                             if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000"):
-                                twitch_logger.info(f"Command Permission checked, {user.name} has the required subscription tier ({tier}).")
+                                chat_logger.info(f"Command Permission checked, {user.name} has the required subscription tier ({tier}).")
                                 return True
     # If none of the above, the user does not have required permissions
     twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires {setting} permission.")
