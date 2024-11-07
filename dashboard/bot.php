@@ -53,7 +53,7 @@ $discordUser = $discordUserResult->fetch_assoc();
 $guild_id = $discordUser['guild_id'] ?? null;
 $live_channel_id = $discordUser['live_channel_id'] ?? null;
 
-// Twitch API to check is the bot is modded
+// Twitch API to check if the bot is modded
 $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 $checkModConnect = curl_init($checkMod);
@@ -65,30 +65,38 @@ curl_setopt($checkModConnect, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($checkModConnect, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($checkModConnect);
 $BotIsMod = false; // Default to false until we know for sure
-if ($response === false) {
-    // Handle error - you might want to log this or take other action
-    $error = 'Curl error: ' . curl_error($checkModConnect);
-} else {
-    // Decode the response
-    $responseData = json_decode($response, true);
-    if (isset($responseData['data'])) {
-        // Check if the bot is in the list of moderators
-        foreach ($responseData['data'] as $mod) {
-            if ($mod['user_login'] === 'botofthespecter') {
-                $BotIsMod = true;
-                break;
-            }
-        }
-    } else {
-        // Handle unexpected response format
-        $error = 'Unexpected response format.';
-    }
-}
-curl_close($checkModConnect);
-$ModStatusOutput = $BotIsMod;
 $BotModMessage = "";
 $setupMessage = "";
 $showButtons = false;
+
+if ($response === false) {
+  // Handle error - you might want to log this or take other action
+  $error = 'Curl error: ' . curl_error($checkModConnect);
+} else {
+  // Decode the response
+  $responseData = json_decode($response, true);
+  // Check if we received a 401 Unauthorized error with an invalid OAuth token message
+  if (isset($responseData['status']) && $responseData['status'] === 401 && isset($responseData['message']) && $responseData['message'] === "Invalid OAuth token") {
+    // Display a notification for session expiration and require re-login
+    $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
+                        <form action="relink.php" method="get"><button class="button is-danger bot-button" type="submit">Re-log in</button></form>
+                      </div>';
+  } elseif (isset($responseData['data'])) {
+    // Check if the bot is in the list of moderators
+    foreach ($responseData['data'] as $mod) {
+      if ($mod['user_login'] === 'botofthespecter') {
+        $BotIsMod = true;
+        break;
+      }
+    }
+  } else {
+    // Handle unexpected response format
+    $error = 'Unexpected response format.';
+  }
+}
+curl_close($checkModConnect);
+$ModStatusOutput = $BotIsMod;
+
 // Handle the bot mod status
 if ($username === 'botofthespecter') {
   $BotModMessage = '<div class="notification is-success has-text-black has-text-weight-bold">Welcome to your own system!</div>';
@@ -99,29 +107,9 @@ if ($username === 'botofthespecter') {
     $BotModMessage = '<div class="notification is-success has-text-black has-text-weight-bold">BotOfTheSpecter is a mod on your channel, there is nothing more you need to do.</div>';
     $showButtons = true;
   } else {
-    $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not currently a moderator on your channel. To continue, please add BotOfTheSpecter as a mod on your Twitch channel.<br>You can do this by navigating to your Twitch Streamer Dashboard, then going to Community > Roles Manager.<br>After you have made BotOfTheSpecter a mod, refresh this page to access your controls.</div>
-    <!--<form method="post">
-      <button class="button is-success bot-button" type="submit" name="setupBot">Run Setup</button>
-    </form>-->';
+    $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not currently a moderator on your channel. To continue, please add BotOfTheSpecter as a mod on your Twitch channel.<br>You can do this by navigating to your Twitch Streamer Dashboard, then going to Community > Roles Manager.<br>After you have made BotOfTheSpecter a mod, refresh this page to access your controls.</div>';
     $showButtons = false;
   }
-}
-
-// When the setup button is clicked
-if (isset($_POST['setupBot'])) {
-  // Escape shell arguments to ensure they are safely passed to the command
-  $escapedUsername = escapeshellarg($username);
-  $escapedTwitchUserId = escapeshellarg($twitchUserId);
-  $escapedAuthToken = escapeshellarg($authToken);
-  // Run the setup script with shell_exec and pass the escaped arguments
-  shell_exec("python3 /var/www/bot/setup.py -channel $escapedUsername -channelid $escapedTwitchUserId -token $escapedAuthToken 2>&1");
-  // Add a message or feedback to the user while processing the request
-  $setupMessage = "<p>Running setup, please wait...</p>";
-  // Add a delay before refreshing the page
-  sleep(3);
-  // Refresh the page after the delay
-  header('Location: bot.php');
-  exit();
 }
 
 $betaAccess = false; // Default to false until we know
