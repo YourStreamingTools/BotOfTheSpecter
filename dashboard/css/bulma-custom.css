@@ -1,7 +1,4 @@
 @media (max-width: 1565px) and (min-width: 1020px) {
-    #navbarBasic .navbar-item:not(.navbar-link):not(.popup-link) {
-        display: none;
-    }
     #navbarBasic .navbar-end, #navbarBasic .navbar-start {
         display: block;
         text-align: center;
