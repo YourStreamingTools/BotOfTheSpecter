@@ -3,13 +3,13 @@
     <a class="navbar-item" href="../">
       <span>BotOfTheSpecter</span>
     </a>
-    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
+    <button class="navbar-burger" aria-label="menu" data-target="navbarBasic">
       <span aria-hidden="true"></span>
       <span aria-hidden="true"></span>
       <span aria-hidden="true"></span>
-    </a>
+    </button>
   </div>
-  <div id="navbarBasic" class="navbar-menu is-flex">
+  <div id="navbarBasic" class="navbar-menu"> 
     <div class="navbar-start">
       <a class="navbar-item" href="../bot.php">Dashboard</a>
       <div class="navbar-item has-dropdown is-hoverable">
@@ -66,8 +66,8 @@
       <a class="navbar-item" href="../logout.php">Logout</a>
     </div>
     <div class="navbar-end">
-      <div class="navbar-item">
-        <a class="popup-link" onclick="showPopup()">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</a>
+      <div class="navbar-item"> 
+        <span class="has-text-grey-light is-size-7">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</span> 
       </div>
     </div>
   </div>
