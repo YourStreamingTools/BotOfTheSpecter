@@ -153,7 +153,8 @@ try {
             CREATE TABLE IF NOT EXISTS timed_messages (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 interval_count INT,
-                message TEXT
+                message TEXT,
+                status BOOLEAN DEFAULT true
             ) ENGINE=InnoDB",
         'profile' => "
             CREATE TABLE IF NOT EXISTS profile (
@@ -357,7 +358,8 @@ try {
         ],
         'timed_messages' => [
             'interval_count' => "INT",
-            'message' => "TEXT"
+            'message' => "TEXT",
+            'status' => "BOOLEAN DEFAULT true"
         ],
         'profile' => [
             'timezone' => "VARCHAR(255) DEFAULT NULL",
