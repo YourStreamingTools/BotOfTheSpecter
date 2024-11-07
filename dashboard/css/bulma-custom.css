@@ -46,6 +46,18 @@ a.navbar-item:hover {
     color: #ffffff !important;
 }
 
+.navbar {
+    background-color: #333333;
+}
+
+.has-dropdown {
+    background-color: #333333;
+}
+
+.navbar-item {
+    background-color: #333333;
+}
+
 .navbar-link {
     color: #ffffff;
 }
@@ -63,14 +75,6 @@ a.navbar-item:hover {
 }
 
 .navbar-item.has-dropdown.is-hoverable:hover .navbar-link {
-    background-color: #333333;
-}
-
-.has-dropdown {
-    background-color: #333333;
-}
-
-.navbar-item {
     background-color: #333333;
 }
 
