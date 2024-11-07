@@ -9,7 +9,7 @@
       <span aria-hidden="true"></span>
     </a>
   </div>
-  <div id="navbarBasic" class="navbar-menu is-flex-touch is-flex-desktop">
+  <div id="navbarBasic" class="navbar-menu is-flex">
     <div class="navbar-start">
       <a class="navbar-item" href="../bot.php">Dashboard</a>
       <div class="navbar-item has-dropdown is-hoverable">
