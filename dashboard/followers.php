@@ -9,7 +9,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Twitch Followers";
+$title = "Twitch Data - Followers";
 
 // Connect to database
 require_once "db_connect.php";
