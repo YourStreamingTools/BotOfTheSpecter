@@ -113,6 +113,11 @@ h1, h2, h3, h4, h5, h6 {
     align-items: center !important;
 }
 
+.title img, .subtitle img, .label img {
+    margin-right: 10px;
+    margin-left: 10px;
+}
+
 .container {
     margin-top: 50px;
     padding: 20px;
