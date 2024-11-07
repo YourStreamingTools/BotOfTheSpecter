@@ -193,7 +193,7 @@ if (file_exists($restartLog)) {
     <?php if ($showButtons): ?>
       <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="stable-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-        <h4 class="title is-4">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
+        <h4 class="title is-4 bot-box-title">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
         <div id="stableStatus"><?php echo $statusOutput; ?></div>
         <div id="stableVersion"><?php echo $versionRunning; ?></div>
         <br>
@@ -214,7 +214,7 @@ if (file_exists($restartLog)) {
     <?php if ($betaAccess && $showButtons): ?>
       <div class="column is-5 bot-box" id="beta-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="beta-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-        <h4 class="title is-4">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
+        <h4 class="title is-4 bot-box-title">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
         <div id="betaStatus"><?php echo $betaStatusOutput; ?></div>
         <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
         <br>
@@ -235,7 +235,7 @@ if (file_exists($restartLog)) {
     <?php if ($guild_id && $live_channel_id && $showButtons): ?>
       <div class="column is-5 bot-box" id="discord-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="discord-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-        <h4 class="title is-4">Discord Bot:</h4>
+        <h4 class="title is-4 bot-box-title">Discord Bot:</h4>
         <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
         <div class="buttons">
           <form action="" method="post">
@@ -254,7 +254,7 @@ if (file_exists($restartLog)) {
     <!-- Websocket Notices Section -->
     <div class="column is-5 bot-box" style="position: relative;">
       <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-      <h4 class="title is-4" style="text-align: center;">Websocket Service
+      <h4 class="title is-4 bot-box-title" style="text-align: center;">Websocket Service
         <span id="heartbeatIcon" style="margin-left: 10px;">
           <i id="heartbeat" class="fas fa-heartbeat" style="color: green;"></i>
         </span>
@@ -275,7 +275,7 @@ if (file_exists($restartLog)) {
     <!-- API System -->
     <div class="column is-5 bot-box" style="position: relative;">
       <i class="fas fa-question-circle" id="api-limits-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
-      <h4 class="title is-4 has-text-centered">API Limits</h4>
+      <h4 class="title is-4  bot-box-title">API Limits</h4>
       <div class="status-message" style="font-size: 18px; padding: 15px; background-color: #2c3e50; color: #ecf0f1; border-radius: 8px;">
         <!-- Song Identification Section -->
         <div class="api-section" id="shazam-section" style="padding-bottom: 15px; border-bottom: 1px solid #7f8c8d; margin-bottom: 15px;">
