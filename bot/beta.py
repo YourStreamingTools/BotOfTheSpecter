@@ -2135,35 +2135,36 @@ class BotOfTheSpecter(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
-                mentioned_username = mentioned_username.lstrip('@')
+                # Remove any '@' symbol from the mentioned username if present
+                if mentioned_username:
+                    mentioned_username = mentioned_username.lstrip('@')
+                else:
+                    await ctx.send("Usage: !hug @username")
+                    return
+                # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a hug to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
-                if mentioned_username:
-                    target_user = mentioned_username.lstrip('@')
-                    # Increment hug count in the database
-                    await cursor.execute(
-                        'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) '
-                        'ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', 
-                        (target_user,)
-                    )
-                    await sqldb.commit()
-                    # Retrieve the updated count
-                    await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (target_user,))
-                    hug_count_result = await cursor.fetchone()
-                    if hug_count_result:
-                        hug_count = hug_count_result[0]
-                        # Send the message
-                        chat_logger.info(f"{target_user} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
-                        await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
-                    else:
-                        chat_logger.error(f"No hug count found for user: {target_user}")
-                        await ctx.send(f"Could not retrieve hug count for @{target_user}.")
+                # Increment hug count in the database
+                await cursor.execute(
+                    'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) '
+                    'ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', 
+                    (mentioned_username,)
+                )
+                await sqldb.commit()
+                # Retrieve the updated count
+                await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (mentioned_username,))
+                hug_count_result = await cursor.fetchone()
+                if hug_count_result:
+                    hug_count = hug_count_result[0]
+                    # Send the message
+                    chat_logger.info(f"{mentioned_username} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
+                    await ctx.send(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
                 else:
-                    chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
-                    await ctx.send("Usage: !hug @username")
+                    chat_logger.error(f"No hug count found for user: {mentioned_username}")
+                    await ctx.send(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
         except Exception as e:
             chat_logger.error(f"Error in hug command: {e}")
             await ctx.send("An error occurred while processing the command.")
@@ -2188,31 +2189,36 @@ class BotOfTheSpecter(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
-                mentioned_username = mentioned_username.lstrip('@')
+                # Remove any '@' symbol from the mentioned username if present
+                if mentioned_username:
+                    mentioned_username = mentioned_username.lstrip('@')
+                else:
+                    await ctx.send("Usage: !kiss @username")
+                    return
+                # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a kiss to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
-                if mentioned_username:
-                    target_user = mentioned_username.lstrip('@')
-                    # Increment kiss count in the database
-                    await cursor.execute(
-                        'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) '
-                        'ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1', 
-                        (target_user,)
-                    )
-                    await sqldb.commit()
-                    # Retrieve the updated count
-                    await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (target_user,))
-                    kiss_count_result = await cursor.fetchone()
-                    kiss_count = kiss_count_result[0] if kiss_count_result else 1
-                    chat_logger.info(f"{target_user} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
+                # Increment kiss count in the database
+                await cursor.execute(
+                    'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) '
+                    'ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1', 
+                    (mentioned_username,)
+                )
+                await sqldb.commit()
+                # Retrieve the updated count
+                await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (mentioned_username,))
+                kiss_count_result = await cursor.fetchone()
+                if kiss_count_result:
+                    kiss_count = kiss_count_result[0]
                     # Send the message
-                    await ctx.send(f"@{target_user} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+                    chat_logger.info(f"{mentioned_username} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
+                    await ctx.send(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
                 else:
-                    chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
-                    await ctx.send("Usage: !kiss @username")
+                    chat_logger.error(f"No kiss count found for user: {mentioned_username}")
+                    await ctx.send(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
         except Exception as e:
             chat_logger.error(f"Error in kiss command: {e}")
             await ctx.send("An error occurred while processing the command.")
