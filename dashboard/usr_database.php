@@ -167,8 +167,7 @@ try {
             ) ENGINE=InnoDB",
         'protection' => "
             CREATE TABLE IF NOT EXISTS protection (
-                url_blocking VARCHAR(255),
-                profanity VARCHAR(255)
+                url_blocking VARCHAR(255)
             ) ENGINE=InnoDB",
         'link_whitelist' => "
             CREATE TABLE IF NOT EXISTS link_whitelist (
@@ -369,8 +368,7 @@ try {
             'discord_alert_online' => "VARCHAR(255) DEFAULT NULL"
         ],
         'protection' => [
-            'url_blocking' => "VARCHAR(255)",
-            'profanity' => "VARCHAR(255)"
+            'url_blocking' => "VARCHAR(255)"
         ],
         'link_whitelist' => ['link' => "VARCHAR(255)"],
         'link_blacklisting' => ['link' => "VARCHAR(255)"],
@@ -484,6 +482,8 @@ try {
     $usrDBconn->query("INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users) SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM bot_settings)");
     // Ensure default options for subathon_settings exist
     $usrDBconn->query("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) SELECT 60, 5, 10, 20, 30 WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)");
+    // Ensure default options for chat protection
+    $usrDBconn->query("INSERT INTO protection (url_blocking) SELECT 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)");
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
