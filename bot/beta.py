@@ -63,9 +63,9 @@ STEAM_API = os.getenv('STEAM_API')
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
-builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
+builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
 # Logs
 webroot = "/var/www/"
@@ -2013,6 +2013,56 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     # No premium access
                     await ctx.send("This channel doesn't have a premium subscription to use the alternative method.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
+    @commands.command(name='songrequest', aliases=['sr'])
+    async def songrequest_command(self, ctx):
+        global SPOTIFY_ACCESS_TOKEN
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Fetch the status and permissions for the timer command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songrequest",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        await ctx.send(f"Requesting songs is currently disabled.")
+                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+            headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+            message = ctx.message.content
+            message_content = message.split(" ", 1)[1]
+            search = message_content.replace(" ", "%20")
+            search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
+            async with aiohttp.ClientSession() as search_session:
+                async with search_session.get(search_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data:
+                            song_id = data["tracks"]["items"][0]["uri"]
+                            song_name = data["tracks"]["items"][0]["name"]
+                            artist_name = data["tracks"]["items"][0]["artists"][0]["name"]
+                            api_logger.info(f"Song Request from {ctx.message.author.name} for the song {song_name} by {artist_name} song id: {song_id}")
+                        else:
+                            await ctx.send(f"No song found: {message_content}")
+                            return
+                    else:
+                        api_logger.error(f"Spotify returned reponse code: {response.status}")
+                        return
+            request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
+            async with aiohttp.ClientSession() as queue_session:
+                async with queue_session.post(request_url, headers=headers) as response:
+                    if response.status == 200:
+                        await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
+                    else:
+                        api_logger.error(f"Spotify returned reponse code: {response.status}")
         finally:
             await sqldb.ensure_closed()
 
@@ -4509,10 +4559,15 @@ async def get_spotify_current_song():
         async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
-                # Extract song name, artist, etc. based on Spotify's response structure
-                song_name = data["item"]["name"]
-                artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
-                return f"{song_name} by {artist_name}"
+                # Extract song name, artist if spotify is currently playing
+                is_playing = data["is_playing"]
+                if is_playing:
+                    song_name = data["item"]["name"]
+                    artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
+                    api_logger.info(f"The current song from spotify is: {song_name} by {artist_name}")
+                    return f"{song_name} by {artist_name}"
+                else:
+                    return None
             elif response.status == 204:
                 # 204 No Content means no song is currently playing
                 return None
