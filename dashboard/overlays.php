@@ -16,6 +16,10 @@ require_once "db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'sqlite.php';
+foreach ($profileData as $profile) {
+  $timezone = $profile['timezone'];
+  $weather = $profile['weather_location'];
+}
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 ?>
