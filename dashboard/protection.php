@@ -11,29 +11,17 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Chat Protection";
 
-// Connect to database
+// Include all the information
 require_once "db_connect.php";
-
-// Fetch the user's data from the database based on the access_token
-$access_token = $_SESSION['access_token'];
-$stmt = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
-$stmt->bind_param("s", $access_token);
-$stmt->execute();
-$result = $stmt->get_result();
-$user = $result->fetch_assoc();
-$user_id = $user['id'];
-$username = $user['username'];
-$broadcasterID = $user['twitch_user_id'];
-$twitchDisplayName = $user['twitch_display_name'];
-$twitch_profile_image_url = $user['profile_image'];
-$is_admin = ($user['is_admin'] == 1);
-$authToken = $access_token;
-$refreshToken = $user['refresh_token'];
-$timezone = 'Australia/Sydney';
-date_default_timezone_set($timezone);
-$greeting = 'Hello';
+include 'userdata.php';
 include 'bot_control.php';
 include 'sqlite.php';
+foreach ($profileData as $profile) {
+  $timezone = $profile['timezone'];
+  $weather = $profile['weather_location'];
+}
+date_default_timezone_set($timezone);
+$greeting = 'Hello';
 $message = '';
 
 // Fetch protection settings
