@@ -11,30 +11,14 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Edit Custom Commands";
 
-// Connect to database
+// Include all the information
 require_once "db_connect.php";
-
-// Fetch the user's data from the database based on the access_token
-$access_token = $_SESSION['access_token'];
-$userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
-$userSTMT->bind_param("s", $access_token);
-$userSTMT->execute();
-$userResult = $userSTMT->get_result();
-$user = $userResult->fetch_assoc();
-$user_id = $user['id'];
-$username = $user['username'];
-$twitchDisplayName = $user['twitch_display_name'];
-$twitch_profile_image_url = $user['profile_image'];
-$is_admin = ($user['is_admin'] == 1);
-$twitchUserId = $user['twitch_user_id'];
-$authToken = $access_token;
-$refreshToken = $user['refresh_token'];
-$timezone = 'Australia/Sydney';
+include 'userdata.php';
+include 'bot_control.php';
+include 'sqlite.php';
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
 $status = "";
-include 'bot_control.php';
-include 'sqlite.php';
 
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['command_to_edit'], $_POST['command_response'])) {
