@@ -12,6 +12,13 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Dashboard";
 
+// Variables
+$statusOutput = 'Bot Status: Unknown';
+$betaStatusOutput = 'Bot Status: Unknown';
+$pid = '';
+$versionRunning = '';
+$betaVersionRunning = '';
+
 // Include all the information
 require_once "db_connect.php";
 include 'userdata.php';
@@ -23,11 +30,6 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
-$statusOutput = 'Bot Status: Unknown';
-$betaStatusOutput = 'Bot Status: Unknown';
-$pid = '';
-$versionRunning = '';
-$betaVersionRunning = '';
 
 // Fetch Discord user data
 $discordUserSTMT = $conn->prepare("SELECT guild_id, live_channel_id FROM discord_users WHERE user_id = ?");
