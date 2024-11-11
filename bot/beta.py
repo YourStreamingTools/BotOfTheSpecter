@@ -1141,45 +1141,36 @@ class BotOfTheSpecter(commands.Bot):
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
                     result = await cursor.fetchone()
-                    if result:
-                        url_blocking = bool(result[0])
-                    else:
-                        # If url_blocking not found in the database, default to False
-                        url_blocking = False
-                    # Check if url_blocking is enabled
+                    url_blocking = bool(result[0]) if result else False
+                    # Proceed if URL blocking is enabled
                     if url_blocking:
-                        # Check if the user is permitted to post links
+                        # Check if user has permission to post links
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
-                            # User is permitted, skip URL blocking
-                            return
-                        if command_permissions("mod", messageAuthor):
-                            # User is a mod or is the broadcaster, they are by default permitted.
-                            return
-                        # Fetch link whitelist from the database
+                            return  # User is permitted, skip URL blocking
+                        if await command_permissions("mod", messageAuthor):
+                            return  # Mods and broadcaster have permission by default
+                        # Fetch whitelist and blacklist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
-                        whitelisted_links = await cursor.fetchall()
-                        whitelisted_links = [link[0] for link in whitelisted_links]
+                        whitelisted_links = [link[0] for link in await cursor.fetchall()]
                         await cursor.execute('SELECT link FROM link_blacklisting')
-                        blacklisted_links = await cursor.fetchall()
-                        blacklisted_links = [link[0] for link in blacklisted_links]
-                        # Check if the message content contains any whitelisted or blacklisted link
-                        contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
-                        contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
-                        # Check if the message content contains a Twitch clip link
+                        blacklisted_links = [link[0] for link in await cursor.fetchall()]
+                        # Check if message contains whitelisted or blacklisted links using domain matching
+                        contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
+                        contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
+                        # Check for Twitch clip links
                         contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+                        # Process based on whitelist/blacklist match results
                         if contains_blacklisted_link:
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
                             await channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
-                            return  # Stop further processing
+                            return
                         elif not contains_whitelisted_link and not contains_twitch_clip_link:
-                            # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                            # Notify the user not to post links without permission
-                            await channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
-                            return  # Stop further processing
+                            await channel.send(f"{messageAuthor}, links are not authorized in chat, ask a moderator or the broadcaster for permission.")
+                            return
                         else:
                             chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
                     else:
@@ -6166,6 +6157,14 @@ async def get_spotify_settings():
         password=SQL_PASSWORD,
         db="website",
     )
+
+# Function to check if a URL or domain matches whitelisted or blacklisted URLs
+async def match_domain_or_link(message, domain_list):
+    for domain in domain_list:
+        pattern = re.escape(domain)
+        if re.search(rf"(https?://)?(www\.)?{pattern}(\/|$)", message):
+            return True
+    return False
 
 # Here is the BOT
 bot = BotOfTheSpecter(
