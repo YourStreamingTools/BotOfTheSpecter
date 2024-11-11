@@ -94,49 +94,55 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php echo $message; ?>
         </div>
     <?php endif; ?>
-    <!-- Enable or Disable URL Blocking -->
-    <form action="" method="post">
-        <div class="field">
-            <label for="url_blocking">Enable URL Blocking:</label>
-            <div class="control">
-                <div class="select">
-                    <select name="url_blocking" id="url_blocking">
-                        <option value="True"<?php echo $currentSettings == 'True' ? ' selected' :'';?>>True</option>
-                        <option value="False"<?php echo $currentSettings == 'False' ? ' selected' :'';?>>False</option>
-                    </select>
+    <div class="columns is-desktop is-multiline box-container">
+        <!-- URL Blocking Settings -->
+        <div class="column is-3 bot-box" style="position: relative;">
+            <form action="" method="post">
+                <div class="field">
+                    <label for="url_blocking">Enable URL Blocking:</label>
+                    <div class="control">
+                        <div class="select">
+                            <select name="url_blocking" id="url_blocking">
+                                <option value="True"<?php echo $currentSettings == 'True' ? ' selected' :'';?>>True</option>
+                                <option value="False"<?php echo $currentSettings == 'False' ? ' selected' :'';?>>False</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
-            </div>
+                <div class="field">
+                    <input type="submit" name="submit" value="Update" class="button is-primary"></input>
+                </div>
+            </form>
         </div>
-        <div class="field">
-            <input type="submit" name="submit" value="Update"></input>
+        <!-- Whitelist Link Form -->
+        <div class="column is-3 bot-box" style="position: relative;">
+            <form action="" method="post">
+                <div class="field">
+                    <label for="whitelist_link">Enter Link to Whitelist:</label>
+                    <div class="control">
+                        <input class="input" type="url" name="whitelist_link" id="whitelist_link" placeholder="Enter a URL" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <input type="submit" name="submit" value="Add to Whitelist" class="button is-primary"></input>
+                </div>
+            </form>
         </div>
-    </form>
-    <br>
-    <!-- Add a new link to the White List -->
-    <form action="" method="post">
-        <div class="field">
-            <label for="whitelist_link">Enter Link to Whitelist:</label>
-            <div class="control">
-                <input class="input" type="url" name="whitelist_link" id="whitelist_link" placeholder="Enter a URL" required>
-            </div>
+        <!-- Blacklist Link Form -->
+        <div class="column is-3 bot-box" style="position: relative;">
+            <form action="" method="post">
+                <div class="field">
+                    <label for="blacklist_link">Enter Link to Blacklist:</label>
+                    <div class="control">
+                        <input class="input" type="url" name="blacklist_link" id="blacklist_link" placeholder="Enter a URL" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <input type="submit" name="submit" value="Add to Blacklist" class="button is-primary"></input>
+                </div>
+            </form>
         </div>
-        <div class="field">
-            <input type="submit" name="submit" value="Add to Whitelist"></input>
-        </div>
-    </form>
-    <br>
-    <!-- Add a new link to the Black List -->
-    <form action="" method="post">
-        <div class="field">
-            <label for="blacklist_link">Enter Link to Blacklist:</label>
-            <div class="control">
-                <input class="input" type="url" name="blacklist_link" id="blacklist_link" placeholder="Enter a URL" required>
-            </div>
-        </div>
-        <div class="field">
-            <input type="submit" name="submit" value="Add to Blacklist"></input>
-        </div>
-    </form>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
