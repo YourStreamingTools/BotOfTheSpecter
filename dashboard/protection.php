@@ -29,6 +29,10 @@ $getProtection = $db->query("SELECT * FROM protection LIMIT 1");
 $settings = $getProtection->fetchAll(PDO::FETCH_ASSOC);
 $currentSettings = isset($settings[0]['url_blocking']) ? $settings[0]['url_blocking'] : 'False';
 
+// Fetch whitelist and blacklist links
+$whitelistLinks = $db->query("SELECT link FROM link_whitelist")->fetchAll(PDO::FETCH_ASSOC);
+$blacklistLinks = $db->query("SELECT link FROM link_blacklisting")->fetchAll(PDO::FETCH_ASSOC);
+
 // Update database with settings
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // URL Blocking Settings
@@ -141,6 +145,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <input type="submit" name="submit" value="Add to Blacklist" class="button is-primary"></input>
                 </div>
             </form>
+        </div>
+        <!-- Whitelist and Blacklist Tables -->
+        <div class="column is-5 bot-box" style="position: relative;">
+            <h2 class="subtitle">Whitelist Links</h2>
+            <table class="table is-fullwidth is-bordered">
+                <tbody>
+                    <?php foreach ($whitelistLinks as $link): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($link['link']); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="column is-5 bot-box" style="position: relative;">
+            <h2 class="subtitle">Blacklist Links</h2>
+            <table class="table is-fullwidth is-bordered">
+                <tbody>
+                    <?php foreach ($blacklistLinks as $link): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($link['link']); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
