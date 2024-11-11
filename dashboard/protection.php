@@ -96,7 +96,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <?php endif; ?>
     <div class="columns is-desktop is-multiline box-container">
         <!-- URL Blocking Settings -->
-        <div class="column is-3 bot-box" style="position: relative;">
+        <div class="column is-2 bot-box" style="position: relative;">
             <form action="" method="post">
                 <div class="field">
                     <label for="url_blocking">Enable URL Blocking:</label>
@@ -115,7 +115,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </form>
         </div>
         <!-- Whitelist Link Form -->
-        <div class="column is-3 bot-box" style="position: relative;">
+        <div class="column is-4 bot-box" style="position: relative;">
             <form action="" method="post">
                 <div class="field">
                     <label for="whitelist_link">Enter Link to Whitelist:</label>
@@ -129,7 +129,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </form>
         </div>
         <!-- Blacklist Link Form -->
-        <div class="column is-3 bot-box" style="position: relative;">
+        <div class="column is-4 bot-box" style="position: relative;">
             <form action="" method="post">
                 <div class="field">
                     <label for="blacklist_link">Enter Link to Blacklist:</label>
