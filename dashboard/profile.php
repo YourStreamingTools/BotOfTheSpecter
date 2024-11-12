@@ -27,9 +27,8 @@ date_default_timezone_set($timezone);
 $greeting = 'Hello';
 
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
-date_default_timezone_set($timezone);
-$signup_date_utc = date_create_from_format('Y-m-d H:i:s', $signup_date)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A');
-$last_login_utc = date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A');
+$signup_date_utc = isset($signup_date) && $signup_date ? date_create_from_format('Y-m-d H:i:s', $signup_date)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A') : 'Not Available';
+$last_login_utc = isset($last_login) && $last_login ? date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A') : 'Not Available';
 
 // Check if form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
