@@ -123,7 +123,8 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$profileImageUrl' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
+    <br>
     <?php if (isset($error_message)) { echo "<p style='color: red;'> " . htmlspecialchars($error_message) . "</p>"; } ?>
     <br>
     <h1 class="title">Premium Features</h1>
