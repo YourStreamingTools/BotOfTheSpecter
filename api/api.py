@@ -8,6 +8,7 @@ import uvicorn
 import datetime
 import logging
 import asyncio
+import traceback
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse
@@ -528,7 +529,7 @@ async def api_song():
         return {"requests_remaining": file_content, "days_remaining": days_until_reset}
     except Exception as e:
         sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
-        raise HTTPException(status_code=500, detail=f"{sanitized_error}")
+        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
 
 # Public API Requests Remaining (for exchange rate)
 @app.get(
@@ -593,7 +594,8 @@ async def api_weather_requests_remaining():
         return {"requests_remaining": file_content, "time_remaining": time_remaining}
     except Exception as e:
         sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
-        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
+        error_message = f"SFTP connection failed: {sanitized_error}\nTraceback:\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_message)
 
 # killCommand EndPoint
 @app.get(
