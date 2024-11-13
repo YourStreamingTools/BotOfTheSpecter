@@ -18,6 +18,12 @@ $betaStatusOutput = 'Bot Status: Unknown';
 $pid = '';
 $versionRunning = '';
 $betaVersionRunning = '';
+$BotIsMod = false; // Default to false until we know for sure
+$BotModMessage = "";
+$setupMessage = "";
+$showButtons = false;
+$lastModifiedOutput = '';
+$lastRestartOutput = '';
 
 // Include all the information
 require_once "db_connect.php";
@@ -51,34 +57,36 @@ $headers = [
 curl_setopt($checkModConnect, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($checkModConnect, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($checkModConnect);
-$BotIsMod = false; // Default to false until we know for sure
-$BotModMessage = "";
-$setupMessage = "";
-$showButtons = false;
-
 if ($response === false) {
-  // Handle error - you might want to log this or take other action
+  // Log or handle the cURL error
   $error = 'Curl error: ' . curl_error($checkModConnect);
 } else {
-  // Decode the response
-  $responseData = json_decode($response, true);
-  // Check if we received a 401 Unauthorized error with an invalid OAuth token message
-  if (isset($responseData['status']) && $responseData['status'] === 401 && isset($responseData['message']) && $responseData['message'] === "Invalid OAuth token") {
-    // Display a notification for session expiration and require re-login
-    $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
-                        <form action="relink.php" method="get"><button class="button is-danger bot-button" type="submit">Re-log in</button></form>
-                      </div>';
-  } elseif (isset($responseData['data'])) {
-    // Check if the bot is in the list of moderators
-    foreach ($responseData['data'] as $mod) {
-      if ($mod['user_login'] === 'botofthespecter') {
-        $BotIsMod = true;
-        break;
-      }
-    }
+  // Check the HTTP status code
+  $httpStatus = curl_getinfo($checkModConnect, CURLINFO_HTTP_CODE);
+  if ($httpStatus !== 200) {
+    // Handle all non-200 responses
+    $error = "HTTP error: Received status code $httpStatus";
   } else {
-    // Handle unexpected response format
-    $error = 'Unexpected response format.';
+    // Decode the JSON response
+    $responseData = json_decode($response, true);
+    // Check for 401 Unauthorized with an invalid OAuth token message
+    if (isset($responseData['status']) && $responseData['status'] === 401 && isset($responseData['message']) && $responseData['message'] === "Invalid OAuth token") {
+      // Display a notification for session expiration
+      $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
+                          <form action="relink.php" method="get"><button class="button is-danger bot-button" type="submit">Re-log in</button></form>
+                        </div>';
+    } elseif (isset($responseData['data'])) {
+      // Check if the bot is in the list of moderators
+      foreach ($responseData['data'] as $mod) {
+        if ($mod['user_login'] === 'botofthespecter') {
+          $BotIsMod = true;
+          break;
+        }
+      }
+    } else {
+      // Handle unexpected response format
+      $error = 'Unexpected response format.';
+    }
   }
 }
 curl_close($checkModConnect);
@@ -117,9 +125,6 @@ if ($user['beta_access'] == 1) {
     if (in_array($tier, ["1000", "2000", "3000"]));
     $betaAccess = true;
 };
-
-$lastModifiedOutput = '';
-$lastRestartOutput = '';
 
 // Last Changed Time
 $betaFile = '/var/www/bot/beta.py';
