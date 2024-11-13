@@ -9,10 +9,8 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
-// Page Title
+// Page Title and Initial Variables
 $title = "Dashboard";
-
-// Variables
 $statusOutput = 'Bot Status: Unknown';
 $betaStatusOutput = 'Bot Status: Unknown';
 $pid = '';
@@ -25,7 +23,7 @@ $showButtons = false;
 $lastModifiedOutput = '';
 $lastRestartOutput = '';
 
-// Include all the information
+// Include files for database and user data
 require_once "db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
@@ -46,7 +44,7 @@ $discordUser = $discordUserResult->fetch_assoc();
 $guild_id = $discordUser['guild_id'] ?? null;
 $live_channel_id = $discordUser['live_channel_id'] ?? null;
 
-// Twitch API to check if the bot is modded
+// Twitch API to check bot mod status
 $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 $checkModConnect = curl_init($checkMod);
@@ -57,91 +55,71 @@ $headers = [
 curl_setopt($checkModConnect, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($checkModConnect, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($checkModConnect);
-if ($response === false) {
-  // Log or handle the cURL error
-  $error = 'Curl error: ' . curl_error($checkModConnect);
-} else {
-  // Check the HTTP status code
-  $httpStatus = curl_getinfo($checkModConnect, CURLINFO_HTTP_CODE);
-  if ($httpStatus !== 200) {
-    // Handle all non-200 responses
-    $error = "HTTP error: Received status code $httpStatus";
-  } else {
-    // Decode the JSON response
-    $responseData = json_decode($response, true);
-    // Check for 401 Unauthorized with an invalid OAuth token message
-    if (isset($responseData['status']) && $responseData['status'] === 401 && isset($responseData['message']) && $responseData['message'] === "Invalid OAuth token") {
-      // Display a notification for session expiration
-      $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
+if ($response !== false) {
+    $httpStatus = curl_getinfo($checkModConnect, CURLINFO_HTTP_CODE);
+    if ($httpStatus === 200) {
+        $responseData = json_decode($response, true);
+        if (isset($responseData['data'])) {
+            foreach ($responseData['data'] as $mod) {
+                if ($mod['user_login'] === 'botofthespecter') {
+                    $BotIsMod = true;
+                    break;
+                }
+            }
+        }
+    } else {
+        // Set re-login message if authentication fails
+        $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
                           <form action="relink.php" method="get"><button class="button is-danger bot-button" type="submit">Re-log in</button></form>
                         </div>';
-    } elseif (isset($responseData['data'])) {
-      // Check if the bot is in the list of moderators
-      foreach ($responseData['data'] as $mod) {
-        if ($mod['user_login'] === 'botofthespecter') {
-          $BotIsMod = true;
-          break;
-        }
-      }
-    } else {
-      // Handle unexpected response format
-      $error = 'Unexpected response format.';
     }
-  }
+} else {
+    $error = 'Curl error: ' . curl_error($checkModConnect);
 }
 curl_close($checkModConnect);
-$ModStatusOutput = $BotIsMod;
 
-// Handle the bot mod status
-if ($username === 'botofthespecter') {
-  $showButtons = true;
-} else {
-  // If the user is not BotOfTheSpecter, check mod status
-  if ($ModStatusOutput) {
-    $showButtons = true;
-  } else {
+// Only set mod warning if no authentication message is needed
+if (empty($BotModMessage) && !$BotIsMod) {
     $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not currently a moderator on your channel. To continue, please add BotOfTheSpecter as a mod on your Twitch channel.<br>You can do this by navigating to your Twitch Streamer Dashboard, then going to Community > Roles Manager.<br>After you have made BotOfTheSpecter a mod, refresh this page to access your controls.</div>';
-    $showButtons = false;
-  }
 }
 
-$betaAccess = false; // Default to false until we know
+$ModStatusOutput = $BotIsMod;
+if ($username === 'botofthespecter' || $ModStatusOutput) {
+    $showButtons = true;
+} else {
+    $showButtons = false;
+}
+
+// Check Beta Access
+$betaAccess = false;
 if ($user['beta_access'] == 1) {
   $betaAccess = true;
 } else {
   $twitch_subscriptions_url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
-  $headers = [
-    "Client-ID: {$clientID}",
-    "Authorization: Bearer {$authToken}"
-  ];
   $ch = curl_init($twitch_subscriptions_url);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
   $response = curl_exec($ch);
   curl_close($ch);
   $data = json_decode($response, true);
-  if (isset($data['data'][0]));
+  if (isset($data['data'][0])) {
     $tier = $data['data'][0]['tier'];
-    if (in_array($tier, ["1000", "2000", "3000"]));
-    $betaAccess = true;
-};
+    if (in_array($tier, ["1000", "2000", "3000"])) {
+      $betaAccess = true;
+    }
+  }
+}
 
 // Last Changed Time
 $betaFile = '/var/www/bot/beta.py';
 if (file_exists($betaFile)) {
+    $lastModifiedOutput = 'File not found';
     $betaFileModifiedTime = filemtime($betaFile);
     $timeAgo = time() - $betaFileModifiedTime;
-    if ($timeAgo < 60) {
-        $lastModifiedOutput = $timeAgo . ' seconds ago';
-    } elseif ($timeAgo < 3600) {
-        $lastModifiedOutput = floor($timeAgo / 60) . ' minutes ago';
-    } elseif ($timeAgo < 86400) {
-        $lastModifiedOutput = floor($timeAgo / 3600) . ' hours ago';
-    } else {
-        $lastModifiedOutput = floor($timeAgo / 86400) . ' days ago';
-    }
-} else {
-    $lastModifiedOutput = 'File not found'; // Optional error handling
+    if ($timeAgo < 60) $lastModifiedOutput = $timeAgo . ' seconds ago';
+    elseif ($timeAgo < 3600) $lastModifiedOutput = floor($timeAgo / 60) . ' minutes ago';
+    elseif ($timeAgo < 86400) $lastModifiedOutput = floor($timeAgo / 3600) . ' hours ago';
+    else $lastModifiedOutput = floor($timeAgo / 86400) . ' days ago';
 }
 
 // Last Restarted Time
@@ -149,15 +127,10 @@ $restartLog = '/var/www/logs/version/' . $username . '_beta_version_control.txt'
 if (file_exists($restartLog)) {
     $restartFileTime = filemtime($restartLog);
     $restartTimeAgo = time() - $restartFileTime;
-    if ($restartTimeAgo < 60) {
-        $lastRestartOutput = $restartTimeAgo . ' seconds ago';
-    } elseif ($restartTimeAgo < 3600) {
-        $lastRestartOutput = floor($restartTimeAgo / 60) . ' minutes ago';
-    } elseif ($restartTimeAgo < 86400) {
-        $lastRestartOutput = floor($restartTimeAgo / 3600) . ' hours ago';
-    } else {
-        $lastRestartOutput = floor($restartTimeAgo / 86400) . ' days ago';
-    }
+    if ($restartTimeAgo < 60) $lastRestartOutput = $restartTimeAgo . ' seconds ago';
+    elseif ($restartTimeAgo < 3600) $lastRestartOutput = floor($restartTimeAgo / 60) . ' minutes ago';
+    elseif ($restartTimeAgo < 86400) $lastRestartOutput = floor($restartTimeAgo / 3600) . ' hours ago';
+    else $lastRestartOutput = floor($restartTimeAgo / 86400) . ' days ago';
 } else {
     $lastRestartOutput = 'Never'; // Message if restart log file does not exist
 }
