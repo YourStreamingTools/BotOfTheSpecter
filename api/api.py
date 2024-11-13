@@ -575,29 +575,24 @@ async def api_exchangerate():
     operation_id="get_weather_requests_remaining"
 )
 async def api_weather_requests_remaining():
+    # Calculate time until midnight
+    now = datetime.now()
+    midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
+    time_until_midnight = (midnight - now).seconds
+    hours, remainder = divmod(time_until_midnight, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds" if hours > 0 else f"{minutes} minutes, {seconds} seconds" if minutes > 0 else f"{seconds} seconds"
+    # Attempt to read the file content directly from the local file system
+    weather_requests_file = "/home/fastapi/api/weather_requests.txt"
     try:
-        # Calculate time until midnight
-        now = datetime.now()
-        midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
-        time_until_midnight = (midnight - now).seconds
-        hours, remainder = divmod(time_until_midnight, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds" if hours > 0 else f"{minutes} minutes, {seconds} seconds" if minutes > 0 else f"{seconds} seconds"
-        # Attempt to read the file content directly from the local file system
-        weather_requests_file = "/home/fastapi/api/weather_requests.txt"
-        try:
-            with open(weather_requests_file, "r") as file:
-                file_content = file.read().strip()  # Read and strip extra spaces/newlines
-        except FileNotFoundError:
-            raise HTTPException(status_code=404, detail="Weather request file not found.")
-        except Exception as file_error:
-            raise HTTPException(status_code=500, detail=f"File read error: {str(file_error)}")
-        # Return the response
-        return {"requests_remaining": file_content, "time_remaining": time_remaining}
-    except Exception as e:
-        # Log the detailed error message for debugging
-        print(f"Error: {str(e)}")  # Debugging: output the error to the console or logs
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        with open(weather_requests_file, "r") as file:
+            file_content = file.read().strip()  # Read and strip extra spaces/newlines
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Weather request file not found.")
+    except Exception as file_error:
+        raise HTTPException(status_code=500, detail=f"File read error: {str(file_error)}")
+    # Return the response
+    return {"requests_remaining": file_content, "time_remaining": time_remaining}
 
 # killCommand EndPoint
 @app.get(
