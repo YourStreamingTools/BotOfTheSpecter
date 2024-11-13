@@ -582,16 +582,15 @@ async def api_weather_requests_remaining():
         hours, remainder = divmod(time_until_midnight, 3600)
         minutes, seconds = divmod(remainder, 60)
         time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds" if hours > 0 else f"{minutes} minutes, {seconds} seconds" if minutes > 0 else f"{seconds} seconds"
-        # SFTP connection and reading the file
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # Read the file content directly from the local file
         weather_requests_file = "/home/fastapi/api/weather_requests.txt"
-        file_content = weather_requests_file.read().decode().strip()  # Read and strip extra spaces/newlines
+        with open(weather_requests_file, "r") as file:
+            file_content = file.read().strip()  # Read and strip extra spaces/newlines
         # Return the response
         return {"requests_remaining": file_content, "time_remaining": time_remaining}
     except Exception as e:
         sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
-        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
+        raise HTTPException(status_code=500, detail=f"File reading failed: {sanitized_error}")
 
 # killCommand EndPoint
 @app.get(
