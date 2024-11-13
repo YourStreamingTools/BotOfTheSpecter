@@ -33,7 +33,7 @@ WEATHER_API = os.getenv('WEATHER_API')
 
 # Setup Logger
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     filename="/home/fastapi/log.txt",
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -576,34 +576,27 @@ async def api_exchangerate():
 )
 async def api_weather_requests_remaining():
     try:
-        logging.debug("Starting API call for weather requests.")
         now = datetime.now()
         midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
         time_until_midnight = (midnight - now).seconds
         hours, remainder = divmod(time_until_midnight, 3600)
         minutes, seconds = divmod(remainder, 60)
         time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds" if hours > 0 else f"{minutes} minutes, {seconds} seconds" if minutes > 0 else f"{seconds} seconds"
-        logging.debug("Calculated time remaining until midnight.")
-        # SSH and SFTP connection process
+        # SFTP connection and reading the file
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        logging.debug(f"Connecting to SSH server: {SFTP_HOST}")
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        logging.debug("SSH connection successful.")
         weather_requests_file = "/var/www/api/weather.txt"
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
         sftp = ssh.open_sftp()
-        logging.debug(f"Opening SFTP file: {weather_requests_file}")
         with sftp.open(weather_requests_file, "r") as requests_remaining:
-            file_content = requests_remaining.read().decode().strip()
-        logging.debug(f"File content retrieved: {file_content}")
+            file_content = requests_remaining.read().decode().strip()  # Read and strip extra spaces/newlines
         sftp.close()
         ssh.close()
+        # Return the response
         return {"requests_remaining": file_content, "time_remaining": time_remaining}
     except Exception as e:
         sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
-        error_message = f"SFTP connection failed: {sanitized_error}\nTraceback:\n{traceback.format_exc()}"
-        logging.error(f"Error occurred: {error_message}")
-        raise HTTPException(status_code=500, detail=error_message)
+        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
 
 # killCommand EndPoint
 @app.get(
