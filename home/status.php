@@ -7,7 +7,7 @@
     <title>BotOfTheSpecter Status</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; color: #333; overflow: hidden; }
+        body { font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; color: #ffffff; overflow: hidden; }
         .container { text-align: center; }
         h1 { font-size: 2.5em; }
         .info { margin: 20px 0; }
