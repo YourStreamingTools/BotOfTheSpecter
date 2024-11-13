@@ -585,13 +585,8 @@ async def api_weather_requests_remaining():
         # SFTP connection and reading the file
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        weather_requests_file = "/var/www/api/weather.txt"
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        sftp = ssh.open_sftp()
-        with sftp.open(weather_requests_file, "r") as requests_remaining:
-            file_content = requests_remaining.read().decode().strip()  # Read and strip extra spaces/newlines
-        sftp.close()
-        ssh.close()
+        weather_requests_file = "/home/fastapi/api/weather_requests.txt"
+        file_content = weather_requests_file.read().decode().strip()  # Read and strip extra spaces/newlines
         # Return the response
         return {"requests_remaining": file_content, "time_remaining": time_remaining}
     except Exception as e:
