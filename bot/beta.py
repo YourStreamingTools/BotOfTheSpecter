@@ -3594,6 +3594,37 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='enablecommand')
+    async def enablecommand_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("enablecommand",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    if status == 'Enabled':
+                        return
+                    # Check if the user has the required permissions for this command
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Parse the command from the message
+                try:
+                    command = ctx.message.content.strip().split(' ')[1]
+                except IndexError:
+                    await ctx.send(f"Invalid command format. Use: !enablecommand [command]")
+                    return
+                # Enable the command in the database
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
+                    await sqldb.commit()
+                chat_logger.info(f"{ctx.author.name} has enabled the command: {command}")
+                await ctx.send(f'Custom command enabled: !{command}')
+        finally:
+            await sqldb.ensure_closed()
+
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='slots')
     async def slots_command(self, ctx):
