@@ -581,7 +581,9 @@ async def api_weather_requests_remaining():
         time_until_midnight = (midnight - now).seconds
         hours, remainder = divmod(time_until_midnight, 3600)
         minutes, seconds = divmod(remainder, 60)
-        time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds" if hours > 0 else f"{minutes} minutes, {seconds} seconds" if minutes > 0 else f"{seconds} seconds"
+        if hours > 0: time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds"
+        elif minutes > 0: time_remaining = f"{minutes} minutes, {seconds} seconds"
+        else: time_remaining = f"{seconds} seconds"
         # Attempt to read the file content directly
         weather_requests_file = "/home/fastapi/api/weather_requests.txt"
         try:
