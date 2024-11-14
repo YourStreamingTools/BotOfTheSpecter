@@ -68,7 +68,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; font-size: 16px; color: #ffffff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 20px; }
-        .info, .heartbeat-container, .error, .countdown-container { font-size: 16px; margin: 10px 0; }
+        .info, .heartbeat-container, .error { font-size: 26px; margin: 10px 0; }
         .heartbeat-container { display: flex; align-items: center; margin-bottom: 20px; }
         .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
@@ -80,6 +80,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <body>
 <!-- Display System Health with Heartbeat -->
 <div class="heartbeat-container">
+    <span id="Sydney_z60b" style="font-size:36px;color:FFFFFF"></span>
     <p><strong>System Health:</strong></p>
     <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
         <?= ($heartbeatStatus === 'OK') ? '❤️' : '💔'; ?>
@@ -107,14 +108,15 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <!-- Display Weather Request Info -->
 <div class="info">
     <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
-    <p><strong>Time Remaining Until Midnight:</strong>
-    <div id="countdown" class="countdown-container"><?php if (isset($secondsUntilMidnight)) { ?>
+    <p><strong>Time Remaining Until Midnight:</strong><div id="countdown"><?php if (isset($secondsUntilMidnight)) { ?>
         <span id="countdown-time"><?= floor($secondsUntilMidnight / 3600) . 'h ' . floor(($secondsUntilMidnight % 3600) / 60) . 'm ' . ($secondsUntilMidnight % 60) . 's' ?></span>
         <?php } else { ?><?php } ?>
     </div>
     </p>
 </div>
 
+<script src="//widget.time.is/en.js"></script>
+<script>time_is_widget.init({Sydney_z60b:{template:"TIME<br>DATE", time_format:"12hours:minutes:secondsAMPM", date_format:"dayname, dnum monthname year"}});</script>
 <script>
 // Countdown Timer for Time Remaining Until Midnight
 function startCountdown(timeRemainingInSeconds) {
