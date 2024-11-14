@@ -111,13 +111,19 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <div class="info">
     <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
     <p><strong>Time Remaining Until Midnight:</strong></p>
-    <div id="countdown" class="countdown-container"></div>
+    <div id="countdown" class="countdown-container">
+        <?php if (isset($secondsUntilMidnight)) { ?>
+            <span id="countdown-time"><?= floor($secondsUntilMidnight / 3600) . 'h ' . floor(($secondsUntilMidnight % 3600) / 60) . 'm ' . ($secondsUntilMidnight % 60) . 's' ?></span>
+        <?php } else { ?>
+            <span>Error: Invalid time remaining data.</span>
+        <?php } ?>
+    </div>
 </div>
 
 <script>
 // Countdown Timer for Time Remaining Until Midnight
 function startCountdown(timeRemainingInSeconds) {
-    var countdownElement = document.getElementById("countdown");
+    var countdownElement = document.getElementById("countdown-time");
     var countdownInterval = setInterval(function() {
         if (timeRemainingInSeconds <= 0) {
             countdownElement.innerHTML = "Time's up!";
@@ -136,8 +142,6 @@ function startCountdown(timeRemainingInSeconds) {
 <?php if (isset($secondsUntilMidnight)) { ?>
     var timeInSeconds = <?= $secondsUntilMidnight; ?>;
     startCountdown(timeInSeconds);
-<?php } else { ?>
-    document.getElementById("countdown").innerHTML = "Error: Invalid time remaining data.";
 <?php } ?>
 </script>
 </body>
