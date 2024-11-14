@@ -75,7 +75,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .error { color: #ff4d4d; }
-        .countdown { font-size: 1.2em; margin-top: 10px; }
+        .countdown { font-size: 1.5em; margin-top: 10px; color: #ffffff; }
         .countdown-container { margin-top: 10px; }
         .heartbeat, .info p { font-size: 1.5em; }
     </style>
