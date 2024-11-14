@@ -80,7 +80,6 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <body>
 <!-- Display System Health with Heartbeat -->
 <div class="heartbeat-container">
-    <span id="Sydney_z60b" style="font-size:36px;color:FFFFFF"></span>
     <p><strong>System Health:</strong></p>
     <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
         <?= ($heartbeatStatus === 'OK') ? '❤️' : '💔'; ?>
@@ -115,8 +114,6 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
     </p>
 </div>
 
-<script src="//widget.time.is/en.js"></script>
-<script>time_is_widget.init({Sydney_z60b:{template:"TIME<br>DATE", time_format:"12hours:minutes:secondsAMPM", date_format:"dayname, dnum monthname year"}});</script>
 <script>
 // Countdown Timer for Time Remaining Until Midnight
 function startCountdown(timeRemainingInSeconds) {
