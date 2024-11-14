@@ -1773,12 +1773,15 @@ class BotOfTheSpecter(commands.Bot):
                             blacklist = json.loads(blacklist)
                             bot_logger.info(f"Blacklist being passed to API: {blacklist}")
                             joke = await Jokes()
-                            get_joke = await joke.get_joke(blacklist=blacklist)
-                            category = get_joke["category"]
+                            while True:
+                                get_joke = await joke.get_joke()
+                                category = get_joke["category"]
+                                if category not in blacklist:
+                                    break
                             if get_joke["type"] == "single":
-                                await ctx.send(f"Here's a joke from {category}: {get_joke['joke']}")
+                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
                             else:
-                                await ctx.send(f"Here's a joke from {category}: {get_joke['setup']} | {get_joke['delivery']}")
+                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the joke command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
