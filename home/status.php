@@ -68,15 +68,15 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; color: #ffffff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 20px; }
-        .info { margin: 10px 0; font-size: 1.0em; }
-        .heartbeat-container { display: flex; align-items: center; font-size: 1.0em; margin-bottom: 20px; }
-        .heartbeat { font-size: 1.0em; color: #ff4d4d; transition: transform 0.2s ease; }
+        .info { margin: 10px 0; font-size: 2.0em; }
+        .heartbeat-container { display: flex; align-items: center; font-size: 2.0em; margin-bottom: 20px; }
+        .heartbeat { font-size: 2.0em; color: #ff4d4d; transition: transform 0.2s ease; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .error { color: #ff4d4d; }
-        .countdown { font-size: 1.0em; margin-top: 10px; color: #ffffff; }
+        .countdown { font-size: 2.0em; margin-top: 10px; color: #ffffff; }
         .countdown-container { margin-top: 10px; }
-        .heartbeat, .info p { font-size: 1.0em; }
+        .heartbeat, .info p { font-size: 2.0em; }
     </style>
 </head>
 <body>
@@ -131,7 +131,7 @@ function startCountdown(timeRemainingInSeconds) {
             var hours = Math.floor(timeRemainingInSeconds / 3600);
             var minutes = Math.floor((timeRemainingInSeconds % 3600) / 60);
             var seconds = timeRemainingInSeconds % 60;
-            countdownElement.innerHTML = `${hours}h ${minutes}m ${seconds}s remaining until midnight`;
+            countdownElement.innerHTML = `${hours}h ${minutes}m ${seconds}s`;
             timeRemainingInSeconds--;
         }
     }, 1000);
