@@ -296,7 +296,7 @@ try {
                 sound_mapping TEXT,
                 PRIMARY KEY (reward_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        'joke_settings ' => "
+        'joke_settings' => "
             CREATE TABLE IF NOT EXISTS joke_settings (
                 id INT(11) NOT NULL AUTO_INCREMENT,
                 blacklist TEXT,
@@ -442,7 +442,8 @@ try {
         'quote_category' => [
             'quote_id' => "INT(11)",
             'category_id' => "INT(11)"
-        ]
+        ],
+        'joke_settings' => ['blacklist TEXT']
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
