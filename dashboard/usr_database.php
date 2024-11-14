@@ -443,7 +443,7 @@ try {
             'quote_id' => "INT(11)",
             'category_id' => "INT(11)"
         ],
-        'joke_settings' => ['blacklist TEXT']
+        'joke_settings' => ['blacklist' => 'TEXT']
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
