@@ -489,7 +489,8 @@ try {
     $usrDBconn->query("INSERT INTO protection (url_blocking) SELECT 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)");
     // Ensure default options for joke command
     $jokeBlacklist = '["nsfw", "religious", "political", "racist", "sexist"]';
-    $usrDBconn->query("INSERT INTO joke_settings (id, blacklist) SELECT '1', '$blacklist' WHERE NOT EXISTS (SELECT 1 FROM joke_settings");
+    $jokeInsertQuery = "INSERT INTO joke_settings (id, blacklist) SELECT 1, '$jokeBlacklist' WHERE NOT EXISTS (SELECT 1 FROM joke_settings LIMIT 1);";
+    $usrDBconn->query($jokeInsertQuery);
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
