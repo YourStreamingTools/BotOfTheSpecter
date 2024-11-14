@@ -10,7 +10,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$title = "Manage Builtin Command Settings";
+$title = "Modules";
 $current_blacklist = [];
 
 // Include files for database and user data
