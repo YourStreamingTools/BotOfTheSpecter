@@ -295,7 +295,13 @@ try {
                 reward_id VARCHAR(255) NOT NULL,
                 sound_mapping TEXT,
                 PRIMARY KEY (reward_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'joke_settings ' => "
+            CREATE TABLE IF NOT EXISTS joke_settings (
+                id INT(11) NOT NULL AUTO_INCREMENT,
+                blacklist TEXT
+                PRIMARY KEY (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
@@ -481,6 +487,9 @@ try {
     $usrDBconn->query("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) SELECT 60, 5, 10, 20, 30 WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)");
     // Ensure default options for chat protection
     $usrDBconn->query("INSERT INTO protection (url_blocking) SELECT 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)");
+    // Ensure default options for joke command
+    $jokeBlacklist = '["nsfw", "religious", "political", "racist", "sexist"]';
+    $usrDBconn->query("INSERT INTO joke_settings (id, blacklist) SELECT '1', '$blacklist' WHERE NOT EXISTS (SELECT 1 FROM joke_settings");
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
