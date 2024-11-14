@@ -588,8 +588,10 @@ async def api_weather_requests_remaining():
             with open(weather_requests_file, "r") as file:
                 file_content = file.read().strip()  # Read and strip extra spaces/newlines
         except FileNotFoundError:
+            logging.error(f"Weather request file not found at {weather_requests_file}")  # Log the error
             raise HTTPException(status_code=404, detail="Weather request file not found.")
         except Exception as file_error:
+            logging.exception(f"Error reading the file: {str(file_error)}")  # Log the error with traceback
             raise HTTPException(status_code=500, detail=f"Error reading the file: {str(file_error)}")
         return {"requests_remaining": file_content, "time_remaining": time_remaining}
     except Exception as e:
