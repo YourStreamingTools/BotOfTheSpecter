@@ -1771,6 +1771,7 @@ class BotOfTheSpecter(commands.Bot):
                         if blacklist_result:
                             blacklist = blacklist_result[0]
                             blacklist = json.loads(blacklist)
+                            bot_logger.info(f"Blacklist being passed to API: {blacklist}")
                             joke = await Jokes()
                             get_joke = await joke.get_joke(blacklist=blacklist)
                             category = get_joke["category"]
