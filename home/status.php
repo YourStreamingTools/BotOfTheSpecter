@@ -76,18 +76,18 @@ if ($weatherData) {
 <body>
 
 <div class="container">
-    <!-- Display Versions -->
-    <div class="info">
-        <p><strong>Beta Version:</strong> <?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></p>
-        <p><strong>Stable Version:</strong> <?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></p>
-    </div>
-
     <!-- Display System Health with Heartbeat -->
     <div class="heartbeat-container">
         <p><strong>System Health:</strong></p>
         <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
             <?= ($heartbeatStatus === 'OK') ? '❤️' : '💔'; ?>
         </div>
+    </div>
+
+    <!-- Display Versions -->
+    <div class="info">
+        <p><strong>Beta Version:</strong> <?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></p>
+        <p><strong>Stable Version:</strong> <?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></p>
     </div>
 
     <!-- Display Song Request Info -->
