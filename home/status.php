@@ -104,50 +104,7 @@ if ($weatherData) {
 <!-- Display Weather Request Info -->
 <div class="info">
     <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
-    <p><strong>Time Remaining Until Midnight:</strong></p>
-    <div id="countdown" class="countdown-container"></div>
+    <p><strong>Time Remaining Until Midnight:</strong><br><?= isset($timeRemainingUntilMidnight) ? $timeRemainingUntilMidnight : 'N/A'; ?></p>
 </div>
-
-<script>
-// Countdown Timer for Time Remaining Until Midnight
-function parseTimeRemaining(timeRemaining) {
-    // Regular expression to extract hours, minutes, and seconds
-    var regex = /(\d+)\s*hours?\,\s*(\d+)\s*minutes?\,\s*(\d+)\s*seconds?/;
-    var match = timeRemaining.match(regex);
-    if (match) {
-        // Extract hours, minutes, and seconds
-        var hours = parseInt(match[1], 10);
-        var minutes = parseInt(match[2], 10);
-        var seconds = parseInt(match[3], 10);
-        // Convert all time into total seconds
-        return (hours * 3600) + (minutes * 60) + seconds;
-    }
-    return 0; // If the time format is not recognized, return 0 seconds
-}
-
-function startCountdown(timeRemainingInSeconds) {
-    var countdownElement = document.getElementById("countdown");
-    var countdownInterval = setInterval(function() {
-        if (timeRemainingInSeconds <= 0) {
-            countdownElement.innerHTML = "Time's up!";
-            clearInterval(countdownInterval);
-        } else {
-            var hours = Math.floor(timeRemainingInSeconds / 3600);
-            var minutes = Math.floor((timeRemainingInSeconds % 3600) / 60);
-            var seconds = timeRemainingInSeconds % 60;
-            countdownElement.innerHTML = `${hours}h ${minutes}m ${seconds}s remaining until midnight`;
-            timeRemainingInSeconds--;
-        }
-    }, 1000); // Update every second
-}
-
-// Start the countdown with the time in seconds
-<?php if (isset($timeRemainingUntilMidnight) && is_string($timeRemainingUntilMidnight)) { ?>
-    var timeInSeconds = parseTimeRemaining("<?= addslashes($timeRemainingUntilMidnight); ?>");
-    startCountdown(timeInSeconds);
-<?php } else { ?>
-    document.getElementById("countdown").innerHTML = "Error: Invalid time remaining data.";
-<?php } ?>
-</script>
 </body>
 </html>
