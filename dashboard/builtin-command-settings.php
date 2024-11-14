@@ -78,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political" <?php echo in_array("political", $current_blacklist) ? "checked" : ""; ?>> Political</label></div>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist" <?php echo in_array("racist", $current_blacklist) ? "checked" : ""; ?>> Racist</label></div>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist" <?php echo in_array("sexist", $current_blacklist) ? "checked" : ""; ?>> Sexist</label></div>
+                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="dark" <?php echo in_array("dark", $current_blacklist) ? "checked" : ""; ?>> Dark</label></div>
+                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="explicit" <?php echo in_array("explicit", $current_blacklist) ? "checked" : ""; ?>> Explicit</label></div>
                 <button class="button is-primary" type="submit">Save Settings</button>
             </form>
         </div>
