@@ -1971,6 +1971,7 @@ class BotOfTheSpecter(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.default)
     @commands.command(name='song')
     async def song_command(self, ctx):
+        global stream_online
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
@@ -1982,10 +1983,6 @@ class BotOfTheSpecter(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                global stream_online
-                if not stream_online:
-                    await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
-                    return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
@@ -1994,6 +1991,9 @@ class BotOfTheSpecter(commands.Bot):
                 song_info = await get_spotify_current_song()
                 if song_info:
                     await ctx.send(f"The current song is: {song_info}")
+                    return
+                if not stream_online:
+                    await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
                     return
                 # If no song on Spotify, check the alternative method if premium
                 premium_tier = await check_premium_feature()
