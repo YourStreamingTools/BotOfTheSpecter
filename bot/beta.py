@@ -1765,16 +1765,19 @@ class BotOfTheSpecter(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        joke = await Jokes()
-                        get_joke = await joke.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
-                        category = get_joke["category"]
-                        if get_joke["type"] == "single":
-                            await ctx.send(f"Here's a joke from {category}: {get_joke['joke']}")
-                        else:
-                            await ctx.send(f"Here's a joke from {category}:")
-                            await ctx.send(f"{get_joke['setup']}")
-                            await asyncio.sleep(2)
-                            await ctx.send(f"{get_joke['delivery']}")
+                        # Retrieve the blacklist from the joke_settings table
+                        await cursor.execute("SELECT blacklist FROM joke_settings WHERE id = 1")
+                        blacklist_result = await cursor.fetchone()
+                        if blacklist_result:
+                            blacklist = blacklist_result[0]
+                            blacklist = json.loads(blacklist)
+                            joke = await Jokes()
+                            get_joke = await joke.get_joke(blacklist=blacklist)
+                            category = get_joke["category"]
+                            if get_joke["type"] == "single":
+                                await ctx.send(f"Here's a joke from {category}: {get_joke['joke']}")
+                            else:
+                                await ctx.send(f"Here's a joke from {category}: {get_joke['setup']} | {get_joke['delivery']}")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the joke command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
