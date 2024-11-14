@@ -112,6 +112,21 @@ if ($weatherData) {
 
 <script>
 // Countdown Timer for Time Remaining Until Midnight
+function parseTimeRemaining(timeRemaining) {
+    // Regular expression to extract hours, minutes, and seconds
+    var regex = /(\d+)\s*hours?\,\s*(\d+)\s*minutes?\,\s*(\d+)\s*seconds?/;
+    var match = timeRemaining.match(regex);
+    if (match) {
+        // Extract hours, minutes, and seconds
+        var hours = parseInt(match[1], 10);
+        var minutes = parseInt(match[2], 10);
+        var seconds = parseInt(match[3], 10);
+        // Convert all time into total seconds
+        return (hours * 3600) + (minutes * 60) + seconds;
+    }
+    return 0; // If the time format is not recognized, return 0 seconds
+}
+
 function startCountdown(timeRemainingInSeconds) {
     var countdownElement = document.getElementById("countdown");
     var countdownInterval = setInterval(function() {
@@ -129,10 +144,12 @@ function startCountdown(timeRemainingInSeconds) {
 }
 
 // Start the countdown with the time in seconds
-<?php if (isset($timeRemainingUntilMidnight)) { ?>
-    startCountdown(<?= $timeRemainingUntilMidnight; ?>);
+<?php if (isset($timeRemainingUntilMidnight) && is_string($timeRemainingUntilMidnight)) { ?>
+    var timeInSeconds = parseTimeRemaining("<?= addslashes($timeRemainingUntilMidnight); ?>");
+    startCountdown(timeInSeconds);
+<?php } else { ?>
+    document.getElementById("countdown").innerHTML = "Error: Invalid time remaining data.";
 <?php } ?>
 </script>
-
 </body>
 </html>
