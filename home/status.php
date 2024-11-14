@@ -61,53 +61,51 @@ if ($weatherData) {
     <title>BotOfTheSpecter Status</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; color: #ffffff; overflow: hidden; }
-        .container { text-align: center; }
-        h1 { font-size: 2.5em; }
-        .info { margin: 20px 0; }
-        .heartbeat-container { display: flex; align-items: center; justify-content: center; font-size: 1.5em; }
+        body { font-family: Arial, sans-serif; color: #ffffff; background-color: #1a1a1a; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 20px; }
+        h1 { font-size: 2.5em; margin-bottom: 20px; }
+        .info { margin: 10px 0; font-size: 1.2em; }
+        .heartbeat-container { display: flex; align-items: center; font-size: 2.5em; margin-bottom: 20px; }
         .heartbeat { font-size: 2.5em; color: #ff4d4d; transition: transform 0.2s ease; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .error { color: #ff4d4d; }
         .countdown { font-size: 1.2em; margin-top: 10px; }
+        .countdown-container { margin-top: 10px; }
+        .heartbeat, .info p { font-size: 1.5em; }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <!-- Display System Health with Heartbeat -->
-    <div class="heartbeat-container">
-        <p><strong>System Health:</strong></p>
-        <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
-            <?= ($heartbeatStatus === 'OK') ? '❤️' : '💔'; ?>
-        </div>
+<!-- Display System Health with Heartbeat -->
+<div class="heartbeat-container">
+    <p><strong>System Health:</strong></p>
+    <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
+        <?= ($heartbeatStatus === 'OK') ? '❤️' : '💔'; ?>
     </div>
+</div>
 
-    <!-- Display Versions -->
-    <div class="info">
-        <p><strong>Beta Version:</strong> <?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></p>
-        <p><strong>Stable Version:</strong> <?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></p>
-    </div>
+<!-- Display Versions -->
+<div class="info">
+    <p><strong>Beta Version:</strong> <?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></p>
+    <p><strong>Stable Version:</strong> <?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></p>
+</div>
 
-    <!-- Display Song Request Info -->
-    <div class="info">
-        <p><strong>Song Days Remaining:</strong> <?= isset($songDaysRemaining) ? $songDaysRemaining : 'N/A'; ?></p>
-        <p><strong>Song Requests Remaining:</strong> <?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></p>
-    </div>
+<!-- Display Song Request Info -->
+<div class="info">
+    <p><strong>Song Days Remaining:</strong> <?= isset($songDaysRemaining) ? $songDaysRemaining : 'N/A'; ?></p>
+    <p><strong>Song Requests Remaining:</strong> <?= isset($songRequestsRemaining) ? $songRequestsRemaining : 'N/A'; ?></p>
+</div>
 
-    <!-- Display Exchange Rate Request Info -->
-    <div class="info">
-        <p><strong>Exchange Rate Days Remaining:</strong> <?= isset($exchangeRateDaysRemaining) ? $exchangeRateDaysRemaining : 'N/A'; ?></p>
-        <p><strong>Exchange Rate Requests Remaining:</strong> <?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></p>
-    </div>
+<!-- Display Exchange Rate Request Info -->
+<div class="info">
+    <p><strong>Exchange Rate Days Remaining:</strong> <?= isset($exchangeRateDaysRemaining) ? $exchangeRateDaysRemaining : 'N/A'; ?></p>
+    <p><strong>Exchange Rate Requests Remaining:</strong> <?= isset($exchangeRateRequestsRemaining) ? $exchangeRateRequestsRemaining : 'N/A'; ?></p>
+</div>
 
-    <!-- Display Weather Request Info -->
-    <div class="info">
-        <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
-        <p><strong>Time Remaining Until Midnight:</strong><br><div id="countdown" class="countdown"></div></p>
-    </div>
-
+<!-- Display Weather Request Info -->
+<div class="info">
+    <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
+    <p><strong>Time Remaining Until Midnight:</strong></p>
+    <div id="countdown" class="countdown-container"></div>
 </div>
 
 <script>
