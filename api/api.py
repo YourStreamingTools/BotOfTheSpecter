@@ -334,7 +334,7 @@ class PublicAPIResponse(BaseModel):
 
 class PublicAPIDailyResponse(BaseModel):
     requests_remaining: str
-    time_remaining: int
+    time_remaining: str
     class Config:
         json_schema_extra = {
             "example": {
