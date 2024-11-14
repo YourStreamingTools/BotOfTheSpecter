@@ -10,7 +10,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$title = "Manage Bulitin Command Settings";
+$title = "Manage Builtin Command Settings";
 $current_blacklist = [];
 
 // Include files for database and user data
@@ -35,6 +35,7 @@ if ($result) {
 }
 
 // If form is submitted, update the blacklist
+$update_success = false;
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Gather selected options
     $new_blacklist = isset($_POST['blacklist']) ? $_POST['blacklist'] : [];
@@ -45,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $update_stmt->bindParam(':blacklist', $new_blacklist_json);
     $update_stmt->execute();
     // Refresh the page to show updated settings
+    $update_success = true;
     header("Location: " . $_SERVER['PHP_SELF']);
     exit();
 }
@@ -64,18 +66,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
-    <?php echo $BotModMessage; ?>
-    <?php echo $setupMessage; ?>
-    <?php if ($betaAccess && $showButtons): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div><?php endif; ?>
-    <br>
+    <?php if ($update_success): ?>
+        <div class="notification is-success">Blacklist settings updated successfully.</div>
+    <?php endif; ?>
     <form method="POST" action="">
-        <h1>Manage Joke Blacklist:</h1>
-        <label><input type="checkbox" name="blacklist[]" value="nsfw" <?php echo in_array("nsfw", $current_blacklist) ? "checked" : ""; ?>> NSFW</label><br>
-        <label><input type="checkbox" name="blacklist[]" value="religious" <?php echo in_array("religious", $current_blacklist) ? "checked" : ""; ?>> Religious</label><br>
-        <label><input type="checkbox" name="blacklist[]" value="political" <?php echo in_array("political", $current_blacklist) ? "checked" : ""; ?>> Political</label><br>
-        <label><input type="checkbox" name="blacklist[]" value="racist" <?php echo in_array("racist", $current_blacklist) ? "checked" : ""; ?>> Racist</label><br>
-        <label><input type="checkbox" name="blacklist[]" value="sexist" <?php echo in_array("sexist", $current_blacklist) ? "checked" : ""; ?>> Sexist</label><br>
-        <button type="submit">Save Settings</button>
+        <h1 class="title">Manage Joke Blacklist:</h1>
+        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="nsfw" <?php echo in_array("nsfw", $current_blacklist) ? "checked" : ""; ?>> NSFW</label></div>
+        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="religious" <?php echo in_array("religious", $current_blacklist) ? "checked" : ""; ?>> Religious</label></div>
+        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political" <?php echo in_array("political", $current_blacklist) ? "checked" : ""; ?>> Political</label></div>
+        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist" <?php echo in_array("racist", $current_blacklist) ? "checked" : ""; ?>> Racist</label></div>
+        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist" <?php echo in_array("sexist", $current_blacklist) ? "checked" : ""; ?>> Sexist</label></div>
+        <button class="button is-primary" type="submit">Save Settings</button>
     </form>
 </div>
 
