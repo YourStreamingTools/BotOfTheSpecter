@@ -62,7 +62,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="6010"> <!-- Auto-refresh every 60 seconds -->
+    <meta http-equiv="refresh" content="60"> <!-- Auto-refresh every 60 seconds -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter Status</title>
     <style>
