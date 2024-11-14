@@ -68,15 +68,15 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; color: #ffffff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 20px; }
-        .info { margin: 10px 0; font-size: 2.0em; }
-        .heartbeat-container { display: flex; align-items: center; font-size: 2.0em; margin-bottom: 20px; }
-        .heartbeat { font-size: 2.0em; color: #ff4d4d; transition: transform 0.2s ease; }
+        .info { margin: 10px 0; }
+        .heartbeat-container { display: flex; align-items: center; margin-bottom: 20px; }
+        .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .error { color: #ff4d4d; }
-        .countdown { font-size: 2.0em; margin-top: 10px; color: #ffffff; }
+        .countdown { margin-top: 10px; color: #ffffff; }
         .countdown-container { margin-top: 10px; }
-        .heartbeat, .info p { font-size: 2.0em; }
+        .heartbeat, .info p { }
     </style>
 </head>
 <body>
@@ -109,7 +109,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <!-- Display Weather Request Info -->
 <div class="info">
     <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
-    <p><strong>Time Remaining Until Midnight:</strong></p>
+    <p><strong>Time Remaining Until Midnight:</strong>
     <div id="countdown" class="countdown-container">
         <?php if (isset($secondsUntilMidnight)) { ?>
             <span id="countdown-time"><?= floor($secondsUntilMidnight / 3600) . 'h ' . floor(($secondsUntilMidnight % 3600) / 60) . 'm ' . ($secondsUntilMidnight % 60) . 's' ?></span>
@@ -117,6 +117,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
             <span>Error: Invalid time remaining data.</span>
         <?php } ?>
     </div>
+    </p>
 </div>
 
 <script>
