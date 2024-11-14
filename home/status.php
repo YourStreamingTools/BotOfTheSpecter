@@ -47,10 +47,16 @@ if ($exchangeRateData) {
 $weatherData = fetchData('https://api.botofthespecter.com/api/weather');
 if ($weatherData) {
     $weatherRequestsRemaining = $weatherData['requests_remaining'];
-    $timeRemainingUntilMidnight = $weatherData['time_remaining'];  // Time in seconds
 } else {
     echo "<div class='error'>Error fetching weather data.</div>";
 }
+
+// Calculate time remaining until midnight
+$currentDateTime = new DateTime();
+$midnight = new DateTime('tomorrow midnight');
+$interval = $currentDateTime->diff($midnight);
+$secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -104,7 +110,35 @@ if ($weatherData) {
 <!-- Display Weather Request Info -->
 <div class="info">
     <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
-    <p><strong>Time Remaining Until Midnight:</strong><br><?= isset($timeRemainingUntilMidnight) ? $timeRemainingUntilMidnight : 'N/A'; ?></p>
+    <p><strong>Time Remaining Until Midnight:</strong></p>
+    <div id="countdown" class="countdown-container"></div>
 </div>
+
+<script>
+// Countdown Timer for Time Remaining Until Midnight
+function startCountdown(timeRemainingInSeconds) {
+    var countdownElement = document.getElementById("countdown");
+    var countdownInterval = setInterval(function() {
+        if (timeRemainingInSeconds <= 0) {
+            countdownElement.innerHTML = "Time's up!";
+            clearInterval(countdownInterval);
+        } else {
+            var hours = Math.floor(timeRemainingInSeconds / 3600);
+            var minutes = Math.floor((timeRemainingInSeconds % 3600) / 60);
+            var seconds = timeRemainingInSeconds % 60;
+            countdownElement.innerHTML = `${hours}h ${minutes}m ${seconds}s remaining until midnight`;
+            timeRemainingInSeconds--;
+        }
+    }, 1000);
+}
+
+// Start the countdown with the time in seconds calculated from PHP
+<?php if (isset($secondsUntilMidnight)) { ?>
+    var timeInSeconds = <?= $secondsUntilMidnight; ?>;
+    startCountdown(timeInSeconds);
+<?php } else { ?>
+    document.getElementById("countdown").innerHTML = "Error: Invalid time remaining data.";
+<?php } ?>
+</script>
 </body>
 </html>
