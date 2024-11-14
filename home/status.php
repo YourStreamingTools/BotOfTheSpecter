@@ -61,7 +61,7 @@ if ($weatherData) {
     <title>BotOfTheSpecter Status</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; color: #ffffff; background-color: #1a1a1a; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 20px; }
+        body { font-family: Arial, sans-serif; color: #ffffff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 20px; }
         h1 { font-size: 2.5em; margin-bottom: 20px; }
         .info { margin: 10px 0; font-size: 1.2em; }
         .heartbeat-container { display: flex; align-items: center; font-size: 2.5em; margin-bottom: 20px; }
