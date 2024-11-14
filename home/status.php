@@ -102,7 +102,7 @@
     <!-- Display Weather Request Info -->
     <div class="info">
         <p><strong>Weather Requests Remaining Today:</strong> <?= isset($weatherRequestsRemaining) ? $weatherRequestsRemaining : 'N/A'; ?></p>
-        <p><strong>Time Remaining Until Midnight:</strong> <?= isset($timeRemainingUntilMidnight) ? $timeRemainingUntilMidnight : 'N/A'; ?></p>
+        <p><strong>Time Remaining Until Midnight:</strong><br><?= isset($timeRemainingUntilMidnight) ? $timeRemainingUntilMidnight : 'N/A'; ?></p>
     </div>
 
 </div>
