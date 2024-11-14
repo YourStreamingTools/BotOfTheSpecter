@@ -69,15 +69,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php if ($update_success): ?>
         <div class="notification is-success">Blacklist settings updated successfully.</div>
     <?php endif; ?>
-    <form method="POST" action="">
-        <h1 class="title">Manage Joke Blacklist:</h1>
-        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="nsfw" <?php echo in_array("nsfw", $current_blacklist) ? "checked" : ""; ?>> NSFW</label></div>
-        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="religious" <?php echo in_array("religious", $current_blacklist) ? "checked" : ""; ?>> Religious</label></div>
-        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political" <?php echo in_array("political", $current_blacklist) ? "checked" : ""; ?>> Political</label></div>
-        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist" <?php echo in_array("racist", $current_blacklist) ? "checked" : ""; ?>> Racist</label></div>
-        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist" <?php echo in_array("sexist", $current_blacklist) ? "checked" : ""; ?>> Sexist</label></div>
-        <button class="button is-primary" type="submit">Save Settings</button>
-    </form>
+    <div class="columns is-desktop is-multiline box-container">
+        <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
+            <form method="POST" action="">
+                <h1 class="title">Manage Joke Blacklist:</h1>
+                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="nsfw" <?php echo in_array("nsfw", $current_blacklist) ? "checked" : ""; ?>> NSFW</label></div>
+                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="religious" <?php echo in_array("religious", $current_blacklist) ? "checked" : ""; ?>> Religious</label></div>
+                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political" <?php echo in_array("political", $current_blacklist) ? "checked" : ""; ?>> Political</label></div>
+                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist" <?php echo in_array("racist", $current_blacklist) ? "checked" : ""; ?>> Racist</label></div>
+                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist" <?php echo in_array("sexist", $current_blacklist) ? "checked" : ""; ?>> Sexist</label></div>
+                <button class="button is-primary" type="submit">Save Settings</button>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
