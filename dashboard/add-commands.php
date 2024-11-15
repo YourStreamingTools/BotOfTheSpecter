@@ -68,8 +68,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <p>Note: Custom Variables are only accepted in the response part of your command. Make sure to include them in the message that will be displayed to the user.</p>
         <button class="button is-primary" id="openModalButton">View Custom Variables</button>
     </div>
-    <div class="columns">
-        <div class="column">
+    <div class="columns is-desktop is-multiline box-container">
+        <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
             <form method="post" action="">
                 <div class="field">
                     <label class="label" for="command">Command:</label>
