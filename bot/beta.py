@@ -4984,6 +4984,7 @@ async def process_cheer_event(user_id, user_name, bits):
             if existing_bits:
                 total_bits = existing_bits[0] + bits
                 await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (total_bits, user_id, user_name))
+                total_bits = "{:,}".format(total_bits)
                 await channel.send(f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
             else:
                 await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (user_id, user_name, bits))
