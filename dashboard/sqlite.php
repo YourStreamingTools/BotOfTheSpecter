@@ -17,6 +17,7 @@ $hugCounts = [];
 $totalKisses = 0;
 $kissCounts = [];
 $customCounts = [];
+$userCounts = [];
 $seenUsersData = [];
 $timedMessagesData = [];
 $channelPointRewards = [];
