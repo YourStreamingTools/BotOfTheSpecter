@@ -105,9 +105,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <section class="modal-card-body has-background-dark has-text-white">
                 <div class="columns is-desktop is-multiline">
                     <div class="column is-4">
-                        <span class="has-text-weight-bold variable-title">(count)</span><br>This variable counts how many times the specific command has been used and shows that number. The count tracks how many times this command has been used, not others.<br>
-                        <span class="has-text-weight-bold">Example:</span><br><code>This command has been used (count) times.</code><br>
-                        <span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"This command has been used 5 times."</code><br>
+                        <span class="has-text-weight-bold variable-title">(count)</span><br>
+                        This variable counts how many times the specific command has been used and shows that number. The count tracks how many times this command has been used, not others.<br>
+                        <span class="has-text-weight-bold">Example:</span><br>
+                        <code>This command has been used (count) times.</code><br>
+                        <span class="has-text-weight-bold">In Twitch Chat:</span><br>
+                        <code>"This command has been used 5 times."</code><br><br>
+                    </div>
+                    <div class="column is-4">
+                        <span class="has-text-weight-bold variable-title">(usercount)</span><br>
+                        This variable counts how many times a specific user has used the command. The count is tracked for each user individually, so each user will have their own usage count stored in the database.<br>
+                        <span class="has-text-weight-bold">Example:</span><br>
+                        <code>This user has used this command (usercount) times.</code><br>
+                        <span class="has-text-weight-bold">In Twitch Chat:</span><br>
+                        <code>"This user has used this command 3 times."</code><br><br>
+                        The user count is stored in the database and is unique for each user and command combination. It can be reset or updated based on your desired behavior.<br>
                     </div>
                     <div class="column is-4">
                         <span class="has-text-weight-bold variable-title">(customapi.URL)</span><br>This gets information from a URL and posts it in chat.<br>You can use this to get jokes, weather, or any other data from a website.
