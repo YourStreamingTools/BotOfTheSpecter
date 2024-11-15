@@ -1056,16 +1056,23 @@ class BotOfTheSpecter(commands.Bot):
                                         if result:
                                             user_count = result[0]
                                         else:
-                                            # If no entry found, initialize it to 1
-                                            user_count = 1
+                                            # If no entry found, initialize it to 0
+                                            user_count = 0
                                             await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user_name, user_count))
                                             await cursor.connection.commit()
-                                        # Replace the (usercount) placeholder with the user's count
-                                        response = response.replace('(usercount)', str(user_count))
-                                        # Optionally, increment the count here if needed
+                                        # Increment the count
                                         user_count += 1
                                         await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, user_name))
                                         await cursor.connection.commit()
+                                        # Fetch the updated count
+                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
+                                        updated_result = await cursor.fetchone()
+                                        if updated_result:
+                                            updated_user_count = updated_result[0]
+                                        else:
+                                            updated_user_count = 0
+                                        # Replace the (usercount) placeholder with the updated user count
+                                        response = response.replace('(usercount)', str(updated_user_count))
                                     except Exception as e:
                                         chat_logger.error(f"Error while handling (usercount): {e}")
                                         response = response.replace('(usercount)', "Error")
