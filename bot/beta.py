@@ -62,7 +62,8 @@ SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
-EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
+EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
+HYPERATE_API_KEY = os.getenv('HYPERATE')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
@@ -111,11 +112,13 @@ global bot_started
 global SPOTIFY_REFRESH_TOKEN
 global SPOTIFY_ACCESS_TOKEN
 global next_spotify_refresh_time
+global HEARTRATE
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()
 scheduled_tasks = asyncio.Queue()
-sio = socketio.AsyncClient()
+specterSocket = socketio.AsyncClient()
+hyperateSocket = socketio.AsyncClient()
 ureg = UnitRegistry()
 permitted_users = {}
 bot_logger.info("Bot script started.")
@@ -130,6 +133,7 @@ current_game = None
 SPOTIFY_REFRESH_TOKEN = None
 SPOTIFY_ACCESS_TOKEN = None
 next_spotify_refresh_time = None
+HEARTRATE = None
 
 # Setup Token Refresh
 async def twitch_token_refresh():
@@ -870,69 +874,106 @@ async def process_eventsub_message(message):
     finally:
         await sqldb.ensure_closed()
 
-@sio.event
+# Connect and manage reconnection for Internal Socket Server
+async def specter_websocket():
+    specter_websocket_uri = "wss://websocket.botofthespecter.com"
+    while True:
+        try:
+            # Attempt to connect to the WebSocket server
+            bot_logger.info(f"Attempting to connect to Internal WebSocket Server")
+            await specterSocket.connect(specter_websocket_uri)
+            await specterSocket.wait()  # Keep the connection open to receive messages
+        except socketio.exceptions.ConnectionError as e:
+            bot_logger.error(f"Internal WebSocket Connection Failed: {e}")
+            await asyncio.sleep(10)  # Wait and retry connection
+        except Exception as e:
+            bot_logger.error(f"An unexpected error occurred with Internal WebSocket: {e}")
+            await asyncio.sleep(10)
+
+@specterSocket.event
 async def connect():
-    bot_logger.info("Connected to the WebSocket server.")
+    bot_logger.info("Connected to the Internal WebSocket server.")
     # Prepare the registration data
     registration_data = {
         'code': API_TOKEN,
         'name': f'Twitch Bot Beta V{VERSION}B'
     }
     # Emit the 'REGISTER' event
-    await sio.emit('REGISTER', registration_data)
+    await specterSocket.emit('REGISTER', registration_data)
 
-@sio.event
+@specterSocket.event
 async def connect_error(data):
     websocket_logger.error(f"Failed to connect to the SpecterWebsocket Server: {data}")
 
-@sio.event
+@specterSocket.event
 async def disconnect():
     websocket_logger.info("Disconnected from SpecterWebsocket Server.")
 
-@sio.event
+@specterSocket.event
 async def message(data):
     websocket_logger.info(f"Received message: {data}")
 
-@sio.event
+@specterSocket.event
 async def STREAM_ONLINE(data):
     websocket_logger.info(f"Received STREAM_ONLINE event: {data}")
     await process_stream_online_websocket()
 
-@sio.event
+@specterSocket.event
 async def STREAM_OFFLINE(data):
     websocket_logger.info(f"Received STREAM_OFFLINE event: {data}")
     await process_stream_offline_websocket()
 
-@sio.event
+@specterSocket.event
 async def FOURTHWALL(data):
     websocket_logger.info(f"Received FOURTHWALL event: {data}")
     await process_fourthwall_event(data)
 
-@sio.event
+@specterSocket.event
 async def KOFI(data):
     websocket_logger.info(f"Received KOFI event: {data}")
     await process_kofi_event(data)
 
-@sio.event
+@specterSocket.event
 async def WEATHER_DATA(data):
     websocket_logger.info(f"Received WEATHER_DATA event: {data}")
     await process_weather_websocket(data)
 
-# Connect and manage reconnection
-async def specter_websocket():
-    websocket_uri = "wss://websocket.botofthespecter.com"
+# Connect and mange reconnection for HypeRate Heart Rate
+async def hyperate_websocket():
+    hyperate_websocket_token = HYPERATE_API_KEY
+    hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={hyperate_websocket_token}"
     while True:
         try:
-            # Attempt to connect to the WebSocket server
-            bot_logger.info(f"Attempting to connect to {websocket_uri}")
-            await sio.connect(websocket_uri)
-            await sio.wait()  # Keep the connection open to receive messages
+            # Attempt to conenct o the WebSocket server
+            bot_logger.info(f"Attempting to connect to HypeRate Heart Rate Websocket Server")
+            await hyperateSocket.connect(hyperate_websocket_uri)
+            await hyperateSocket.wait() # Keep the connection open to receive messages
         except socketio.exceptions.ConnectionError as e:
-            bot_logger.error(f"Connection failed: {e}")
-            await asyncio.sleep(10)  # Wait and retry connection
+            bot_logger.info(f"HypeRate WebSocket Connection Failed: {e}")
+            await asyncio.sleep(10) # Wait and retry connection
         except Exception as e:
-            bot_logger.error(f"An unexpected error occurred: {e}")
-            await asyncio.sleep(10)
+            bot_logger.info(f"An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
+
+@hyperateSocket.event
+async def connect():
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor() as cursor:
+        await cursor.execute('SELECT heartrate_code FROM profile')
+        heartrate_code = await cursor.fetchone()
+        bot_logger.info("Connected to the HypeRate Heart Rate WebSocket Server.")
+        # Prepare the registration data
+        phx_join = {
+            "topic": f"hr:{heartrate_code}",
+            "event": "phx_join",
+            "payload": {},
+            "ref": 0
+        }
+        # Emit the 'phx_join' event
+        await hyperateSocket.emit(phx_join)
+
+@hyperateSocket.event
+async def hr_update(data):
+    api_logger.info(data)
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
@@ -3882,7 +3923,7 @@ class BotOfTheSpecter(commands.Bot):
                         await ctx.send("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
                     await ctx.send("Failed to convert. Please ensure the format is correct: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency.")
-                    sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[API_KEY]')
+                    sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[API_KEY]')
                     api_logger.error(f"An error occurred: {sanitized_error}")
         except Exception as e:
             chat_logger.exception("An unexpected error occurred during the execution of the convert command.")
@@ -5582,7 +5623,7 @@ async def check_stream_online():
     return
 
 async def convert_currency(amount, from_currency, to_currency):
-    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API}/pair/{from_currency}/{to_currency}/{amount}"
+    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/pair/{from_currency}/{to_currency}/{amount}"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -5607,10 +5648,10 @@ async def convert_currency(amount, from_currency, to_currency):
                 else:
                     error_message = data.get('error-type', 'Unknown error')
                     api_logger.error(f"Error: {error_message}")
-                    sanitized_error = str(error_message).replace(EXCHANGE_RATE_API, '[EXCHANGE_RATE_API]')
+                    sanitized_error = str(error_message).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
                     return f"Error: {sanitized_error}"
     except aiohttp.ClientError as e:
-        sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[EXCHANGE_RATE_API]')
+        sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
         raise
 
