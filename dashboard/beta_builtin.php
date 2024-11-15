@@ -42,11 +42,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['command_name']) && isset($_POST['usage_level'])) {
         $command_name = $_POST['command_name'];
         $usage_level = $_POST['usage_level'];
-        // Map display values to database values
         $dbPermission = $permissionsMap[$usage_level];
         // Update permission in the database
         $updateQuery = $db->prepare("UPDATE builtin_commands SET permission = ? WHERE command = ?");
         $updateQuery->bind_param("ss", $dbPermission, $command_name);
+        $updateQuery->execute();
+        header("Location: beta_builtin.php");
+    }
+    // Process status update
+    if (isset($_POST['command_name']) && isset($_POST['status'])) {
+        $dbcommand = $_POST['command_name'];
+        $dbstatus = $_POST['status'];
+        // Update the status in the database
+        $updateQuery = $db->prepare("UPDATE builtin_commands SET status = :status WHERE command = :command_name");
+        $updateQuery->bindParam(':status', $dbstatus);
+        $updateQuery->bindParam(':command_name', $dbcommand);
         $updateQuery->execute();
         header("Location: beta_builtin.php");
     }
