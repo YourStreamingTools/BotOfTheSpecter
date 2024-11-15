@@ -141,7 +141,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
           <tr>
             <th id="info-column-data" style="color: white; width: 33%;">User</th>
             <th id="data-column-info" style="color: white; width: 33%;">Command</th>
-            <th style="color: white; width: 33%;">Count</th>
+            <th id="count-column" style="color: white; width: 33%; display: none;">Count</th>
           </tr>
         </thead>
         <tbody id="table-body">
@@ -158,6 +158,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     let title;
     let dataColumn;
     let infoColumn;
+    let countColumnVisible = false;
     switch(type) {
       case 'lurkers':
         data = <?php echo json_encode($lurkers); ?>;
@@ -200,11 +201,17 @@ if (isset($userData['data']) && is_array($userData['data'])) {
         title = 'User Counts for Commands';
         dataColumn = 'Count';
         infoColumn = 'Command';
+        countColumnVisible = true;
         break;
     }
     document.getElementById('data-column-info').innerText = dataColumn;
     document.getElementById('info-column-data').innerText = infoColumn;
-
+    if (countColumnVisible) {
+      document.getElementById('count-column').style.display = '';
+    } else {
+      document.getElementById('count-column').style.display = 'none';
+    }
+    // Populate the table with the data
     let output = '';
     data.forEach(item => {
       output += `<tr>`;
