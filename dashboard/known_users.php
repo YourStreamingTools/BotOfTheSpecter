@@ -106,12 +106,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   </div>
   <div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
     <h2 class="title is-4">Known Users & Welcome Messages</h2>
-    <p class="has-text-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</p>
-    
+    <div class="notification is-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</div>
     <!-- Search Bar -->
     <input type="text" id="searchInput" class="input" placeholder="Search users..." onkeyup="searchFunction()">
     <br><br>
-    
     <table class="table is-fullwidth" id="commandsTable">
       <thead>
         <tr>
