@@ -46,6 +46,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   } else {
     $status = "Error: Please provide both timezone and weather location.";
   }
+  // Check if HypeRate Code is here.
+  if (isset($_POST["hyperate_code"])) {
+    $hyperateCode = $_POST["hyperate_code"];
+    $updateQuery = $db->prepare("INSERT INTO profile (id, heartrate_code) VALUES (1, ?) ON DUPLICATE KEY UPDATE heartrate_code = VALUES(heartrate_code)");
+    $updateQuery->execute([$hyperateCode]);
+    $status = "Profile updated successfully!";
+  } else {
+    $status = "Error: Please provide the connection code before submitting.";
+  }
 }
 
 // Function to get all PHP timezones
