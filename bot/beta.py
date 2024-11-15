@@ -64,7 +64,7 @@ SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths", "heartrate"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
@@ -4021,6 +4021,33 @@ class BotOfTheSpecter(commands.Bot):
             await subathon_status(ctx)
         else:
             await ctx.send(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='heartrate')
+    async def heartrate_command(self, ctx):
+        global HEARTRATE
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Check if the 'convert' command is enabled
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("heartrate",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                    if HEARTRATE is None:
+                        await ctx.send(f"The Heart Rate is not turned on right now.")
+                    else:
+                        await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
+        except Exception as e:
+            chat_logger.exception("An unexpected error occurred during the execution of the convert command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
+        finally:
+            await sqldb.ensure_closed()
 
 # Functions for all the commands
 ##
