@@ -63,7 +63,7 @@ STEAM_API = os.getenv('STEAM_API')
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
-HYPERATE_API_KEY = os.getenv('HYPERATE')
+HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
@@ -104,6 +104,15 @@ chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
 
+# Log the setup for the loggers
+bot_logger.info("Bot Logger started.")
+chat_logger.info("Chat Logger started.")
+twitch_logger.info("Twitch Logger started.")
+api_logger.info("API Logger started.")
+chat_history_logger.info("Chat History Logger started.")
+event_logger.info("Event Logger started.")
+websocket_logger.info("Websocket Logger started.")
+
 # Setup Globals
 global stream_online
 global current_game
@@ -121,7 +130,6 @@ specterSocket = socketio.AsyncClient()
 hyperateSocket = socketio.AsyncClient()
 ureg = UnitRegistry()
 permitted_users = {}
-bot_logger.info("Bot script started.")
 connected = set()
 pending_removals = {}
 last_poll_progress_update = 0
@@ -940,40 +948,62 @@ async def WEATHER_DATA(data):
 
 # Connect and mange reconnection for HypeRate Heart Rate
 async def hyperate_websocket():
-    hyperate_websocket_token = HYPERATE_API_KEY
-    hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={hyperate_websocket_token}"
     while True:
         try:
-            # Attempt to conenct o the WebSocket server
-            bot_logger.info(f"Attempting to connect to HypeRate Heart Rate Websocket Server")
-            await hyperateSocket.connect(hyperate_websocket_uri)
-            await hyperateSocket.wait() # Keep the connection open to receive messages
-        except socketio.exceptions.ConnectionError as e:
-            bot_logger.info(f"HypeRate WebSocket Connection Failed: {e}")
-            await asyncio.sleep(10) # Wait and retry connection
+            bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
+            hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
+            try:
+                # Use websockets.connect() to establish the WebSocket connection
+                async with websockets.connect(hyperate_websocket_uri) as hyperate_websocket:
+                    bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
+                    # Send 'phx_join' message to join the appropriate channel
+                    await join_channel(hyperate_websocket)
+                    # Send the heartbeat every 10 seconds
+                    asyncio.create_task(send_heartbeat(hyperate_websocket))
+                    while True:
+                        # Continuously wait for incoming messages
+                        global HEARTRATE
+                        data = await hyperate_websocket.recv()
+                        data = json.loads(data)
+                        HEARTRATE = data['payload'].get('hr', None)
+            except Exception as e:
+                bot_logger.error(f"HypeRate error: WebSocket Connection Error: {e}")
+                await asyncio.sleep(10)  # Retry connection after a brief wait
         except Exception as e:
-            bot_logger.info(f"An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
+            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
 
-@hyperateSocket.event
-async def connect():
-    sqldb = await get_mysql_connection()
-    async with sqldb.cursor() as cursor:
-        await cursor.execute('SELECT heartrate_code FROM profile')
-        heartrate_code = await cursor.fetchone()
-        bot_logger.info("Connected to the HypeRate Heart Rate WebSocket Server.")
-        # Prepare the registration data
-        phx_join = {
-            "topic": f"hr:{heartrate_code}",
-            "event": "phx_join",
+async def send_heartbeat(hyperate_websocket):
+    while True:
+        await asyncio.sleep(10)  # Send heartbeat every 10 seconds
+        heartbeat_payload = {
+            "topic": "phoenix",
+            "event": "heartbeat",
             "payload": {},
             "ref": 0
         }
-        # Emit the 'phx_join' event
-        await hyperateSocket.emit(phx_join)
+        await hyperate_websocket.send(json.dumps(heartbeat_payload))
 
-@hyperateSocket.event
-async def hr_update(data):
-    api_logger.info(data)
+async def join_channel(hyperate_websocket):
+    try:
+        sqldb = await get_mysql_connection()
+        async with sqldb.cursor() as cursor:
+            await cursor.execute('SELECT heartrate_code FROM profile')
+            heartrate_code = await cursor.fetchone()
+            if not heartrate_code:
+                bot_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
+                return
+            heartrate_code = heartrate_code[0]  # Extract the value from the tuple
+            # Construct the 'phx_join' event payload
+            phx_join = {
+                "topic": f"hr:{heartrate_code}",
+                "event": "phx_join",
+                "payload": {},
+                "ref": 0
+            }
+            # Send the 'phx_join' event to join the channel
+            await hyperate_websocket.send(json.dumps(phx_join))
+    except Exception as e:
+        bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
@@ -995,6 +1025,7 @@ class BotOfTheSpecter(commands.Bot):
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(specter_websocket())
+        asyncio.get_event_loop().create_task(hyperate_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
         asyncio.get_event_loop().create_task(midnight(channel))
