@@ -135,12 +135,13 @@ if (isset($userData['data']) && is_array($userData['data'])) {
   </div>
   <div class="content">
     <div class="box">
-      <h3 id="table-title" class="title" style="color: white;">Currently Lurking Users</h3>
+      <h3 id="table-title" class="title" style="color: white;">User Counts for Commands</h3>
       <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            <th id="info-column-data" style="color: white; width: 50%;"></th>
-            <th id="data-column-info" style="color: white; width: 50%;"></th>
+            <th id="info-column-data" style="color: white; width: 33%;">User</th>
+            <th id="data-column-info" style="color: white; width: 33%;">Command</th>
+            <th style="color: white; width: 33%;">Count</th>
           </tr>
         </thead>
         <tbody id="table-body">
@@ -203,34 +204,30 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     }
     document.getElementById('data-column-info').innerText = dataColumn;
     document.getElementById('info-column-data').innerText = infoColumn;
+
     let output = '';
-    data.forEach(function(item) {
+    data.forEach(item => {
       output += `<tr>`;
       if (type === 'lurkers') {
         output += `<td>${item.username}</td><td>${item.lurk_duration}</td>`;
       } else if (type === 'typos') {
-        output += `<td>${item.username}</td><td>${item.typo_count}</td>`;
+        output += `<td>${item.username}</td><td>${item.count}</td>`;
       } else if (type === 'deaths') {
-        output += `<td>${item.game_name}</td><td>${item.death_count}</td>`;
+        output += `<td>${item.game}</td><td>${item.count}</td>`;
       } else if (type === 'hugs') {
-        output += `<td>${item.username}</td><td>${item.hug_count}</td>`;
+        output += `<td>${item.username}</td><td>${item.count}</td>`;
       } else if (type === 'kisses') {
-        output += `<td>${item.username}</td><td>${item.kiss_count}</td>`;
+        output += `<td>${item.username}</td><td>${item.count}</td>`;
       } else if (type === 'custom') {
         output += `<td>${item.command}</td><td>${item.count}</td>`;
       } else if (type === 'userCounts') {
-        output += `<td>${item.command}</td><td>${item.count}</td>`;
+        output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`;
       }
       output += `</tr>`;
     });
     document.getElementById('table-title').innerText = title;
     document.getElementById('table-body').innerHTML = output;
   }
-  // Load Lurkers by default on page load
-  document.addEventListener('DOMContentLoaded', function () {
-    loadData('lurkers');
-  });
 </script>
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
 </html>
