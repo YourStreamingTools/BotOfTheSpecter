@@ -119,6 +119,11 @@ function get_timezones() {
       <button type="button" class="button is-primary" id="hide-api-key" style="display:none;">Hide API Key</button>
     </div>
     <div class="column is-one-third">
+      <?php if (!empty($status)): ?>
+        <div class="notification is-primary">
+          <?php echo htmlspecialchars($status); ?>
+        </div>
+      <?php endif; ?>
       <h2 class="title is-4">Update Profile</h2>
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
@@ -148,11 +153,15 @@ function get_timezones() {
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
       </form>
       <br>
-      <?php if (!empty($status)): ?>
-        <div class="notification is-primary">
-          <?php echo htmlspecialchars($status); ?>
+      <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
+        <div class="field">
+          <label class="label">Heart Rate Code:</label>
+          <div class="control">
+            <input class="input" type="text" id="hyperate_code" name="hyperate_code">
+          </div>
         </div>
-      <?php endif; ?>
+        <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
+      </form>
     </div>
   </div>
 </div>
