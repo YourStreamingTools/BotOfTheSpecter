@@ -1048,21 +1048,23 @@ class BotOfTheSpecter(commands.Bot):
                                 # Handle (usercount)
                                 if '(usercount)' in response:
                                     try:
+                                        user_mention = re.search(r'@(\w+)', messageContent)
+                                        user_name = user_mention.group(1) if user_mention else messageAuthor
                                         # Get the user count for the specific command
-                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, messageAuthor))
+                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
                                         result = await cursor.fetchone()
                                         if result:
                                             user_count = result[0]
                                         else:
                                             # If no entry found, initialize it to 1
                                             user_count = 1
-                                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, messageAuthor, user_count))
+                                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user_name, user_count))
                                             await cursor.connection.commit()
                                         # Replace the (usercount) placeholder with the user's count
                                         response = response.replace('(usercount)', str(user_count))
                                         # Optionally, increment the count here if needed
                                         user_count += 1
-                                        await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, messageAuthor))
+                                        await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, user_name))
                                         await cursor.connection.commit()
                                     except Exception as e:
                                         chat_logger.error(f"Error while handling (usercount): {e}")
