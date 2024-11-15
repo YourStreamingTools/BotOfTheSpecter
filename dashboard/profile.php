@@ -156,6 +156,7 @@ function get_timezones() {
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
           <label class="label">Heart Rate Code:</label>
+          Heart Rate in chat via Specter is powered by: <a href="https://www.hyperate.io/" target="_blank">HypeRate.io</a>
           <div class="control">
             <input class="input" type="text" id="hyperate_code" name="hyperate_code">
           </div>
