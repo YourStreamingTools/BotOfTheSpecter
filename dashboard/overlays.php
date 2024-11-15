@@ -43,16 +43,16 @@ $greeting = 'Hello';
     <br>
     <h3 class="title is-3">This system is fully compatible with all popular streaming software, including:</h3>
     <h4 class="title is-4">OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream, and many more</h4>
-    <h4 class="title is-4">To integrate with your streaming setup, simply add one or more of the following links to a browser source in your streaming software, appending your API key from the profile page:</h4>
+    <h4 class="title is-4">To integrate with your streaming setup, add one or more of the following links to a browser source in your streaming software. You can find your unique API key on your profile page and should replace `API_KEY_HERE` with your actual key:</h4>
     <br>
     <div class="columns is-desktop is-multiline">
         <div class="column is-full">
             <!-- All the Overlays -->
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
-                <p><em>This URL includes any and all overlays we offer, automatically added and updated.
+                <p><em>This URL includes all overlays we offer, automatically added and updated.
                     <br>The only exception is the Stream Ending Credits & To Do List, which must be added separately.
-                    <br>Simply add this link once, and any new overlays will be included automatically:</em></p>
+                    <br>Add this link once, and any new overlays will be included automatically:</em></p>
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -60,8 +60,8 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Stream Ending Credits:</h4>
-                <p><em>The Stream Ending Credits display a scrolling list of all the viewers who attended and supported the stream.
-                    <br>This includes followers, subscribers, donors, and cheerers, providing a special thank you to everyone who contributed.
+                <p><em>The Stream Ending Credits display a scrolling list of all viewers who attended and supported the stream.
+                    <br>This includes followers, subscribers, donors, and cheerers to thank those who contributed.
                     <br>(Coming Soon)</em></p>
                 <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
             </div>
@@ -70,10 +70,10 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">To Do List:</h4>
-                <p><em>Display a list of tasks to be completed during the stream.
+                <p><em>Display a list of tasks to complete during the stream.
                     <br>This overlay helps you keep track of your goals and share them with your audience.
-                    <br>You can define a working category by adding it to the URL like this:
-                    <br>todolist.php?code=API_KEY&category=1</></em></p>
+                    <br>You can specify a category by adding it to the URL like this:
+                    <br>todolist.php?code=API_KEY&category=1</em></p>
                 <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -81,7 +81,7 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Death Overlay Only:</h4>
-                <p><em>Display only the death overlay when the death commands are triggered in chat:
+                <p><em>Show only the death overlay for the death commands triggered in chat:
                     <br>"!deaths", "!deathadd", and "!deathremove".
                     <br>For best results, set Width to 450 and Height to 350:</em></p>
                 <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
@@ -91,7 +91,7 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Weather Overlay:</h4>
-                <p><em>Display the current weather information for your specified location in your stream.
+                <p><em>Show current weather information for your specified location in your stream.
                     <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
                 <code>https://overlay.botofthespecter.com/weather.php?code=API_KEY_HERE</code>
             </div>
@@ -101,7 +101,7 @@ $greeting = 'Hello';
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Discord Join Notifications:</h4>
                 <p><em>Display notifications when a user joins your Discord server.
-                    <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
+                    <br>Add this URL as a browser source and append your API key.</em></p>
                 <code>https://overlay.botofthespecter.com/discord.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -109,8 +109,8 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Subathon:</h4>
-                <p><em>Display subathon countdown timer.
-                    <br>To use this overlay, add the following URL as a browser source and append your API key.</em></p>
+                <p><em>Show a countdown timer for a subathon.
+                    <br>Add this URL as a browser source and append your API key.</em></p>
                 <code>https://overlay.botofthespecter.com/subathon.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -118,8 +118,8 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Audio:</h4>
-                <p><em>This URL includes any and all audio alerts we offer, automatically added and updated.
-                    <br>You only need to add this link once, and any new audio alerts will be included automatically:</em></p>
+                <p><em>This URL includes all audio alerts we offer, automatically updated.
+                    <br>Add this link once to include any new audio alerts automatically.</em></p>
                 <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -135,7 +135,7 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Walkons Only:</h4>
-                <p><em>Only hear the Walkon audio that you've set for each user.</em></p>
+                <p><em>Only hear Walkon audio set for each user.</em></p>
                 <code>https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -143,7 +143,7 @@ $greeting = 'Hello';
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Sound Alerts Only:</h4>
-                <p><em>Only hear the sound alerts audio that you've set for each channel point reward.</em></p>
+                <p><em>Only hear the sound alerts for each channel point reward.</em></p>
                 <code>https://overlay.botofthespecter.com/sound-alert.php?code=API_KEY_HERE</code>
             </div>
         </div>
