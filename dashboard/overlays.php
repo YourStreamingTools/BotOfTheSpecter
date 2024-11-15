@@ -41,11 +41,13 @@ $greeting = 'Hello';
         <img id='profile-image' class='round-image' src='<?php echo $twitch_profile_image_url; ?>' width='50px' height='50px' alt='<?php echo $twitchDisplayName; ?> Profile Image'>
     </h1>
     <br>
-    <p>This system is fully compatible with all popular streaming software, including:<br>
-        OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream, and many more<br>
-        To integrate with your streaming setup, add one or more of the following links to a browser source in your streaming software.<br>
-        Your API key is unique to you and acts as a password to access your overlays, so please keep it secure and private.<br>
-        You can find your API key on your profile page. Replace `API_KEY_HERE` in each URL below with your actual key.</p>
+    <p>
+        This system is fully compatible with all popular streaming software, including OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream, and more.<br>
+        To integrate with your streaming setup, simply add one or more of the following links to a browser source in your streaming software.<br>
+        Your API key is unique to you and acts as a password to access your overlays, so it must be kept secure and private.<br>
+        You can find your API key on your profile page in the Specter Dashboard, which is accessible via the link in the navigation bar above.<br>
+        Be sure to replace `API_KEY_HERE` in each URL below with your actual key.
+    </p>
     <br>
     <div class="columns is-desktop is-multiline">
         <div class="column is-full">
