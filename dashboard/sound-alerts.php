@@ -173,7 +173,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title is-4">Upload Sound Alerts</h1>
-    <div class="notification is-danger">Upload your audio file below and use the dropdown menu to pick which channel point should trigger the sound. (V4.8+)</div>
+    <div class="notification is-danger">Upload your audio file below (drop and drop your files or browse, than click upload) and use the dropdown menu to pick which channel point should trigger the sound. (V4.8+)</div>
     <div class="upload-container" style="width: 100%; max-width: 500px;">
         <?php if (!empty($status)) : ?>
             <div class="message"><?php echo $status; ?></div>
