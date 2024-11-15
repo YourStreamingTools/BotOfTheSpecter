@@ -64,8 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     Example: <code>!addcommand mycommand This is my custom command</code></li>
             </ol>
         </p>
-        <p>If you want to add custom features or functionalities to your commands, check out the Custom Variables that can be used to make your command more dynamic.<br>
-        These variables allow you to personalize the behavior of your commands.</p>
+        <p>If you want to add custom features or functionalities to your commands, check out the Custom Variables that can be used to make your command more dynamic. These variables allow you to personalize the behavior of your commands.</p>
         <br>
         <button class="button is-primary" id="openModalButton">View Custom Variables</button>
     </div>
