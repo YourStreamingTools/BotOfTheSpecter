@@ -65,6 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </ol>
         </p>
         <p>If you want to add custom features or functionalities to your commands, check out the Custom Variables that can be used to make your command more dynamic. These variables allow you to personalize the behavior of your commands.</p>
+        <p>Note: Custom Variables are only accepted in the response part of your command. Make sure to include them in the message that will be displayed to the user.</p>
         <button class="button is-primary" id="openModalButton">View Custom Variables</button>
     </div>
     <div class="columns">
