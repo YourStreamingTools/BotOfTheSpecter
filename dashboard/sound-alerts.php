@@ -174,9 +174,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
     <br>
     <h1 class="title is-4">Upload Sound Alerts</h1>
     <div class="notification is-danger">
-    Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.<br>
-    Note: for rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.<br>
-    File names may not display as ready to upload due to a known issue. (V4.8+)
+        Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.<br>
+        Note: for rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.<br>
+        File names may not display as ready to upload due to a known issue.<br>
+        Sound alerts will play through Specter Overlays when the selected channel point is redeemed. (V4.8+)
     </div>
     <div class="upload-container" style="width: 100%; max-width: 500px;">
         <?php if (!empty($status)) : ?>
