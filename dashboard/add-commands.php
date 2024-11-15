@@ -106,9 +106,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="columns is-desktop is-multiline">
                     <div class="column is-4">
                         <span class="has-text-weight-bold variable-title">(count)</span><br>This variable counts how many times the specific command has been used and shows that number.<br>
+                        <span class="has-text-weight-bold">Note:</span> The count tracks how many times <strong>this command</strong> has been used, not others.<br>
                         <span class="has-text-weight-bold">Example:</span><br><code>This command has been used (count) times.</code><br>
                         <span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"This command has been used 5 times."</code><br>
-                        <span class="has-text-weight-bold">Note:</span> The count tracks how many times <strong>this command</strong> has been used, not others.
                     </div>
                     <div class="column is-4">
                         <span class="has-text-weight-bold variable-title">(customapi.URL)</span><br>This gets information from a URL and posts it in chat.<br>You can use this to get jokes, weather, or any other data from a website.
