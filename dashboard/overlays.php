@@ -43,7 +43,8 @@ $greeting = 'Hello';
     <br>
     <p>This system is fully compatible with all popular streaming software, including:<br>
         OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream, and many more<br>
-        To integrate with your streaming setup, add one or more of the following links to a browser source in your streaming software. Your API key is unique to you and acts as a password to access your overlays, so please keep it secure and private.<br>
+        To integrate with your streaming setup, add one or more of the following links to a browser source in your streaming software.<br>
+        Your API key is unique to you and acts as a password to access your overlays, so please keep it secure and private.<br>
         You can find your API key on your profile page. Replace `API_KEY_HERE` in each URL below with your actual key.</p>
     <br>
     <div class="columns is-desktop is-multiline">
