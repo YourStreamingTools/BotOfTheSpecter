@@ -25,9 +25,8 @@ $greeting = 'Hello';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['command']) && isset($_POST['response'])) {
-        $newCommand = $_POST['command'];
+        $newCommand = strtolower(str_replace(' ', '', $_POST['command']));
         $newResponse = $_POST['response'];
-        
         // Insert new command into MySQL database
         try {
             $stmt = $db->prepare("INSERT INTO custom_commands (command, response, status) VALUES (?, ?, 'Enabled')");
