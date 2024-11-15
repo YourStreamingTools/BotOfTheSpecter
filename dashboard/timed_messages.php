@@ -135,7 +135,10 @@ if ($displayMessageData) {
 <div class="container">
     <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
-    <div class="notification is-danger">Please be advised that this function is currently undergoing heavy development and testing, and may not function properly at this time.</div>
+    <div class="notification is-danger">
+        Important Notice: This feature is currently under heavy development and testing. As such, it may not work as expected at this time.<br>
+        Any changes made to a timed message will require a bot reboot for the update to take effect. Please ensure the bot is restarted after editing or adding messages.
+    </div>
     <br>
     <?php if ($displayMessages): ?><div class="notification is-primary"><?php echo $displayMessages; ?></div><br><?php endif; ?>
     <div class="columns">
