@@ -169,7 +169,8 @@ try {
                 weather_location VARCHAR(255) DEFAULT NULL,
                 discord_alert VARCHAR(255) DEFAULT NULL,
                 discord_mod VARCHAR(255) DEFAULT NULL,
-                discord_alert_online VARCHAR(255) DEFAULT NULL
+                discord_alert_online VARCHAR(255) DEFAULT NULL,
+                heartrate_code VARCHAR(8) DEFAULT NULL,
             ) ENGINE=InnoDB",
         'protection' => "
             CREATE TABLE IF NOT EXISTS protection (
@@ -377,7 +378,8 @@ try {
             'weather_location' => "VARCHAR(255) DEFAULT NULL",
             'discord_alert' => "VARCHAR(255) DEFAULT NULL",
             'discord_mod' => "VARCHAR(255) DEFAULT NULL",
-            'discord_alert_online' => "VARCHAR(255) DEFAULT NULL"
+            'discord_alert_online' => "VARCHAR(255) DEFAULT NULL",
+            'heartrate_code' => 'VARCHAR(8) DEFAULT NULL'
         ],
         'protection' => [
             'url_blocking' => "VARCHAR(255)"
