@@ -67,6 +67,10 @@ try {
     $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
     $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
 
+    // Fetah Custom User Counts
+    $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
+    $userCounts = $getUserCounts->fetchAll(PDO::FETCH_ASSOC);
+
     // Fetch seen users data
     $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
     $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
