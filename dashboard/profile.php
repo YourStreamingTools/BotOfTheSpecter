@@ -13,6 +13,7 @@ $title = "Profile";
 $status = "";
 $timezone = "";
 $weather = "";
+$dbHyperateCode = "";
 
 // Include all the information
 require_once "db_connect.php";
@@ -25,6 +26,7 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 $greeting = 'Hello';
+$dbHyperateCode = $profile['heartrate_code'];
 
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
 $signup_date = isset($user['signup_date']) ? $user['signup_date'] : null;
@@ -158,7 +160,7 @@ function get_timezones() {
           <label class="label">Heart Rate Code:</label>
           Heart Rate in chat via Specter is powered by: <a href="https://www.hyperate.io/" target="_blank">HypeRate.io</a>
           <div class="control">
-            <input class="input" type="text" id="hyperate_code" name="hyperate_code">
+            <input class="input" type="text" id="hyperate_code" name="hyperate_code" value="<?php echo $dbHyperateCode; ?>">
           </div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
