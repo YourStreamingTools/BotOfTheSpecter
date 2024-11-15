@@ -1054,8 +1054,8 @@ class BotOfTheSpecter(commands.Bot):
                                         if result:
                                             user_count = result[0]
                                         else:
-                                            # If no entry found, initialize it to 0
-                                            user_count = 0
+                                            # If no entry found, initialize it to 1
+                                            user_count = 1
                                             await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, messageAuthor, user_count))
                                             await cursor.connection.commit()
                                         # Replace the (usercount) placeholder with the user's count
