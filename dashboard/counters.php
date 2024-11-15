@@ -131,6 +131,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
     <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
     <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
+    <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
   </div>
   <div class="content">
     <div class="box">
@@ -193,6 +194,12 @@ if (isset($userData['data']) && is_array($userData['data'])) {
         dataColumn = 'Used';
         infoColumn = 'Command';
         break;
+      case 'userCounts':
+        data = <?php echo json_encode($userCounts); ?>;
+        title = 'User Counts for Commands';
+        dataColumn = 'Count';
+        infoColumn = 'Command';
+        break;
     }
     document.getElementById('data-column-info').innerText = dataColumn;
     document.getElementById('info-column-data').innerText = infoColumn;
@@ -210,6 +217,8 @@ if (isset($userData['data']) && is_array($userData['data'])) {
       } else if (type === 'kisses') {
         output += `<td>${item.username}</td><td>${item.kiss_count}</td>`;
       } else if (type === 'custom') {
+        output += `<td>${item.command}</td><td>${item.count}</td>`;
+      } else if (type === 'userCounts') {
         output += `<td>${item.command}</td><td>${item.count}</td>`;
       }
       output += `</tr>`;
