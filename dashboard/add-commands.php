@@ -58,11 +58,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <br>
     <div class="notification is-info">
         <p>When adding commands via this page, please note the following:<br>
-        <ol style="padding-left: 30px;">
-            <li>Avoid using the exclamation mark (!) in your command. This will be automatically added.</li>
-            <li>Alternatively, you or your moderators can add commands by using the command <strong>!addcommand</strong> command in your Twitch Chat.<br>
-                Example: <code>!addcommand mycommand This is my command</code></li>
-        </ol></p><br>
+            <ol style="padding-left: 30px;">
+                <li>Avoid using the exclamation mark (!) in your command name. The exclamation mark is automatically added to the beginning of your command.</li>
+                <li>Alternatively, you or your moderators can add commands directly using the <strong>!addcommand</strong> command in your Twitch chat.<br>
+                    Example: <code>!addcommand mycommand This is my custom command</code></li>
+            </ol>
+        </p>
+        <p>If you want to add custom features or functionalities to your commands, check out the Custom Variables that can be used to make your command more dynamic.<br>
+        These variables allow you to personalize the behavior of your commands.</p>
+        <br>
         <button class="button is-primary" id="openModalButton">View Custom Variables</button>
     </div>
     <div class="columns">
