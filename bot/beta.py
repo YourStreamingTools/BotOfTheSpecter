@@ -1026,7 +1026,7 @@ class BotOfTheSpecter(commands.Bot):
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
                                 '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
-                                '(random.pick.', '(math.', '(call.'
+                                '(random.pick.', '(math.', '(call.', '(usercount)'
                             ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
@@ -1045,6 +1045,28 @@ class BotOfTheSpecter(commands.Bot):
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
+                                # Handle (usercount)
+                                if '(usercount)' in response:
+                                    try:
+                                        # Get the user count for the specific command
+                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, messageAuthor))
+                                        result = await cursor.fetchone()
+                                        if result:
+                                            user_count = result[0]
+                                        else:
+                                            # If no entry found, initialize it to 0
+                                            user_count = 0
+                                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, messageAuthor, user_count))
+                                            await cursor.connection.commit()
+                                        # Replace the (usercount) placeholder with the user's count
+                                        response = response.replace('(usercount)', str(user_count))
+                                        # Optionally, increment the count here if needed
+                                        user_count += 1
+                                        await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, messageAuthor))
+                                        await cursor.connection.commit()
+                                    except Exception as e:
+                                        chat_logger.error(f"Error while handling (usercount): {e}")
+                                        response = response.replace('(usercount)', "Error")
                                 # Handle (daysuntil.)
                                 if '(daysuntil.' in response:
                                     get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
