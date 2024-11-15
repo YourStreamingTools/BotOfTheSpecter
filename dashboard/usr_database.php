@@ -96,6 +96,14 @@ try {
                 command VARCHAR(255) NOT NULL,
                 count INT NOT NULL
             ) ENGINE=InnoDB",
+        'user_counts' => "
+            CREATE TABLE IF NOT EXISTS user_counts (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                command VARCHAR(255) NOT NULL,
+                user VARCHAR(255) NOT NULL,
+                count INT DEFAULT 0,
+                UNIQUE (command, user)
+            ) ENGINE=InnoDB",
         'bits_data' => "
             CREATE TABLE IF NOT EXISTS bits_data (
                 id INT PRIMARY KEY AUTO_INCREMENT,
