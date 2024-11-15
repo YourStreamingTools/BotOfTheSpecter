@@ -89,7 +89,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <br>
             <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
                 <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
-                    <p class="has-text-success">Command "<?php echo $_POST['command']; ?>" has been successfully added to the database.</p>
+                    <p class="has-text-success">Command "<?php $commandAdded = strtolower(str_replace(' ', '', $_POST['command'])); echo $commandAdded; ?>" has been successfully added to the database.</p>
                 <?php endif; ?>
             <?php endif; ?>
         </div>
