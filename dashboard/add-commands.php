@@ -119,7 +119,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <code>This user has used this command (usercount) times.</code><br>
                         <span class="has-text-weight-bold">In Twitch Chat:</span><br>
                         <code>"This user has used this command 3 times."</code><br><br>
-                        The user count is stored in the database and is unique for each user and command combination. It can be reset or updated based on your desired behavior.<br>
                     </div>
                     <div class="column is-4">
                         <span class="has-text-weight-bold variable-title">(customapi.URL)</span><br>This gets information from a URL and posts it in chat.<br>You can use this to get jokes, weather, or any other data from a website.
