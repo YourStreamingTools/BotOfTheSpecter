@@ -105,8 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <section class="modal-card-body has-background-dark has-text-white">
                 <div class="columns is-desktop is-multiline">
                     <div class="column is-4">
-                        <span class="has-text-weight-bold variable-title">(count)</span><br>This variable counts how many times the specific command has been used and shows that number.<br>
-                        <span class="has-text-weight-bold">Note:</span> The count tracks how many times this command has been used, not others.<br>
+                        <span class="has-text-weight-bold variable-title">(count)</span><br>This variable counts how many times the specific command has been used and shows that number. The count tracks how many times this command has been used, not others.<br>
                         <span class="has-text-weight-bold">Example:</span><br><code>This command has been used (count) times.</code><br>
                         <span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"This command has been used 5 times."</code><br>
                     </div>
