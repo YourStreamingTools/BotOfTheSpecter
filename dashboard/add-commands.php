@@ -60,7 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <p>When adding commands via this page, please note the following:<br>
             <ol style="padding-left: 30px;">
                 <li>Avoid using the exclamation mark (!) in your command name. The exclamation mark is automatically added to the beginning of your command.</li>
-                <li>Alternatively, you or your moderators can add commands directly using the <strong>!addcommand</strong> command in your Twitch chat.<br>
+                <li>Alternatively, you or your moderators can add commands directly using the !addcommand command in your Twitch chat.<br>
                     Example: <code>!addcommand mycommand This is my custom command</code></li>
             </ol>
         </p>
@@ -106,7 +106,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="columns is-desktop is-multiline">
                     <div class="column is-4">
                         <span class="has-text-weight-bold variable-title">(count)</span><br>This variable counts how many times the specific command has been used and shows that number.<br>
-                        <span class="has-text-weight-bold">Note:</span> The count tracks how many times <strong>this command</strong> has been used, not others.<br>
+                        <span class="has-text-weight-bold">Note:</span> The count tracks how many times this command has been used, not others.<br>
                         <span class="has-text-weight-bold">Example:</span><br><code>This command has been used (count) times.</code><br>
                         <span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"This command has been used 5 times."</code><br>
                     </div>
