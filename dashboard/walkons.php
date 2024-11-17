@@ -98,51 +98,53 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
     <br>
     <h1 class="title is-4">Upload Walkons</h1>
     <div class="notification is-danger">Before uploading, ensure the file is an MP3 and the filename is the user's lowercase username. (V4.6+)</div>
-    <div class="upload-container" style="width: 100%; max-width: 500px;">
-        <?php if (!empty($status)) : ?>
-            <div class="message"><?php echo $status; ?></div>
-        <?php endif; ?>
-        <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
-            <label for="filesToUpload" class="drag-area" id="drag-area">
-                <span>Drag & Drop files here or</span>
-                <span>Browse Files</span>
-                <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
-            </label>
+    <div class="columns is-desktop is-multiline box-container">
+        <div class="column is-5" id="walkon-upload" style="position: relative;">
+            <?php if (!empty($status)) : ?>
+                <div class="message"><?php echo $status; ?></div>
+            <?php endif; ?>
+            <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                <label for="filesToUpload" class="drag-area" id="drag-area">
+                    <span>Drag & Drop files here or</span>
+                    <span>Browse Files</span>
+                    <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
+                </label>
+                <br>
+                <input type="submit" value="Upload MP3 Files" name="submit">
+            </form>
             <br>
-            <input type="submit" value="Upload MP3 Files" name="submit">
-        </form>
-        <br>
-        <div class="progress-bar-container">
-            <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+            </div>
+            <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
         </div>
-        <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
+        <div class="column is-5 bot-box" id="walkon-files" style="position: relative;">
+            <?php if (!empty($walkon_files)) : ?>
+            <h1 class="title is-4">Users with Walkons</h1>
+            <form action="" method="POST" id="deleteForm">
+                <table class="table is-striped" style="width: 100%; max-width: 500px; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: center;">Select</th>
+                            <th style="text-align: center;">File Name</th>
+                            <th style="text-align: center;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($walkon_files as $file): ?>
+                        <tr>
+                            <td style="text-align: center; vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                            <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                            <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
+            </form>
+            <?php endif; ?>
+        </div>
     </div>
-    <?php if (!empty($walkon_files)) : ?>
-    <div class="container">
-        <h1 class="title is-4">Users with Walkons</h1>
-        <form action="" method="POST" id="deleteForm">
-            <table class="table is-striped" style="width: 100%; max-width: 500px; text-align: center;">
-                <thead>
-                    <tr>
-                        <th style="text-align: center;">Select</th>
-                        <th style="text-align: center;">File Name</th>
-                        <th style="text-align: center;">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($walkon_files as $file): ?>
-                    <tr>
-                        <td style="text-align: center; vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                        <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
-                        <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
-        </form>
-    </div>
-    <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
