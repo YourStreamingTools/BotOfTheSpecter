@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 try {
   // Fetch lurkers
@@ -117,12 +116,6 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title">
-    <?php echo "$greeting, " . htmlspecialchars($twitchDisplayName) . " 
-    <img id='profile-image' class='round-image is-rounded' style='width: 64px; height: 64px; margin-left: 10px; vertical-align: middle;' 
-    src='" . htmlspecialchars($twitch_profile_image_url) . "' 
-    alt='" . htmlspecialchars($twitchDisplayName) . " Profile Image'>"; ?>
-  </h1>
   <br>
   <div class="buttons">
     <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
