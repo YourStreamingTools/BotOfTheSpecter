@@ -33,7 +33,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Fetch Discord user data
 $discordUserSTMT = $conn->prepare("SELECT guild_id, live_channel_id FROM discord_users WHERE user_id = ?");
@@ -148,7 +147,6 @@ if (file_exists($restartLog)) {
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php echo $BotModMessage; ?>
   <?php echo $setupMessage; ?>
