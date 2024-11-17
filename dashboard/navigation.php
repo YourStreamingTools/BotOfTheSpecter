@@ -72,8 +72,8 @@
     </div>
     <div class="navbar-end">
       <div class="navbar-item" style="display: flex; align-items: center; gap: 10px;">
-      <span style="font-size: 14px; color: #fff;"><?php echo htmlspecialchars($twitchDisplayName); ?></span>
-      <img id="profile-image" class="round-image" src="<?php echo $twitch_profile_image_url; ?>" alt="<?php echo htmlspecialchars($twitchDisplayName); ?> Profile Image">
+        <span style="font-size: 14px; color: #fff;"><?php echo htmlspecialchars($twitchDisplayName); ?></span>
+        <img id="profile-image" class="round-image" src="<?php echo $twitch_profile_image_url; ?>" alt="<?php echo htmlspecialchars($twitchDisplayName); ?> Profile Image">
       </div>
     </div>
   </div>
