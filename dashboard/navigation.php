@@ -1,8 +1,11 @@
 <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
-  <div class="navbar-brand">
-    <a class="navbar-item" href="../">
+  <div class="navbar-brand is-flex is-flex-direction-column is-align-items-center">
+    <div class="navbar-item">
       <span>BotOfTheSpecter</span>
-    </a>
+    </div>
+    <div class="navbar-item is-size-7 has-text-grey-light" style="margin-top: -0.5rem; padding-top: 0;">
+      &copy; 2023-<?php echo date("Y"); ?> | All rights reserved.
+    </div>
     <button class="navbar-burger" aria-label="menu" data-target="navbarBasic">
       <span aria-hidden="true"></span>
       <span aria-hidden="true"></span>
@@ -68,8 +71,9 @@
       <a class="navbar-item" href="../logout.php">Logout</a>
     </div>
     <div class="navbar-end">
-      <div class="navbar-item"> 
-        <span class="has-text-grey-light is-size-7">&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.</span> 
+      <div class="navbar-item" style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 14px; color: #fff;"><?php echo htmlspecialchars($twitchDisplayName); ?></span>
+      <img id="profile-image" class="round-image" src="<?php echo $twitch_profile_image_url; ?>" alt="<?php echo htmlspecialchars($twitchDisplayName); ?> Profile Image">
       </div>
     </div>
   </div>
