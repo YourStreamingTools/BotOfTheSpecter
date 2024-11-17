@@ -522,6 +522,8 @@ try {
     $jokeBlacklist = '["nsfw", "religious", "political", "racist", "sexist"]';
     $jokeInsertQuery = "INSERT INTO joke_settings (id, blacklist) SELECT 1, '$jokeBlacklist' WHERE NOT EXISTS (SELECT 1 FROM joke_settings LIMIT 1);";
     $usrDBconn->query($jokeInsertQuery);
+    // Ensure default options for watch_time
+    $usrDBconn->query("INSERT INTO watch_time_excluded_users (excluded_users) SELECT CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM watch_time_excluded_users)");
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
