@@ -323,7 +323,7 @@ try {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'watch_time_excluded_users' => "
             CREATE TABLE IF NOT EXISTS watch_time_excluded_users (
-                excluded_users BOOLEAN DEFAULT FALSE,
+                excluded_users TXT DEFAULT FALSE,
                 PRIMARY KEY (excluded_users)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
