@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Check if the user is already linked with Discord
 $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
@@ -131,7 +130,6 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if (!$is_linked) { ?>
     <h3 class="subtitle is-5">By linking your Discord account to Specter, you'll unlock some exciting features.<br>
