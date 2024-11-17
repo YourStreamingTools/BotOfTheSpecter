@@ -452,6 +452,10 @@ input[type="submit"]:hover {
     display: none;
 }
 
+.toggle-checkbox + .fa-solid {
+    cursor: pointer;
+}
+
 .tab-content {
     display: none;
 }
