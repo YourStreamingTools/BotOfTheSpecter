@@ -331,144 +331,40 @@ try {
     $columns = [
         'everyone' => ['group_name' => "VARCHAR(255) DEFAULT NULL"],
         'groups' => ['name' => "VARCHAR(255)"],
-        'custom_commands' => [
-            'response' => "TEXT",
-            'status' => "VARCHAR(255)"
-        ],
-        'builtin_commands' => [
-            'status' => "VARCHAR(255)",
-            'permission' => "VARCHAR(255)"
-        ],
+        'custom_commands' => ['response' => "TEXT",'status' => "VARCHAR(255)"],
+        'builtin_commands' => ['status' => "VARCHAR(255)",'permission' => "VARCHAR(255)"],
         'user_typos' => ['typo_count' => "INT DEFAULT 0"],
         'lurk_times' => ['start_time' => "VARCHAR(255) NOT NULL"],
         'hug_counts' => ['hug_count' => "INT DEFAULT 0"],
         'kiss_counts' => ['kiss_count' => "INT DEFAULT 0"],
         'total_deaths' => ['death_count' => "INT DEFAULT 0"],
-        'game_deaths' => [
-            'death_count' => "INT DEFAULT 0"
-        ],
-        'custom_counts' => [
-            'command' => "VARCHAR(255) NOT NULL",
-            'count' => "INT NOT NULL"
-        ],
-        'bits_data' => [
-            'user_id' => "VARCHAR(255)",
-            'user_name' => "VARCHAR(255)",
-            'bits' => "INT"
-        ],
-        'subscription_data' => [
-            'user_id' => "VARCHAR(255)",
-            'user_name' => "VARCHAR(255)",
-            'sub_plan' => "VARCHAR(255)",
-            'months' => "INT"
-        ],
-        'followers_data' => [
-            'user_id' => "VARCHAR(255)",
-            'user_name' => "VARCHAR(255)"
-        ],
-        'raid_data' => [
-            'raider_name' => "VARCHAR(255)",
-            'raider_id' => "VARCHAR(255)",
-            'viewers' => "INT",
-            'raid_count' => "INT"
-        ],
+        'game_deaths' => ['death_count' => "INT DEFAULT 0"],
+        'custom_counts' => ['command' => "VARCHAR(255) NOT NULL",'count' => "INT NOT NULL"],
+        'bits_data' => ['user_id' => "VARCHAR(255)",'user_name' => "VARCHAR(255)",'bits' => "INT"],
+        'subscription_data' => ['user_id' => "VARCHAR(255)",'user_name' => "VARCHAR(255)",'sub_plan' => "VARCHAR(255)",'months' => "INT"],
+        'followers_data' => ['user_id' => "VARCHAR(255)",'user_name' => "VARCHAR(255)"],
+        'raid_data' => ['raider_name' => "VARCHAR(255)",'raider_id' => "VARCHAR(255)",'viewers' => "INT",'raid_count' => "INT"],
         'quotes' => ['quote' => "TEXT"],
-        'seen_users' => [
-            'username' => "VARCHAR(255)",
-            'welcome_message' => "VARCHAR(255) DEFAULT NULL",
-            'status' => "VARCHAR(255)"
-        ],
-        'seen_today' => [
-            'user_id' => "VARCHAR(255)",
-            'username' => "VARCHAR(255)"
-        ],
-        'timed_messages' => [
-            'interval_count' => "INT",
-            'message' => "TEXT",
-            'status' => "VARCHAR(10) DEFAULT True"
-        ],
-        'profile' => [
-            'timezone' => "VARCHAR(255) DEFAULT NULL",
-            'weather_location' => "VARCHAR(255) DEFAULT NULL",
-            'discord_alert' => "VARCHAR(255) DEFAULT NULL",
-            'discord_mod' => "VARCHAR(255) DEFAULT NULL",
-            'discord_alert_online' => "VARCHAR(255) DEFAULT NULL",
-            'heartrate_code' => 'VARCHAR(8) DEFAULT NULL'
-        ],
-        'protection' => [
-            'url_blocking' => "VARCHAR(255)"
-        ],
+        'seen_users' => ['username' => "VARCHAR(255)",'welcome_message' => "VARCHAR(255) DEFAULT NULL",'status' => "VARCHAR(255)"],
+        'seen_today' => ['user_id' => "VARCHAR(255)",'username' => "VARCHAR(255)"],
+        'timed_messages' => ['interval_count' => "INT",'message' => "TEXT",'status' => "VARCHAR(10) DEFAULT True"],
+        'profile' => ['timezone' => "VARCHAR(255) DEFAULT NULL",'weather_location' => "VARCHAR(255) DEFAULT NULL",'discord_alert' => "VARCHAR(255) DEFAULT NULL",'discord_mod' => "VARCHAR(255) DEFAULT NULL",'discord_alert_online' => "VARCHAR(255) DEFAULT NULL",'heartrate_code' => 'VARCHAR(8) DEFAULT NULL'],
+        'protection' => ['url_blocking' => "VARCHAR(255)"],
         'link_whitelist' => ['link' => "VARCHAR(255)"],
         'link_blacklisting' => ['link' => "VARCHAR(255)"],
-        'stream_credits' => [
-            'username' => "VARCHAR(255)",
-            'event' => "VARCHAR(255)",
-            'data' => "VARCHAR(255)"
-        ],
-        'message_counts' => [
-            'username' => "VARCHAR(255)",
-            'message_count' => "INT NOT NULL",
-            'user_level' => "VARCHAR(255) NOT NULL"
-        ],
-        'bot_points' => [
-            'user_id' => "VARCHAR(50)",
-            'user_name' => "VARCHAR(50)",
-            'points' => "INT DEFAULT 0"
-        ],
-        'bot_settings' => [
-            'point_name' => "TEXT",
-            'point_amount_chat' => "VARCHAR(50)",
-            'point_amount_follower' => "VARCHAR(50)",
-            'point_amount_subscriber' => "VARCHAR(50)",
-            'point_amount_cheer' => "VARCHAR(50)",
-            'point_amount_raid' => "VARCHAR(50)",
-            'subscriber_multiplier' => "VARCHAR(50)",
-            'excluded_users' => "TEXT"
-        ],
-        'channel_point_rewards' => [
-            'reward_id' => "VARCHAR(255)",
-            'reward_title' => "VARCHAR(255)",
-            'reward_cost' => "VARCHAR(255)",
-            'custom_message' => "TEXT"
-        ],
-        'active_timers' => [
-            'user_id' => "BIGINT NOT NULL",
-            'end_time' => "DATETIME NOT NULL"
-        ],
-        'poll_results' => [
-            'poll_id' => "VARCHAR(255)",
-            'poll_name' => "VARCHAR(255)",
-            'poll_option_one' => "VARCHAR(255)",
-            'poll_option_two' => "VARCHAR(255)",
-            'poll_option_three' => "VARCHAR(255)",
-            'poll_option_four' => "VARCHAR(255)",
-            'poll_option_five' => "VARCHAR(255)",
-            'poll_option_one_results' => "INT",
-            'poll_option_two_results' => "INT",
-            'poll_option_three_results' => "INT",
-            'poll_option_four_results' => "INT",
-            'poll_option_five_results' => "INT",
-            'bits_used' => "INT",
-            'channel_points_used' => "INT",
-            'started_at' => "DATETIME",
-            'ended_at' => "DATETIME"
-        ],
-        'tipping_settings' => [
-            'StreamElements' => "TEXT DEFAULT NULL",
-            'StreamLabs' => "TEXT DEFAULT NULL"
-        ],
-        'tipping' => [
-            'username' => "VARCHAR(255)",
-            'amount' => "DECIMAL(10, 2)",
-            'message' => "TEXT",
-            'source' => "VARCHAR(255)"
-        ],
+        'stream_credits' => ['username' => "VARCHAR(255)",'event' => "VARCHAR(255)",'data' => "VARCHAR(255)"],
+        'message_counts' => ['username' => "VARCHAR(255)",'message_count' => "INT NOT NULL",'user_level' => "VARCHAR(255) NOT NULL"],
+        'bot_points' => ['user_id' => "VARCHAR(50)",'user_name' => "VARCHAR(50)",'points' => "INT DEFAULT 0"],
+        'bot_settings' => ['point_name' => "TEXT",'point_amount_chat' => "VARCHAR(50)",'point_amount_follower' => "VARCHAR(50)",'point_amount_subscriber' => "VARCHAR(50)",'point_amount_cheer' => "VARCHAR(50)",'point_amount_raid' => "VARCHAR(50)",'subscriber_multiplier' => "VARCHAR(50)",'excluded_users' => "TEXT"],
+        'channel_point_rewards' => ['reward_id' => "VARCHAR(255)",'reward_title' => "VARCHAR(255)",'reward_cost' => "VARCHAR(255)",'custom_message' => "TEXT"],
+        'active_timers' => ['user_id' => "BIGINT NOT NULL",'end_time' => "DATETIME NOT NULL"],
+        'poll_results' => ['poll_id' => "VARCHAR(255)",'poll_name' => "VARCHAR(255)",'poll_option_one' => "VARCHAR(255)",'poll_option_two' => "VARCHAR(255)",'poll_option_three' => "VARCHAR(255)",'poll_option_four' => "VARCHAR(255)",'poll_option_five' => "VARCHAR(255)",'poll_option_one_results' => "INT",'poll_option_two_results' => "INT",'poll_option_three_results' => "INT",'poll_option_four_results' => "INT",'poll_option_five_results' => "INT",'bits_used' => "INT",'channel_points_used' => "INT",'started_at' => "DATETIME",'ended_at' => "DATETIME"],
+        'tipping_settings' => ['StreamElements' => "TEXT DEFAULT NULL",'StreamLabs' => "TEXT DEFAULT NULL"],
+        'tipping' => ['username' => "VARCHAR(255)",'amount' => "DECIMAL(10, 2)",'message' => "TEXT",'source' => "VARCHAR(255)"],
         'categories' => ['category' => "VARCHAR(255)"],
-        'quote_category' => [
-            'quote_id' => "INT(11)",
-            'category_id' => "INT(11)"
-        ],
-        'joke_settings' => ['blacklist' => 'TEXT']
+        'quote_category' => ['quote_id' => "INT(11)",'category_id' => "INT(11)"],
+        'joke_settings' => ['blacklist' => 'TEXT'],
+        'watch_time_excluded_users' => ['excluded_users' => 'TXT DEFAULT FALSE']
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
