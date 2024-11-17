@@ -6334,6 +6334,86 @@ async def match_domain_or_link(message, domain_list):
             return True
     return False
 
+# Function(s) to track watch time for users in active channel
+async def periodic_watch_time_update():
+    while True:
+        # Fetch active users from Twitch API
+        active_users = await fetch_active_users()
+        if not active_users:
+            bot_logger.warning("No active users found. Skipping this interval.")
+        else:
+            # Pass the active users (raw data) to the watch time tracker
+            await track_watch_time(active_users)
+        # Wait for 60 seconds before the next check
+        await asyncio.sleep(60)
+
+# Function to get a list of users that are active in chat
+async def fetch_active_users():
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    url = f"https://api.twitch.tv/helix/chat/chatters?broadcaster_id={CHANNEL_ID}&moderator_id={CHANNEL_ID}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("data", {}).get("chatters", [])
+                else:
+                    bot_logger.error(f"Failed to fetch active users: {response.status} {await response.text()}")
+                    return []
+        except Exception as e:
+            bot_logger.error(f"Error fetching active users: {e}")
+            return []
+
+# Function to add time in the database
+async def track_watch_time(active_users):
+    global stream_online
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor() as cursor:
+            current_time = int(time.time())
+            for user in active_users:
+                username_lower = user['user_login'].lower()
+                user_id = user['user_id']
+                # Fetch existing watch time data for the user, including the excluded_users flag
+                await cursor.execute("""
+                    SELECT total_watch_time_live, total_watch_time_offline, last_active, excluded_users
+                    FROM watch_time
+                    WHERE user_id = %s
+                """, (user_id,))
+                user_data = await cursor.fetchone()
+                if user_data:
+                    total_watch_time_live = user_data[0]
+                    total_watch_time_offline = user_data[1]
+                    excluded_users = user_data[3]
+                    # Skip the user if they are marked as excluded
+                    if excluded_users:
+                        continue
+                    # Increment the appropriate watch time counter
+                    if stream_online:
+                        total_watch_time_live += 60
+                    else:
+                        total_watch_time_offline += 60
+                    # Update watch time in the database
+                    await cursor.execute("""
+                        UPDATE watch_time
+                        SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s
+                        WHERE user_id = %s
+                    """, (total_watch_time_live, total_watch_time_offline, current_time, user_id))
+                else:
+                    # Insert new user data if not found, marking excluded_users as 0 by default
+                    await cursor.execute("""
+                        INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active, excluded_users)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (user_id, username_lower, 60 if stream_online else 0, 60 if not stream_online else 0, current_time, 0))
+            await sqldb.commit()
+    except Exception as e:
+        bot_logger.error(f"Error in track_watch_time: {e}")
+    finally:
+        await sqldb.ensure_closed()
+
 # Here is the BOT
 bot = BotOfTheSpecter(
     token=OAUTH_TOKEN,
