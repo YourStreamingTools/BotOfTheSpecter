@@ -4068,17 +4068,25 @@ class BotOfTheSpecter(commands.Bot):
                 if watch_time:
                     total_live = watch_time[0]  # Total live watch time in seconds
                     total_offline = watch_time[1]  # Total offline watch time in seconds
-                    # Convert seconds to hours and minutes
-                    live_hours, live_minutes = divmod(total_live // 60, 60)
-                    offline_hours, offline_minutes = divmod(total_offline // 60, 60)
+                    # Function to convert seconds into years, months, days, hours, minutes
+                    def convert_seconds(seconds):
+                        years, remainder = divmod(seconds, 31536000)
+                        months, remainder = divmod(remainder, 2592000)
+                        days, remainder = divmod(remainder, 86400)
+                        hours, remainder = divmod(remainder, 3600)
+                        minutes, _ = divmod(remainder, 60)
+                        return years, months, days, hours, minutes
+                    # Convert live and offline watch time
+                    live_years, live_months, live_days, live_hours, live_minutes = convert_seconds(total_live)
+                    offline_years, offline_months, offline_days, offline_hours, offline_minutes = convert_seconds(total_offline)
+                    # Prepare the formatted string
+                    live_str = f"{live_years} years, {live_months} months, {live_days} days, {live_hours} hours, {live_minutes} minutes" if live_years > 0 else f"{live_months} months, {live_days} days, {live_hours} hours, {live_minutes} minutes"
+                    offline_str = f"{offline_years} years, {offline_months} months, {offline_days} days, {offline_hours} hours, {offline_minutes} minutes" if offline_years > 0 else f"{offline_months} months, {offline_days} days, {offline_hours} hours, {offline_minutes} minutes"
                     # Respond with the user's watch time
-                    await ctx.send(
-                        f"@{username}, you have watched for {live_hours} hours and {live_minutes} minutes live, "
-                        f"and {offline_hours} hours and {offline_minutes} minutes offline."
-                    )
+                    await ctx.send(f"@{username}, you have watched for {live_str} live, and {offline_str} offline.")
                 else:
                     # If no watch time data is found
-                    await ctx.send(f"@{username}, no watch time data found for you.")
+                    await ctx.send(f"@{username}, no watch time data recorded for you yet.")
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await ctx.send(f"@{username}, an error occurred while fetching your watch time.")
