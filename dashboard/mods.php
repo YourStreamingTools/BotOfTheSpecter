@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // API endpoint to fetch moderators
 $moderatorsURL = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=$broadcasterID";
@@ -36,33 +35,26 @@ do {
         'Client-ID: ' . $clientID
     ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
     // Execute cURL request
     $response = curl_exec($curl);
-
     if ($response === false) {
         // Handle cURL error
         echo 'cURL error: ' . curl_error($curl);
         exit;
     }
-
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     if ($httpCode !== 200) {
         // Handle non-successful HTTP response
         $HTTPError = 'HTTP error: ' . $httpCode;
         exit;
     }
-
     curl_close($curl);
-
     // Process and append moderator information to the array
     $moderatorsData = json_decode($response, true);
     $allModerators = array_merge($allModerators, $moderatorsData['data']);
-
     // Check if there are more pages of moderators
     $cursor = $moderatorsData['pagination']['cursor'] ?? null;
     $moderatorsURL = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=$broadcasterID&after=$cursor";
-
 } while ($cursor);
 
 // Number of moderators per page
@@ -83,18 +75,17 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <!-- /Header -->
-  </head>
+    <head>
+        <!-- Header -->
+        <?php include('header.php'); ?>
+        <!-- /Header -->
+    </head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title is-4">Your Moderators:</h1>
     <div class="columns is-multiline is-centered">
