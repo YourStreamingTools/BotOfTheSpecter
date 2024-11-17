@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 $status = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -88,15 +87,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
-
     <!-- Settings Button -->
     <?php if ($status): ?>
         <div class="notification is-success" style="background-color: #4CAF50; color: #ffffff;"><?php echo $status; ?></div>
     <?php endif; ?>
     <button class="button is-primary" id="settingsButton">Settings</button>
-
     <!-- Points Table -->
     <h2 class="subtitle">User Points</h2>
     <p id="updateInfo">Data last updated: <span id="secondsAgo">0</span> seconds ago.</p>
