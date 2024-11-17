@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 $walkon_path = "/var/www/walkons/" . $username;
 $status = '';
 $max_storage_size = 2 * 1024 * 1024; // 2MB in bytes
@@ -53,15 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
             continue;
         }
-
         $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
-
         if ($fileType != "mp3") {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
             continue;
         }
-
         if (move_uploaded_file($tmp_name, $targetFile)) {
             $current_storage_used += $fileSize;
             $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
@@ -83,12 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_file'])) {
         $status .= "Failed to delete " . htmlspecialchars(basename($_POST['delete_file'])) . ".<br>";
     }
 }
-
 $walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
-
-function formatFileName($fileName) {
-    return basename($fileName, '.mp3');
-}
+function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -103,7 +95,6 @@ function formatFileName($fileName) {
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title is-4">Upload Walkons</h1>
     <div class="notification is-danger">Before uploading, ensure the file is an MP3 and the filename is the user's lowercase username. (V4.6+)</div>
@@ -159,38 +150,30 @@ function formatFileName($fileName) {
 $(document).ready(function() {
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
-
     dropArea.on('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
         dropArea.addClass('dragging');
     });
-
     dropArea.on('dragleave', function(e) {
         e.preventDefault();
         e.stopPropagation();
         dropArea.removeClass('dragging');
     });
-
     dropArea.on('drop', function(e) {
         e.preventDefault();
         e.stopPropagation();
         dropArea.removeClass('dragging');
-
         let files = e.originalEvent.dataTransfer.files;
         fileInput.prop('files', files);
-
         $('#uploadForm').submit();
     });
-
     dropArea.on('click', function() {
         fileInput.click();
     });
-
     fileInput.on('change', function() {
         $('#uploadForm').submit();
     });
-
     $('.delete-single').on('click', function() {
         let fileName = $(this).data('file');
         $('<input>').attr({
