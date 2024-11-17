@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Query to fetch commands from the database
 $fetchCommandsSql = "SELECT * FROM commands";
@@ -68,42 +67,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
 <!-- /Navigation -->
 
 <div class="container">
-<h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<h4 class="title is-4">Bot Commands</h4>
-<div class="notification is-info">Beta Users can change the permission level for the command, making commands any usage level.<br><a href="beta_builtin.php" class="button is-primary mt-4">Go to Beta Built-in Commands</a></div>
-<div class="field">
-    <div class="control">
-        <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+    <br>
+    <h4 class="title is-4">Bot Commands</h4>
+    <div class="notification is-info">Beta Users can change the permission level for the command, making commands any usage level.<br><a href="beta_builtin.php" class="button is-primary mt-4">Go to Beta Built-in Commands</a></div>
+    <div class="field">
+        <div class="control">
+            <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+        </div>
     </div>
-</div>
-<table class="table is-fullwidth" id="commandsTable">
-    <thead>
-        <tr>
-            <th>Command</th>
-            <th>Functionality</th>
-            <th>Usage Level</th>
-            <th>Status</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php foreach ($commands as $command): ?>
-        <tr>
-            <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
-            <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
-            <td><?php echo htmlspecialchars($command['level']); ?></td>
-            <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
-            <td>
-            <label class="switch">
-                <input type="checkbox" class="toggle-checkbox" <?php echo ($statusResult['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command_name']); ?>', this.checked)">
-                <i class="fa-solid <?php echo $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-            </label>
-            </td>
-        </tr>
-        <?php endforeach; ?>
-    </tbody>
-</table>
+    <table class="table is-fullwidth" id="commandsTable">
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Functionality</th>
+                <th>Usage Level</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($commands as $command): ?>
+            <tr>
+                <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
+                <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
+                <td><?php echo htmlspecialchars($command['level']); ?></td>
+                <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
+                <td>
+                <label class="switch">
+                    <input type="checkbox" class="toggle-checkbox" <?php echo ($statusResult['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command_name']); ?>', this.checked)">
+                    <i class="fa-solid <?php echo $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                </label>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
 </div>
 
 <script>
