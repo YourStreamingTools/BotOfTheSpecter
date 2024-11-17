@@ -24,7 +24,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 $permissionsMap = [
     "Everyone" => "everyone",
@@ -75,52 +74,51 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!-- /Navigation -->
 
 <div class="container">
-<h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-<br>
-<h4 class="title is-4">Bot Commands</h4>
-<div class="field">
-    <div class="control">
-        <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+    <br>
+    <h4 class="title is-4">Bot Commands</h4>
+    <div class="field">
+        <div class="control">
+            <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
+        </div>
     </div>
-</div>
-<table class="table is-fullwidth" id="commandsTable">
-    <thead>
-        <tr>
-            <th>Command</th>
-            <th>Usage Level</th>
-            <th>Status</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php foreach ($builtinCommands as $command): ?>
-        <tr>
-            <td>!<?php echo htmlspecialchars($command['command']); ?></td>
-            <td>
-                <form method="post">
-                    <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
-                    <div class="select is-fullwidth">
-                        <select name="usage_level" onchange="this.form.submit()">
-                            <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
-                                <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
-                                    <?php echo $displayValue; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </form>
-            </td>
-            <td><?php echo htmlspecialchars($command['status']); ?></td>
-            <td>
-                <label class="switch">
-                    <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
-                    <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                </label>
-            </td>
-        </tr>
-        <?php endforeach; ?>
-    </tbody>
-</table>
+    <table class="table is-fullwidth" id="commandsTable">
+        <thead>
+            <tr>
+                <th>Command</th>
+                <th>Usage Level</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($builtinCommands as $command): ?>
+            <tr>
+                <td>!<?php echo htmlspecialchars($command['command']); ?></td>
+                <td>
+                    <form method="post">
+                        <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
+                        <div class="select is-fullwidth">
+                            <select name="usage_level" onchange="this.form.submit()">
+                                <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
+                                    <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
+                                        <?php echo $displayValue; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </form>
+                </td>
+                <td><?php echo htmlspecialchars($command['status']); ?></td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
+                        <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                    </label>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
 </div>
 
 <script>
