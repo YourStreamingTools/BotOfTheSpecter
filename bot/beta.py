@@ -6431,19 +6431,19 @@ async def track_watch_time(active_users):
             for user in active_users:
                 user_login = user['user_login']
                 user_id = user['user_id']
-                # Fetch existing watch time data for the user, including the excluded_users flag
-                await cursor.execute("""
-                    SELECT total_watch_time_live, total_watch_time_offline, last_active, excluded_users
-                    FROM watch_time
-                    WHERE user_id = %s
-                """, (user_id,))
+                # Fetch existing watch time data for the user from the watch_time table
+                await cursor.execute("SELECT total_watch_time_live, total_watch_time_offline, last_active FROM watch_time WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
                 if user_data:
                     total_watch_time_live = user_data[0]
                     total_watch_time_offline = user_data[1]
-                    excluded_users = user_data[3]
+                    # Fetch the excluded_users list from the watch_time_excluded_users table
+                    await cursor.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
+                    excluded_users_data = await cursor.fetchone()
+                    excluded_users = excluded_users_data[0] if excluded_users_data else ''
+                    excluded_users_list = excluded_users.split(',') if excluded_users else []
                     # Skip the user if they are marked as excluded
-                    if excluded_users:
+                    if user_login in excluded_users_list:
                         continue
                     # Increment the appropriate watch time counter
                     if stream_online:
@@ -6451,17 +6451,10 @@ async def track_watch_time(active_users):
                     else:
                         total_watch_time_offline += 60
                     # Update watch time in the database
-                    await cursor.execute("""
-                        UPDATE watch_time
-                        SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s
-                        WHERE user_id = %s
-                    """, (total_watch_time_live, total_watch_time_offline, current_time, user_id))
+                    await cursor.execute("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", (total_watch_time_live, total_watch_time_offline, current_time, user_id))
                 else:
                     # Insert new user data if not found, marking excluded_users as 0 by default
-                    await cursor.execute("""
-                        INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active, excluded_users)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time, 0))
+                    await cursor.execute("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s, %s)", (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time, ''))
             await sqldb.commit()
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}")
