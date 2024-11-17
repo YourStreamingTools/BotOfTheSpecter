@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 $logContent = 'Please Select A Log Type';
 $logType = '';  // Default log type
