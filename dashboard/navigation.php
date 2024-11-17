@@ -6,7 +6,7 @@
     <div class="navbar-item is-size-7 has-text-grey-light" style="margin-top: -0.5rem; padding-top: 0;">
       &copy; 2023-<?php echo date("Y"); ?> | All rights reserved.
     </div>
-    <button class="navbar-burger" aria-label="menu" data-target="navbarBasic">
+    <button class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasic">
       <span aria-hidden="true"></span>
       <span aria-hidden="true"></span>
       <span aria-hidden="true"></span>
