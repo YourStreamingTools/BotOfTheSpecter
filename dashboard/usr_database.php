@@ -312,6 +312,16 @@ try {
                 blacklist TEXT,
                 PRIMARY KEY (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'watch_time' => "
+            CREATE TABLE IF NOT EXISTS watch_time (
+                user_id BIGINT NOT NULL,
+                username VARCHAR(255) NOT NULL,
+                total_watch_time_live INT DEFAULT 0,
+                total_watch_time_offline INT DEFAULT 0,
+                last_active INT,
+                excluded_users BOOLEAN DEFAULT FALSE,
+                PRIMARY KEY (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
