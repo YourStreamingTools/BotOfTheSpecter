@@ -76,6 +76,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="container">
     <br>
     <h4 class="title is-4">Bot Commands</h4>
+    <!-- Toggle Filters -->
+    <div class="field">
+        <div class="control">
+            <label class="checkbox">
+                <input type="checkbox" id="showEnabled" checked> Show Enabled Commands
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" id="showDisabled" checked> Show Disabled Commands
+            </label>
+        </div>
+    </div>
     <div class="field">
         <div class="control">
             <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
@@ -92,7 +103,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </thead>
         <tbody>
             <?php foreach ($builtinCommands as $command): ?>
-            <tr>
+            <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
                 <td>!<?php echo htmlspecialchars($command['command']); ?></td>
                 <td>
                     <form method="post">
@@ -124,22 +135,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
-function toggleStatus(commandName, isChecked) {
-    var status = isChecked ? 'Enabled' : 'Disabled';
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '', true);
-    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-                location.reload();
+    // Toggle visibility of commands based on status
+    document.getElementById('showEnabled').addEventListener('change', toggleFilter);
+    document.getElementById('showDisabled').addEventListener('change', toggleFilter);
+    function toggleFilter() {
+        const showEnabled = document.getElementById('showEnabled').checked;
+        const showDisabled = document.getElementById('showDisabled').checked;
+        const rows = document.querySelectorAll('.commandRow');
+        rows.forEach(row => {
+            const status = row.getAttribute('data-status');
+            if ((showEnabled && status === 'Enabled') || (showDisabled && status === 'Disabled')) {
+                row.style.display = '';  // Show the row
             } else {
-                console.error('Error updating status:', xhr.responseText);
+                row.style.display = 'none';  // Hide the row
             }
-        }
-    };
-    xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
-}
+        });
+    }
+    // Initial call to set the correct visibility
+    toggleFilter();
+    function toggleStatus(commandName, isChecked) {
+        var status = isChecked ? 'Enabled' : 'Disabled';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    location.reload();
+                } else {
+                    console.error('Error updating status:', xhr.responseText);
+                }
+            }
+        };
+        xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
+    }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/search.js"></script>
