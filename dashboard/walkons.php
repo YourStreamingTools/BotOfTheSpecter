@@ -107,6 +107,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                     <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
                 </label>
                 <br>
+                <div id="file-list"></div>
+                <br>
                 <input type="submit" value="Upload MP3 Files" name="submit">
             </form>
             <br>
@@ -152,6 +154,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 $(document).ready(function() {
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
+    let fileList = $('#file-list');
     dropArea.on('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -168,12 +171,21 @@ $(document).ready(function() {
         dropArea.removeClass('dragging');
         let files = e.originalEvent.dataTransfer.files;
         fileInput.prop('files', files);
+        fileList.empty();
+        $.each(files, function(index, file) {
+            fileList.append('<div>' + file.name + '</div>');
+        });
         $('#uploadForm').submit();
     });
     dropArea.on('click', function() {
         fileInput.click();
     });
     fileInput.on('change', function() {
+        let files = fileInput.prop('files');
+        fileList.empty();
+        $.each(files, function(index, file) {
+            fileList.append('<div>' + file.name + '</div>');
+        });
         $('#uploadForm').submit();
     });
     $('.delete-single').on('click', function() {
