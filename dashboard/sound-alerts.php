@@ -173,7 +173,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
     <div class="notification is-danger">
         Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.<br>
         Note: for rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.<br>
-        File names may not display as ready to upload due to a known issue.<br>
         Sound alerts will play through Specter Overlays when the selected channel point is redeemed. (V4.8+)
     </div>
     <div class="columns is-desktop is-multiline box-container" style="width: 100%;">
@@ -185,6 +184,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
                     <span>Browse Files</span>
                     <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
                 </label>
+                <br>
+                <div id="file-list"></div>
                 <br>
                 <input type="submit" value="Upload MP3 Files" name="submit">
             </form>
@@ -274,42 +275,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
 $(document).ready(function() {
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
-
+    let fileList = $('#file-list');
     dropArea.on('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
         dropArea.addClass('dragging');
     });
-
     dropArea.on('dragleave', function(e) {
         e.preventDefault();
         e.stopPropagation();
         dropArea.removeClass('dragging');
     });
-
     dropArea.on('drop', function(e) {
         e.preventDefault();
         e.stopPropagation();
         dropArea.removeClass('dragging');
-
         let files = e.originalEvent.dataTransfer.files;
         fileInput.prop('files', files);
-
+        fileList.empty();
+        $.each(files, function(index, file) {
+            fileList.append('<div>' + file.name + '</div>');
+        });
         $('#uploadForm').submit();
     });
-
     dropArea.on('click', function() {
         fileInput.click();
     });
-
     fileInput.on('change', function() {
+        let files = fileInput.prop('files');
+        fileList.empty();
+        $.each(files, function(index, file) {
+            fileList.append('<div>' + file.name + '</div>');
+        });
         $('#uploadForm').submit();
     });
-
-    // Handle single file deletion with confirmation
     $('.delete-single').on('click', function() {
         let fileName = $(this).data('file');
-        if(confirm('Are you sure you want to delete "' + fileName + '"?')) {
+        if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
             $('<input>').attr({
                 type: 'hidden',
                 name: 'delete_files[]',
