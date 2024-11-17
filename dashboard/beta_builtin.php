@@ -108,7 +108,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </div>
                     </form>
                 </td>
-                <td><?php echo htmlspecialchars($command['status']); ?></td>
+                <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
+                    <?php echo htmlspecialchars($command['status']); ?>
+                </td>
                 <td>
                     <label class="switch">
                         <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
