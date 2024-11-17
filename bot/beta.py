@@ -4050,6 +4050,41 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.user)
+    @commands.command(name='watchtime')
+    async def watchtime(self, ctx):
+        user_id = ctx.author.id
+        username = ctx.author.name
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Query watch time for the user
+                await cursor.execute("""
+                    SELECT total_watch_time_live, total_watch_time_offline
+                    FROM watch_time
+                    WHERE user_id = %s
+                """, (user_id,))
+                watch_time = await cursor.fetchone()
+                if watch_time:
+                    total_live = watch_time[0]  # Total live watch time in seconds
+                    total_offline = watch_time[1]  # Total offline watch time in seconds
+                    # Convert seconds to hours and minutes
+                    live_hours, live_minutes = divmod(total_live // 60, 60)
+                    offline_hours, offline_minutes = divmod(total_offline // 60, 60)
+                    # Respond with the user's watch time
+                    await ctx.send(
+                        f"@{username}, you have watched for {live_hours} hours and {live_minutes} minutes live, "
+                        f"and {offline_hours} hours and {offline_minutes} minutes offline."
+                    )
+                else:
+                    # If no watch time data is found
+                    await ctx.send(f"@{username}, no watch time data found for you.")
+        except Exception as e:
+            bot_logger.error(f"Error fetching watch time for {username}: {e}")
+            await ctx.send(f"@{username}, an error occurred while fetching your watch time.")
+        finally:
+            await sqldb.ensure_closed()
+
 # Functions for all the commands
 ##
 # Function  to check if the user is a real user on Twitch
