@@ -321,6 +321,11 @@ try {
                 last_active INT,
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'watch_time_excluded_users' => "
+            CREATE TABLE IF NOT EXISTS watch_time_excluded_users (
+                excluded_users BOOLEAN DEFAULT FALSE
+                PRIMARY KEY (excluded_users)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
