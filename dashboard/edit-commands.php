@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 $status = "";
 
 // Check if form data has been submitted
@@ -61,36 +60,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['command_to_edit'], $_P
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <br>
-  <?php if (!empty($commands)): ?>
-    <p>Select the command you want to edit:</p>
-    <form method="post" action="">
-        <div class="field">
-            <label class="label" for="command_to_edit">Command to Edit:</label>
-            <div class="control">
-                <div class="select">
-                    <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
-                        <option value="">Select a Command...</option>
-                        <?php foreach ($commands as $command): ?>
-                            <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
+    <br>
+    <?php if (!empty($commands)): ?>
+        <p>Select the command you want to edit:</p>
+        <form method="post" action="">
+            <div class="field">
+                <label class="label" for="command_to_edit">Command to Edit:</label>
+                <div class="control">
+                    <div class="select">
+                        <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
+                            <option value="">Select a Command...</option>
+                            <?php foreach ($commands as $command): ?>
+                                <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="field">
-            <label class="label" for="command_response">Response:</label>
-            <div class="control">
-                <input class="input" type="text" name="command_response" id="command_response" value="" required>
+            <div class="field">
+                <label class="label" for="command_response">Response:</label>
+                <div class="control">
+                    <input class="input" type="text" name="command_response" id="command_response" value="" required>
+                </div>
             </div>
-        </div>
-        <div class="control"><button type="submit" class="button is-primary">Update Command</button></div>
-    </form>
-  <?php else: ?>
-    <p>No commands available to edit.</p>
-  <?php endif; ?>
-  <?php echo $status; ?>
+            <div class="control"><button type="submit" class="button is-primary">Update Command</button></div>
+        </form>
+    <?php else: ?>
+        <p>No commands available to edit.</p>
+    <?php endif; ?>
+    <?php echo $status; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
