@@ -4079,9 +4079,18 @@ class BotOfTheSpecter(commands.Bot):
                     # Convert live and offline watch time
                     live_years, live_months, live_days, live_hours, live_minutes = convert_seconds(total_live)
                     offline_years, offline_months, offline_days, offline_hours, offline_minutes = convert_seconds(total_offline)
-                    # Prepare the formatted string
-                    live_str = f"{live_years} years, {live_months} months, {live_days} days, {live_hours} hours, {live_minutes} minutes" if live_years > 0 else f"{live_months} months, {live_days} days, {live_hours} hours, {live_minutes} minutes"
-                    offline_str = f"{offline_years} years, {offline_months} months, {offline_days} days, {offline_hours} hours, {offline_minutes} minutes" if offline_years > 0 else f"{offline_months} months, {offline_days} days, {offline_hours} hours, {offline_minutes} minutes"
+                    # Function to build time string excluding zero values
+                    def format_time(years, months, days, hours, minutes):
+                        time_parts = []
+                        if years > 0: time_parts.append(f"{years} year{'s' if years > 1 else ''}")
+                        if months > 0: time_parts.append(f"{months} month{'s' if months > 1 else ''}")
+                        if days > 0: time_parts.append(f"{days} day{'s' if days > 1 else ''}")
+                        if hours > 0: time_parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
+                        if minutes > 0: time_parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+                        return ', '.join(time_parts) if time_parts else "0 minutes"
+                    # Format both live and offline time
+                    live_str = format_time(live_years, live_months, live_days, live_hours, live_minutes)
+                    offline_str = format_time(offline_years, offline_months, offline_days, offline_hours, offline_minutes)
                     # Respond with the user's watch time
                     await ctx.send(f"@{username}, you have watched for {live_str} live, and {offline_str} offline.")
                 else:
