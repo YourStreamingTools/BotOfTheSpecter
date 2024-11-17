@@ -1028,7 +1028,8 @@ class BotOfTheSpecter(commands.Bot):
         asyncio.get_event_loop().create_task(hyperate_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
-        asyncio.get_event_loop().create_task(midnight(channel))
+        asyncio.get_event_loop().create_task(midnight())
+        asyncio.get_event_loop().create_task(periodic_watch_time_update())
         await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
     async def event_channel_joined(self, channel):
@@ -6119,7 +6120,7 @@ async def subathon_countdown():
         await asyncio.sleep(60) # Check every minute
 
 # Function to run at midnight each night
-async def midnight(channel):
+async def midnight():
     # Get the timezone once outside the loop
     sqldb = await get_mysql_connection()
     async with sqldb.cursor() as cursor:
@@ -6146,6 +6147,7 @@ async def midnight(channel):
             cur_time = current_time.strftime("%I %p")
             cur_day = current_time.strftime("%A")
             message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
+            channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
             # Sleep for 120 seconds to avoid sending the message multiple times
             await asyncio.sleep(120)
