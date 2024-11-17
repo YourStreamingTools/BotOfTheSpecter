@@ -96,13 +96,10 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 
 <div class="container">
     <br>
-    <h1 class="title is-4">Upload Walkons</h1>
     <div class="notification is-danger">Before uploading, ensure the file is an MP3 and the filename is the user's lowercase username. (V4.6+)</div>
     <div class="columns is-desktop is-multiline box-container">
-        <div class="column is-5" id="walkon-upload" style="position: relative;">
-            <?php if (!empty($status)) : ?>
-                <div class="message"><?php echo $status; ?></div>
-            <?php endif; ?>
+        <div class="column is-4" id="walkon-upload" style="position: relative;">
+            <h1 class="title is-4">Upload MP3 Files:</h1>
             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
                 <label for="filesToUpload" class="drag-area" id="drag-area">
                     <span>Drag & Drop files here or</span>
@@ -117,17 +114,20 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
             </div>
             <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
+            <?php if (!empty($status)) : ?>
+                <div class="message"><?php echo $status; ?></div>
+            <?php endif; ?>
         </div>
-        <div class="column is-5 bot-box" id="walkon-files" style="position: relative;">
+        <div class="column is-7 bot-box" id="walkon-files" style="position: relative;">
             <?php if (!empty($walkon_files)) : ?>
             <h1 class="title is-4">Users with Walkons</h1>
             <form action="" method="POST" id="deleteForm">
-                <table class="table is-striped" style="width: 100%; max-width: 500px; text-align: center;">
+                <table class="table is-striped" style="width: 100%; text-align: center;">
                     <thead>
                         <tr>
-                            <th style="text-align: center;">Select</th>
-                            <th style="text-align: center;">File Name</th>
-                            <th style="text-align: center;">Action</th>
+                            <th style="width: 70px;">Select</th>
+                            <th>File Name</th>
+                            <th style="width: 100px;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
