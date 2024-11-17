@@ -170,101 +170,103 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
 
 <div class="container">
     <br>
-    <h1 class="title is-4">Upload Sound Alerts</h1>
     <div class="notification is-danger">
         Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.<br>
         Note: for rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.<br>
         File names may not display as ready to upload due to a known issue.<br>
         Sound alerts will play through Specter Overlays when the selected channel point is redeemed. (V4.8+)
     </div>
-    <div class="upload-container" style="width: 100%; max-width: 500px;">
-        <?php if (!empty($status)) : ?>
-            <div class="message"><?php echo $status; ?></div>
-        <?php endif; ?>
-        <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
-            <label for="filesToUpload" class="drag-area" id="drag-area">
-                <span>Drag & Drop files here or</span>
-                <span>Browse Files</span>
-                <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
-            </label>
+    <div class="columns is-desktop is-multiline box-container" style="width: 100%;">
+        <div class="column is-4" id="walkon-upload" style="position: relative;">
+            <h1 class="title is-4">Upload MP3 Files:</h1>
+            <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                <label for="filesToUpload" class="drag-area" id="drag-area">
+                    <span>Drag & Drop files here or</span>
+                    <span>Browse Files</span>
+                    <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
+                </label>
+                <br>
+                <input type="submit" value="Upload MP3 Files" name="submit">
+            </form>
             <br>
-            <input type="submit" value="Upload MP3 Files" name="submit">
-        </form>
-        <br>
-        <div class="progress-bar-container">
-            <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+            </div>
+            <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
+            <?php if (!empty($status)) : ?>
+                <div class="message"><?php echo $status; ?></div>
+            <?php endif; ?>
         </div>
-        <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
+        <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
+            <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
+            <h1 class="title is-4">Your Sound Alerts</h1>
+            <form action="" method="POST" id="deleteForm">
+                <table class="table is-striped" style="width: 100%; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th style="width: 70px;">Select</th>
+                            <th>File Name</th>
+                            <th>Channel Point Reward</th>
+                            <th style="width: 100px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($walkon_files as $file): ?>
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
+                            </td>
+                            <td>
+                                <?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>
+                            </td>
+                            <td>
+                                <?php
+                                // Determine the current mapped reward (if any)
+                                $current_reward_id = isset($soundAlertMappings[$file]) ? $soundAlertMappings[$file] : null;
+                                $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
+                                ?>
+                                <?php if ($current_reward_id): ?>
+                                    <em><?php echo $current_reward_title; ?></em>
+                                <?php else: ?>
+                                    <em>Not Mapped</em>
+                                <?php endif; ?>
+                                <br>
+                                <form action="" method="POST" class="mapping-form">
+                                    <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
+                                    <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
+                                        <option value="">-- Select Reward --</option>
+                                        <?php 
+                                        foreach ($channelPointRewards as $reward): 
+                                            $isMapped = in_array($reward['reward_id'], $soundAlertMappings);
+                                            $isCurrent = ($current_reward_id === $reward['reward_id']);
+                                            // Skip rewards that are already mapped to other sounds, unless it's the current mapping
+                                            if ($isMapped && !$isCurrent) continue; 
+                                        ?>
+                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
+                                                <?php 
+                                                if ($isCurrent) {
+                                                    echo 'selected';
+                                                }
+                                                ?>
+                                            >
+                                                <?php echo htmlspecialchars($reward['reward_title']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </form>
+                            </td>
+                            <td>
+                                <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
+            </form>
+            <?php endif; ?>
+        </div>
     </div>
-    <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
-    <div class="container">
-        <h1 class="title is-4">Sound Alerts Uploaded</h1>
-        <form action="" method="POST" id="deleteForm">
-            <table class="table is-striped" style="width: 100%; max-width: 800px; text-align: center;">
-                <thead>
-                    <tr>
-                        <th>Select</th>
-                        <th>File Name</th>
-                        <th>Channel Point Reward</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($walkon_files as $file): ?>
-                    <tr>
-                        <td>
-                            <input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                        </td>
-                        <td>
-                            <?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>
-                        </td>
-                        <td>
-                            <?php
-                            // Determine the current mapped reward (if any)
-                            $current_reward_id = isset($soundAlertMappings[$file]) ? $soundAlertMappings[$file] : null;
-                            $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
-                            ?>
-                            <?php if ($current_reward_id): ?>
-                                <em><?php echo $current_reward_title; ?></em>
-                            <?php else: ?>
-                                <em>Not Mapped</em>
-                            <?php endif; ?>
-                            <br>
-                            <form action="" method="POST" class="mapping-form">
-                                <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
-                                    <option value="">-- Select Reward --</option>
-                                    <?php 
-                                    foreach ($channelPointRewards as $reward): 
-                                        $isMapped = in_array($reward['reward_id'], $soundAlertMappings);
-                                        $isCurrent = ($current_reward_id === $reward['reward_id']);
-                                        // Skip rewards that are already mapped to other sounds, unless it's the current mapping
-                                        if ($isMapped && !$isCurrent) continue; 
-                                    ?>
-                                        <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
-                                            <?php 
-                                            if ($isCurrent) {
-                                                echo 'selected';
-                                            }
-                                            ?>
-                                        >
-                                            <?php echo htmlspecialchars($reward['reward_title']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </form>
-                        </td>
-                        <td>
-                            <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
-        </form>
-    </div>
-    <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
