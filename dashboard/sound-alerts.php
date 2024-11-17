@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Fetch sound alert mappings for the current user
 $getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
@@ -170,7 +169,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <h1 class="title is-4">Upload Sound Alerts</h1>
     <div class="notification is-danger">
