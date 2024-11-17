@@ -25,7 +25,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 $dbHyperateCode = $profile['heartrate_code'];
 
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
@@ -86,7 +85,6 @@ function get_timezones() {
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <div class="columns">
     <div class="column is-one-third">
