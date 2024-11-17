@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Fetch all custom commands from the database
 $commands = [];
@@ -35,17 +34,14 @@ try {
 // Check if the form was submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
     $commandToRemove = $_POST['remove_command'];
-
     // Prepare a delete statement
     $deleteStmt = $db->prepare("DELETE FROM custom_commands WHERE command = ?");
     $deleteStmt->bindParam(1, $commandToRemove, PDO::PARAM_STR);
-
     // Execute the delete statement
     try {
         $deleteStmt->execute();
         // Success message 
         $status = "Command removed successfully";
-
         // Reload the page after 1 seconds
         header("Refresh: 1; url={$_SERVER['PHP_SELF']}");
         exit();
@@ -68,7 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_command'])) {
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <?php if (!empty($commands)): ?>
     <p class="has-text-white">Select the command you want to remove:</p>
