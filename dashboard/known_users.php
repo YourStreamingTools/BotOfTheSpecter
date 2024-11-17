@@ -21,7 +21,6 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Fetch the total number of users in the seen_users table
 $totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users");
@@ -91,7 +90,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!-- /Navigation -->
 
 <div class="container">
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
   <br>
   <div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'is-warning' : 'is-info'; ?>">
     <p id="loadingNotice">
