@@ -6359,7 +6359,7 @@ async def fetch_active_users():
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data.get("data", {}).get("chatters", [])
+                    return data.get("data", [])
                 else:
                     bot_logger.error(f"Failed to fetch active users: {response.status} {await response.text()}")
                     return []
@@ -6375,7 +6375,7 @@ async def track_watch_time(active_users):
         async with sqldb.cursor() as cursor:
             current_time = int(time.time())
             for user in active_users:
-                username_lower = user['user_login'].lower()
+                user_login = user['user_login']
                 user_id = user['user_id']
                 # Fetch existing watch time data for the user, including the excluded_users flag
                 await cursor.execute("""
@@ -6407,7 +6407,7 @@ async def track_watch_time(active_users):
                     await cursor.execute("""
                         INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active, excluded_users)
                         VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (user_id, username_lower, 60 if stream_online else 0, 60 if not stream_online else 0, current_time, 0))
+                    """, (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time, 0))
             await sqldb.commit()
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}")
