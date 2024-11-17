@@ -319,7 +319,6 @@ try {
                 total_watch_time_live INT DEFAULT 0,
                 total_watch_time_offline INT DEFAULT 0,
                 last_active INT,
-                excluded_users BOOLEAN DEFAULT FALSE,
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
