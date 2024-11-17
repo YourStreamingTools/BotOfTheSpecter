@@ -23,7 +23,6 @@ foreach ($profileData as $profile) {
     $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Fetch the current blacklist settings
 $sql = "SELECT blacklist FROM joke_settings WHERE id = 1";
@@ -64,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <!-- /Navigation -->
 
 <div class="container">
-    <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
     <br>
     <?php if ($update_success): ?>
         <div class="notification is-success">Blacklist settings updated successfully.</div>
