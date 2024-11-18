@@ -60,6 +60,10 @@ try {
   usort($lurkers, function ($a, $b) {
     return $b['total_duration'] - $a['total_duration'];
   });
+
+  // Fetch watch time from the database
+  $getWatchTime = $db->query("SELECT user_id, username, total_watch_time_live, total_watch_time_offline FROM watch_time");
+  $watchTimeData = $getWatchTime->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
 }
@@ -119,6 +123,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
   <br>
   <div class="buttons">
     <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
+    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
     <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
     <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
     <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
@@ -196,6 +201,12 @@ if (isset($userData['data']) && is_array($userData['data'])) {
         infoColumn = 'Command';
         countColumnVisible = true;
         break;
+      case 'watchTime':
+        data = <?php echo json_encode($watchTimeData); ?>;
+        title = 'Watch Time for Users';
+        dataColumn = 'Watch Time';
+        infoColumn = 'Username';
+        break;
     }
     document.getElementById('data-column-info').innerText = dataColumn;
     document.getElementById('info-column-data').innerText = infoColumn;
@@ -211,22 +222,24 @@ if (isset($userData['data']) && is_array($userData['data'])) {
       if (type === 'lurkers') {
         output += `<td>${item.username}</td><td>${item.lurk_duration}</td>`;
       } else if (type === 'typos') {
-        output += `<td>${item.username}</td><td>${item.count}</td>`;
+        output += `<td>${item.username}</td><td>${item.typos}</td>`;
       } else if (type === 'deaths') {
-        output += `<td>${item.game}</td><td>${item.count}</td>`;
+        output += `<td>${item.game}</td><td>${item.deaths}</td>`;
       } else if (type === 'hugs') {
-        output += `<td>${item.username}</td><td>${item.count}</td>`;
+        output += `<td>${item.username}</td><td>${item.hugs}</td>`;
       } else if (type === 'kisses') {
-        output += `<td>${item.username}</td><td>${item.count}</td>`;
+        output += `<td>${item.username}</td><td>${item.kisses}</td>`;
       } else if (type === 'custom') {
-        output += `<td>${item.command}</td><td>${item.count}</td>`;
+        output += `<td>${item.command}</td><td>${item.used}</td>`;
       } else if (type === 'userCounts') {
-        output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`;
+        output += `<td>${item.command}</td><td>${item.count}</td>`;
+      } else if (type === 'watchTime') {
+        output += `<td>${item.username}</td><td>${item.total_watch_time_live + item.total_watch_time_offline}</td>`;
       }
       output += `</tr>`;
     });
-    document.getElementById('table-title').innerText = title;
     document.getElementById('table-body').innerHTML = output;
+    document.getElementById('table-title').innerText = title;
   }
 </script>
 </body>
