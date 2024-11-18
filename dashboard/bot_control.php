@@ -242,14 +242,14 @@ function checkBotsRunning($statusScriptPath, $username, $logPath) {
 }
 
 function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
-    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key >> $logPath 2>&1 &";
+    $command = "nohup python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key >> $logPath 2>&1 &";
     $output = shell_exec($command);
     sleep(1);
     return !(empty($output) || strpos($output, 'error') !== false);
 }
 
 function startDiscordBot($discordBotScriptPath, $username, $discordLogPath) {
-    $command = "python $discordBotScriptPath -channel $username >> $discordLogPath 2>&1 &";
+    $command = "nohup python $discordBotScriptPath -channel $username >> $discordLogPath 2>&1 &";
     $output = shell_exec($command);
     sleep(1);
     return !(empty($output) || strpos($output, 'error') !== false);
@@ -257,7 +257,7 @@ function startDiscordBot($discordBotScriptPath, $username, $discordLogPath) {
 
 function killBot($pid) {
     $output = shell_exec("kill $pid > /dev/null 2>&1 &");
-    sleep(3);
+    sleep(1);
     return (empty($output) || strpos($output, 'error') === false);
 }
 
