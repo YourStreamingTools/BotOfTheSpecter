@@ -6431,6 +6431,14 @@ async def track_watch_time(active_users):
             for user in active_users:
                 user_login = user['user_login']
                 user_id = user['user_id']
+                # Fetch the excluded_users list from the watch_time_excluded_users table
+                await cursor.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
+                excluded_users_data = await cursor.fetchone()
+                excluded_users = excluded_users_data[0] if excluded_users_data else ''
+                excluded_users_list = excluded_users.split(',') if excluded_users else []
+                # Skip the user if they are marked as excluded
+                if user_login in excluded_users_list:
+                    continue  # Skip to the next user if excluded
                 # Fetch existing watch time data for the user from the watch_time table
                 await cursor.execute("SELECT total_watch_time_live, total_watch_time_offline, last_active FROM watch_time WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
@@ -6438,13 +6446,6 @@ async def track_watch_time(active_users):
                     total_watch_time_live = user_data[0]
                     total_watch_time_offline = user_data[1]
                     # Fetch the excluded_users list from the watch_time_excluded_users table
-                    await cursor.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
-                    excluded_users_data = await cursor.fetchone()
-                    excluded_users = excluded_users_data[0] if excluded_users_data else ''
-                    excluded_users_list = excluded_users.split(',') if excluded_users else []
-                    # Skip the user if they are marked as excluded
-                    if user_login in excluded_users_list:
-                        return
                     # Increment the appropriate watch time counter
                     if stream_online:
                         total_watch_time_live += 60
