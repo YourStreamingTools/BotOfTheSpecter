@@ -10,6 +10,7 @@ $commands = [];
 $builtinCommands = [];
 $typos = [];
 $lurkers = [];
+$watchTimeData = [];
 $totalDeaths = [];
 $gameDeaths = [];
 $totalHugs = 0;
