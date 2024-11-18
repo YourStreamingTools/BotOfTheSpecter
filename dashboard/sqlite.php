@@ -36,6 +36,14 @@ try {
     $getBuiltinCommands = $db->query("SELECT * FROM builtin_commands");
     $builtinCommands = $getBuiltinCommands->fetchAll(PDO::FETCH_ASSOC);
 
+    // Fetch lurkers
+    $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
+    $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch watch time from the database
+    $getWatchTime = $db->query("SELECT user_id, username, total_watch_time_live, total_watch_time_offline FROM watch_time");
+    $watchTimeData = $getWatchTime->fetchAll(PDO::FETCH_ASSOC);
+
     // Fetch typo counts
     $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
     $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
