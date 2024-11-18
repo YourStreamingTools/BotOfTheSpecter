@@ -143,88 +143,88 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 </div>
 
 <script>
-  function loadData(type) {
-    let data;
-    let title;
-    let dataColumn;
-    let infoColumn;
-    let countColumnVisible = false;
-    switch(type) {
-      case 'lurkers':
-        data = <?php echo json_encode($lurkers); ?>;
-        title = 'Currently Lurking Users';
-        dataColumn = 'Time';
-        infoColumn = 'Username';
-        break;
-      case 'typos':
-        data = <?php echo json_encode($typos); ?>;
-        title = 'Typo Counts';
-        dataColumn = 'Typo Count';
-        infoColumn = 'Username';
-        break;
-      case 'deaths':
-        data = <?php echo json_encode($gameDeaths); ?>;
-        title = 'Deaths Overview';
-        dataColumn = 'Death Count';
-        infoColumn = 'Game';
-        break;
-      case 'hugs':
-        data = <?php echo json_encode($hugCounts); ?>;
-        title = 'Hug Counts';
-        dataColumn = 'Hug Count';
-        infoColumn = 'Username';
-        break;
-      case 'kisses':
-        data = <?php echo json_encode($kissCounts); ?>;
-        title = 'Kiss Counts';
-        dataColumn = 'Kiss Count';
-        infoColumn = 'Username';
-        break;
-      case 'custom':
-        data = <?php echo json_encode($customCounts); ?>;
-        title = 'Custom Counts';
-        dataColumn = 'Used';
-        infoColumn = 'Command';
-        break;
-      case 'userCounts':
-        data = <?php echo json_encode($userCounts); ?>;
-        title = 'User Counts for Commands';
-        dataColumn = 'Count';
-        infoColumn = 'Command';
-        countColumnVisible = true;
-        break;
-    }
-    document.getElementById('data-column-info').innerText = dataColumn;
-    document.getElementById('info-column-data').innerText = infoColumn;
-    if (countColumnVisible) {
-      document.getElementById('count-column').style.display = '';
-    } else {
-      document.getElementById('count-column').style.display = 'none';
-    }
-    // Populate the table with the data
-    let output = '';
-    data.forEach(item => {
-      output += `<tr>`;
-      if (type === 'lurkers') {
-        output += `<td>${item.username}</td><td>${item.lurk_duration}</td>`;
-      } else if (type === 'typos') {
-        output += `<td>${item.username}</td><td>${item.count}</td>`;
-      } else if (type === 'deaths') {
-        output += `<td>${item.game}</td><td>${item.count}</td>`;
-      } else if (type === 'hugs') {
-        output += `<td>${item.username}</td><td>${item.count}</td>`;
-      } else if (type === 'kisses') {
-        output += `<td>${item.username}</td><td>${item.count}</td>`;
-      } else if (type === 'custom') {
-        output += `<td>${item.command}</td><td>${item.count}</td>`;
-      } else if (type === 'userCounts') {
-        output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`;
-      }
-      output += `</tr>`;
-    });
-    document.getElementById('table-title').innerText = title;
-    document.getElementById('table-body').innerHTML = output;
+function loadData(type) {
+  let data;
+  let title;
+  let dataColumn;
+  let infoColumn;
+  let countColumnVisible = false;
+  switch(type) {
+    case 'lurkers':
+      data = <?php echo json_encode($lurkers); ?>;
+      title = 'Currently Lurking Users';
+      dataColumn = 'Time';
+      infoColumn = 'Username'; 
+      break;
+    case 'typos':
+      data = <?php echo json_encode($typos); ?>;
+      title = 'Typo Counts';
+      dataColumn = 'Typo Count';
+      infoColumn = 'Username';
+      break;
+    case 'deaths':
+      data = <?php echo json_encode($gameDeaths); ?>;
+      title = 'Deaths Overview';
+      dataColumn = 'Death Count';
+      infoColumn = 'Game'; 
+      break;
+    case 'hugs':
+      data = <?php echo json_encode($hugCounts); ?>;
+      title = 'Hug Counts';
+      dataColumn = 'Hug Count';
+      infoColumn = 'Username'; 
+      break;
+    case 'kisses':
+      data = <?php echo json_encode($kissCounts); ?>;
+      title = 'Kiss Counts';
+      dataColumn = 'Kiss Count';
+      infoColumn = 'Username'; 
+      break;
+    case 'custom':
+      data = <?php echo json_encode($customCounts); ?>;
+      title = 'Custom Counts';
+      dataColumn = 'Used';
+      infoColumn = 'Command'; 
+      break;
+    case 'userCounts':
+      data = <?php echo json_encode($userCounts); ?>;
+      title = 'User Counts for Commands';
+      dataColumn = 'Count';
+      infoColumn = 'Command'; 
+      countColumnVisible = true;
+      break;
   }
+  document.getElementById('data-column-info').innerText = dataColumn;
+  document.getElementById('info-column-data').innerText = infoColumn;
+  if (countColumnVisible) {
+    document.getElementById('count-column').style.display = '';
+  } else {
+    document.getElementById('count-column').style.display = 'none';
+  }
+  // Populate the table with the data
+  let output = '';
+  data.forEach(item => {
+    output += `<tr>`;
+    if (type === 'lurkers') {
+      output += `<td>${item.username}</td><td>${item.lurk_duration}</td>`; 
+    } else if (type === 'typos') {
+      output += `<td>${item.username}</td><td>${item.typo_count}</td>`; 
+    } else if (type === 'deaths') {
+      output += `<td>${item.game_name}</td><td>${item.death_count}</td>`; 
+    } else if (type === 'hugs') {
+      output += `<td>${item.username}</td><td>${item.hug_count}</td>`; 
+    } else if (type === 'kisses') {
+      output += `<td>${item.username}</td><td>${item.kiss_count}</td>`; 
+    } else if (type === 'custom') {
+      output += `<td>${item.command}</td><td>${item.count}</td>`; 
+    } else if (type === 'userCounts') {
+      output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`; 
+    }
+    output += `</tr>`;
+  });
+  document.getElementById('table-title').innerText = title;
+  document.getElementById('table-body').innerHTML = output;
+}
 </script>
 </body>
 </html>
