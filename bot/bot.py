@@ -6453,8 +6453,8 @@ async def track_watch_time(active_users):
                     # Update watch time in the database
                     await cursor.execute("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", (total_watch_time_live, total_watch_time_offline, current_time, user_id))
                 else:
-                    # Insert new user data if not found, marking excluded_users as 0 by default
-                    await cursor.execute("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s, %s)", (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time, ''))
+                    # Insert new user data if not found
+                    await cursor.execute("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s)", (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time))
             await sqldb.commit()
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}")
