@@ -123,7 +123,7 @@ if (isset($_POST['restartDiscordBot'])) {
 
 // Function to handle bot actions
 function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
-    $statusOutput = shell_exec("sudo -u scriptuser python $statusScriptPath -channel $username");
+    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     $message = '';
     switch ($action) {
@@ -132,7 +132,7 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                 $message = "<div class='status-message'>Bot is already running. PID $pid.</div>";
             } else {
                 startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
-                $statusOutput = shell_exec("sudo -u scriptuser python $statusScriptPath -channel $username");
+                $statusOutput = shell_exec("python $statusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
@@ -153,7 +153,7 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
             if ($pid > 0) {
                 killBot($pid);
                 startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
-                $statusOutput = shell_exec("sudo -u scriptuser python $statusScriptPath -channel $username");
+                $statusOutput = shell_exec("python $statusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Bot restarted. PID $pid.</div>";
@@ -170,7 +170,7 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
 
 // Function to handle Discord Bot Actions
 function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath) {
-    $statusOutput = shell_exec("sudo -u scriptuser python $discordStatusScriptPath -channel $username");
+    $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     $message = '';
     switch ($action) {
@@ -179,7 +179,7 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 $message = "<div class='status-message'>Discord bot is already running. PID $pid.</div>";
             } else {
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
-                $statusOutput = shell_exec("sudo -u scriptuser python $discordStatusScriptPath -channel $username");
+                $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Discord bot started successfully. PID $pid.</div>";
@@ -200,7 +200,7 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
             if ($pid > 0) {
                 killBot($pid);
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
-                $statusOutput = shell_exec("sudo -u scriptuser python $discordStatusScriptPath -channel $username");
+                $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Discord bot restarted. PID $pid.</div>";
@@ -221,12 +221,12 @@ function isBotRunning($statusScriptPath, $username, $logPath) {
 }
 
 function getBotPID($statusScriptPath, $username, $logPath) {
-    $statusOutput = shell_exec("sudo -u scriptuser python $statusScriptPath -channel $username");
+    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
     return intval(preg_replace('/\D/', '', $statusOutput));
 }
 
 function getBotsStatus($statusScriptPath, $username, $logPath) {
-    $statusOutput = shell_exec("sudo -u scriptuser python $statusScriptPath -channel $username");
+    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     if ($pid > 0) {
         return "<div class='status-message'>Status: PID $pid.</div>";
@@ -236,20 +236,20 @@ function getBotsStatus($statusScriptPath, $username, $logPath) {
 }
 
 function checkBotsRunning($statusScriptPath, $username, $logPath) {
-    $statusOutput = shell_exec("sudo -u scriptuser python $statusScriptPath -channel $username");
+    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     return ($pid > 0);
 }
 
 function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
-    $command = "sudo -u scriptuser python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key >> $logPath 2>&1 &";
+    $command = "nohup python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key >> $logPath 2>&1 &";
     $output = shell_exec($command);
     sleep(1);
     return !(empty($output) || strpos($output, 'error') !== false);
 }
 
 function startDiscordBot($discordBotScriptPath, $username, $discordLogPath) {
-    $command = "sudo -u scriptuser python $discordBotScriptPath -channel $username >> $discordLogPath 2>&1 &";
+    $command = "nohup python $discordBotScriptPath -channel $username >> $discordLogPath 2>&1 &";
     $output = shell_exec($command);
     sleep(1);
     return !(empty($output) || strpos($output, 'error') !== false);
