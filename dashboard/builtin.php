@@ -1,4 +1,7 @@
-<?php 
+<?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Initialize the session
 session_start();
 
@@ -22,36 +25,40 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 
-// Query to fetch commands from the database
-$fetchCommandsSql = "SELECT * FROM commands";
-$result = $conn->query($fetchCommandsSql);
-$commands = array();
+$permissionsMap = [
+    "Everyone" => "everyone",
+    "Mods" => "mod",
+    "VIPs" => "vip",
+    "All Subscribers" => "all-subs",
+    "Tier 1 Subscriber" => "t1-sub",
+    "Tier 2 Subscriber" => "t2-sub",
+    "Tier 3 Subscriber" => "t3-sub"
+];
 
-if ($result === false) {
-    // Handle query execution error
-    die("Error executing query: " . $conn->error);
-}
-
-if ($result->num_rows > 0) {
-    while ($row = $result->fetch_assoc()) {
-        $commands[] = $row;
+// Update command status or permission
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Process permission update
+    if (isset($_POST['command_name']) && isset($_POST['usage_level'])) {
+        $command_name = $_POST['command_name'];
+        $usage_level = $_POST['usage_level'];
+        $dbPermission = $permissionsMap[$usage_level];
+        // Update permission in the database
+        $updateQuery = $db->prepare("UPDATE builtin_commands SET permission = ? WHERE command = ?");
+        $updateQuery->bind_param("ss", $dbPermission, $command_name);
+        $updateQuery->execute();
+        header("Location: beta_builtin.php");
     }
-} else {
-    // Handle no results found
-    echo "No commands found in the database.";
-}
-
-// Check if the update request is sent via POST
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && isset($_POST['status'])) {
-    // Process the update here
-    $dbcommand = $_POST['command_name'];
-    $dbstatus = $_POST['status'];
-
-    // Update the status in the database
-    $updateQuery = $db->prepare("UPDATE builtin_commands SET status = :status WHERE command = :command_name");
-    $updateQuery->bindParam(':status', $dbstatus);
-    $updateQuery->bindParam(':command_name', $dbcommand);
-    $updateQuery->execute();
+    // Process status update
+    if (isset($_POST['command_name']) && isset($_POST['status'])) {
+        $dbcommand = $_POST['command_name'];
+        $dbstatus = $_POST['status'];
+        // Update the status in the database
+        $updateQuery = $db->prepare("UPDATE builtin_commands SET status = :status WHERE command = :command_name");
+        $updateQuery->bindParam(':status', $dbstatus);
+        $updateQuery->bindParam(':command_name', $dbcommand);
+        $updateQuery->execute();
+        header("Location: beta_builtin.php");
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -69,7 +76,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
 <div class="container">
     <br>
     <h4 class="title is-4">Bot Commands</h4>
-    <div class="notification is-info">Beta Users can change the permission level for the command, making commands any usage level.<br><a href="beta_builtin.php" class="button is-primary mt-4">Go to Beta Built-in Commands</a></div>
+    <!-- Toggle Filters -->
+    <div class="field">
+        <div class="control">
+            <label class="checkbox">
+                <input type="checkbox" id="showEnabled" checked> Show Enabled Commands
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" id="showDisabled" checked> Show Disabled Commands
+            </label>
+        </div>
+    </div>
     <div class="field">
         <div class="control">
             <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search for commands...">
@@ -79,24 +96,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
         <thead>
             <tr>
                 <th>Command</th>
-                <th>Functionality</th>
                 <th>Usage Level</th>
                 <th>Status</th>
                 <th>Action</th>
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($commands as $command): ?>
-            <tr>
-                <td>!<?php echo htmlspecialchars($command['command_name']); ?></td>
-                <td><?php echo htmlspecialchars($command['usage_text']); ?></td>
-                <td><?php echo htmlspecialchars($command['level']); ?></td>
-                <td><?php $statusQuery = $db->prepare("SELECT status FROM builtin_commands WHERE command = ?"); $statusQuery->execute([$command['command_name']]); $statusResult = $statusQuery->fetch(PDO::FETCH_ASSOC);if ($statusResult && isset($statusResult['status'])) { echo htmlspecialchars($statusResult['status']); } else { echo 'Unknown'; } ?></td>
+            <?php foreach ($builtinCommands as $command): ?>
+            <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
+                <td>!<?php echo htmlspecialchars($command['command']); ?></td>
                 <td>
-                <label class="switch">
-                    <input type="checkbox" class="toggle-checkbox" <?php echo ($statusResult['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command_name']); ?>', this.checked)">
-                    <i class="fa-solid <?php echo $statusResult['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                </label>
+                    <form method="post">
+                        <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
+                        <div class="select is-fullwidth">
+                            <select name="usage_level" onchange="this.form.submit()">
+                                <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
+                                    <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
+                                        <?php echo $displayValue; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </form>
+                </td>
+                <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
+                    <?php echo htmlspecialchars($command['status']); ?>
+                </td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
+                        <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                    </label>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -105,24 +135,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['command_name']) && iss
 </div>
 
 <script>
-function toggleStatus(commandName, isChecked) {
-    var status = isChecked ? 'Enabled' : 'Disabled';
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '', true);
-    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-                // Reload the page after the AJAX request is completed
-                location.reload();
+    // Toggle visibility of commands based on status
+    document.getElementById('showEnabled').addEventListener('change', toggleFilter);
+    document.getElementById('showDisabled').addEventListener('change', toggleFilter);
+    function toggleFilter() {
+        const showEnabled = document.getElementById('showEnabled').checked;
+        const showDisabled = document.getElementById('showDisabled').checked;
+        const rows = document.querySelectorAll('.commandRow');
+        rows.forEach(row => {
+            const status = row.getAttribute('data-status');
+            if ((showEnabled && status === 'Enabled') || (showDisabled && status === 'Disabled')) {
+                row.style.display = '';  // Show the row
             } else {
-                // Error handling
-                console.error('Error updating status:', xhr.responseText);
+                row.style.display = 'none';  // Hide the row
             }
-        }
-    };
-    xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
-}
+        });
+    }
+    // Initial call to set the correct visibility
+    toggleFilter();
+    function toggleStatus(commandName, isChecked) {
+        var status = isChecked ? 'Enabled' : 'Disabled';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    location.reload();
+                } else {
+                    console.error('Error updating status:', xhr.responseText);
+                }
+            }
+        };
+        xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
+    }
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/search.js"></script>
