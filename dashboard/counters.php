@@ -30,10 +30,10 @@ try {
     $interval = $currentTime->diff($startTime);
     // Calculate total duration in seconds for sorting
     $totalDuration = ($interval->y * 365 * 24 * 3600) + 
-                     ($interval->m * 30 * 24 * 3600) + 
-                     ($interval->d * 24 * 3600) + 
-                     ($interval->h * 3600) + 
-                     ($interval->i * 60);
+                    ($interval->m * 30 * 24 * 3600) + 
+                    ($interval->d * 24 * 3600) + 
+                    ($interval->h * 3600) + 
+                    ($interval->i * 60);
     $lurkers[$key]['total_duration'] = $totalDuration; // Store for sorting
     $timeStringParts = [];
     if ($interval->y > 0) {
@@ -86,7 +86,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
   // Map user IDs to usernames
   $usernames = [];
   foreach ($userData['data'] as $user) {
-      $usernames[$user['id']] = $user['display_name'];
+    $usernames[$user['id']] = $user['display_name'];
   }
   // Map the Twitch usernames to the lurkers based on their user_id
   foreach ($lurkers as $key => $lurker) {
@@ -122,6 +122,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
     <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
     <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
+    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button> 
   </div>
   <div class="content">
     <div class="box">
@@ -149,6 +150,7 @@ function loadData(type) {
   let dataColumn;
   let infoColumn;
   let countColumnVisible = false;
+  let output = '';
   switch(type) {
     case 'lurkers':
       data = <?php echo json_encode($lurkers); ?>;
@@ -193,6 +195,12 @@ function loadData(type) {
       infoColumn = 'Command'; 
       countColumnVisible = true;
       break;
+    case 'watchTime': 
+      data = <?php echo json_encode($watchTimeData); ?>;
+      title = 'Watch Time';
+      dataColumn = 'Total Watch Time';
+      infoColumn = 'Username';
+      break;
   }
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
@@ -201,8 +209,6 @@ function loadData(type) {
   } else {
     document.getElementById('count-column').style.display = 'none';
   }
-  // Populate the table with the data
-  let output = '';
   data.forEach(item => {
     output += `<tr>`;
     if (type === 'lurkers') {
@@ -219,6 +225,8 @@ function loadData(type) {
       output += `<td>${item.command}</td><td>${item.count}</td>`; 
     } else if (type === 'userCounts') {
       output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`; 
+    } else if (type === 'watchTime') { 
+      output += `<td>${item.username}</td><td>${item.watch_time}</td>`; 
     }
     output += `</tr>`;
   });
