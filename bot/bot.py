@@ -13,7 +13,6 @@ import random
 import base64
 import uuid
 from urllib.parse import urlencode
-from enum import Enum
 import ast
 
 # Third-party imports
@@ -21,7 +20,6 @@ import aiohttp
 from aiohttp import ClientSession
 import socketio
 import aiomysql
-from mysql.connector import errorcode
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands
 import streamlink
@@ -51,7 +49,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.0"
+VERSION = "5.1"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -62,15 +60,18 @@ CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
-EXCHANGE_RATE_API = os.getenv('EXCHANGE_RATE_API')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths"}
+SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
+SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
+EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
+HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths", "heartrate"}
 mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
-builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub"}
+builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
 # Logs
 webroot = "/var/www/"
 logs_directory = os.path.join(webroot, "logs")
-log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log"]
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
 
 # Ensure directories exist
 for log_type in log_types:
@@ -101,40 +102,62 @@ twitch_logger = loggers['twitch']
 api_logger = loggers['api']
 chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
+websocket_logger = loggers['websocket']
 
-# Initialize instances for the translator, shoutout queue, webshockets and permitted users for protection
-translator = GoogleTranslator
-scheduled_tasks = asyncio.Queue()
-sio = socketio.AsyncClient()
-ureg = UnitRegistry()
-permitted_users = {}
-bot_logger.info("Bot script started.")
-connected = set()
-scheduled_tasks = []
-last_poll_progress_update = 0
+# Log the setup for the loggers
+bot_logger.info("Bot Logger started.")
+chat_logger.info("Chat Logger started.")
+twitch_logger.info("Twitch Logger started.")
+api_logger.info("API Logger started.")
+chat_history_logger.info("Chat History Logger started.")
+event_logger.info("Event Logger started.")
+websocket_logger.info("Websocket Logger started.")
+
+# Setup Globals
 global stream_online
 global current_game
 global stream_title
 global bot_started
+global SPOTIFY_REFRESH_TOKEN
+global SPOTIFY_ACCESS_TOKEN
+global next_spotify_refresh_time
+global HEARTRATE
+
+# Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
+translator = GoogleTranslator()
+scheduled_tasks = asyncio.Queue()
+specterSocket = socketio.AsyncClient()
+hyperateSocket = socketio.AsyncClient()
+ureg = UnitRegistry()
+permitted_users = {}
+connected = set()
+pending_removals = {}
+last_poll_progress_update = 0
+
+# Initialize global variables
 bot_started = datetime.now()
 stream_online = False
 current_game = None
+SPOTIFY_REFRESH_TOKEN = None
+SPOTIFY_ACCESS_TOKEN = None
+next_spotify_refresh_time = None
+HEARTRATE = None
 
 # Setup Token Refresh
-async def token_refresh():
+async def twitch_token_refresh():
     global REFRESH_TOKEN
     # Initial sleep for 5 minutes before first token refresh
     initial_sleep_time = 300  # 5 minutes
     await asyncio.sleep(initial_sleep_time)
     # Perform the first token refresh after the initial sleep
-    REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
+    REFRESH_TOKEN, next_refresh_time = await twitch_refresh_token(REFRESH_TOKEN)
     # Calculate the next refresh time to be 4 hours minus 5 minutes from now
     next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes for refresh
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
         if current_time >= next_refresh_time:
-            REFRESH_TOKEN, next_refresh_time = await refresh_token(REFRESH_TOKEN)
+            REFRESH_TOKEN, next_refresh_time = await twitch_refresh_token(REFRESH_TOKEN)
         else:
             if time_until_expiration > 3600:  # More than 1 hour until expiration
                 sleep_time = 3600  # Check again in 1 hour
@@ -142,11 +165,9 @@ async def token_refresh():
                 sleep_time = 300  # Check again in 5 minutes
             else:
                 sleep_time = 60  # Check every minute when close to expiration
-            # Log only when the check frequency changes or is about to refresh
-            twitch_logger.info(f"Next token check in {sleep_time // 60} minutes. Token is still valid for {time_until_expiration // 60} minutes and {time_until_expiration % 60} seconds.")
-            await asyncio.sleep(sleep_time)  # Wait before checking again, based on the time until expiration
+            await asyncio.sleep(sleep_time)
 
-async def refresh_token(current_refresh_token):
+async def twitch_refresh_token(current_refresh_token):
     global CHANNEL_AUTH, REFRESH_TOKEN
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
@@ -169,7 +190,7 @@ async def refresh_token(current_refresh_token):
                         REFRESH_TOKEN = new_refresh_token
                         # Calculate the next refresh time to be 5 minutes before the 4-hour mark
                         next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes, so we refresh before actual expiration
-                        log_message = "Refreshed token. New Access Token: {}, New Refresh Token: {}".format(new_access_token, new_refresh_token)
+                        log_message = "Refreshed token. New Access Token: {}".format(new_access_token)
                         twitch_logger.info(log_message)
                         return new_refresh_token, next_refresh_time
                     else:
@@ -180,6 +201,79 @@ async def refresh_token(current_refresh_token):
         # Log the error if token refresh fails
         twitch_logger.error(f"Token refresh failed: {e}")
         return current_refresh_token, next_refresh_time
+
+# Setup Spotify Access
+async def spotify_token_refresh():
+    global SPOTIFY_REFRESH_TOKEN, SPOTIFY_ACCESS_TOKEN, next_spotify_refresh_time
+    try:
+        # Connect to the database to retrieve the user's Spotify tokens
+        sqldb = await get_spotify_settings()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            # Fetch the user ID for the specified CHANNEL_NAME
+            await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
+            user_row = await cursor.fetchone()
+            user_id = user_row["id"]
+            # Fetch the Spotify tokens associated with the user_id
+            await cursor.execute("SELECT access_token, refresh_token FROM spotify_tokens WHERE user_id = %s", (user_id,))
+            tokens_row = await cursor.fetchone()
+            if not tokens_row:
+                bot_logger.info(f"No Spotify tokens found for user {CHANNEL_NAME}.")
+                await sqldb.ensure_closed()
+                return
+            SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
+            SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
+        await sqldb.ensure_closed()
+        await asyncio.sleep(300)  # 5 minutes initial sleep
+        SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
+        # Set next refresh time to 55 minutes from now (1 hour - 5 minutes buffer)
+        next_spotify_refresh_time = time.time() + 60 * 60 - 300
+        while True:
+            current_time = time.time()
+            if current_time >= next_spotify_refresh_time:
+                SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
+            else:
+                time_until_expiration = next_spotify_refresh_time - current_time
+                sleep_time = min(60, max(300, time_until_expiration)) # Adjust sleep time dynamically
+                await asyncio.sleep(sleep_time)
+    except Exception as e:
+        bot_logger.error(f"An error occurred in spotify_token_refresh: {e}")
+
+# Function to refresh Spotify token
+async def refresh_spotify_token(current_refresh_token, user_id):
+    global SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
+    url = "https://accounts.spotify.com/api/token"
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": current_refresh_token,
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET,
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=data) as response:
+                if response.status == 200:
+                    tokens = await response.json()
+                    new_access_token = tokens.get("access_token")
+                    new_refresh_token = tokens.get("refresh_token", current_refresh_token) # Use existing if not provided
+                    expires_in = tokens.get("expires_in", 3600) # Default to 1 hour if not provided
+                    next_refresh_time = time.time() + expires_in - 300 # Refresh 5 minutes before expiration
+                    SPOTIFY_ACCESS_TOKEN = new_access_token
+                    SPOTIFY_REFRESH_TOKEN = new_refresh_token
+                    # Save the new tokens in the database
+                    sqldb = await get_spotify_settings()
+                    async with sqldb.cursor() as cursor:
+                        await cursor.execute(
+                            "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s WHERE user_id = %s",
+                            (new_access_token, new_refresh_token, user_id)
+                        )
+                        await sqldb.commit()
+                    await sqldb.ensure_closed()
+                    return new_access_token, new_refresh_token, next_refresh_time
+                else:
+                    error_response = await response.json()
+                    bot_logger.error(f"Spotify token refresh failed: HTTP {response.status} - {error_response}")
+    except Exception as e:
+        bot_logger.error(f"Spotify token refresh error: {e}")
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -233,8 +327,7 @@ async def subscribe_to_events(session_id):
         "channel.poll.progress",
         "channel.poll.end",
         "automod.message.hold",
-        "channel.suspicious_user.message",
-        "channel.chat.user_message_hold"
+        "channel.suspicious_user.message"
     ]
     v2topics = [
         "channel.follow",
@@ -309,7 +402,6 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    event_logger.info(f"WebSocket subscription successful for {v1topic}")
                     responses.append(await response.json())
     async with aiohttp.ClientSession() as session:
         for v2topic in v2topics:
@@ -341,7 +433,6 @@ async def subscribe_to_events(session_id):
             # asynchronous POST request
             async with session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
-                    event_logger.info(f"WebSocket subscription successful for {v2topic}")
                     responses.append(await response.json())
 
 async def receive_messages(twitch_websocket, keepalive_timeout):
@@ -791,70 +882,130 @@ async def process_eventsub_message(message):
     finally:
         await sqldb.ensure_closed()
 
-@sio.event
+# Connect and manage reconnection for Internal Socket Server
+async def specter_websocket():
+    specter_websocket_uri = "wss://websocket.botofthespecter.com"
+    while True:
+        try:
+            # Attempt to connect to the WebSocket server
+            bot_logger.info(f"Attempting to connect to Internal WebSocket Server")
+            await specterSocket.connect(specter_websocket_uri)
+            await specterSocket.wait()  # Keep the connection open to receive messages
+        except socketio.exceptions.ConnectionError as e:
+            bot_logger.error(f"Internal WebSocket Connection Failed: {e}")
+            await asyncio.sleep(10)  # Wait and retry connection
+        except Exception as e:
+            bot_logger.error(f"An unexpected error occurred with Internal WebSocket: {e}")
+            await asyncio.sleep(10)
+
+@specterSocket.event
 async def connect():
-    bot_logger.info("Connected to the WebSocket server.")
+    bot_logger.info("Connected to the Internal WebSocket server.")
     # Prepare the registration data
     registration_data = {
         'code': API_TOKEN,
         'name': f'Twitch Bot V{VERSION}'
     }
     # Emit the 'REGISTER' event
-    await sio.emit('REGISTER', registration_data)
+    await specterSocket.emit('REGISTER', registration_data)
 
-@sio.event
+@specterSocket.event
 async def connect_error(data):
-    bot_logger.error(f"Failed to connect to the SpecterWebsocket Server: {data}")
+    websocket_logger.error(f"Failed to connect to the SpecterWebsocket Server: {data}")
 
-@sio.event
+@specterSocket.event
 async def disconnect():
-    bot_logger.info("Disconnected from SpecterWebsocket Server.")
+    websocket_logger.info("Disconnected from SpecterWebsocket Server.")
 
-@sio.event
+@specterSocket.event
 async def message(data):
-    bot_logger.info(f"Received message: {data}")
+    websocket_logger.info(f"Received message: {data}")
 
-@sio.event
+@specterSocket.event
 async def STREAM_ONLINE(data):
-    event_logger.info(f"Received STREAM_ONLINE event: {data}")
+    websocket_logger.info(f"Received STREAM_ONLINE event: {data}")
     await process_stream_online_websocket()
 
-@sio.event
+@specterSocket.event
 async def STREAM_OFFLINE(data):
-    event_logger.info(f"Received STREAM_OFFLINE event: {data}")
+    websocket_logger.info(f"Received STREAM_OFFLINE event: {data}")
     await process_stream_offline_websocket()
 
-@sio.event
+@specterSocket.event
 async def FOURTHWALL(data):
-    event_logger.info(f"Received FOURTHWALL event: {data}")
+    websocket_logger.info(f"Received FOURTHWALL event: {data}")
     await process_fourthwall_event(data)
 
-@sio.event
+@specterSocket.event
 async def KOFI(data):
-    event_logger.info(f"Received KOFI event: {data}")
+    websocket_logger.info(f"Received KOFI event: {data}")
     await process_kofi_event(data)
 
-@sio.event
+@specterSocket.event
 async def WEATHER_DATA(data):
-    event_logger.info(f"Received WEATHER_DATA event: {data}")
+    websocket_logger.info(f"Received WEATHER_DATA event: {data}")
     await process_weather_websocket(data)
 
-# Connect and manage reconnection
-async def specter_websocket():
-    websocket_uri = "wss://websocket.botofthespecter.com"
+# Connect and mange reconnection for HypeRate Heart Rate
+async def hyperate_websocket():
     while True:
         try:
-            # Attempt to connect to the WebSocket server
-            bot_logger.info(f"Attempting to connect to {websocket_uri}")
-            await sio.connect(websocket_uri)
-            await sio.wait()  # Keep the connection open to receive messages
-        except socketio.exceptions.ConnectionError as e:
-            bot_logger.error(f"Connection failed: {e}")
-            await asyncio.sleep(10)  # Wait and retry connection
+            bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
+            hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
+            try:
+                # Use websockets.connect() to establish the WebSocket connection
+                async with websockets.connect(hyperate_websocket_uri) as hyperate_websocket:
+                    bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
+                    # Send 'phx_join' message to join the appropriate channel
+                    await join_channel(hyperate_websocket)
+                    # Send the heartbeat every 10 seconds
+                    asyncio.create_task(send_heartbeat(hyperate_websocket))
+                    while True:
+                        # Continuously wait for incoming messages
+                        global HEARTRATE
+                        data = await hyperate_websocket.recv()
+                        data = json.loads(data)
+                        HEARTRATE = data['payload'].get('hr', None)
+            except Exception as e:
+                bot_logger.error(f"HypeRate error: WebSocket Connection Error: {e}")
+                await asyncio.sleep(10)  # Retry connection after a brief wait
         except Exception as e:
-            bot_logger.error(f"An unexpected error occurred: {e}")
-            await asyncio.sleep(10)
+            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
 
+async def send_heartbeat(hyperate_websocket):
+    while True:
+        await asyncio.sleep(10)  # Send heartbeat every 10 seconds
+        heartbeat_payload = {
+            "topic": "phoenix",
+            "event": "heartbeat",
+            "payload": {},
+            "ref": 0
+        }
+        await hyperate_websocket.send(json.dumps(heartbeat_payload))
+
+async def join_channel(hyperate_websocket):
+    try:
+        sqldb = await get_mysql_connection()
+        async with sqldb.cursor() as cursor:
+            await cursor.execute('SELECT heartrate_code FROM profile')
+            heartrate_code = await cursor.fetchone()
+            if not heartrate_code:
+                bot_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
+                return
+            heartrate_code = heartrate_code[0]  # Extract the value from the tuple
+            # Construct the 'phx_join' event payload
+            phx_join = {
+                "topic": f"hr:{heartrate_code}",
+                "event": "phx_join",
+                "payload": {},
+                "ref": 0
+            }
+            # Send the 'phx_join' event to join the channel
+            await hyperate_websocket.send(json.dumps(phx_join))
+    except Exception as e:
+        bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
+
+# Bot class
 class BotOfTheSpecter(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
@@ -862,21 +1013,23 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_name = channel_name
 
     async def event_ready(self):
-        bot_logger.info(f'Logged in as | {self.nick}')
+        bot_logger.info(f'Logged in as "{self.nick}"')
         channel = self.get_channel(self.channel_name)
-        await setup_database()
         await check_stream_online()
         await update_version_control()
         await group_creation()
         await builtin_commands_creation()
         await known_users()
         await channel_point_rewards()
-        asyncio.get_event_loop().create_task(token_refresh())
+        asyncio.get_event_loop().create_task(twitch_token_refresh())
+        asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
         asyncio.get_event_loop().create_task(specter_websocket())
+        asyncio.get_event_loop().create_task(hyperate_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
-        asyncio.get_event_loop().create_task(midnight(channel))
+        asyncio.get_event_loop().create_task(midnight())
+        asyncio.get_event_loop().create_task(periodic_watch_time_update())
         await channel.send(f"/me is connected and ready! Running V{VERSION}")
 
     async def event_channel_joined(self, channel):
@@ -896,7 +1049,7 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 bot_logger.error("Target channel not joined yet.") 
         else:
-            bot_logger.error(f"Other error occurred: {error}")
+            bot_logger.error(f"Error: {error}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -946,7 +1099,7 @@ class BotOfTheSpecter(commands.Bot):
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
                                 '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
-                                '(random.pick.', '(math.', '(call.'
+                                '(random.pick.', '(math.', '(call.', '(usercount)'
                             ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
@@ -965,6 +1118,37 @@ class BotOfTheSpecter(commands.Bot):
                                         response = response.replace('(count)', str(get_count))
                                     except Exception as e:
                                         chat_logger.error(f"{e}")
+                                # Handle (usercount)
+                                if '(usercount)' in response:
+                                    try:
+                                        user_mention = re.search(r'@(\w+)', messageContent)
+                                        user_name = user_mention.group(1) if user_mention else messageAuthor
+                                        # Get the user count for the specific command
+                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
+                                        result = await cursor.fetchone()
+                                        if result:
+                                            user_count = result[0]
+                                        else:
+                                            # If no entry found, initialize it to 0
+                                            user_count = 0
+                                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user_name, user_count))
+                                            await cursor.connection.commit()
+                                        # Increment the count
+                                        user_count += 1
+                                        await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, user_name))
+                                        await cursor.connection.commit()
+                                        # Fetch the updated count
+                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
+                                        updated_result = await cursor.fetchone()
+                                        if updated_result:
+                                            updated_user_count = updated_result[0]
+                                        else:
+                                            updated_user_count = 0
+                                        # Replace the (usercount) placeholder with the updated user count
+                                        response = response.replace('(usercount)', str(updated_user_count))
+                                    except Exception as e:
+                                        chat_logger.error(f"Error while handling (usercount): {e}")
+                                        response = response.replace('(usercount)', "Error")
                                 # Handle (daysuntil.)
                                 if '(daysuntil.' in response:
                                     get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
@@ -1061,45 +1245,36 @@ class BotOfTheSpecter(commands.Bot):
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
                     result = await cursor.fetchone()
-                    if result:
-                        url_blocking = bool(result[0])
-                    else:
-                        # If url_blocking not found in the database, default to False
-                        url_blocking = False
-                    # Check if url_blocking is enabled
+                    url_blocking = bool(result[0]) if result else False
+                    # Proceed if URL blocking is enabled
                     if url_blocking:
-                        # Check if the user is permitted to post links
+                        # Check if user has permission to post links
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
-                            # User is permitted, skip URL blocking
-                            return
-                        if command_permissions(messageAuthor):
-                            # User is a mod or is the broadcaster, they are by default permitted.
-                            return
-                        # Fetch link whitelist from the database
+                            return  # User is permitted, skip URL blocking
+                        if await command_permissions("mod", messageAuthor):
+                            return  # Mods and broadcaster have permission by default
+                        # Fetch whitelist and blacklist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
-                        whitelisted_links = await cursor.fetchall()
-                        whitelisted_links = [link[0] for link in whitelisted_links]
+                        whitelisted_links = [link[0] for link in await cursor.fetchall()]
                         await cursor.execute('SELECT link FROM link_blacklisting')
-                        blacklisted_links = await cursor.fetchall()
-                        blacklisted_links = [link[0] for link in blacklisted_links]
-                        # Check if the message content contains any whitelisted or blacklisted link
-                        contains_whitelisted_link = any(link in AuthorMessage for link in whitelisted_links)
-                        contains_blacklisted_link = any(link in AuthorMessage for link in blacklisted_links)
-                        # Check if the message content contains a Twitch clip link
+                        blacklisted_links = [link[0] for link in await cursor.fetchall()]
+                        # Check if message contains whitelisted or blacklisted links using domain matching
+                        contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
+                        contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
+                        # Check for Twitch clip links
                         contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+                        # Process based on whitelist/blacklist match results
                         if contains_blacklisted_link:
                             # Delete the message if it contains a blacklisted URL
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
                             await channel.send(f"Oops! That link looks like it's gone on an adventure! Please ask a mod to give it a check and launch an investigation to find out where it's disappeared to!")
-                            return  # Stop further processing
+                            return
                         elif not contains_whitelisted_link and not contains_twitch_clip_link:
-                            # Delete the message if it contains a URL and it's not whitelisted or a Twitch clip link
                             await message.delete()
                             chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                            # Notify the user not to post links without permission
-                            await channel.send(f"{messageAuthor}, links are not authorized in chat, ask moderator or the Broadcaster for permission.")
-                            return  # Stop further processing
+                            await channel.send(f"{messageAuthor}, links are not authorized in chat, ask a moderator or the broadcaster for permission.")
+                            return
                         else:
                             chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
                     else:
@@ -1314,7 +1489,7 @@ class BotOfTheSpecter(commands.Bot):
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id)
         # Split the response if it's longer than 500 characters
-        messages = [ai_response[i:i+490] for i in range(0, len(ai_response), 490)]
+        messages = [ai_response[i:i+500] for i in range(0, len(ai_response), 500)]
         # Send each part of the response as a separate message
         for part in messages:
             await self.send_message_to_channel(f"{part}")
@@ -1352,28 +1527,33 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                try:
-                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("commands",))
-                    result = await cursor.fetchone()
-                    if result:
-                        status = result[0]
-                        if status == 'Disabled':
-                            chat_logger.warning(f"Command 'commands' is disabled and cannot be run by {ctx.author.name}.")
-                            return
-                    is_mod = await command_permissions(ctx.author)
-                    if is_mod:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("commands",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
                         # If the user is a mod, include both mod_commands and builtin_commands
-                        mod_commands_list = ", ".join(sorted(f"!{command}" for command in mod_commands))
-                        await ctx.send(f"Moderator commands: {mod_commands_list}")
-                    # Include builtin commands for both mod and normal users
-                    builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
-                    await ctx.send(f"General commands: {builtin_commands_list}")
-                    # Custom commands link
-                    custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/commands"
-                    await ctx.send(custom_response_message)
-                except Exception as e:
-                    chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
-                    await ctx.send("An error occurred while fetching the commands. Please try again later.")
+                        is_mod = await command_permissions("mod", ctx.author)
+                        if is_mod:
+                            mod_commands_list = ", ".join(sorted(f"!{command}" for command in mod_commands))
+                            await ctx.send(f"Moderator commands: {mod_commands_list}")
+                        # Include builtin commands for both mod and normal users
+                        builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
+                        await ctx.send(f"General commands: {builtin_commands_list}")
+                        # Custom commands link
+                        custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/commands"
+                        await ctx.send(custom_response_message)
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to run the commands command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
+            await ctx.send("An error occurred while fetching the commands. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1383,70 +1563,83 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("bot",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("bot",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
-                await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead. Check me out on my website: https://botofthespecter.com")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
+                        await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead. Check me out on my website: https://botofthespecter.com")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to run the bot command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
-        if await command_permissions(ctx.author):
-            sqldb = await get_mysql_connection()
-            try:
-                async with sqldb.cursor() as cursor:
-                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("version",))
-                    result = await cursor.fetchone()
-                    if result:
-                        status = result[0]
-                        if status == 'Disabled':
-                            return
-                    chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
-                    bot_logger.info(f"Stream is now online!")
-                    await ctx.send("Stream status has been forcibly set to online.")
-                    await websocket_notice(event="STREAM_ONLINE")
-            except Exception as e:
-                chat_logger.error(f"Error in forceonline_command: {e}")
-                await ctx.send(f"An error occurred while executing the command. {e}")
-            finally:
-                await sqldb.ensure_closed()
-        else:
-            chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
-            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
+                        bot_logger.info(f"Stream is now online!")
+                        await ctx.send("Stream status has been forcibly set to online.")
+                        await websocket_notice(event="STREAM_ONLINE")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in forceonline_command: {e}")
+            await ctx.send(f"An error occurred while executing the command. {e}")
+        finally:
+            await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceoffline')
     async def forceoffline_command(self, ctx):
-        global stream_online
-        global current_game
-        if await command_permissions(ctx.author):
-            sqldb = await get_mysql_connection()
-            try:
-                async with sqldb.cursor() as cursor:
-                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("version",))
-                    result = await cursor.fetchone()
-                    if result:
-                        status = result[0]
-                        if status == 'Disabled':
-                            return
-                    chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
-                    bot_logger.info(f"Stream is now offline.")
-                    await ctx.send("Stream status has been forcibly set to offline.")
-                    await websocket_notice(event="STREAM_OFFLINE")
-            except Exception as e:
-                chat_logger.error(f"Error in forceoffline_command: {e}")
-                await ctx.send(f"An error occurred while executing the command. {e}")
-            finally:
-                await sqldb.ensure_closed()
-        else:
-            chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
-            await ctx.send("You must be a moderator or the broadcaster to use this command.")
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result  # Unpack the status and permissions
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
+                        bot_logger.info(f"Stream is now offline.")
+                        await ctx.send("Stream status has been forcibly set to offline.")
+                        await websocket_notice(event="STREAM_OFFLINE")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+                else:
+                    await ctx.send("Command not found.")
+        except Exception as e:
+            chat_logger.error(f"Error in forceoffline_command: {e}")
+            await ctx.send(f"An error occurred while executing the command. {e}")
+        finally:
+            await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='version')
@@ -1454,32 +1647,39 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("version",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                global bot_started
-                uptime = datetime.now() - bot_started
-                uptime_days = uptime.days
-                uptime_hours, remainder = divmod(uptime.seconds, 3600)
-                uptime_minutes, _ = divmod(remainder, 60)
-                # Build the message
-                message = f"The version that is currently running is V{VERSION}. Bot has been running for: "
-                if uptime_days == 1:
-                    message += f"1 day, "
-                elif uptime_days > 1:
-                    message += f"{uptime_days} days, "
-                if uptime_hours == 1:
-                    message += f"1 hour, "
-                elif uptime_hours > 1:
-                    message += f"{uptime_hours} hours, "
-                if uptime_minutes == 1:
-                    message += f"1 minute, "
-                elif uptime_minutes > 1 or (uptime_days == 0 and uptime_hours == 0):
-                    message += f"{uptime_minutes} minutes, "
-                await ctx.send(f"{message[:-2]}")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        global bot_started
+                        uptime = datetime.now() - bot_started
+                        uptime_days = uptime.days
+                        uptime_hours, remainder = divmod(uptime.seconds, 3600)
+                        uptime_minutes, _ = divmod(remainder, 60)
+                        # Build the message
+                        message = f"The version that is currently running is V{VERSION}. Bot has been running for: "
+                        if uptime_days == 1:
+                            message += f"1 day, "
+                        elif uptime_days > 1:
+                            message += f"{uptime_days} days, "
+                        if uptime_hours == 1:
+                            message += f"1 hour, "
+                        elif uptime_hours > 1:
+                            message += f"{uptime_hours} hours, "
+                        if uptime_minutes == 1:
+                            message += f"1 minute, "
+                        elif uptime_minutes > 1 or (uptime_days == 0 and uptime_hours == 0):
+                            message += f"{uptime_minutes} minutes, "
+                        await ctx.send(f"{message[:-2]}")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to run the version command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1489,13 +1689,20 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("roadmap",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roadmap",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        await ctx.send("Here's the roadmap for the bot: https://trello.com/b/EPXSCmKc/specterbot")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to run the roadmap command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1505,28 +1712,38 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("weather",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("weather",))
                 result = await cursor.fetchone()
-                if result and result[0] == 'Disabled':
-                    return
-            premium_tier = await check_premium_feature()
-            if premium_tier in (1000, 2000, 3000, 4000):
-                # Premium feature access granted
-                if not location:
-                    location = await get_streamer_weather()
-                if location:
-                    async with aiohttp.ClientSession() as session:
-                        response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
-                        if response.status == 404:
-                            await ctx.send(f'Sorry, "{location}" not found, please try again.')
-                            return
-                        result = await response.json()
-                        api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
-                else:
-                    await ctx.send("Unable to retrieve location.")
-            else:
-                # No premium access
-                await ctx.send(f"This channel doesn't have a premium subscription to use this command.")
+                if result:
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        premium_tier = await check_premium_feature()
+                        if premium_tier in (1000, 2000, 3000, 4000):
+                            # Premium feature access granted
+                            if not location:
+                                location = await get_streamer_weather()
+                            if location:
+                                async with aiohttp.ClientSession() as session:
+                                    response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
+                                    result = await response.json()
+                                    if "detail" in result and "404: Location" in result["detail"]:
+                                        await ctx.send(f"Error: The location '{location}' was not found.")
+                                        api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
+                                    else:
+                                        api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
+                            else:
+                                await ctx.send("Unable to retrieve location.")
+                        else:
+                            # No premium access
+                            await ctx.send(f"This channel doesn't have a premium subscription to use this command.")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to run the weather command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1538,21 +1755,34 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                # Check if the user exists in the database
-                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("points",))
                 result = await cursor.fetchone()
                 if result:
-                    points = result[0]
-                    chat_logger.info(f"{user_name} has {points} points")
-                else:
-                    points = 0
-                    chat_logger.info(f"{user_name} has {points} points")
-                    await cursor.execute(
-                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                        (user_id, user_name, points)
-                    )
-                    await sqldb.commit()
-                await ctx.send(f'@{user_name}, you have {points} points.')
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        # Check if the user exists in the database
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                        result = await cursor.fetchone()
+                        if result:
+                            points = result[0]
+                            chat_logger.info(f"{user_name} has {points} points")
+                        else:
+                            points = 0
+                            chat_logger.info(f"{user_name} has {points} points")
+                            await cursor.execute(
+                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                                (user_id, user_name, points)
+                            )
+                            await sqldb.commit()
+                        await ctx.send(f'@{user_name}, you have {points} points.')
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await cursor.close()
             await sqldb.ensure_closed()
@@ -1563,56 +1793,63 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("time",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("time",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                if timezone:
-                    geolocator = Nominatim(user_agent="BotOfTheSpecter")
-                    location_data = geolocator.geocode(timezone)
-                    if not location_data:
-                        await ctx.send(f"Could not find the time location that you requested.")
-                        chat_logger.info(f"Could not find the time location that you requested.")
-                        return
-                    timezone_api_key = os.getenv('TIMEZONE_API')
-                    timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(timezone_url) as response:
-                            if response.status != 200:
-                                await ctx.send(f"Could not retrieve time information from the API.")
-                                chat_logger.info(f"Failed to retrieve time information from the API, status code: {response.status}")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        if timezone:
+                            geolocator = Nominatim(user_agent="BotOfTheSpecter")
+                            location_data = geolocator.geocode(timezone)
+                            if not location_data:
+                                await ctx.send(f"Could not find the time location that you requested.")
+                                chat_logger.info(f"Could not find the time location that you requested.")
                                 return
-                            timezone_data = await response.json()
-                    if timezone_data['status'] != "OK":
-                        await ctx.send(f"Could not find the time location that you requested.")
-                        chat_logger.info(f"Could not find the time location that you requested.")
-                        return
-                    timezone_str = timezone_data["zoneName"]
-                    tz = pytz.timezone(timezone_str)
-                    chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str}")
-                    current_time = datetime.now(tz)
-                    time_format_date = current_time.strftime("%B %d, %Y")
-                    time_format_time = current_time.strftime("%I:%M %p")
-                    time_format_week = current_time.strftime("%A")
-                    time_format = f"The time for {timezone} is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
-                else:
-                    await cursor.execute("SELECT timezone FROM profile")
-                    result = await cursor.fetchone()
-                    if result and result[0]:
-                        timezone = result[0]
-                        tz = pytz.timezone(timezone)
-                        chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
-                        current_time = datetime.now(tz)
-                        time_format_date = current_time.strftime("%B %d, %Y")
-                        time_format_time = current_time.strftime("%I:%M %p")
-                        time_format_week = current_time.strftime("%A")
-                        time_format = f"It is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+                            timezone_api_key = os.getenv('TIMEZONE_API')
+                            timezone_url = f"http://api.timezonedb.com/v2.1/get-time-zone?key={timezone_api_key}&format=json&by=position&lat={location_data.latitude}&lng={location_data.longitude}"
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(timezone_url) as response:
+                                    if response.status != 200:
+                                        await ctx.send(f"Could not retrieve time information from the API.")
+                                        chat_logger.info(f"Failed to retrieve time information from the API, status code: {response.status}")
+                                        return
+                                    timezone_data = await response.json()
+                            if timezone_data['status'] != "OK":
+                                await ctx.send(f"Could not find the time location that you requested.")
+                                chat_logger.info(f"Could not find the time location that you requested.")
+                                return
+                            timezone_str = timezone_data["zoneName"]
+                            tz = pytz.timezone(timezone_str)
+                            chat_logger.info(f"TZ: {tz} | Timezone: {timezone_str}")
+                            current_time = datetime.now(tz)
+                            time_format_date = current_time.strftime("%B %d, %Y")
+                            time_format_time = current_time.strftime("%I:%M %p")
+                            time_format_week = current_time.strftime("%A")
+                            time_format = f"The time for {timezone} is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+                        else:
+                            await cursor.execute("SELECT timezone FROM profile")
+                            result = await cursor.fetchone()
+                            if result and result[0]:
+                                timezone = result[0]
+                                tz = pytz.timezone(timezone)
+                                chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                                current_time = datetime.now(tz)
+                                time_format_date = current_time.strftime("%B %d, %Y")
+                                time_format_time = current_time.strftime("%I:%M %p")
+                                time_format_week = current_time.strftime("%A")
+                                time_format = f"It is {time_format_week}, {time_format_date} and the time is: {time_format_time}"
+                            else:
+                                await ctx.send("Streamer timezone is not set.")
+                                return
+                        await ctx.send(time_format)
                     else:
-                        await ctx.send("Streamer timezone is not set.")
-                        return
-                await ctx.send(time_format)
+                        chat_logger.info(f"{ctx.author.name} tried to run the time command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1622,22 +1859,35 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("joke",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("joke",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                joke = await Jokes()
-                get_joke = await joke.get_joke(blacklist=['nsfw', 'racist', 'sexist', 'political', 'religious'])
-                category = get_joke["category"]
-                if get_joke["type"] == "single":
-                    await ctx.send(f"Here's a joke from {category}: {get_joke['joke']}")
-                else:
-                    await ctx.send(f"Here's a joke from {category}:")
-                    await ctx.send(f"{get_joke['setup']}")
-                    await asyncio.sleep(2)
-                    await ctx.send(f"{get_joke['delivery']}")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        # Retrieve the blacklist from the joke_settings table
+                        await cursor.execute("SELECT blacklist FROM joke_settings WHERE id = 1")
+                        blacklist_result = await cursor.fetchone()
+                        if blacklist_result:
+                            blacklist = blacklist_result[0]
+                            blacklist = json.loads(blacklist)
+                            joke = await Jokes()
+                            while True:
+                                get_joke = await joke.get_joke()
+                                category = get_joke["category"]
+                                if category not in blacklist:
+                                    break
+                            if get_joke["type"] == "single":
+                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
+                            else:
+                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to run the joke command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1647,178 +1897,273 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("quote",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quote",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                if number is None:  # If no number is provided, get a random quote
-                    await cursor.execute("SELECT quote FROM quotes ORDER BY RAND() LIMIT 1")
-                    quote = await cursor.fetchone()
-                    if quote:
-                        await ctx.send("Random Quote: " + quote[0])
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        if number is None:  # If no number is provided, get a random quote
+                            await cursor.execute("SELECT quote FROM quotes ORDER BY RAND() LIMIT 1")
+                            quote = await cursor.fetchone()
+                            if quote:
+                                await ctx.send("Random Quote: " + quote[0])
+                            else:
+                                await ctx.send("No quotes available.")
+                        else:  # If a number is provided, retrieve the quote by its ID
+                            await cursor.execute("SELECT quote FROM quotes WHERE id = %s", (number,))
+                            quote = await cursor.fetchone()
+                            if quote:
+                                await ctx.send(f"Quote {number}: " + quote[0])
+                            else:
+                                await ctx.send(f"No quote found with ID {number}.")
                     else:
-                        await ctx.send("No quotes available.")
-                else:  # If a number is provided, retrieve the quote by its ID
-                    await cursor.execute("SELECT quote FROM quotes WHERE id = %s", (number,))
-                    quote = await cursor.fetchone()
-                    if quote:
-                        await ctx.send(f"Quote {number}: " + quote[0])
-                    else:
-                        await ctx.send(f"No quote found with ID {number}.")
+                        chat_logger.info(f"{ctx.author.name} tried to run the quote command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("quoteadd",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quoteadd",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                await cursor.execute("INSERT INTO quotes (quote) VALUES (%s)", (quote,))
-                await sqldb.commit()
-                await ctx.send("Quote added successfully: " + quote)
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        await cursor.execute("INSERT INTO quotes (quote) VALUES (%s)", (quote,))
+                        await sqldb.commit()
+                        await ctx.send("Quote added successfully: " + quote)
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to add a quote but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("removequote",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removequote",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                if number is None:
-                    await ctx.send("Please specify the ID to remove.")
-                    return
-                await cursor.execute("DELETE FROM quotes WHERE ID = %s", (number,))
-                await sqldb.commit()
-                await ctx.send(f"Quote {number} has been removed.")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        if number is None:
+                            await ctx.send("Please specify the ID to remove.")
+                            return
+                        await cursor.execute("DELETE FROM quotes WHERE id = %s", (number,))
+                        await sqldb.commit()
+                        if cursor.rowcount > 0:  # Check if a row was deleted
+                            await ctx.send(f"Quote {number} has been removed.")
+                        else:
+                            await ctx.send(f"No quote found with ID {number}.")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to remove a quote but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("permit",))
+                # Fetch the status and permissions for the permit command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("permit",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
-                    permit_user = permit_user.lstrip('@')
-                    if permit_user:
-                        permitted_users[permit_user] = time.time() + 30
-                        await ctx.send(f"{permit_user} is now permitted to post links for the next 30 seconds.")
+                    # Check if the user has the required permissions
+                    if await command_permissions(permissions, ctx.author):
+                        permit_user = permit_user.lstrip('@')
+                        if permit_user:
+                            permitted_users[permit_user] = time.time() + 30
+                            await ctx.send(f"{permit_user} is now permitted to post links for the next 30 seconds.")
+                        else:
+                            await ctx.send("Please specify a user to permit.")
                     else:
-                        await ctx.send("Please specify a user to permit.")
-                else:
-                    chat_logger.info(f"{ctx.author.name} tried to use the command, !permit, but couldn't as they are not a moderator.")
-                    await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                        chat_logger.info(f"{ctx.author.name} tried to use the permit command but lacked permissions.")
+                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("settitle",))
+                # Fetch the status and permissions for the settitle command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("settitle",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
-                    if title is None:
-                        await ctx.send("Stream titles cannot be blank. You must provide a title for the stream.")
-                        return
-                    # Update the stream title
-                    await trigger_twitch_title_update(title)
-                    twitch_logger.info(f'Setting stream title to: {title}')
-                    await ctx.send(f'Stream title updated to: {title}')
-                else:
-                    await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                    # Check if the user has the required permissions
+                    if await command_permissions(permissions, ctx.author):
+                        if title is None:
+                            await ctx.send("Stream titles cannot be blank. You must provide a title for the stream.")
+                            return
+                        # Update the stream title
+                        await trigger_twitch_title_update(title)
+                        twitch_logger.info(f'Setting stream title to: {title}')
+                        await ctx.send(f'Stream title updated to: {title}')
+                    else:
+                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("setgame",))
+                # Fetch the status and permissions for the setgame command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("setgame",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
-                    if game is None:
-                        await ctx.send("You must provide a game for the stream.")
-                        return
-                    try:
-                        await update_twitch_game(game)
-                        await ctx.send(f'Stream game updated to: {game}')
-                    except GameNotFoundException as e:
-                        await ctx.send(str(e))
-                    except GameUpdateFailedException as e:
-                        await ctx.send(str(e))
-                    except Exception as e:
-                        await ctx.send(f'An error occurred: {str(e)}')
-                else:
-                    await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                    # Verify user permissions
+                    if await command_permissions(permissions, ctx.author):
+                        if game is None:
+                            await ctx.send("You must provide a game for the stream.")
+                            return
+                        try:
+                            await update_twitch_game(game)
+                            await ctx.send(f'Stream game updated to: {game}')
+                        except GameNotFoundException as e:
+                            await ctx.send(f"Game not found: {str(e)}")
+                        except GameUpdateFailedException as e:
+                            await ctx.send(f"Failed to update game: {str(e)}")
+                        except Exception as e:
+                            await ctx.send(f'An error occurred: {str(e)}')
+                    else:
+                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.default)
     @commands.command(name='song')
     async def song_command(self, ctx):
+        global stream_online
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("song",))
+                # Fetch the status and permissions for the song command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("song",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-            premium_tier = await check_premium_feature()
-            if premium_tier in (1000, 2000, 3000, 4000):
-                # Premium feature access granted
-                global stream_online
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+                # Check Spotify for the current song
+                song_info = await get_spotify_current_song()
+                if song_info:
+                    await ctx.send(f"The current song is: {song_info}")
+                    return
                 if not stream_online:
                     await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
                     return
-                await ctx.send("Please stand by, checking what song is currently playing...")
-                try:
-                    song_info = await get_current_song()
-                    await ctx.send(song_info)
-                    await delete_recorded_files()
-                except Exception as e:
-                    chat_logger.error(f"An error occurred while getting current song: {e}")
-                    await ctx.send("Sorry, there was an error retrieving the current song.")
-            else:
-                # No premium access
-                await ctx.send(f"This channel doesn't have a premium subscription to use this command.") 
+                # If no song on Spotify, check the alternative method if premium
+                premium_tier = await check_premium_feature()
+                if premium_tier in (1000, 2000, 3000, 4000):
+                    # Premium feature access granted
+                    await ctx.send("Please stand by, checking what song is currently playing...")
+                    try:
+                        song_info = await get_current_song()
+                        await ctx.send(song_info)
+                        await delete_recorded_files()
+                    except Exception as e:
+                        chat_logger.error(f"An error occurred while getting current song: {e}")
+                        await ctx.send("Sorry, there was an error retrieving the current song.")
+                else:
+                    # No premium access
+                    await ctx.send("This channel doesn't have a premium subscription to use the alternative method.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
+    @commands.command(name='songrequest', aliases=['sr'])
+    async def songrequest_command(self, ctx):
+        global SPOTIFY_ACCESS_TOKEN
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Fetch the status and permissions for the timer command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songrequest",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        await ctx.send(f"Requesting songs is currently disabled.")
+                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+            headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+            message = ctx.message.content
+            message_content = message.split(" ", 1)[1]
+            search = message_content.replace(" ", "%20")
+            search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
+            async with aiohttp.ClientSession() as search_session:
+                async with search_session.get(search_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data:
+                            song_id = data["tracks"]["items"][0]["uri"]
+                            song_name = data["tracks"]["items"][0]["name"]
+                            artist_name = data["tracks"]["items"][0]["artists"][0]["name"]
+                            api_logger.info(f"Song Request from {ctx.message.author.name} for the song {song_name} by {artist_name} song id: {song_id}")
+                        else:
+                            await ctx.send(f"No song found: {message_content}")
+                            return
+                    else:
+                        api_logger.error(f"Spotify returned reponse code: {response.status}")
+                        return
+            request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
+            async with aiohttp.ClientSession() as queue_session:
+                async with queue_session.post(request_url, headers=headers) as response:
+                    if response.status == 200:
+                        await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
+                    else:
+                        api_logger.error(f"Spotify returned reponse code: {response.status}")
         finally:
             await sqldb.ensure_closed()
 
@@ -1828,12 +2173,18 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("timer",))
+                # Fetch the status and permissions for the timer command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("timer",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
                 # Check if the user already has an active timer
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
@@ -1865,6 +2216,18 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
+                # Fetch the status and permissions for the stoptimer command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("stoptimer",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
                 if not active_timer:
@@ -1882,6 +2245,18 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
+                # Fetch the status and permissions for the checktimer command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checktimer",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
                 if not active_timer:
@@ -1901,40 +2276,48 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("hug",))
+                # Fetch the status and permissions for the hug command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("hug",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+                # Remove any '@' symbol from the mentioned username if present
+                if mentioned_username:
+                    mentioned_username = mentioned_username.lstrip('@')
+                else:
+                    await ctx.send("Usage: !hug @username")
+                    return
+                # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a hug to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
-                if mentioned_username:
-                    target_user = mentioned_username.lstrip('@')
-                    # Increment hug count in the database
-                    await cursor.execute(
-                        'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) '
-                        'ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', 
-                        (target_user,)
-                    )
-                    await sqldb.commit()
-                    # Retrieve the updated count
-                    await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (target_user,))
-                    hug_count_result = await cursor.fetchone()
-                    if hug_count_result:
-                        hug_count = hug_count_result[0]
-                        # Send the message
-                        chat_logger.info(f"{target_user} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
-                        await ctx.send(f"@{target_user} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
-                    else:
-                        chat_logger.error(f"No hug count found for user: {target_user}")
-                        await ctx.send(f"Could not retrieve hug count for @{target_user}.")
+                # Increment hug count in the database
+                await cursor.execute(
+                    'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) '
+                    'ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', 
+                    (mentioned_username,)
+                )
+                await sqldb.commit()
+                # Retrieve the updated count
+                await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (mentioned_username,))
+                hug_count_result = await cursor.fetchone()
+                if hug_count_result:
+                    hug_count = hug_count_result[0]
+                    # Send the message
+                    chat_logger.info(f"{mentioned_username} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
+                    await ctx.send(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
                 else:
-                    chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
-                    await ctx.send("Usage: !hug @username")
+                    chat_logger.error(f"No hug count found for user: {mentioned_username}")
+                    await ctx.send(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
         except Exception as e:
             chat_logger.error(f"Error in hug command: {e}")
             await ctx.send("An error occurred while processing the command.")
@@ -1947,36 +2330,51 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("kiss",))
+                # Fetch the status and permissions for the kiss command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kiss",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+                # Remove any '@' symbol from the mentioned username if present
+                if mentioned_username:
+                    mentioned_username = mentioned_username.lstrip('@')
+                else:
+                    await ctx.send("Usage: !kiss @username")
+                    return
+                # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a kiss to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
-                if mentioned_username:
-                    target_user = mentioned_username.lstrip('@')
-                    # Increment kiss count in the database
-                    await cursor.execute(
-                        'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) '
-                        'ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1', 
-                        (target_user,)
-                    )
-                    await sqldb.commit()
-                    # Retrieve the updated count
-                    await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (target_user,))
-                    kiss_count_result = await cursor.fetchone()
-                    kiss_count = kiss_count_result[0] if kiss_count_result else 1
-                    chat_logger.info(f"{target_user} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
+                # Increment kiss count in the database
+                await cursor.execute(
+                    'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) '
+                    'ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1', 
+                    (mentioned_username,)
+                )
+                await sqldb.commit()
+                # Retrieve the updated count
+                await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (mentioned_username,))
+                kiss_count_result = await cursor.fetchone()
+                if kiss_count_result:
+                    kiss_count = kiss_count_result[0]
                     # Send the message
-                    await ctx.send(f"@{target_user} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+                    chat_logger.info(f"{mentioned_username} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
+                    await ctx.send(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
                 else:
-                    chat_logger.info(f"{ctx.author.name} tried to run the command without user mentioned.")
-                    await ctx.send("Usage: !kiss @username")
+                    chat_logger.error(f"No kiss count found for user: {mentioned_username}")
+                    await ctx.send(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
+        except Exception as e:
+            chat_logger.error(f"Error in kiss command: {e}")
+            await ctx.send("An error occurred while processing the command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1986,25 +2384,35 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("ping",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("ping",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-            # Using subprocess to run the ping command
-            result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
-            # Decode the result from bytes to string and search for the time
-            output = result.stdout.decode('utf-8')
-            match = re.search(r"time=(\d+\.\d+) ms", output)
-            if match:
-                ping_time = match.group(1)
-                bot_logger.info(f"Pong: {ping_time} ms")
-                # Updated message to make it clear to the user
-                await ctx.send(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
-            else:
-                bot_logger.error(f"Error Pinging. {output}")
-                await ctx.send(f'Error pinging the internet from the bot server.')
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        # Using subprocess to run the ping command
+                        result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
+                        # Decode the result from bytes to string and search for the time
+                        output = result.stdout.decode('utf-8')
+                        match = re.search(r"time=(\d+\.\d+) ms", output)
+                        if match:
+                            ping_time = match.group(1)
+                            bot_logger.info(f"Pong: {ping_time} ms")
+                            # Updated message to make it clear to the user
+                            await ctx.send(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
+                        else:
+                            bot_logger.error(f"Error Pinging. {output}")
+                            await ctx.send(f'Error pinging the internet from the bot server.')
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to use the ping command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in ping_command: {e}")
+            await ctx.send(f"An error occurred while executing the command. {e}")
         finally:
             await sqldb.ensure_closed()
 
@@ -2014,31 +2422,41 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("translate",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("translate",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                # Get the message content after the command
-                message = ctx.message.content[len("!translate "):]
-                # Check if there is a message to translate
-                if not message:
-                    await ctx.send("Please provide a message to translate.")
-                    return
-                try:
-                    # Check if the input message is too short
-                    if len(message.strip()) < 5:
-                        await ctx.send("The provided message is too short for reliable translation.")
-                        return
-                    translate_message = GoogleTranslator(source='auto', target='en').translate(text=message)
-                    await ctx.send(f"Translation: {translate_message}")
-                except AttributeError as ae:
-                    chat_logger.error(f"AttributeError: {ae}")
-                    await ctx.send("An error occurred while detecting the language.")
-                except Exception as e:
-                    chat_logger.error(f"Translating error: {e}")
-                    await ctx.send("An error occurred while translating the message.")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        # Get the message content after the command
+                        message = ctx.message.content[len("!translate "):]
+                        # Check if there is a message to translate
+                        if not message:
+                            await ctx.send("Please provide a message to translate.")
+                            return
+                        try:
+                            # Check if the input message is too short
+                            if len(message.strip()) < 5:
+                                await ctx.send("The provided message is too short for reliable translation.")
+                                return
+                            translate_message = GoogleTranslator(source='auto', target='en').translate(text=message)
+                            await ctx.send(f"Translation: {translate_message}")
+                        except AttributeError as ae:
+                            chat_logger.error(f"AttributeError: {ae}")
+                            await ctx.send("An error occurred while detecting the language.")
+                        except Exception as e:
+                            chat_logger.error(f"Translating error: {e}")
+                            await ctx.send("An error occurred while translating the message.")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to use the translate command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in translate_command: {e}")
+            await ctx.send(f"An error occurred while executing the command. {e}")
         finally:
             await sqldb.ensure_closed()
 
@@ -2048,33 +2466,43 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("cheerleader",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("cheerleader",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                headers = {
-                    'Client-ID': CLIENT_ID,
-                    'Authorization': f'Bearer {CHANNEL_AUTH}'
-                }
-                params = {
-                    'count': 1
-                }
-                async with aiohttp.ClientSession() as session:
-                    async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            if data['data']:
-                                top_cheerer = data['data'][0]
-                                score = "{:,}".format(top_cheerer['score'])
-                                await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
-                            else:
-                                await ctx.send("There is no one currently in the leaderboard for bits, cheer to take this spot.")
-                        elif response.status == 401:
-                            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
-                        else:
-                            await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        headers = {
+                            'Client-ID': CLIENT_ID,
+                            'Authorization': f'Bearer {CHANNEL_AUTH}'
+                        }
+                        params = {
+                            'count': 1
+                        }
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
+                                if response.status == 200:
+                                    data = await response.json()
+                                    if data['data']:
+                                        top_cheerer = data['data'][0]
+                                        score = "{:,}".format(top_cheerer['score'])
+                                        await ctx.send(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
+                                    else:
+                                        await ctx.send("There is no one currently in the leaderboard for bits; cheer to take this spot.")
+                                elif response.status == 401:
+                                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                                else:
+                                    await ctx.send("Sorry, I couldn't fetch the leaderboard.")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to use the cheerleader command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in cheerleader_command: {e}")
+            await ctx.send(f"An error occurred while executing the command. {e}")
         finally:
             await sqldb.ensure_closed()
 
@@ -2084,55 +2512,65 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("mybits",))
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("mybits",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
+                    # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
-                user_id = ctx.author.id
-                await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
-                db_bits = await cursor.fetchone()
-                if db_bits:
-                    db_bits = db_bits[0]
-                else:
-                    db_bits = 0
-                headers = {
-                    'Client-ID': CLIENT_ID,
-                    'Authorization': f'Bearer {CHANNEL_AUTH}'
-                }
-                params = {
-                    'user_id': user_id
-                }
-                async with aiohttp.ClientSession() as session:
-                    async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            api_logger.info(f"Twitch Leaderboard: {data}")
-                            # Filter out only the data for the current user_id
-                            user_data = next((user for user in data['data'] if user['user_id'] == str(user_id)), None)
-                            if user_data:
-                                api_bits = user_data['score']
-                                # Compare API bits with the database bits and update if necessary
-                                if api_bits > db_bits:
-                                    # Update the database with the higher bits from the API
-                                    await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
-                                    await sqldb.commit()
-                                    bits = "{:,}".format(api_bits)
-                                    await ctx.send(f"You have given {bits} bits in total.")
-                                elif api_bits < db_bits:
-                                    # Inform the user that the local database has a higher value
-                                    bits = "{:,}".format(db_bits)
-                                    await ctx.send(f"Our records show you have given {bits} bits in total.")
-                                else:
-                                    bits = "{:,}".format(api_bits)
-                                    await ctx.send(f"You have given {bits} bits in total.")
-                            else:
-                                await ctx.send("You haven't given any bits yet.")
-                        elif response.status == 401:
-                            await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        user_id = ctx.author.id
+                        await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
+                        db_bits = await cursor.fetchone()
+                        if db_bits:
+                            db_bits = db_bits[0]
                         else:
-                            await ctx.send("Sorry, I couldn't fetch your bits information.")
+                            db_bits = 0
+                        headers = {
+                            'Client-ID': CLIENT_ID,
+                            'Authorization': f'Bearer {CHANNEL_AUTH}'
+                        }
+                        params = {
+                            'user_id': user_id
+                        }
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get('https://api.twitch.tv/helix/bits/leaderboard', headers=headers, params=params) as response:
+                                if response.status == 200:
+                                    data = await response.json()
+                                    api_logger.info(f"Twitch Leaderboard: {data}")
+                                    # Filter out only the data for the current user_id
+                                    user_data = next((user for user in data['data'] if user['user_id'] == str(user_id)), None)
+                                    if user_data:
+                                        api_bits = user_data['score']
+                                        # Compare API bits with the database bits and update if necessary
+                                        if api_bits > db_bits:
+                                            # Update the database with the higher bits from the API
+                                            await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
+                                            await sqldb.commit()
+                                            bits = "{:,}".format(api_bits)
+                                            await ctx.send(f"You have given {bits} bits in total.")
+                                        elif api_bits < db_bits:
+                                            # Inform the user that the local database has a higher value
+                                            bits = "{:,}".format(db_bits)
+                                            await ctx.send(f"Our records show you have given {bits} bits in total.")
+                                        else:
+                                            bits = "{:,}".format(api_bits)
+                                            await ctx.send(f"You have given {bits} bits in total.")
+                                    else:
+                                        await ctx.send("You haven't given any bits yet.")
+                                elif response.status == 401:
+                                    await ctx.send("Sorry, something went wrong while reaching the Twitch API.")
+                                else:
+                                    await ctx.send("Sorry, I couldn't fetch your bits information.")
+                    else:
+                        chat_logger.info(f"{ctx.author.name} tried to use the mybits command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"Error in mybits_command: {e}")
+            await ctx.send(f"An error occurred while executing the command. {e}")
         finally:
             await sqldb.ensure_closed()
 
@@ -2142,44 +2580,43 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("lurk",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurk",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                user_id = str(ctx.author.id)
-                now = datetime.now()
-                if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                    await ctx.send(f"You cannot lurk in your own channel, Streamer.")
-                    chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
-                    return
-                # Check if the user is already in the lurk table
-                await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
-                result = await cursor.fetchone()
-                if result:
-                    # User was lurking before
-                    previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
-                    lurk_duration = now - previous_start_time
-                    # Calculate the duration
-                    days, seconds = divmod(lurk_duration.total_seconds(), 86400)
-                    months, days = divmod(days, 30)
-                    hours, remainder = divmod(seconds, 3600)
-                    minutes, seconds = divmod(remainder, 60)
-                    # Create time string
-                    periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                    time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-                    # Inform the user of their previous lurk time
-                    await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
-                    chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
-                else:
-                    # User is not in the lurk table
-                    await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
-                    chat_logger.info(f"{ctx.author.name} is now lurking.")
-                # Update the start time in the database
-                formatted_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
-                await cursor.execute('INSERT INTO lurk_times (user_id, start_time) VALUES (%s, %s) ON DUPLICATE KEY UPDATE start_time = %s', (user_id, formatted_datetime, formatted_datetime))
-                await sqldb.commit()
+                    if not await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"{ctx.author.name} tried to use the lurk command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                    user_id = str(ctx.author.id)
+                    now = datetime.now()
+                    if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                        await ctx.send(f"You cannot lurk in your own channel, Streamer.")
+                        chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
+                        return
+                    # Check if the user is already in the lurk table
+                    await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
+                    result = await cursor.fetchone()
+                    if result:
+                        previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        lurk_duration = now - previous_start_time
+                        days, seconds = divmod(lurk_duration.total_seconds(), 86400)
+                        months, days = divmod(days, 30)
+                        hours, remainder = divmod(seconds, 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                        time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                        await ctx.send(f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
+                        chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
+                    else:
+                        await ctx.send(f"Thanks for lurking, {ctx.author.name}! See you soon.")
+                        chat_logger.info(f"{ctx.author.name} is now lurking.")
+                    # Update the start time in the database
+                    formatted_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
+                    await cursor.execute('INSERT INTO lurk_times (user_id, start_time) VALUES (%s, %s) ON DUPLICATE KEY UPDATE start_time = %s', (user_id, formatted_datetime, formatted_datetime))
+                    await sqldb.commit()
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
@@ -2192,13 +2629,16 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("lurking",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurking",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                try:
+                    if not await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"{ctx.author.name} tried to use the lurking command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await ctx.send(f"Streamer, you're always present!")
@@ -2224,9 +2664,9 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         await ctx.send(f"{ctx.author.name}, you're not currently lurking.")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time but is not lurking.")
-                except Exception as e:
-                    chat_logger.error(f"Error in lurking_command: {e}")
-                    await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
+        except Exception as e:
+            chat_logger.error(f"Error in lurking_command: {e}")
+            await ctx.send(f"Oops, something went wrong while trying to check your lurk time.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2236,47 +2676,50 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("lurklead",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurklead",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                try:
-                    await cursor.execute('SELECT user_id, start_time FROM lurk_times')
-                    lurkers = await cursor.fetchall()
-                    longest_lurk = None
-                    longest_lurk_user_id = None
-                    now = datetime.now()
-                    for user_id, start_time_str in lurkers:
-                        # Convert start_time from string to datetime
-                        start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
-                        lurk_duration = now - start_time
-                        if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
-                            longest_lurk = lurk_duration
-                            longest_lurk_user_id = user_id
-                    if longest_lurk_user_id:
-                        display_name = await get_display_name(longest_lurk_user_id)
-                        if display_name:
-                            # Calculate the duration
-                            days, seconds = divmod(longest_lurk.total_seconds(), 86400)
-                            months, days = divmod(days, 30)
-                            hours, remainder = divmod(seconds, 3600)
-                            minutes, seconds = divmod(remainder, 60)
-                            # Build the time string
-                            periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
-                            time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
-                            # Send the message
-                            await ctx.send(f"{display_name} is currently lurking the most with {time_string} on the clock.")
-                            chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
+                    if not await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"{ctx.author.name} tried to use the lurklead command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                    try:
+                        await cursor.execute('SELECT user_id, start_time FROM lurk_times')
+                        lurkers = await cursor.fetchall()
+                        longest_lurk = None
+                        longest_lurk_user_id = None
+                        now = datetime.now()
+                        for user_id, start_time_str in lurkers:
+                            start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
+                            lurk_duration = now - start_time
+                            if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
+                                longest_lurk = lurk_duration
+                                longest_lurk_user_id = user_id
+                        if longest_lurk_user_id:
+                            display_name = await get_display_name(longest_lurk_user_id)
+                            if display_name:
+                                days, seconds = divmod(longest_lurk.total_seconds(), 86400)
+                                months, days = divmod(days, 30)
+                                hours, remainder = divmod(seconds, 3600)
+                                minutes, seconds = divmod(remainder, 60)
+                                periods = [("months", int(months)), ("days", int(days)), ("hours", int(hours)), ("minutes", int(minutes)), ("seconds", int(seconds))]
+                                time_string = ", ".join(f"{value} {name}" for name, value in periods if value)
+                                await ctx.send(f"{display_name} is currently lurking the most with {time_string} on the clock.")
+                                chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
+                            else:
+                                await ctx.send("There was an issue retrieving the display name of the lurk leader.")
                         else:
-                            await ctx.send("There was an issue retrieving the display name of the lurk leader.")
-                    else:
-                        await ctx.send("No one is currently lurking.")
-                        chat_logger.info("Lurklead command run but no lurkers found.")
-                except Exception as e:
-                    chat_logger.error(f"Error in lurklead_command: {e}")
-                    await ctx.send("Oops, something went wrong while trying to find the lurk leader.")
+                            await ctx.send("No one is currently lurking.")
+                            chat_logger.info("Lurklead command run but no lurkers found.")
+                    except Exception as e:
+                        chat_logger.error(f"Error in lurklead_command: {e}")
+                        await ctx.send("Oops, something went wrong while trying to find the lurk leader.")
+        except Exception as e:
+            chat_logger.error(f"Error in lurklead_command: {e}")
+            await ctx.send("Oops, something went wrong while trying to check the command status.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2286,13 +2729,15 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("unlurk",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("unlurk",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                try:
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
                     user_id = ctx.author.id
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await ctx.send(f"Streamer, you've been here all along!")
@@ -2321,30 +2766,31 @@ class BotOfTheSpecter(commands.Bot):
                         await sqldb.commit()
                     else:
                         await ctx.send(f"{ctx.author.name} has returned from lurking, welcome back!")
-                except Exception as e:
-                    chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
-                    await ctx.send("Oops, something went wrong with the unlurk command.")
+        except Exception as e:
+            chat_logger.error(f"Error in unlurk_command: {e}... Time now: {datetime.now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
+            await ctx.send("Oops, something went wrong with the unlurk command.")
         finally:
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='clip')
     async def clip_command(self, ctx):
+        global stream_online
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("clip",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("clip",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                global stream_online
-                try:
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
                     if not stream_online:
                         await ctx.send("Sorry, I can only create clips while the stream is online.")
                         return
-                    # Headers & Params for TwitchAPI
                     headers = {
                         "Client-ID": CLIENT_ID,
                         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -2359,67 +2805,49 @@ class BotOfTheSpecter(commands.Bot):
                                 clip_id = clip_data['data'][0]['id']
                                 clip_url = f"http://clips.twitch.tv/{clip_id}"
                                 await ctx.send(f"{ctx.author.name} created a clip: {clip_url}")
-                                # Create a stream marker
-                                marker_description = f"Clip created by {ctx.author.name}"
-                                marker_payload = {
-                                    "user_id": CHANNEL_ID,
-                                    "description": marker_description
-                                }
-                                marker_headers = {
-                                    "Client-ID": CLIENT_ID,
-                                    "Authorization": f"Bearer {CHANNEL_AUTH}",
-                                    "Content-Type": "application/json"
-                                }
-                                async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
-                                    if marker_response.status == 200:
-                                        marker_data = await marker_response.json()
-                                        marker_created_at = marker_data['data'][0]['created_at']
-                                        twitch_logger.info(f"A stream marker was created at {marker_created_at} with description: {marker_description}.")
-                                    else:
-                                        twitch_logger.info("Failed to create a stream marker for the clip.")
+                                marker_description = f"Clip creation by {ctx.author.name}"
+                                if await make_stream_marker(marker_description):
+                                    twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
+                                else:
+                                    twitch_logger.info("Failed to create a stream marker for the clip.")
                             else:
-                                await ctx.send(f"Failed to create clip.")
+                                marker_description = f"Failed to create clip."
+                                if await make_stream_marker(marker_description):
+                                    twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
+                                else:
+                                    twitch_logger.info("Failed to create a stream marker for the clip.")
+                                await ctx.send(marker_description)
                                 twitch_logger.error(f"Clip Error Code: {clip_response.status}")
-                except aiohttp.ClientError as e:
-                    twitch_logger.error(f"Error making clip: {e}")
-                    await ctx.send("An error occurred while making the request. Please try again later.")
+        except Exception as e:
+            twitch_logger.error(f"Error in clip_command: {e}")
+            await ctx.send("An error occurred while executing the clip command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
+        global stream_online
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("marker",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("marker",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
-                    marker_description = description if description else f"Marker made by {ctx.author.name}"
-                    marker_payload = {
-                        "user_id": CHANNEL_ID,
-                        "description": marker_description
-                    }
-                    marker_headers = {
-                        "Client-ID": CLIENT_ID,
-                        "Authorization": f"Bearer {CHANNEL_AUTH}",
-                        "Content-Type": "application/json"
-                    }
-                    try:
-                        async with aiohttp.ClientSession() as session:
-                            async with session.post('https://api.twitch.tv/helix/streams/markers', headers=marker_headers, json=marker_payload) as marker_response:
-                                if marker_response.status == 200:
-                                    await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
-                                else:
-                                    await ctx.send("Failed to create a stream marker.")
-                    except aiohttp.ClientError as e:
-                        twitch_logger.error(f"Error creating stream marker: {e}")
-                else:
-                    await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                    if not stream_online:
+                        await ctx.send("Sorry, I can only make a marker while the stream is online.")
+                        return
+                    if await command_permissions(permissions, ctx.author):
+                        marker_description = description if description else f"Marker made by {ctx.author.name}"
+                        if await make_stream_marker(marker_description):
+                            await ctx.send(f'A stream marker was created with the description: "{marker_description}".')
+                        else:
+                            await ctx.send("Failed to create a stream marker.")
+                    else:
+                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2429,96 +2857,102 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("subscription",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("subscription",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                try:
-                    user_id = ctx.author.id
-                    headers = {
-                        "Client-ID": CLIENT_ID,
-                        "Authorization": f"Bearer {CHANNEL_AUTH}"
-                    }
-                    params = {
-                        "broadcaster_id": CHANNEL_ID,
-                        "user_id": user_id
-                    }
-                    tier_mapping = {
-                        "1000": "Tier 1",
-                        "2000": "Tier 2",
-                        "3000": "Tier 3"
-                    }
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
-                            if subscription_response.status == 200:
-                                subscription_data = await subscription_response.json()
-                                subscriptions = subscription_data.get('data', [])
-                                if subscriptions:
-                                    for subscription in subscriptions:
-                                        user_name = subscription['user_name']
-                                        tier = subscription['tier']
-                                        is_gift = subscription['is_gift']
-                                        gifter_name = subscription.get('gifter_name') if is_gift else None
-                                        tier_name = tier_mapping.get(tier, tier)
-                                        if is_gift:
-                                            await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
-                                        else:
-                                            await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
+                    if await command_permissions(permissions, ctx.author):
+                        user_id = ctx.author.id
+                        headers = {
+                            "Client-ID": CLIENT_ID,
+                            "Authorization": f"Bearer {CHANNEL_AUTH}"
+                        }
+                        params = {
+                            "broadcaster_id": CHANNEL_ID,
+                            "user_id": user_id
+                        }
+                        tier_mapping = {
+                            "1000": "Tier 1",
+                            "2000": "Tier 2",
+                            "3000": "Tier 3"
+                        }
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+                                if subscription_response.status == 200:
+                                    subscription_data = await subscription_response.json()
+                                    subscriptions = subscription_data.get('data', [])
+                                    if subscriptions:
+                                        for subscription in subscriptions:
+                                            user_name = subscription['user_name']
+                                            tier = subscription['tier']
+                                            is_gift = subscription['is_gift']
+                                            gifter_name = subscription.get('gifter_name') if is_gift else None
+                                            tier_name = tier_mapping.get(tier, tier)
+                                            if is_gift:
+                                                await ctx.send(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                                            else:
+                                                await ctx.send(f"{user_name}, you are currently subscribed at {tier_name}.")
+                                    else:
+                                        await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
                                 else:
-                                    await ctx.send(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
-                            else:
-                                await ctx.send("Failed to retrieve subscription information. Please try again later.")
-                                twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
-                except aiohttp.ClientError as e:
-                    twitch_logger.error(f"Error retrieving subscription information: {e}")
-                    await ctx.send("An error occurred while making the request. Please try again later.")
+                                    await ctx.send("Failed to retrieve subscription information. Please try again later.")
+                                    twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
+                    else:
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
+        global stream_online
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("uptime",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("uptime",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                headers = {
-                    'Client-ID': CLIENT_ID,
-                    'Authorization': f'Bearer {CHANNEL_AUTH}'
-                }
-                params = {
-                    'user_login': CHANNEL_NAME,
-                    'type': 'live'
-                }
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
-                            if response.status == 200:
-                                data = await response.json()
-                                if data['data']:  # If stream is live
-                                    started_at_str = data['data'][0]['started_at']
-                                    started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
-                                    uptime = datetime.now(timezone.utc) - started_at
-                                    hours, remainder = divmod(uptime.seconds, 3600)
-                                    minutes, seconds = divmod(remainder, 60)
-                                    await ctx.send(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
-                                    chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
-                                else:
-                                    await ctx.send(f"{CHANNEL_NAME} is currently offline.")
-                                    api_logger.info(f"{CHANNEL_NAME} is currently offline.")
-                            else:
-                                await ctx.send(f"Failed to retrieve stream data. Status: {response.status}")
-                                chat_logger.error(f"Failed to retrieve stream data. Status: {response.status}")
-                except Exception as e:
-                    chat_logger.error(f"Error retrieving stream data: {e}")
-                    await ctx.send("Oops, something went wrong while trying to check uptime.")
+                    if not stream_online:
+                        await ctx.send(f"{CHANNEL_NAME} is currently offline.")
+                        return
+                    if await command_permissions(permissions, ctx.author):
+                        headers = {
+                            'Client-ID': CLIENT_ID,
+                            'Authorization': f'Bearer {CHANNEL_AUTH}'
+                        }
+                        params = {
+                            'user_login': CHANNEL_NAME,
+                            'type': 'live'
+                        }
+                        try:
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
+                                    if response.status == 200:
+                                        data = await response.json()
+                                        if data['data']:  # If stream is live
+                                            started_at_str = data['data'][0]['started_at']
+                                            started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
+                                            uptime = datetime.now(timezone.utc) - started_at
+                                            hours, remainder = divmod(uptime.seconds, 3600)
+                                            minutes, seconds = divmod(remainder, 60)
+                                            await ctx.send(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
+                                            chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
+                                        else:
+                                            await ctx.send(f"{CHANNEL_NAME} is currently offline.")
+                                            api_logger.info(f"{CHANNEL_NAME} is currently offline.")
+                                    else:
+                                        await ctx.send(f"Failed to retrieve stream data. Status: {response.status}")
+                                        chat_logger.error(f"Failed to retrieve stream data. Status: {response.status}")
+                        except Exception as e:
+                            chat_logger.error(f"Error retrieving stream data: {e}")
+                            await ctx.send("Oops, something went wrong while trying to check uptime.")
+                    else:
+                        await ctx.send("You do not have the required permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2528,29 +2962,32 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("typo",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typo",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                chat_logger.info("Typo Command ran.")
-                # Check if the broadcaster is running the command
-                if ctx.author.name.lower() == CHANNEL_NAME.lower() or (mentioned_username and mentioned_username.lower() == CHANNEL_NAME.lower()):
-                    await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
-                    return
-                # Determine the target user: mentioned user or the command caller
-                target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
-                # Increment typo count in the database
-                await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE typo_count = typo_count + 1', (target_user,))
-                await sqldb.commit()
-                # Retrieve the updated count
-                await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                result = await cursor.fetchone()
-                typo_count = result[0] if result else 0
-                # Send the message
-                chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
-                await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
+                    if await command_permissions(permissions, ctx.author):
+                        chat_logger.info("Typo Command ran.")
+                        # Check if the broadcaster is running the command
+                        if ctx.author.name.lower() == CHANNEL_NAME.lower() or (mentioned_username and mentioned_username.lower() == CHANNEL_NAME.lower()):
+                            await ctx.send("Dear Streamer, you can never have a typo in your own channel.")
+                            return
+                        # Determine the target user: mentioned user or the command caller
+                        target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
+                        # Increment typo count in the database
+                        await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE typo_count = typo_count + 1', (target_user,))
+                        await sqldb.commit()
+                        # Retrieve the updated count
+                        await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
+                        result = await cursor.fetchone()
+                        typo_count = result[0] if result else 0
+                        # Send the message
+                        chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
+                        await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
+                    else:
+                        await ctx.send("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await ctx.send(f"An error occurred while trying to add to your typo count.")
@@ -2563,46 +3000,48 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("typos",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typos",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                chat_logger.info("Typos Command ran.")
-                # Check if the broadcaster is running the command
-                if ctx.author.name.lower() == CHANNEL_NAME.lower():
-                    await ctx.send(f"Dear Streamer, you can never have a typo in your own channel.")
-                    return
-                # Determine the target user: mentioned user or the command caller
-                mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
-                target_user = mentioned_username_lower.lstrip('@')
-                # Retrieve the typo count
-                await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                result = await cursor.fetchone()
-                typo_count = result[0] if result else 0
-                # Send the message
-                chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
-                await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
+                    if not await command_permissions(permissions, ctx.author):
+                        chat_logger.info(f"{ctx.author.name} tried to use the typos command but lacked permissions.")
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                    chat_logger.info("Typos Command ran.")
+                    if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                        await ctx.send(f"Dear Streamer, you can never have a typo in your own channel.")
+                        return
+                    mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
+                    target_user = mentioned_username_lower.lstrip('@')
+                    await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
+                    result = await cursor.fetchone()
+                    typo_count = result[0] if result else 0
+                    chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
+                    await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
         except Exception as e:
             chat_logger.error(f"Error in typos_command: {e}")
             await ctx.send(f"An error occurred while trying to check typos.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("edittypos",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("edittypos",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send(f"You do not have the required permissions to use this command.")
+                        return
                     chat_logger.info("Edit Typos Command ran.")
                     try:
                         # Determine the target user: mentioned user or the command caller
@@ -2642,51 +3081,45 @@ class BotOfTheSpecter(commands.Bot):
                     except Exception as e:
                         chat_logger.error(f"Error in edit_typo_command: {e}")
                         await ctx.send(f"An error occurred while trying to edit typos. {e}")
-                else:
-                    await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("removetypos",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removetypos",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
-                    # Ensure a username is mentioned
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send(f"You do not have the required permissions to use this command.")
+                        return
                     if mentioned_username is None:
                         chat_logger.error("Command missing username parameter.")
                         await ctx.send(f"Usage: !removetypos @username")
                         return
-                    # Determine the target user: mentioned user or the command caller
                     mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                     target_user = mentioned_username_lower.lstrip('@')
-                    chat_logger.info(f"Remove Typos Command ran with params")
-                    # Validate decrease_amount is non-negative
+                    chat_logger.info(f"Remove Typos Command ran with params: {target_user}, decrease_amount: {decrease_amount}")
                     if decrease_amount < 0:
                         chat_logger.error(f"Invalid decrease amount {decrease_amount} for typo count of {target_user}.")
                         await ctx.send(f"Remove amount cannot be negative.")
                         return
-                    # Check if the user exists in the database
                     await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                     result = await cursor.fetchone()
                     if result:
                         current_count = result[0]
-                        new_count = max(0, current_count - decrease_amount)  # Ensure count doesn't go below 0
+                        new_count = max(0, current_count - decrease_amount)
                         await cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
                         await sqldb.commit()
                         await ctx.send(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
                     else:
                         await ctx.send(f"No typo record found for {target_user}.")
-                else:
-                    await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await ctx.send(f"An error occurred while trying to remove typos.")
@@ -2696,41 +3129,56 @@ class BotOfTheSpecter(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='steam')
     async def steam_command(self, ctx):
+        global current_game
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("steam",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("steam",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                global current_game
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+            # File path
+            file_path = '/var/www/api/steamapplist.json'
+            # Check if the file exists and if it's less than 1 hour old
+            try:
+                file_mtime = os.path.getmtime(file_path)
+                if (time.time() - file_mtime) < 3600:
+                    # Load from file if it's still fresh
+                    with open(file_path, 'r') as file:
+                        steam_app_list = json.load(file)
+                else:
+                    raise FileNotFoundError  # Force fetching fresh data
+            except (FileNotFoundError, OSError):
                 async with aiohttp.ClientSession() as session:
                     response = await session.get("http://api.steampowered.com/ISteamApps/GetAppList/v2")
                     if response.status == 200:
                         data = await response.json()
                         steam_app_list = {app['name'].lower(): app['appid'] for app in data['applist']['apps']}
+                        # Save to file
+                        with open(file_path, 'w') as file:
+                            json.dump(data, file)
                     else:
                         await ctx.send("Failed to fetch Steam games list.")
                         return
-                # Normalize the game name to lowercase to improve matching chances
-                game_name_lower = current_game.lower()
-                # First try with "The" at the beginning
-                if game_name_lower.startswith('The '):
-                    game_name_without_the = game_name_lower[4:]
-                    if game_name_without_the in steam_app_list:
-                        game_id = steam_app_list[game_name_without_the]
-                        store_url = f"https://store.steampowered.com/app/{game_id}"
-                        await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
-                        return
-                # If the game with "The" at the beginning is not found, try without it
-                if game_name_lower in steam_app_list:
-                    game_id = steam_app_list[game_name_lower]
+            game_name_lower = current_game.lower()
+            if game_name_lower.startswith('the '):
+                game_name_without_the = game_name_lower[4:]
+                if game_name_without_the in steam_app_list:
+                    game_id = steam_app_list[game_name_without_the]
                     store_url = f"https://store.steampowered.com/app/{game_id}"
                     await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
-                else:
-                    await ctx.send("This game is not available on Steam.")
+                    return
+            if game_name_lower in steam_app_list:
+                game_id = steam_app_list[game_name_lower]
+                store_url = f"https://store.steampowered.com/app/{game_id}"
+                await ctx.send(f"{current_game} is available on Steam, you can get it here: {store_url}")
+            else:
+                await ctx.send("This game is not available on Steam.")
         except Exception as e:
             chat_logger.error(f"Error in steam_command: {e}")
             await ctx.send("An error occurred while trying to check the Steam store.")
@@ -2740,147 +3188,154 @@ class BotOfTheSpecter(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
+        global current_game
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("deaths",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deaths",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                try:
-                    global current_game
-                    if current_game is None:
-                        await ctx.send("Current game is not set. Can't see death count.")
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
-                    chat_logger.info("Deaths command ran.")
+                if current_game is None:
+                    await ctx.send("Current game is not set. Can't see death count.")
+                    return
+                chat_logger.info("Deaths command ran.")
+                await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
+                game_death_count_result = await cursor.fetchone()
+                game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                await cursor.execute('SELECT death_count FROM total_deaths')
+                total_death_count_result = await cursor.fetchone()
+                total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
+                await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                if await command_permissions("mod", ctx.author):
+                    chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {game_death_count}")
+                    await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
+        except Exception as e:
+            chat_logger.error(f"Error in deaths_command: {e}")
+            await ctx.send(f"An error occurred while executing the command. {e}")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='deathadd', aliases=['death+'])
+    async def deathadd_command(self, ctx):
+        global current_game
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathadd",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                if current_game is None:
+                    await ctx.send("Current game is not set. Cannot add death to nothing.")
+                    return
+                try:
+                    chat_logger.info("Death Add Command ran by a mod or broadcaster.")
+                    await cursor.execute("SELECT COUNT(*) FROM total_deaths")
+                    count_result = await cursor.fetchone()
+                    if count_result is not None and count_result[0] == 0:
+                        await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
+                        await sqldb.commit()
+                        chat_logger.info("Initialized total_deaths table.")
+                    await cursor.execute(
+                        'INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
+                        (current_game,))
+                    await cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
+                    await sqldb.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
                     game_death_count = game_death_count_result[0] if game_death_count_result else 0
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
                     total_death_count = total_death_count_result[0] if total_death_count_result else 0
-                    chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
+                    chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
+                    chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
-                    if await command_permissions(ctx.author):
-                        chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {game_death_count}")
-                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
+                    await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
-                    chat_logger.error(f"Error in deaths_command: {e}")
-        finally:
-            await sqldb.ensure_closed()
-
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
-    @commands.command(name='deathadd', aliases=['death+'])
-    async def deathadd_command(self, ctx):
-        sqldb = await get_mysql_connection()
-        try:
-            async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("deathadd",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result[0]
-                    if status == 'Disabled':
-                        return
-                else:
-                    chat_logger.info("No status found for Death Add Command.")
-                if await command_permissions(ctx.author):
-                    global current_game
-                    if current_game is None:
-                        await ctx.send("Current game is not set. Can not add death to nothing.")
-                        return
-                    try:
-                        chat_logger.info("Death Add Command ran by a mod or broadcaster.")
-                        await cursor.execute("SELECT COUNT(*) FROM total_deaths")
-                        count_result = await cursor.fetchone()
-                        if count_result is not None and count_result[0] == 0:
-                            await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
-                            await sqldb.commit()
-                            chat_logger.info("Initialized total_deaths table.")
-                        await cursor.execute(
-                            'INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
-                            (current_game,))
-                        await cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
-                        await sqldb.commit()
-                        chat_logger.info("Updated death counts in game_deaths and total_deaths tables.")
-                        await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
-                        game_death_count_result = await cursor.fetchone()
-                        game_death_count = game_death_count_result[0] if game_death_count_result else 0
-                        await cursor.execute('SELECT death_count FROM total_deaths')
-                        total_death_count_result = await cursor.fetchone()
-                        total_death_count = total_death_count_result[0] if total_death_count_result else 0
-                        chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
-                        chat_logger.info(f"Total Death count has been updated to: {total_death_count}")
-                        await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
-                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
-                    except Exception as e:
-                        await ctx.send(f"An error occurred while executing the command. {e}")
-                        chat_logger.error(f"Error in deathadd_command: {e}")
-                else:
-                    chat_logger.info(f"{ctx.author.name} tried to use the command, death add, but couldn't as they are not a moderator.")
-                    await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                    chat_logger.error(f"Error in deathadd_command: {e}")
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathadd_command: {e}")
             await ctx.send(f"An unexpected error occurred: {e}")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
-    @commands.command(name='deathremove', aliases=['death-',])
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(self, ctx):
+        global current_game
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("deathremove",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathremove",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                if await command_permissions(ctx.author):
-                    global current_game
-                    if current_game is None:
-                        await ctx.send("Current game is not set. Can't remove from nothing.")
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
-                    try:
-                        chat_logger.info("Death Remove Command Ran")
-                        await cursor.execute('UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s', (current_game,))
-                        await cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
-                        await sqldb.commit()
-                        await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
-                        game_death_count_result = await cursor.fetchone()
-                        game_death_count = game_death_count_result[0] if game_death_count_result else 0
-                        await cursor.execute('SELECT death_count FROM total_deaths')
-                        total_death_count_result = await cursor.fetchone()
-                        total_death_count = total_death_count_result[0] if total_death_count_result else 0
-                        chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
-                        chat_logger.info(f"Total Death count has been updated to: {total_death_count} to reflect the removal.")
-                        await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
-                        await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
-                    except Exception as e:
-                        await ctx.send(f"An error occurred while executing the command. {e}")
-                        chat_logger.error(f"Error in deaths_command: {e}")
-                else:
-                    chat_logger.info(f"{ctx.author.name} tried to use the command, death remove, but couldn't as they are not a moderator.")
-                    await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                if current_game is None:
+                    await ctx.send("Current game is not set. Can't remove from nothing.")
+                    return
+                try:
+                    chat_logger.info("Death Remove Command Ran")
+                    await cursor.execute(
+                        'UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s',
+                        (current_game,))
+                    await cursor.execute(
+                        'UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END'
+                    )
+                    await sqldb.commit()
+                    await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
+                    game_death_count_result = await cursor.fetchone()
+                    game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                    await cursor.execute('SELECT death_count FROM total_deaths')
+                    total_death_count_result = await cursor.fetchone()
+                    total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                    chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
+                    chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
+                    await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+                    await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
+                except Exception as e:
+                    await ctx.send(f"An error occurred while executing the command. {e}")
+                    chat_logger.error(f"Error in deathremove_command: {e}")
+        except Exception as e:
+            chat_logger.error(f"Unexpected error in deathremove_command: {e}")
+            await ctx.send(f"An unexpected error occurred: {e}")
         finally:
             await sqldb.ensure_closed()
-    
+
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='game')
     async def game_command(self, ctx):
+        global current_game
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("game",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("game",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                global current_game
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
                 if current_game is not None:
                     await ctx.send(f"The current game we're playing is: {current_game}")
                 else:
@@ -2897,11 +3352,14 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("followage",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("followage",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
                 target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
                 headers = {
@@ -2971,18 +3429,18 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("schedule",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("schedule",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
-                if timezone_row:
-                    timezone = timezone_row[0]
-                else:
-                    timezone = 'UTC'
+                timezone = timezone_row[0] if timezone_row else 'UTC'
                 tz = pytz.timezone(timezone)
                 current_time = datetime.now(tz)
                 headers = {
@@ -3021,8 +3479,7 @@ class BotOfTheSpecter(commands.Bot):
                                     if segment.get('canceled_until'):
                                         canceled_until = datetime.strptime(segment['canceled_until'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(tz)
                                         start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
-                                        start_time = start_time_utc.astimezone(tz)
-                                        canceled_stream = (start_time, canceled_until)
+                                        canceled_stream = (start_time_utc.astimezone(tz), canceled_until)
                                         continue
                                     start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc)
                                     start_time = start_time_utc.astimezone(tz)
@@ -3054,19 +3511,21 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("checkupdate",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checkupdate",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-            if command_permissions(ctx.author):
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
                 API_URL = "https://api.botofthespecter.com/versions"
                 async with ClientSession() as session:
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
@@ -3079,34 +3538,38 @@ class BotOfTheSpecter(commands.Bot):
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new stable update (V{stable_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new beta update (V{stable_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
-                                    message = f"There is no stable update pending. You are currently running V{VERSION}."
-                                bot_logger.info(f"Bot stable update available. (V{stable_version})")
+                                    message = f"There is no beta update pending. You are currently running V{VERSION}."
+                                bot_logger.info(f"Bot beta update available. (V{stable_version})")
                                 await ctx.send(message)
                             else:
-                                message = f"There is no stable update pending. You are currently running V{VERSION}."
+                                message = f"There is no beta update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"{message}")
                                 await ctx.send(message)
-            else:
-                chat_logger.info(f"{ctx.author.name} tried to use the command, !checkupdate, but couldn't as they are not a moderator.")
-                await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                        else:
+                            await ctx.send("Failed to check for updates. Please try again later.")
+        except Exception as e:
+            chat_logger.error(f"Error in checkupdate_command: {e}")
+            await ctx.send("Oops, something went wrong while trying to check for updates.")
         finally:
             await sqldb.ensure_closed()
-    
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("shoutout",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("shoutout",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-            if await command_permissions(ctx.author):
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
                 chat_logger.info(f"Shoutout command running from {ctx.author.name}")
                 if not user_to_shoutout:
                     chat_logger.error(f"Shoutout command missing username parameter.")
@@ -3114,9 +3577,7 @@ class BotOfTheSpecter(commands.Bot):
                     return
                 try:
                     chat_logger.info(f"Shoutout command trying to run.")
-                    # Remove @ from the username if present
                     user_to_shoutout = user_to_shoutout.lstrip('@')
-                    # Check if the user exists on Twitch
                     is_valid_user = await is_valid_twitch_user(user_to_shoutout)
                     if not is_valid_user:
                         chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout.")
@@ -3143,31 +3604,29 @@ class BotOfTheSpecter(commands.Bot):
                         )
                     chat_logger.info(shoutout_message)
                     await ctx.send(shoutout_message)
-                    # Trigger the Twitch shoutout
                     asyncio.create_task(trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id))
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
-            else:
-                chat_logger.info(f"{ctx.author.name} tried to use the command, !shoutout, but lacks permissions.")
-                await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("addcommand",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("addcommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-            # Check if the user is a moderator or the broadcaster
-            if command_permissions(ctx.author):
+                    # Check if the user has the required permissions for this command
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
                 # Parse the command and response from the message
                 try:
                     command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
@@ -3180,25 +3639,26 @@ class BotOfTheSpecter(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
                 await ctx.send(f'Custom command added: !{command}')
-            else:
-                await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("removecommand",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removecommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-            # Check if the user is a moderator or the broadcaster
-            if command_permissions(ctx.author):
+                    # Check if the user has the required permissions for this command
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Parse the command from the message
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
@@ -3210,25 +3670,26 @@ class BotOfTheSpecter(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has removed {command}")
                 await ctx.send(f'Custom command removed: !{command}')
-            else:
-                await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.mod)
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("disablecommand",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("disablecommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-            # Check if the user is a moderator or the broadcaster
-            if command_permissions(ctx.author):
+                    # Check if the user has the required permissions for this command
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Parse the command from the message
                 try:
                     command = ctx.message.content.strip().split(' ')[1]
                 except IndexError:
@@ -3240,8 +3701,37 @@ class BotOfTheSpecter(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has disabled the command: {command}")
                 await ctx.send(f'Custom command disabled: !{command}')
-            else:
-                await ctx.send(f"You must be a moderator or the broadcaster to use this command.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='enablecommand')
+    async def enablecommand_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("enablecommand",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    if status == 'Enabled':
+                        return
+                    # Check if the user has the required permissions for this command
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Parse the command from the message
+                try:
+                    command = ctx.message.content.strip().split(' ')[1]
+                except IndexError:
+                    await ctx.send(f"Invalid command format. Use: !enablecommand [command]")
+                    return
+                # Enable the command in the database
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
+                    await sqldb.commit()
+                chat_logger.info(f"{ctx.author.name} has enabled the command: {command}")
+                await ctx.send(f'Custom command enabled: !{command}')
         finally:
             await sqldb.ensure_closed()
 
@@ -3251,20 +3741,26 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("slots",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("slots",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                slots = ["🍒", "🍋", "🍊", "🍉", "🍇", "🍓", "⭐"]
-                result = [random.choice(slots) for _ in range(3)]
-                if result[0] == result[1] == result[2]:
-                    message = f"{ctx.author.name}, {''.join(result)}"
-                    message += f" You Win!"
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Determine if the user wins 70% of the time
+                if random.random() < 0.7:  # 70% win chance
+                    # Generate a winning result
+                    winning_symbol = random.choice(["🍒", "🍋", "🍊", "🍉", "🍇", "🍓", "⭐"])
+                    result = [winning_symbol] * 3  # All three symbols are the same
+                    message = f"{ctx.author.name}, {''.join(result)} You Win!"
                 else:
-                    message = f"{ctx.author.name}, {''.join(result)}"
-                    message += f" Better luck next time."
+                    # Generate a losing result
+                    slots = ["🍒", "🍋", "🍊", "🍉", "🍇", "🍓", "⭐"]
+                    result = [random.choice(slots) for _ in range(3)]
+                    message = f"{ctx.author.name}, {''.join(result)} Better luck next time."
                 await ctx.send(message)
         finally:
             await sqldb.ensure_closed()
@@ -3275,11 +3771,14 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("kill",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kill",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
                 async with aiohttp.ClientSession() as session:
                     async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
@@ -3328,11 +3827,14 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("roulette",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roulette",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
                 outcomes = [
                     "and survives!",
@@ -3341,6 +3843,9 @@ class BotOfTheSpecter(commands.Bot):
                 result = random.choice(outcomes)
                 message = f"{ctx.author.name} pulls the trigger... {result}"
                 await ctx.send(message)
+        except Exception as e:
+            chat_logger.exception("An error occurred during the execution of the roulette command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3350,29 +3855,34 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("rps",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("rps",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                    choices = ["rock","paper","scissors"]
-                    bot_choice = random.choice(choices)
-                    user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
-                    if user_input not in choices:
-                        await ctx.send(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
-                    user_choice = user_input
-                    if user_choice == bot_choice:
-                        result = f"It's a tie! We both chose {bot_choice}."
-                    elif (user_choice == 'rock' and bot_choice == 'Scissors') or \
-                        (user_choice == 'paper' and bot_choice == 'Rock') or \
-                        (user_choice == 'scissors' and bot_choice == 'Paper'):
-                        result = f"You Win! You chose {user_choice} and I chose {bot_choice}."
-                    else:
-                        result = f"You lose! You chose {user_choice} and I chose {bot_choice}"
-                    message = result
-                    await ctx.send(message)
+                choices = ["rock", "paper", "scissors"]
+                bot_choice = random.choice(choices)
+                user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
+                if user_input not in choices:
+                    await ctx.send(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
+                    return
+                user_choice = user_input
+                if user_choice == bot_choice:
+                    result = f"It's a tie! We both chose {bot_choice}."
+                elif (user_choice == 'rock' and bot_choice == 'scissors') or \
+                     (user_choice == 'paper' and bot_choice == 'rock') or \
+                     (user_choice == 'scissors' and bot_choice == 'paper'):
+                    result = f"You Win! You chose {user_choice} and I chose {bot_choice}."
+                else:
+                    result = f"You lose! You chose {user_choice} and I chose {bot_choice}."
+                await ctx.send(result)
+        except Exception as e:
+            chat_logger.exception("An error occurred during the execution of the RPS command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3382,20 +3892,26 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("story",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("story",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
                         return
-                    words = ctx.message.content.split(' ')[1:]
-                    if len(words) < 5:
-                        await ctx.send(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
-                    template = f"Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
-                    story = template.format(*words)
-                    response = await self.handle_ai_response(story, ctx.user.id, ctx.user.name)
-                    await ctx.send(response)
+                words = ctx.message.content.split(' ')[1:]
+                if len(words) < 5:
+                    await ctx.send(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
+                    return
+                template = "Once upon a time, there was a {0} who loved to {1}. One day, they found a {2} {3} and decided to {4}."
+                story = template.format(*words)
+                response = await self.handle_ai_response(story, ctx.author.id, ctx.author.name)
+                await ctx.send(response)
+        except Exception as e:
+            chat_logger.exception("An error occurred during the execution of the story command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3406,11 +3922,14 @@ class BotOfTheSpecter(commands.Bot):
         try:
             async with sqldb.cursor() as cursor:
                 # Check if the 'convert' command is enabled
-                await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", ("convert",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("convert",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result[0]
+                    status, permissions = result
                     if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
                         return
                 try:
                     if len(args) == 3 and args[0].startswith('$'):
@@ -3433,164 +3952,47 @@ class BotOfTheSpecter(commands.Bot):
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
                         await ctx.send(f"{amount_str} {from_unit} in {to_unit} is {formatted_converted_quantity} {converted_quantity.units}")
                     else:
-                        await ctx.send("Invalid format. Please use the format: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
+                        await ctx.send("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
-                    await ctx.send("Failed to convert, please try again. Please ensure the format is: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
-                    sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[API_KEY]')
+                    await ctx.send("Failed to convert. Please ensure the format is correct: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency.")
+                    sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[API_KEY]')
                     api_logger.error(f"An error occurred: {sanitized_error}")
+        except Exception as e:
+            chat_logger.exception("An unexpected error occurred during the execution of the convert command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
     @commands.command(name='todo')
-    async def todo_command(self, ctx: commands.Context):
+    async def todo_command(ctx: commands.Context):
         message_content = ctx.message.content.strip()
         user = ctx.author
         user_id = user.id
         sqldb = await get_mysql_connection()
-        # Pending removals dictionary (user_id: task_id)
-        if not hasattr(self, 'pending_removals'):
-            self.pending_removals = {}
         try:
-            async with sqldb.cursor() as cursor:
-                # Check if the command is just '!todo' with no additional action
-                if message_content.lower() == '!todo':
-                    # Provide the link to the todo list
-                    await ctx.send(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/todo")
-                    return
-                # Extract the action and parameters
-                action, *params = message_content[5:].strip().split(' ', 1)
-                action = action.lower()
-                # Check permissions for actions other than viewing
+            if message_content.lower() == '!todo':
+                await ctx.send(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/todo")
+                return
+            action, *params = message_content[5:].strip().split(' ', 1)
+            action = action.lower()
+            actions = {
+                'add': add_task,
+                'edit': edit_task,
+                'remove': remove_task,
+                'complete': complete_task,
+                'done': complete_task,
+                'confirm': confirm_removal,
+                'view': view_task,
+            }
+            if action in actions:
                 if action in ['add', 'edit', 'remove', 'complete', 'done']:
-                    if not await command_permissions(user):
+                    if not await command_permissions("mod", user):
                         await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
                         return
-                if action == 'add':
-                    # Add a new todo item with optional category ID
-                    if params:
-                        try:
-                            # The task is surrounded by quotes, so we split by quotes and remove whitespace
-                            task_and_category = params[0].strip().split('"')
-                            task_description = task_and_category[1].strip()
-                            # Optional category ID, default to 1 if not provided
-                            if len(task_and_category) > 2 and task_and_category[2].strip():
-                                category_id = int(task_and_category[2].strip())
-                            else:
-                                category_id = 1
-                            # Insert the task into the database
-                            sql_insert = "INSERT INTO todos (objective, category) VALUES (%s, %s)"
-                            await cursor.execute(sql_insert, (task_description, category_id))
-                            task_id = cursor.lastrowid  # Get the ID of the newly inserted task
-                            await sqldb.commit()
-                            # Fetch category name from the database based on category_id
-                            sql_category = "SELECT category FROM categories WHERE id = %s"
-                            await cursor.execute(sql_category, (category_id,))
-                            result = await cursor.fetchone()
-                            if result:
-                                category_name = result[0]
-                                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name}".')
-                            else:
-                                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added.')
-                        except (ValueError, IndexError):
-                            await ctx.send(f"{user.name}, please provide a valid task description and optional category ID.")
-                    else:
-                        await ctx.send(f"{user.name}, please provide a task to add.")
-                elif action == 'edit':
-                    # Edit an existing todo item
-                    if params:
-                        try:
-                            todo_id_str, new_task = params[0].split(',', 1)
-                            todo_id = int(todo_id_str.strip())
-                            new_task = new_task.strip()
-                            sql = "UPDATE todos SET objective = %s WHERE id = %s"
-                            await cursor.execute(sql, (new_task, todo_id))
-                            if cursor.rowcount == 0:
-                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
-                            else:
-                                await sqldb.commit()
-                                await ctx.send(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
-                        except ValueError:
-                            await ctx.send(f"{user.name}, please provide the task ID and new description separated by a comma.")
-                        except IndexError:
-                            await ctx.send(f"{user.name}, please provide both task ID and new description.")
-                    else:
-                        await ctx.send(f"{user.name}, please provide the task ID and new description.")
-                elif action == 'remove':
-                    # Remove a todo item (with confirmation)
-                    if params:
-                        try:
-                            todo_id = int(params[0].strip())
-                            # Check if the task exists
-                            sql_check = "SELECT id FROM todos WHERE id = %s"
-                            await cursor.execute(sql_check, (todo_id,))
-                            result = await cursor.fetchone()
-                            if result:
-                                # Store pending removal
-                                self.pending_removals[user_id] = todo_id
-                                await ctx.send(f"{user.name}, please use `!todo confirm` to remove task ID {todo_id}.")
-                            else:
-                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
-                        except ValueError:
-                            await ctx.send(f"{user.name}, please provide a valid task ID to remove.")
-                    else:
-                        await ctx.send(f"{user.name}, please provide the task ID to remove.")
-                elif action in ['complete', 'done']:
-                    # Mark a todo item as complete
-                    if params:
-                        try:
-                            todo_id = int(params[0].strip())
-                            sql = "UPDATE todos SET completed = 'Yes' WHERE id = %s"
-                            await cursor.execute(sql, (todo_id,))
-                            if cursor.rowcount == 0:
-                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
-                            else:
-                                await sqldb.commit()
-                                await ctx.send(f"{user.name}, task {todo_id} has been marked as complete.")
-                        except ValueError:
-                            await ctx.send(f"{user.name}, please provide a valid task ID to mark as complete.")
-                    else:
-                        await ctx.send(f"{user.name}, please provide the task ID to mark as complete.")
-                elif action == 'confirm':
-                    # Confirm pending removal
-                    if user_id in self.pending_removals:
-                        todo_id = self.pending_removals.pop(user_id)
-                        sql = "DELETE FROM todos WHERE id = %s"
-                        await cursor.execute(sql, (todo_id,))
-                        await sqldb.commit()
-                        await ctx.send(f"{user.name}, task ID {todo_id} has been removed.")
-                    else:
-                        await ctx.send(f"{user.name}, you have no pending task removal to confirm.")
-                elif action == 'view':
-                    # View a specific todo item
-                    if params:
-                        try:
-                            todo_id = int(params[0].strip())
-                            sql = "SELECT objective, category, completed FROM todos WHERE id = %s"
-                            await cursor.execute(sql, (todo_id,))
-                            result = await cursor.fetchone()
-                            if result:
-                                objective, category_id, completed = result
-                                # Fetch category name
-                                sql_category = "SELECT category FROM categories WHERE id = %s"
-                                await cursor.execute(sql_category, (category_id,))
-                                category_result = await cursor.fetchone()
-                                category_name = category_result[0] if category_result else 'Unknown'
-                                await ctx.send(
-                                    f"Task ID {todo_id}: "
-                                    f"Description: {objective} "
-                                    f"Category: {category_name} "
-                                    f"Completed: {completed}"
-                                )
-                            else:
-                                await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
-                        except ValueError:
-                            await ctx.send(f"{user.name}, please provide a valid task ID to view.")
-                    else:
-                        await ctx.send(f"{user.name}, please provide the task ID to view.")
-                else:
-                    # Unrecognized action
-                    await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
+                await actions[action](ctx, params, user_id, sqldb)
+            else:
+                await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3598,8 +4000,9 @@ class BotOfTheSpecter(commands.Bot):
     @commands.command(name="subathon")
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
         user = ctx.author
+        # Check permissions for valid actions
         if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
-            if not await command_permissions(user):
+            if not await command_permissions("mod", user):
                 await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
                 return
         if action == "start":
@@ -3611,14 +4014,93 @@ class BotOfTheSpecter(commands.Bot):
         elif action == "resume":
             await resume_subathon(ctx)
         elif action == "addtime":
-            if minutes:
+            if minutes is not None:
                 await addtime_subathon(ctx, minutes)
             else:
-                ctx.send(f"{user} Please provide the number of minutes to add. !subathon addtime <minutes>")
+                await ctx.send(f"{user.name}, please provide the number of minutes to add. Usage: !subathon addtime <minutes>")
         elif action == "status":
             await subathon_status(ctx)
         else:
-            ctx.send(f"{user} Invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+            await ctx.send(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='heartrate')
+    async def heartrate_command(self, ctx):
+        global HEARTRATE
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Check if the 'convert' command is enabled
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("heartrate",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    if status == 'Disabled':
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                    if HEARTRATE is None:
+                        await ctx.send(f"The Heart Rate is not turned on right now.")
+                    else:
+                        await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
+        except Exception as e:
+            chat_logger.exception("An unexpected error occurred during the execution of the convert command.")
+            await ctx.send("An unexpected error occurred. Please try again later.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.user)
+    @commands.command(name='watchtime')
+    async def watchtime(self, ctx):
+        user_id = ctx.author.id
+        username = ctx.author.name
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                # Query watch time for the user
+                await cursor.execute("""
+                    SELECT total_watch_time_live, total_watch_time_offline
+                    FROM watch_time
+                    WHERE user_id = %s
+                """, (user_id,))
+                watch_time = await cursor.fetchone()
+                if watch_time:
+                    total_live = watch_time[0]  # Total live watch time in seconds
+                    total_offline = watch_time[1]  # Total offline watch time in seconds
+                    # Function to convert seconds into years, months, days, hours, minutes
+                    def convert_seconds(seconds):
+                        years, remainder = divmod(seconds, 31536000)
+                        months, remainder = divmod(remainder, 2592000)
+                        days, remainder = divmod(remainder, 86400)
+                        hours, remainder = divmod(remainder, 3600)
+                        minutes, _ = divmod(remainder, 60)
+                        return years, months, days, hours, minutes
+                    # Convert live and offline watch time
+                    live_years, live_months, live_days, live_hours, live_minutes = convert_seconds(total_live)
+                    offline_years, offline_months, offline_days, offline_hours, offline_minutes = convert_seconds(total_offline)
+                    # Function to build time string excluding zero values
+                    def format_time(years, months, days, hours, minutes):
+                        time_parts = []
+                        if years > 0: time_parts.append(f"{years} year{'s' if years > 1 else ''}")
+                        if months > 0: time_parts.append(f"{months} month{'s' if months > 1 else ''}")
+                        if days > 0: time_parts.append(f"{days} day{'s' if days > 1 else ''}")
+                        if hours > 0: time_parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
+                        if minutes > 0: time_parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+                        return ', '.join(time_parts) if time_parts else "0 minutes"
+                    # Format both live and offline time
+                    live_str = format_time(live_years, live_months, live_days, live_hours, live_minutes)
+                    offline_str = format_time(offline_years, offline_months, offline_days, offline_hours, offline_minutes)
+                    # Respond with the user's watch time
+                    await ctx.send(f"@{username}, you have watched for {live_str} live, and {offline_str} offline.")
+                else:
+                    # If no watch time data is found
+                    await ctx.send(f"@{username}, no watch time data recorded for you yet.")
+        except Exception as e:
+            bot_logger.error(f"Error fetching watch time for {username}: {e}")
+            await ctx.send(f"@{username}, an error occurred while fetching your watch time.")
+        finally:
+            await sqldb.ensure_closed()
 
 # Functions for all the commands
 ##
@@ -3658,21 +4140,56 @@ async def get_display_name(user_id):
                 return None
 
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
-async def command_permissions(user):
+async def command_permissions(setting, user):
+    # Check if the setting allows everyone
+    if setting == "everyone":
+        chat_logger.info(f"Command Permission granted to {user.name}. (Everyone allowed)")
+        return True
     # Check if the user is the bot owner
     if user.name == 'gfaundead':
-        twitch_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
+        chat_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
         return True
     # Check if the user is the broadcaster
     elif user.name == CHANNEL_NAME:
-        twitch_logger.info(f"Command Permission checked, {user.name} is the Broadcaster")
+        chat_logger.info(f"Command Permission checked, {user.name} is the Broadcaster")
         return True
-    # Check if the user is a moderator
-    elif user.is_mod:
-        twitch_logger.info(f"Command Permission checked, {user.name} is a Moderator")
+    # Check if the user is a moderator and the setting is "mod"
+    elif setting == "mod" and user.is_mod:
+        chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
         return True
+    # Check if the user is a VIP and the setting is "vip"
+    elif setting == "vip" and user.is_vip:
+        chat_logger.info(f"Command Permission checked, {user.name} is a VIP")
+        return True
+    # Check if the user is a subscriber for all-subs or t1-sub
+    elif setting in ["all-subs", "t1-sub"]:
+        if user.is_subscriber:
+            chat_logger.info(f"Command Permission checked, {user.name} is a Subscriber")
+            return True
+    # Check for Tier 2 or Tier 3 subscription using the Twitch API
+    elif setting in ["t2-sub", "t3-sub"]:
+        user_id = user.id
+        headers = {
+            "Client-ID": CLIENT_ID,
+            "Authorization": f"Bearer {CHANNEL_AUTH}"
+        }
+        params = {
+            "broadcaster_id": CHANNEL_ID,
+            "user_id": user_id
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://api.twitch.tv/helix/subscriptions', headers=headers, params=params) as subscription_response:
+                if subscription_response.status == 200:
+                    subscription_data = await subscription_response.json()
+                    subscriptions = subscription_data.get('data', [])
+                    if subscriptions:
+                        for subscription in subscriptions:
+                            tier = subscription['tier']
+                            if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000"):
+                                chat_logger.info(f"Command Permission checked, {user.name} has the required subscription tier ({tier}).")
+                                return True
     # If none of the above, the user does not have required permissions
-    twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires mod permission.")
+    twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires {setting} permission.")
     return False
 
 async def is_user_mod(username):
@@ -4093,6 +4610,7 @@ async def process_kofi_event(data):
         event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
 async def process_weather_websocket(data):
+    channel = bot.get_channel(CHANNEL_NAME)
     # Convert weather_data from string to dictionary
     try:
         weather_data = ast.literal_eval(data.get('weather_data', '{}'))
@@ -4112,7 +4630,6 @@ async def process_weather_websocket(data):
     message = (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
                f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) with {humidity}%.")
     # Get the channel and send the message
-    channel = bot.get_channel(CHANNEL_NAME)
     event_logger.info(f"Sending weather update: {message}")
     await channel.send(message)
 
@@ -4122,6 +4639,7 @@ async def process_stream_online_websocket():
     global current_game
     stream_online = True
     asyncio.get_event_loop().create_task(timed_message())
+    channel = bot.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
         headers = {
@@ -4147,18 +4665,8 @@ async def process_stream_online_websocket():
         image = ""
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
-    await send_online_message(message)
+    await channel.send(message)
     await send_to_discord_stream_online(message, image)
-
-# Function to send the online message to channel
-async def send_online_message(message):
-    await asyncio.sleep(5)
-    channel = bot.get_channel(CHANNEL_NAME)
-    if channel:
-        bot_logger.info(f"Attempted to send message: {message}")
-        await channel.send(message)
-    else:
-        bot_logger.error("Failed to send message")
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
@@ -4214,7 +4722,8 @@ async def timed_message():
         global scheduled_tasks
         global stream_online
         if stream_online:
-            await cursor.execute('SELECT interval_count, message FROM timed_messages ORDER BY interval_count')
+            # Fetch enabled messages with their interval and ID from the database
+            await cursor.execute('SELECT id, interval_count, message FROM timed_messages WHERE status = "true" ORDER BY interval_count')
             messages = await cursor.fetchall()
             bot_logger.info(f"Timed Messages: {messages}")
             # Clear any old tasks
@@ -4223,13 +4732,14 @@ async def timed_message():
             scheduled_tasks.clear()
             # Sequentially schedule messages
             previous_time = datetime.now()
-            for interval, message in messages:
+            for message_id, interval, message in messages:
                 time_now = datetime.now()
                 next_time = previous_time + timedelta(minutes=int(interval))
                 wait_time = (next_time - time_now).total_seconds()
-                bot_logger.info(f"Scheduling message: '{message}' to be sent in {wait_time} seconds")
-                task = asyncio.create_task(send_timed_message(message, wait_time))
-                task.set_name(message)
+                message_send_in = next_time - time_now
+                bot_logger.info(f"Scheduling message ID: {message_id} - '{message}' to be sent in {message_send_in}")
+                task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
+                task.set_name(f"Message ID: {message_id}")
                 scheduled_tasks.append(task)
                 previous_time = next_time  # Update previous_time for the next interval
         else:
@@ -4239,18 +4749,43 @@ async def timed_message():
             scheduled_tasks.clear()  # Clear the list of tasks
     await sqldb.ensure_closed()
 
-async def send_timed_message(message, delay):
+async def send_timed_message(message_id, message, delay):
     global stream_online
     await asyncio.sleep(delay)
     try:
         if stream_online:
+            chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
             channel = bot.get_channel(CHANNEL_NAME)
-            bot_logger.info(f"Sending Timed Message: {message}")
             await channel.send(message)
         else:
-            bot_logger.info("Stream is offline. Message not sent.")
+            chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
     except asyncio.CancelledError:
-        bot_logger.info(f"Task cancelled for {message}")
+        bot_logger.info(f"Task cancelled for Message ID: {message_id} - {message}")
+
+# Function to get the song via Spotify
+async def get_spotify_current_song():
+    global SPOTIFY_ACCESS_TOKEN
+    headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                # Extract song name, artist if spotify is currently playing
+                is_playing = data["is_playing"]
+                if is_playing:
+                    song_name = data["item"]["name"]
+                    artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
+                    api_logger.info(f"The current song from spotify is: {song_name} by {artist_name}")
+                    return f"{song_name} by {artist_name}"
+                else:
+                    return None
+            elif response.status == 204:
+                # 204 No Content means no song is currently playing
+                return None
+            else:
+                # Handle potential Spotify API errors
+                api_logger.error(f"Spotify API error: {response.status}")
+                return None
 
 # Function to get the current playing song
 async def get_current_song():
@@ -4436,6 +4971,7 @@ async def handle_ad_break(duration_seconds):
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4479,24 +5015,29 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
             await send_to_discord(discord_message, "New Raid!", "raid.png")
             await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
-            channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
+            marker_description = f"New Raid from {from_broadcaster_name}"
+            if await make_stream_marker(marker_description):
+                twitch_logger.info(f"A stream marker was created: {marker_description}.")
+            else:
+                twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
             # Check existing bits data
             await cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (user_id, user_name))
             existing_bits = await cursor.fetchone()
-            channel = bot.get_channel(CHANNEL_NAME)
             # Update or insert bits data
             if existing_bits:
                 total_bits = existing_bits[0] + bits
                 await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (total_bits, user_id, user_name))
+                total_bits = "{:,}".format(total_bits)
                 await channel.send(f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
             else:
                 await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (user_id, user_name, bits))
@@ -4539,11 +5080,17 @@ async def process_cheer_event(user_id, user_name, bits):
             await send_to_discord(discord_message, "New Cheer!", image)
             await channel.send(f"Thank you {user_name} for {bits} bits!")
             await websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits)
+            marker_description = f"New Cheer from {user_name}"
+            if await make_stream_marker(marker_description):
+                twitch_logger.info(f"A stream marker was created: {marker_description}.")
+            else:
+                twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
 # Function for Subscriptions
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4596,7 +5143,6 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                     sub_add_time = int(settings['sub_add_3'])
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
-                channel = bot.get_channel(CHANNEL_NAME)
                 await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
             message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
@@ -4614,7 +5160,11 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             # Retrieve the channel object
             try:
                 await channel.send(message)
-                event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
+                marker_description = f"New Subscription from {user_name}"
+                if await make_stream_marker(marker_description):
+                    twitch_logger.info(f"A stream marker was created: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
             except Exception as e:
                 event_logger.error(f"Failed to send message to channel {CHANNEL_NAME}: {e}")
     except Exception as e:
@@ -4624,6 +5174,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
 
 # Function for Resubscriptions with Messages
 async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4676,7 +5227,6 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                     sub_add_time = int(settings['sub_add_3'])
                 else:
                     sub_add_time = 0  # Default to 0 if no matching tier
-                channel = bot.get_channel(CHANNEL_NAME)
                 await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
             message = f"Thank you {user_name} for resubscribing! You are now a {sub_plan} subscriber for {event_months} months! {subscriber_message}"
@@ -4694,7 +5244,11 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             # Retrieve the channel object
             try:
                 await channel.send(message)
-                event_logger.info(f"Sent message to channel {CHANNEL_NAME}")
+                marker_description = f"New Subscription from {user_name}"
+                if await make_stream_marker(marker_description):
+                    twitch_logger.info(f"A stream marker was created: {marker_description}.")
+                else:
+                    twitch_logger.info("Failed to create a stream marker.")
             except Exception as e:
                 event_logger.error(f"Failed to send message to channel {CHANNEL_NAME}: {e}")
     except Exception as e:
@@ -4704,6 +5258,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
 
 # Function for Gift Subscriptions
 async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor() as cursor:
@@ -4713,20 +5268,27 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 message = f"Thank you for gifting a {givent_sub_plan} subscription to {number_gifts} members! {number_gifts} members are now a {givent_sub_plan} subscriber!"
                 discord_message = f"An Anonymous Gifter just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
+                giftsubfrom = "Anonymous"
             else:
+                giftsubfrom = gifter_user_name
                 if total_gifted > 1:
-                    message = f"Thank you {gifter_user_name} for gifting a {givent_sub_plan} subscription to {number_gifts} members! You have gifted a total of {total_gifted} to the community!"
+                    message = f"Thank you {giftsubfrom} for gifting a {givent_sub_plan} subscription to {number_gifts} members! You have gifted a total of {total_gifted} to the community!"
                 else:
-                    message = f"Thank you {gifter_user_name} for gifting a {givent_sub_plan} subscription to {number_gifts} members!"
-                discord_message = f"{gifter_user_name} just gifted {number_gifts} of gift subscriptions!"
+                    message = f"Thank you {giftsubfrom} for gifting a {givent_sub_plan} subscription to {number_gifts} members!"
+                discord_message = f"{giftsubfrom} just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
-            channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
+            marker_description = f"New Gift Subs from {giftsubfrom}"
+            if await make_stream_marker(marker_description):
+                twitch_logger.info(f"A stream marker was created: {marker_description}.")
+            else:
+                twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
+    channel = bot.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         followed_at_twitch = followed_at_twitch[:26]
@@ -4764,8 +5326,12 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
         await websocket_notice("TWITCH_FOLLOW", user=user_name)
-        channel = bot.get_channel(CHANNEL_NAME)
         await channel.send(message)
+        marker_description = f"New Twitch Follower: {user_name}"
+        if await make_stream_marker(marker_description):
+            twitch_logger.info(f"A stream marker was created: {marker_description}.")
+        else:
+            twitch_logger.info("Failed to create a stream marker.")
     finally:
         await sqldb.ensure_closed()
 
@@ -4932,7 +5498,6 @@ async def websocket_notice(event, channel=None, user=None, death=None, game=None
                 params['channel'] = channel
                 params['user'] = user
             else:
-                bot_logger.error(f"Walkon file for user '{user}' does not exist: {walkon_file_path}. Can't play file.")
                 return
         elif event == "DEATHS" and death and game:
             params['death-text'] = death
@@ -4966,9 +5531,7 @@ async def websocket_notice(event, channel=None, user=None, death=None, game=None
         # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
         # Send the HTTP request
         async with session.get(url) as response:
-            if response.status == 200:
-                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
-            else:
+            if not response.status == 200:
                 bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
 
 # Function to connect to the websocket server and push a TTS notice
@@ -5085,18 +5648,37 @@ async def builtin_commands_creation():
             # Create placeholders for the query
             placeholders = ', '.join(['%s'] * len(all_commands))
             # Construct the query string with the placeholders
-            query = f"SELECT command FROM builtin_commands WHERE command IN ({placeholders})"
+            query = f"SELECT command, permission FROM builtin_commands WHERE command IN ({placeholders})"
             # Execute the query with the tuple of all commands
             await cursor.execute(query, tuple(all_commands))
             # Fetch the existing commands from the database
-            existing_commands = [row[0] for row in await cursor.fetchall()]
+            existing_commands = await cursor.fetchall()
+            existing_command_dict = {row[0]: row[1] for row in existing_commands}  # command: permission
             # Filter out existing commands
-            new_commands = [command for command in all_commands if command not in existing_commands]
-            # Insert new commands
+            new_commands = [command for command in all_commands if command not in existing_command_dict]
+            # Check for commands with NULL permission and update accordingly
+            commands_to_update = []
+            for command in existing_command_dict:
+                permission = existing_command_dict[command]
+                if permission is None:
+                    new_permission = 'mod' if command in mod_commands else 'everyone'
+                    commands_to_update.append((new_permission, command))
+            # Update NULL permissions
+            if commands_to_update:
+                update_query = "UPDATE builtin_commands SET permission = %s WHERE command = %s"
+                await cursor.executemany(update_query, commands_to_update)
+                await sqldb.commit()
+                for command in commands_to_update:
+                    bot_logger.info(f"Command '{command[1]}' updated with permission '{command[0]}.'")
+            # Insert new commands with their permissions
             if new_commands:
-                values = [(command, 'Enabled') for command in new_commands]
+                values = []
+                for command in new_commands:
+                    # Determine permission type
+                    permission = 'mod' if command in mod_commands else 'everyone'
+                    values.append((command, 'Enabled', permission))
                 # Insert query with placeholders for each command
-                insert_query = "INSERT INTO builtin_commands (command, status) VALUES (%s, %s)"
+                insert_query = "INSERT INTO builtin_commands (command, status, permission) VALUES (%s, %s, %s)"
                 await cursor.executemany(insert_query, values)  # Use executemany here
                 await sqldb.commit()
                 for command in new_commands:
@@ -5153,7 +5735,7 @@ async def check_stream_online():
     return
 
 async def convert_currency(amount, from_currency, to_currency):
-    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API}/pair/{from_currency}/{to_currency}/{amount}"
+    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/pair/{from_currency}/{to_currency}/{amount}"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -5178,10 +5760,10 @@ async def convert_currency(amount, from_currency, to_currency):
                 else:
                     error_message = data.get('error-type', 'Unknown error')
                     api_logger.error(f"Error: {error_message}")
-                    sanitized_error = str(error_message).replace(EXCHANGE_RATE_API, '[EXCHANGE_RATE_API]')
+                    sanitized_error = str(error_message).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
                     return f"Error: {sanitized_error}"
     except aiohttp.ClientError as e:
-        sanitized_error = str(e).replace(EXCHANGE_RATE_API, '[EXCHANGE_RATE_API]')
+        sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
         raise
 
@@ -5284,7 +5866,6 @@ async def channel_point_rewards():
                                 )
                             else:
                                 # Update existing reward
-                                api_logger.info(f"Updating existing reward: {reward_id}, {reward_title}, {reward_cost}")
                                 await cursor.execute(
                                     "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
                                     "WHERE reward_id = %s",
@@ -5324,6 +5905,120 @@ async def tell_fortune():
                     api_logger.info(f'API - BotOfTheSpecter - Fortune - {fortune_data["fortune"]}')
                     return fortune_data["fortune"]
             return "Unable to retrieve your fortune at this time."
+
+# Functions for the ToDo List
+# ToDo List Function - Add Task
+async def add_task(ctx, params, user_id, sqldb):
+    user = ctx.author
+    async with sqldb.cursor() as cursor:
+        if params:
+            try:
+                task_and_category = params[0].strip().split('"')
+                task_description = task_and_category[1].strip()
+                category_id = int(task_and_category[2].strip()) if len(task_and_category) > 2 and task_and_category[2].strip() else 1
+                await cursor.execute("INSERT INTO todos (objective, category) VALUES (%s, %s)", (task_description, category_id))
+                task_id = cursor.lastrowid
+                await sqldb.commit()
+                category_name = await fetch_category_name(cursor, category_id)
+                await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or ("Unknown" if category_name is None else category_name)}".')
+            except (ValueError, IndexError):
+                await ctx.send(f"{user.name}, please provide a valid task description and optional category ID.")
+        else:
+            await ctx.send(f"{user.name}, please provide a task to add.")
+
+# ToDo List Function - Edit Task
+async def edit_task(ctx, params, user_id, sqldb):
+    user = ctx.author
+    async with sqldb.cursor() as cursor:
+        if params:
+            try:
+                todo_id_str, new_task = params[0].split(',', 1)
+                todo_id = int(todo_id_str.strip())
+                new_task = new_task.strip()
+                await cursor.execute("UPDATE todos SET objective = %s WHERE id = %s", (new_task, todo_id))
+                if cursor.rowcount == 0:
+                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                else:
+                    await sqldb.commit()
+                    await ctx.send(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
+            except ValueError:
+                await ctx.send(f"{user.name}, please provide the task ID and new description separated by a comma.")
+        else:
+            await ctx.send(f"{user.name}, please provide the task ID and new description.")
+
+# ToDo List Function - Remove Task
+async def remove_task(ctx, params, user_id, sqldb):
+    user = ctx.author
+    async with sqldb.cursor() as cursor:
+        if params:
+            try:
+                todo_id = int(params[0].strip())
+                await cursor.execute("SELECT id FROM todos WHERE id = %s", (todo_id,))
+                if await cursor.fetchone():
+                    pending_removals[user_id] = todo_id
+                    await ctx.send(f"{user.name}, please use `!todo confirm` to remove task ID {todo_id}.")
+                else:
+                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+            except ValueError:
+                await ctx.send(f"{user.name}, please provide a valid task ID to remove.")
+        else:
+            await ctx.send(f"{user.name}, please provide the task ID to remove.")
+
+# ToDo List Function - Complete Task
+async def complete_task(ctx, params, user_id, sqldb):
+    user = ctx.author
+    async with sqldb.cursor() as cursor:
+        if params:
+            try:
+                todo_id = int(params[0].strip())
+                await cursor.execute("UPDATE todos SET completed = 'Yes' WHERE id = %s", (todo_id,))
+                if cursor.rowcount == 0:
+                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                else:
+                    await sqldb.commit()
+                    await ctx.send(f"{user.name}, task {todo_id} has been marked as complete.")
+            except ValueError:
+                await ctx.send(f"{user.name}, please provide a valid task ID to mark as complete.")
+        else:
+            await ctx.send(f"{user.name}, please provide the task ID to mark as complete.")
+
+# ToDo List Function - Confirm Removal
+async def confirm_removal(ctx, params, user_id, sqldb):
+    user = ctx.author
+    async with sqldb.cursor() as cursor:
+        if user_id in pending_removals:
+            todo_id = pending_removals.pop(user_id)
+            await cursor.execute("DELETE FROM todos WHERE id = %s", (todo_id,))
+            await sqldb.commit()
+            await ctx.send(f"{user.name}, task ID {todo_id} has been removed.")
+        else:
+            await ctx.send(f"{user.name}, you have no pending task removal to confirm.")
+
+# ToDo List Function - View Task
+async def view_task(ctx, params, user_id, sqldb):
+    user = ctx.author
+    async with sqldb.cursor() as cursor:
+        if params:
+            try:
+                todo_id = int(params[0].strip())
+                await cursor.execute("SELECT objective, category, completed FROM todos WHERE id = %s", (todo_id,))
+                result = await cursor.fetchone()
+                if result:
+                    objective, category_id, completed = result
+                    category_name = await fetch_category_name(cursor, category_id)
+                    await ctx.send(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}")
+                else:
+                    await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+            except ValueError:
+                await ctx.send(f"{user.name}, please provide a valid task ID to view.")
+        else:
+            await ctx.send(f"{user.name}, please provide the task ID to view.")
+
+# Function to get Category Names for the ToDo List
+async def fetch_category_name(cursor, category_id):
+    await cursor.execute("SELECT category FROM categories WHERE id = %s", (category_id,))
+    result = await cursor.fetchone()
+    return result[0] if result else None
 
 # Function to start subathon timer
 async def start_subathon(ctx):
@@ -5477,7 +6172,7 @@ async def subathon_countdown():
         await asyncio.sleep(60) # Check every minute
 
 # Function to run at midnight each night
-async def midnight(channel):
+async def midnight():
     # Get the timezone once outside the loop
     sqldb = await get_mysql_connection()
     async with sqldb.cursor() as cursor:
@@ -5498,12 +6193,13 @@ async def midnight(channel):
             # Reload the .env file at midnight
             load_dotenv()
             # Log or handle any environment variable updates
-            bot_logger.info("Reloaded environment variables from .env file.")
+            bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
             cur_date = current_time.strftime("%d %B %Y")
             cur_time = current_time.strftime("%I %p")
             cur_day = current_time.strftime("%A")
             message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
+            channel = bot.get_channel(CHANNEL_NAME)
             await channel.send(message)
             # Sleep for 120 seconds to avoid sending the message multiple times
             await asyncio.sleep(120)
@@ -5583,7 +6279,6 @@ async def known_users():
                         for vip in vip_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (vip, "VIP", "VIP"))
                         await sqldb.commit()
-                    api_logger.info(f"Added VIPs to the database: {vip_list}")
                 else:
                     api_logger.error(f"Failed to fetch VIPs: {response.status} - {await response.text()}")
     except Exception as e:
@@ -5625,6 +6320,29 @@ async def check_premium_feature():
         twitch_logger.error(f"Error checking user/subscription: {e}")
         return 0  # Return 0 for any API error
 
+# Make a Stream Marker for events
+async def make_stream_marker(description: str):
+    payload = {
+        "user_id": CHANNEL_ID,
+        "description": description
+    }
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Content-Type": "application/json"
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post('https://api.twitch.tv/helix/streams/markers', headers=headers, json=payload) as marker_response:
+                if marker_response.status == 200:
+                    return True
+                else:
+                    return False
+    except aiohttp.ClientError as e:
+        twitch_logger.error(f"Error creating stream marker: {e}")
+        return False
+
+# Connect to database
 async def get_mysql_connection():
     return await aiomysql.connect(
         host=SQL_HOST,
@@ -5633,6 +6351,7 @@ async def get_mysql_connection():
         db=CHANNEL_NAME
     )
 
+# Connect to database to get Spam Patterns
 async def get_spam_patterns():
     # Connect to your MySQL database
     conn = await aiomysql.connect(
@@ -5651,372 +6370,96 @@ async def get_spam_patterns():
         compiled_patterns = [re.compile(row[0], re.IGNORECASE) for row in results]
     return compiled_patterns
 
-async def setup_database():
+# Connect to database to get Spotify Settings
+async def get_spotify_settings():
+    # Connect to your MySQL database
+    return await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db="website",
+    )
+
+# Function to check if a URL or domain matches whitelisted or blacklisted URLs
+async def match_domain_or_link(message, domain_list):
+    for domain in domain_list:
+        pattern = re.escape(domain)
+        if re.search(rf"(https?://)?(www\.)?{pattern}(\/|$)", message):
+            return True
+    return False
+
+# Function(s) to track watch time for users in active channel
+async def periodic_watch_time_update():
+    while True:
+        # Fetch active users from Twitch API
+        active_users = await fetch_active_users()
+        if not active_users:
+            bot_logger.warning("No active users found. Skipping this interval.")
+        else:
+            # Pass the active users (raw data) to the watch time tracker
+            await track_watch_time(active_users)
+        # Wait for 60 seconds before the next check
+        await asyncio.sleep(60)
+
+# Function to get a list of users that are active in chat
+async def fetch_active_users():
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    url = f"https://api.twitch.tv/helix/chat/chatters?broadcaster_id={CHANNEL_ID}&moderator_id={CHANNEL_ID}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("data", [])
+                else:
+                    bot_logger.error(f"Failed to fetch active users: {response.status} {await response.text()}")
+                    return []
+        except Exception as e:
+            bot_logger.error(f"Error fetching active users: {e}")
+            return []
+
+# Function to add time in the database
+async def track_watch_time(active_users):
+    global stream_online
+    sqldb = await get_mysql_connection()
     try:
-        conn = await aiomysql.connect(
-            host=SQL_HOST,
-            user=SQL_USER,
-            password=SQL_PASSWORD
-        )
-        async with conn.cursor() as cursor:
-            # Create MySQL database named after the channel, if it doesn't exist
-            await cursor.execute("CREATE DATABASE IF NOT EXISTS `{}`".format(CHANNEL_NAME))
-            await cursor.execute("USE `{}`".format(CHANNEL_NAME))
-            # List of table creation statements
-            tables = {
-                'everyone': '''
-                    CREATE TABLE IF NOT EXISTS everyone (
-                        username VARCHAR(255),
-                        group_name VARCHAR(255) DEFAULT NULL,
-                        PRIMARY KEY (username)
-                    ) ENGINE=InnoDB
-                ''',
-                'groups': '''
-                    CREATE TABLE IF NOT EXISTS `groups` (
-                        id INT NOT NULL AUTO_INCREMENT,
-                        name VARCHAR(255),
-                        PRIMARY KEY (id)
-                    ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                ''',
-                'custom_commands': '''
-                    CREATE TABLE IF NOT EXISTS custom_commands (
-                        command VARCHAR(255),
-                        response TEXT,
-                        status VARCHAR(255),
-                        PRIMARY KEY (command)
-                    ) ENGINE=InnoDB
-                ''',
-                'builtin_commands': '''
-                    CREATE TABLE IF NOT EXISTS builtin_commands (
-                        command VARCHAR(255),
-                        status VARCHAR(255),
-                        PRIMARY KEY (command)
-                    ) ENGINE=InnoDB
-                ''',
-                'user_typos': '''
-                    CREATE TABLE IF NOT EXISTS user_typos (
-                        username VARCHAR(255),
-                        typo_count INT DEFAULT 0,
-                        PRIMARY KEY (username)
-                    ) ENGINE=InnoDB
-                ''',
-                'lurk_times': '''
-                    CREATE TABLE IF NOT EXISTS lurk_times (
-                        user_id VARCHAR(255),
-                        start_time VARCHAR(255) NOT NULL,
-                        PRIMARY KEY (user_id)
-                    ) ENGINE=InnoDB
-                ''',
-                'hug_counts': '''
-                    CREATE TABLE IF NOT EXISTS hug_counts (
-                        username VARCHAR(255),
-                        hug_count INT DEFAULT 0,
-                        PRIMARY KEY (username)
-                    ) ENGINE=InnoDB
-                ''',
-                'kiss_counts': '''
-                    CREATE TABLE IF NOT EXISTS kiss_counts (
-                        username VARCHAR(255),
-                        kiss_count INT DEFAULT 0,
-                        PRIMARY KEY (username)
-                    ) ENGINE=InnoDB
-                ''',
-                'total_deaths': '''
-                    CREATE TABLE IF NOT EXISTS total_deaths (
-                        death_count INT DEFAULT 0
-                    ) ENGINE=InnoDB
-                ''',
-                'game_deaths': '''
-                    CREATE TABLE IF NOT EXISTS game_deaths (
-                        game_name VARCHAR(255),
-                        death_count INT DEFAULT 0,
-                        PRIMARY KEY (game_name)
-                    ) ENGINE=InnoDB
-                ''',
-                'custom_counts': '''
-                    CREATE TABLE IF NOT EXISTS custom_counts (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        command VARCHAR(255) NOT NULL,
-                        count INT NOT NULL
-                    ) ENGINE=InnoDB
-                ''',
-                'bits_data': '''
-                    CREATE TABLE IF NOT EXISTS bits_data (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        user_id VARCHAR(255),
-                        user_name VARCHAR(255),
-                        bits INT,
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                    ) ENGINE=InnoDB
-                ''',
-                'subscription_data': '''
-                    CREATE TABLE IF NOT EXISTS subscription_data (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        user_id VARCHAR(255),
-                        user_name VARCHAR(255),
-                        sub_plan VARCHAR(255),
-                        months INT,
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                    ) ENGINE=InnoDB
-                ''',
-                'followers_data': '''
-                    CREATE TABLE IF NOT EXISTS followers_data (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        user_id VARCHAR(255),
-                        user_name VARCHAR(255),
-                        followed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    ) ENGINE=InnoDB
-                ''',
-                'raid_data': '''
-                    CREATE TABLE IF NOT EXISTS raid_data (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        raider_name VARCHAR(255),
-                        raider_id VARCHAR(255),
-                        viewers INT,
-                        raid_count INT,
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                    ) ENGINE=InnoDB
-                ''',
-                'quotes': '''
-                    CREATE TABLE IF NOT EXISTS quotes (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        quote TEXT
-                    ) ENGINE=InnoDB
-                ''',
-                'seen_users': '''
-                    CREATE TABLE IF NOT EXISTS seen_users (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        username VARCHAR(255),
-                        welcome_message VARCHAR(255) DEFAULT NULL,
-                        status VARCHAR(255)
-                    ) ENGINE=InnoDB
-                ''',
-                'seen_today': '''
-                    CREATE TABLE IF NOT EXISTS seen_today (
-                        user_id VARCHAR(255),
-                        username VARCHAR(255),
-                        PRIMARY KEY (user_id)
-                    ) ENGINE=InnoDB
-                ''',
-                'timed_messages': '''
-                    CREATE TABLE IF NOT EXISTS timed_messages (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        interval_count INT,
-                        message TEXT
-                    ) ENGINE=InnoDB
-                ''',
-                'profile': '''
-                    CREATE TABLE IF NOT EXISTS profile (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        timezone VARCHAR(255) DEFAULT NULL,
-                        weather_location VARCHAR(255) DEFAULT NULL,
-                        discord_alert VARCHAR(255) DEFAULT NULL,
-                        discord_mod VARCHAR(255) DEFAULT NULL,
-                        discord_alert_online VARCHAR(255) DEFAULT NULL
-                    ) ENGINE=InnoDB
-                ''',
-                'protection': '''
-                    CREATE TABLE IF NOT EXISTS protection (
-                        url_blocking VARCHAR(255),
-                        profanity VARCHAR(255)
-                    ) ENGINE=InnoDB
-                ''',
-                'link_whitelist': '''
-                    CREATE TABLE IF NOT EXISTS link_whitelist (
-                        link VARCHAR(255),
-                        PRIMARY KEY (link)
-                    ) ENGINE=InnoDB
-                ''',
-                'link_blacklisting': '''
-                    CREATE TABLE IF NOT EXISTS link_blacklisting (
-                        link VARCHAR(255),
-                        PRIMARY KEY (link)
-                    ) ENGINE=InnoDB
-                ''',
-                'stream_credits': '''
-                    CREATE TABLE IF NOT EXISTS stream_credits (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        username VARCHAR(255),
-                        event VARCHAR(255),
-                        data VARCHAR(255)
-                    ) ENGINE=InnoDB
-                ''',
-                'message_counts': '''
-                    CREATE TABLE IF NOT EXISTS message_counts (
-                        username VARCHAR(255),
-                        message_count INT NOT NULL,
-                        user_level VARCHAR(255) NOT NULL,
-                        PRIMARY KEY (username)
-                    ) ENGINE=InnoDB
-                ''',
-                'bot_points': '''
-                    CREATE TABLE IF NOT EXISTS bot_points (
-                        user_id VARCHAR(50),
-                        user_name VARCHAR(50),
-                        points INT DEFAULT 0,
-                        PRIMARY KEY (user_id)
-                    ) ENGINE=InnoDB
-                ''',
-                'bot_settings': '''
-                    CREATE TABLE IF NOT EXISTS bot_settings (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        point_name TEXT,
-                        point_amount_chat VARCHAR(50),
-                        point_amount_follower VARCHAR(50),
-                        point_amount_subscriber VARCHAR(50),
-                        point_amount_cheer VARCHAR(50),
-                        point_amount_raid VARCHAR(50),
-                        subscriber_multiplier VARCHAR(50),
-                        excluded_users TEXT
-                    ) ENGINE=InnoDB
-                ''',
-                'channel_point_rewards': '''
-                    CREATE TABLE IF NOT EXISTS channel_point_rewards (
-                        reward_id VARCHAR(255),
-                        reward_title VARCHAR(255),
-                        reward_cost VARCHAR(255),
-                        custom_message TEXT,
-                        PRIMARY KEY (reward_id)
-                    ) ENGINE=InnoDB
-                ''',
-                'active_timers': '''
-                    CREATE TABLE IF NOT EXISTS active_timers (
-                        user_id BIGINT NOT NULL,
-                        end_time DATETIME NOT NULL,
-                        PRIMARY KEY (user_id)
-                    ) ENGINE=InnoDB
-                ''',
-                'poll_results': '''
-                    CREATE TABLE IF NOT EXISTS poll_results (
-                        poll_id VARCHAR(255),
-                        poll_name VARCHAR(255),
-                        poll_option_one VARCHAR(255),
-                        poll_option_two VARCHAR(255),
-                        poll_option_three VARCHAR(255),
-                        poll_option_four VARCHAR(255),
-                        poll_option_five VARCHAR(255),
-                        poll_option_one_results INT,
-                        poll_option_two_results INT,
-                        poll_option_three_results INT,
-                        poll_option_four_results INT,
-                        poll_option_five_results INT,
-                        bits_used INT,
-                        channel_points_used INT,
-                        started_at DATETIME,
-                        ended_at DATETIME
-                    ) ENGINE=InnoDB
-                ''',
-                'tipping_settings': '''
-                    CREATE TABLE IF NOT EXISTS tipping_settings (
-                        StreamElements TEXT DEFAULT NULL,
-                        StreamLabs TEXT DEFAULT NULL
-                    ) ENGINE=InnoDB
-                ''',
-                'tipping': '''
-                    CREATE TABLE IF NOT EXISTS tipping (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        username VARCHAR(255),
-                        amount DECIMAL(10, 2),
-                        message TEXT,
-                        source VARCHAR(255),
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                    ) ENGINE=InnoDB
-                ''',
-                'categories': '''
-                    CREATE TABLE IF NOT EXISTS categories (
-                        id INT(11) NOT NULL AUTO_INCREMENT,
-                        category VARCHAR(255) NOT NULL,
-                        PRIMARY KEY (id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                ''',
-                'showobs': '''
-                    CREATE TABLE IF NOT EXISTS showobs (
-                        id INT(11) NOT NULL AUTO_INCREMENT,
-                        font VARCHAR(50) NOT NULL DEFAULT 'Arial',
-                        color VARCHAR(50) NOT NULL DEFAULT 'Black',
-                        list VARCHAR(10) NOT NULL DEFAULT 'Bullet',
-                        shadow TINYINT(1) NOT NULL DEFAULT 0,
-                        bold TINYINT(1) NOT NULL DEFAULT 0,
-                        font_size INT(11) NOT NULL DEFAULT 22,
-                        PRIMARY KEY (id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-                ''',
-                'todos': '''
-                    CREATE TABLE IF NOT EXISTS todos (
-                        id INT(255) NOT NULL AUTO_INCREMENT,
-                        objective VARCHAR(255) NOT NULL,
-                        category VARCHAR(255) DEFAULT NULL,
-                        completed VARCHAR(3) NOT NULL DEFAULT 'No',
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        PRIMARY KEY (id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-                ''',
-                'sound_alerts': '''
-                    CREATE TABLE IF NOT EXISTS sound_alerts (
-                        reward_id VARCHAR(255),
-                        sound_mapping TEXT, 
-                        PRIMARY KEY (reward_id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-                ''',
-                'subathon': '''
-                    CREATE TABLE IF NOT EXISTS subathon (
-                        id INT AUTO_INCREMENT,
-                        start_time DATETIME,
-                        end_time DATETIME,
-                        starting_minutes INT,
-                        paused BOOLEAN DEFAULT FALSE,
-                        remaining_minutes INT DEFAULT 0,
-                        PRIMARY KEY (id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-                ''',
-                'subathon_settings': '''
-                    CREATE TABLE IF NOT EXISTS subathon_settings (
-                        id INT AUTO_INCREMENT,
-                        starting_minutes INT,
-                        cheer_add INT,
-                        sub_add_1 INT,
-                        sub_add_2 INT,
-                        sub_add_3 INT,
-                        donation_add INT,
-                        PRIMARY KEY (id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-                '''
-            }
-            # Create tables
-            for table_name, table_schema in tables.items():
-                try:
-                    await cursor.execute(table_schema)
-                except aiomysql.Error as err:
-                    if err.errno != errorcode.ER_TABLE_EXISTS_ERROR:
-                        bot_logger.error(f"Error creating table {table_name}: {err}")
-            await conn.commit()
-            # Ensure 'Default' category exists
-            await cursor.execute("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')")
-            await conn.commit()
-            # Ensure default options for showobs exist
-            await cursor.execute('''
-                INSERT INTO showobs (font, color, list, shadow, bold, font_size)
-                SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22
-                WHERE NOT EXISTS (SELECT 1 FROM showobs)
-            ''')
-            await conn.commit()
-            await cursor.execute('''
-                INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users)
-                SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', %s)
-                WHERE NOT EXISTS (SELECT 1 FROM bot_settings)
-            ''', (CHANNEL_NAME,))
-            await conn.commit()
-            await cursor.execute('''
-                INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3)
-                SELECT 60, 5, 10, 20, 30
-                WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)
-            ''')
-            await conn.commit()
-    except aiomysql.Error as err:
-        bot_logger.error(err)
+        async with sqldb.cursor() as cursor:
+            current_time = int(time.time())
+            for user in active_users:
+                user_login = user['user_login']
+                user_id = user['user_id']
+                # Fetch existing watch time data for the user from the watch_time table
+                await cursor.execute("SELECT total_watch_time_live, total_watch_time_offline, last_active FROM watch_time WHERE user_id = %s", (user_id,))
+                user_data = await cursor.fetchone()
+                if user_data:
+                    total_watch_time_live = user_data[0]
+                    total_watch_time_offline = user_data[1]
+                    # Fetch the excluded_users list from the watch_time_excluded_users table
+                    await cursor.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
+                    excluded_users_data = await cursor.fetchone()
+                    excluded_users = excluded_users_data[0] if excluded_users_data else ''
+                    excluded_users_list = excluded_users.split(',') if excluded_users else []
+                    # Skip the user if they are marked as excluded
+                    if user_login in excluded_users_list:
+                        continue
+                    # Increment the appropriate watch time counter
+                    if stream_online:
+                        total_watch_time_live += 60
+                    else:
+                        total_watch_time_offline += 60
+                    # Update watch time in the database
+                    await cursor.execute("UPDATE watch_time SET total_watch_time_live = %s, total_watch_time_offline = %s, last_active = %s WHERE user_id = %s", (total_watch_time_live, total_watch_time_offline, current_time, user_id))
+                else:
+                    # Insert new user data if not found, marking excluded_users as 0 by default
+                    await cursor.execute("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s, %s)", (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time, ''))
+            await sqldb.commit()
+    except Exception as e:
+        bot_logger.error(f"Error in track_watch_time: {e}")
     finally:
-        conn.close()
+        await sqldb.ensure_closed()
 
 # Here is the BOT
 bot = BotOfTheSpecter(
