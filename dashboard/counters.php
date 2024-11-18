@@ -23,9 +23,6 @@ foreach ($profileData as $profile) {
 date_default_timezone_set($timezone);
 
 try {
-  // Fetch lurkers
-  $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
-  $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
   // Calculate lurk durations for each user
   foreach ($lurkers as $key => $lurker) {
     $startTime = new DateTime($lurker['start_time']);
@@ -60,10 +57,6 @@ try {
   usort($lurkers, function ($a, $b) {
     return $b['total_duration'] - $a['total_duration'];
   });
-
-  // Fetch watch time from the database
-  $getWatchTime = $db->query("SELECT user_id, username, total_watch_time_live, total_watch_time_offline FROM watch_time");
-  $watchTimeData = $getWatchTime->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   echo 'Error: ' . $e->getMessage();
 }
