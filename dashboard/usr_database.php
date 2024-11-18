@@ -314,11 +314,11 @@ try {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'watch_time' => "
             CREATE TABLE IF NOT EXISTS watch_time (
-                user_id BIGINT NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
                 username VARCHAR(255) NOT NULL,
                 total_watch_time_live INT DEFAULT 0,
                 total_watch_time_offline INT DEFAULT 0,
-                last_active INT,
+                last_active VARCHAR(255),
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'watch_time_excluded_users' => "
@@ -364,6 +364,7 @@ try {
         'categories' => ['category' => "VARCHAR(255)"],
         'quote_category' => ['quote_id' => "INT(11)",'category_id' => "INT(11)"],
         'joke_settings' => ['blacklist' => 'TEXT'],
+        'watch_time' => ['user_id' => 'VARCHAR(255) NOT NULL', 'username' => 'VARCHAR(255) NOT NULL', 'total_watch_time_live' => 'INT DEFAULT 0', 'total_watch_time_offline' => 'INT DEFAULT 0', 'last_active' =>'VARCHAR(255)'],
         'watch_time_excluded_users' => ['excluded_users' => 'VARCHAR(255) DEFAULT NULL']
     ];
     // Execute each table creation and validation
