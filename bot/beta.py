@@ -6444,7 +6444,7 @@ async def track_watch_time(active_users):
                     excluded_users_list = excluded_users.split(',') if excluded_users else []
                     # Skip the user if they are marked as excluded
                     if user_login in excluded_users_list:
-                        continue
+                        return
                     # Increment the appropriate watch time counter
                     if stream_online:
                         total_watch_time_live += 60
