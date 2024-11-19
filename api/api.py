@@ -769,18 +769,18 @@ async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
     tags=["Websocket"],
     operation_id="trigger_websocket_walkon"
 )
-async def websocket_walkon(request: WalkonRequest, api_key: str = Query(...), user: str = Query(...)):
+async def websocket_walkon(api_key: str = Query(...), user: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     channel = valid
-    walkon_file_path = f"/var/www/walkons/{channel}/{request.user}.mp3"
+    walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
     if os.path.exists(walkon_file_path):
-        params = {"event": "WALKON", "channel": channel, "user": request.user}
+        params = {"event": "WALKON", "channel": channel, "user": user}
         await websocket_notice("WALKON", params, api_key)
         return {"status": "success"}
     else:
-        raise HTTPException(status_code=404, detail=f"Walkon file for user '{request.user}' does not exist.")
+        raise HTTPException(status_code=404, detail=f"Walkon file for user '{user}' does not exist.")
 
 # WebSocket Deaths Trigger
 @app.get(
