@@ -27,6 +27,7 @@ $plans = [
             '!song & !weather Commands',
             'Full Support',
             'Exclusive Beta Features',
+            '5MB of total storage',
             'Shared Bot (BotOfTheSpecter)',
         ],
     ],
@@ -37,6 +38,7 @@ $plans = [
             'Everything From Tier 1',
             'Personalized Support',
             'AI Features & Conversations',
+            '10MB of total storage',
             'Shared Bot (BotOfTheSpecter)',
         ],
     ],
@@ -45,6 +47,7 @@ $plans = [
         'price' => '$24.99 USD',
         'features' => [
             'Everything from Tier 2',
+            '20MB of total storage',
             'Dedicated bot (custom bot name) [feature coming soon]',
         ],
     ],
@@ -134,6 +137,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                 <ul>
                     <li>Basic Commands</li>
                     <li>Limited Support</li>
+                    <li>2MB of total storage</li>
                     <li>Shared Bot (BotOfTheSpecter)</li>
                 </ul>
             </div>
@@ -182,6 +186,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                     <h2 class="card-title subtitle">Exclusive Beta Plan<br>Free Access Forever!</h2>
                     <ul>
                         <li>All Features FOREVER</li>
+                        <li>50MB of total storage</li>
                     </ul>
                 </div>
                 <div class="card-footer">
