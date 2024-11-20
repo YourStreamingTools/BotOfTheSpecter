@@ -63,6 +63,7 @@ foreach ($channelPointRewards as $reward) {
 
 // Define sound alert path and storage limits
 $soundalert_path = "/var/www/soundalerts/" . $username;
+$walkon_path = "/var/www/walkons/" . $username;
 $status = '';
 
 // Create the user's directory if it doesn't exist
@@ -72,16 +73,24 @@ if (!is_dir($soundalert_path)) {
     }
 }
 
-// Calculate total storage used by the user
-function calculateStorageUsed($directory) {
+if (!is_dir($walkon_path)) {
+    if (!mkdir($walkon_path, 0755, true)) {
+        exit("Failed to create directory.");
+    }
+}
+
+// Calculate total storage used by the user across both directories
+function calculateStorageUsed($directories) {
     $size = 0;
-    foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
-        $size += is_file($file) ? filesize($file) : calculateStorageUsed($file);
+    foreach ($directories as $directory) {
+        foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
+            $size += is_file($file) ? filesize($file) : calculateStorageUsed([$file]);
+        }
     }
     return $size;
 }
 
-$current_storage_used = calculateStorageUsed($soundalert_path);
+$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 
 // Handle file upload
@@ -111,71 +120,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
 // Handle file deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
     foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete_path = $soundalert_path . '/' . basename($file_to_delete);
-        if (is_file($file_to_delete_path) && unlink($file_to_delete_path)) {
+        $file_to_delete = $soundalert_path . '/' . basename($file_to_delete);
+        if (is_file($file_to_delete) && unlink($file_to_delete)) {
             $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
-            // Also remove mapping from database
-            $removeMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = :sound_mapping");
-            $removeMapping->bindParam(':sound_mapping', basename($file_to_delete));
-            $removeMapping->execute();
-            $current_storage_used = calculateStorageUsed($soundalert_path); // Recalculate storage after deletion
-            $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after deletion
         } else {
             $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
         }
     }
+    $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
+    $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
 
-// Handle mapping submissions
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['sound_file'])) {
-    $sound_file = $_POST['sound_file'];
-    $reward_id = $_POST['reward_id'] !== '' ? $_POST['reward_id'] : null;
-    try {
-        // Begin transaction
-        $db->beginTransaction();
-        if ($reward_id) {
-            // Remove any existing mapping for this reward_id to enforce one sound per reward
-            $removeExisting = $db->prepare("UPDATE sound_alerts SET reward_id = NULL WHERE reward_id = :reward_id AND sound_mapping != :sound_mapping");
-            $removeExisting->bindParam(':reward_id', $reward_id);
-            $removeExisting->bindParam(':sound_mapping', $sound_file);
-            $removeExisting->execute();
-        }
-        if ($reward_id) {
-            // Insert or update the mapping
-            $checkMapping = $db->prepare("SELECT * FROM sound_alerts WHERE sound_mapping = :sound_mapping");
-            $checkMapping->bindParam(':sound_mapping', $sound_file);
-            $checkMapping->execute();
-            $existing = $checkMapping->fetch(PDO::FETCH_ASSOC);
-            if ($existing) {
-                // Update existing mapping
-                $updateMapping = $db->prepare("UPDATE sound_alerts SET reward_id = :reward_id WHERE sound_mapping = :sound_mapping");
-                $updateMapping->bindParam(':reward_id', $reward_id);
-                $updateMapping->bindParam(':sound_mapping', $sound_file);
-                $updateMapping->execute();
-            } else {
-                // Insert new mapping
-                $insertMapping = $db->prepare("INSERT INTO sound_alerts (sound_mapping, reward_id) VALUES (:sound_mapping, :reward_id)");
-                $insertMapping->bindParam(':sound_mapping', $sound_file);
-                $insertMapping->bindParam(':reward_id', $reward_id);
-                $insertMapping->execute();
-            }
-        } else {
-            // If no reward_id is selected, remove any existing mapping
-            $removeMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = :sound_mapping");
-            $removeMapping->bindParam(':sound_mapping', $sound_file);
-            $removeMapping->execute();
-        }
-        // Commit transaction
-        $db->commit();
-        // Reload the page to reflect changes
-        header('Location: sound-alerts.php');
-        exit();
-    } catch (PDOException $e) {
-        // Rollback transaction on error
-        $db->rollBack();
-        $status = "<div class='message is-danger'>Error updating mapping: " . htmlspecialchars($e->getMessage()) . "</div>";
-    }
-}
+$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..'));
+function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
