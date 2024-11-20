@@ -46,6 +46,7 @@ switch ($tier) {
 
 // User's walkon directory
 $walkon_path = "/var/www/walkons/" . $username;
+$soundalert_path = "/var/www/soundalerts/" . $username;
 $status = '';
 
 // Create the user's directory if it doesn't exist
@@ -55,16 +56,24 @@ if (!is_dir($walkon_path)) {
     }
 }
 
-// Calculate total storage used by the user
-function calculateStorageUsed($directory) {
+if (!is_dir($soundalert_path)) {
+    if (!mkdir($soundalert_path, 0755, true)) {
+        exit("Failed to create directory.");
+    }
+}
+
+// Calculate total storage used by the user across both directories
+function calculateStorageUsed($directories) {
     $size = 0;
-    foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
-        $size += is_file($file) ? filesize($file) : calculateStorageUsed($file);
+    foreach ($directories as $directory) {
+        foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
+            $size += is_file($file) ? filesize($file) : calculateStorageUsed([$file]);
+        }
     }
     return $size;
 }
 
-$current_storage_used = calculateStorageUsed($walkon_path);
+$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 
 // Handle file upload
@@ -101,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
             $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
         }
     }
-    $current_storage_used = calculateStorageUsed($walkon_path);
+    $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
 $walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
