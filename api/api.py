@@ -775,12 +775,26 @@ async def websocket_walkon(api_key: str = Query(...), user: str = Query(...)):
         raise HTTPException(status_code=401, detail="Invalid API Key")
     channel = valid
     walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
-    if os.path.exists(walkon_file_path):
+    # Check if the file exists via SFTP
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+        sftp = ssh.open_sftp()
+        try:
+            # Check if the file exists
+            sftp.stat(walkon_file_path)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail=f"Walkon file for user '{user}' does not exist.")
+        finally:
+            sftp.close()
+            ssh.close()
+        # Trigger the WebSocket event
         params = {"event": "WALKON", "channel": channel, "user": user}
         await websocket_notice("WALKON", params, api_key)
         return {"status": "success"}
-    else:
-        raise HTTPException(status_code=404, detail=f"Walkon file for user '{user}' does not exist.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking Walkon file: {e}")
 
 # WebSocket Deaths Trigger
 @app.get(
