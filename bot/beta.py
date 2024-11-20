@@ -5484,14 +5484,16 @@ async def send_to_discord_stream_online(message, image):
     finally:
         await sqldb.ensure_closed()
 
-# Function to connect to the websocket server and push a notice
-async def websocket_notice(event, channel=None, user=None, death=None, game=None, weather=None, cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None):
+# Unified function to connect to the websocket server and push notices
+async def websocket_notice(event, channel=None, user=None, death=None, game=None, weather=None, 
+                           cheer_amount=None, sub_tier=None, sub_months=None, raid_viewers=None, 
+                           text=None, sound=None, additional_data=None):
     async with ClientSession() as session:
         params = {
             'code': API_TOKEN,
             'event': event
         }
-        # Handling different event types and their specific parameters
+        # Event-specific parameter handling
         if event == "WALKON" and channel and user:
             walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
             if os.path.exists(walkon_file_path):
@@ -5502,12 +5504,8 @@ async def websocket_notice(event, channel=None, user=None, death=None, game=None
         elif event == "DEATHS" and death and game:
             params['death-text'] = death
             params['game'] = game
-        elif event == "STREAM_ONLINE":
-            # No additional parameters required for STREAM_ONLINE
-            pass
-        elif event == "STREAM_OFFLINE":
-            # No additional parameters required for STREAM_OFFLINE
-            pass
+        elif event in ["STREAM_ONLINE", "STREAM_OFFLINE"]:
+            pass  # No additional parameters needed
         elif event == "WEATHER" and weather:
             params['location'] = weather
         elif event == "TWITCH_FOLLOW" and user:
@@ -5522,80 +5520,16 @@ async def websocket_notice(event, channel=None, user=None, death=None, game=None
         elif event == "TWITCH_RAID" and user and raid_viewers:
             params['twitch-username'] = user
             params['twitch-raid'] = raid_viewers
-        else:
-            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
-            return
-        # URL-encode the parameters
-        encoded_params = urlencode(params)
-        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
-        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
-        # Send the HTTP request
-        async with session.get(url) as response:
-            if not response.status == 200:
-                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
-
-# Function to connect to the websocket server and push a TTS notice
-async def websocket_notice_tts(event, text=None):
-    async with ClientSession() as session:
-        params = {
-            'code': API_TOKEN,
-            'event': event
-        }
-        # Handling TTS event
-        if event == "TTS" and text:
+        elif event == "TTS" and text:
             params['text'] = text
-        else:
-            bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
-            return
-        # URL-encode the parameters
-        encoded_params = urlencode(params)
-        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
-        # Logging if needed: bot_logger.info(f"Sending HTTP event '{event}' with URL: {url}")
-        # Send the HTTP request
-        async with session.get(url) as response:
-            if response.status == 200:
-                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
-            else:
-                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
-
-# Function to connect to the websocket server and push a subathon notice
-async def websocket_notice_subathon(event, additional_data=None):
-    async with ClientSession() as session:
-        params = {
-            'code': API_TOKEN,
-            'event': event
-        }
-        # Handling specific subathon events
-        if event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
+        elif event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
             if additional_data:
-                params.update(additional_data)  # Update with additional data as a dictionary
+                params.update(additional_data)
             else:
                 bot_logger.error(f"Event '{event}' requires additional parameters.")
                 return
-        else:
-            bot_logger.error(f"Event '{event}' is not recognized.")
-            return
-        # URL-encode the parameters
-        encoded_params = urlencode(params)
-        url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
-        # Send the HTTP request
-        async with session.get(url) as response:
-            if response.status == 200:
-                bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
-            else:
-                bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
-
-# Function to connect to the websocket server and push a SOUND_ALERT notice
-async def websocket_notice_sound_alert(event, sound=None):
-    async with ClientSession() as session:
-        params = {
-            'code': API_TOKEN,
-            'event': event
-        }
-        # Handling TTS event
-        if event == "SOUND_ALERT" and sound:
-            sound = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
-            params['sound'] = sound
+        elif event == "SOUND_ALERT" and sound:
+            params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
         else:
             bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
             return
@@ -5782,7 +5716,7 @@ async def process_channel_point_rewards(event_data, event_type):
                 # Check for TTS reward
                 if "tts" in reward_title.lower():
                     tts_message = event_data["user_input"]
-                    await websocket_notice_tts(event="TTS", text=tts_message)
+                    await websocket_notice(event="TTS", text=tts_message)
                     event_logger.info(f"TTS message sent: {tts_message}")
                     return
                 # Check for Lotto Numbers reward
@@ -5806,7 +5740,7 @@ async def process_channel_point_rewards(event_data, event_type):
                 if sound_result:
                     sound_file = sound_result[0]
                     event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                    await websocket_notice_sound_alert(event="SOUND_ALERT", sound=sound_file)
+                    await websocket_notice(event="SOUND_ALERT", sound=sound_file)
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             result = await cursor.fetchone()
@@ -6044,7 +5978,7 @@ async def start_subathon(ctx):
                     asyncio.create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
-                    await websocket_notice_subathon("SUBATHON_START", additional_data)
+                    await websocket_notice("SUBATHON_START", additional_data)
                 else:
                     await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -6062,7 +5996,7 @@ async def stop_subathon(ctx):
                 await sqldb.commit()
                 await ctx.send(f"Subathon ended!")
                 # Send websocket notice
-                await websocket_notice_subathon("SUBATHON_STOP")
+                await websocket_notice("SUBATHON_STOP")
             else:
                 await ctx.send(f"No subathon active.")
     finally:
@@ -6082,7 +6016,7 @@ async def pause_subathon(ctx):
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
-                await websocket_notice_subathon("SUBATHON_PAUSE", additional_data)
+                await websocket_notice("SUBATHON_PAUSE", additional_data)
             else:
                 await ctx.send("No subathon is active or it's already paused!")
     finally:
@@ -6103,7 +6037,7 @@ async def resume_subathon(ctx):
                 asyncio.create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state[5]}
-                await websocket_notice_subathon("SUBATHON_RESUME", additional_data)
+                await websocket_notice("SUBATHON_RESUME", additional_data)
     finally:
         await cursor.close()
         await sqldb.ensure_closed()
@@ -6121,7 +6055,7 @@ async def addtime_subathon(ctx, minutes):
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
-                await websocket_notice_subathon("SUBATHON_ADD_TIME", additional_data)
+                await websocket_notice("SUBATHON_ADD_TIME", additional_data)
             else:
                 await ctx.send("No subathon is active or it's paused!")
     finally:
