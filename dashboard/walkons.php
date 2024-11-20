@@ -21,9 +21,32 @@ foreach ($profileData as $profile) {
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
+
+// Define user-specific storage limits
+$base_storage_size = 2 * 1024 * 1024; // 2MB in bytes
+$tier = $_SESSION['tier'] ?? "None";
+
+switch ($tier) {
+    case "1000":
+        $max_storage_size = 5 * 1024 * 1024; // 5MB
+        break;
+    case "2000":
+        $max_storage_size = 10 * 1024 * 1024; // 10MB
+        break;
+    case "3000":
+        $max_storage_size = 20 * 1024 * 1024; // 20MB
+        break;
+    case "4000":
+        $max_storage_size = 50 * 1024 * 1024; // 50MB
+        break;
+    default:
+        $max_storage_size = $base_storage_size; // Default 2MB
+        break;
+}
+
+// User's walkon directory
 $walkon_path = "/var/www/walkons/" . $username;
 $status = '';
-$max_storage_size = 2 * 1024 * 1024; // 2MB in bytes
 
 // Create the user's directory if it doesn't exist
 if (!is_dir($walkon_path)) {
@@ -117,7 +140,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             <div class="progress-bar-container">
                 <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
             </div>
-            <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of 2MB used</p>
+            <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB used</p>
             <?php if (!empty($status)) : ?>
                 <div class="message"><?php echo $status; ?></div>
             <?php endif; ?>
