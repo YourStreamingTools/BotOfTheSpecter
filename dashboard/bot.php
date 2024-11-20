@@ -93,6 +93,7 @@ if ($username === 'botofthespecter' || $ModStatusOutput) {
 $betaAccess = false;
 if ($user['beta_access'] == 1) {
   $betaAccess = true;
+  $_SESSION['tier'] = "4000";
 } else {
   $twitch_subscriptions_url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
   $ch = curl_init($twitch_subscriptions_url);
@@ -103,9 +104,12 @@ if ($user['beta_access'] == 1) {
   $data = json_decode($response, true);
   if (isset($data['data'][0])) {
     $tier = $data['data'][0]['tier'];
+    $_SESSION['tier'] = $tier;
     if (in_array($tier, ["1000", "2000", "3000"])) {
       $betaAccess = true;
     }
+  } else {
+    $_SESSION['tier'] = "None";
   }
 }
 
