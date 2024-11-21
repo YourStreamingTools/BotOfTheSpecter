@@ -164,6 +164,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                             <th style="width: 70px;">Select</th>
                             <th>File Name</th>
                             <th style="width: 100px;">Action</th>
+                            <th style="width: 150px;">Test Audio</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -172,6 +173,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                             <td style="text-align: center; vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
                             <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
                             <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
+                            <td><button type="button" class="test-walkon button is-primary" data-file="<?php echo htmlspecialchars(formatFileName($file)); ?>">Test</button></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -232,6 +234,43 @@ $(document).ready(function() {
         $('#deleteForm').submit();
     });
 });
+
+document.addEventListener("DOMContentLoaded", function () {
+    // Attach click event listeners to all Test buttons for walkons
+    document.querySelectorAll(".test-walkon").forEach(function (button) {
+        button.addEventListener("click", function () {
+            const fileName = this.getAttribute("data-file");
+            sendStreamEvent("WALKON", fileName);
+        });
+    });
+});
+
+// Function to send a stream event
+function sendStreamEvent(eventType, fileName) {
+    const xhr = new XMLHttpRequest();
+    const url = "notify_event.php";
+    const params = `event=${eventType}&user=${encodeURIComponent(fileName)}&channel=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    console.log(`${eventType} event for ${fileName} sent successfully.`);
+                } else {
+                    console.error(`Error sending ${eventType} event: ${response.message}`);
+                }
+            } catch (e) {
+                console.error("Error parsing JSON response:", e);
+                console.error("Response:", xhr.responseText);
+            }
+        } else if (xhr.readyState === 4) {
+            console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
+        }
+    };
+    xhr.send(params);
+}
 </script>
 </body>
 </html>
