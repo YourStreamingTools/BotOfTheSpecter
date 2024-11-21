@@ -146,30 +146,27 @@ HEARTRATE = None
 # Setup Token Refresh
 async def twitch_token_refresh():
     global REFRESH_TOKEN
-    # Initial sleep for 5 minutes before first token refresh
-    initial_sleep_time = 300  # 5 minutes
-    await asyncio.sleep(initial_sleep_time)
-    # Perform the first token refresh after the initial sleep
-    REFRESH_TOKEN, next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
-    # Calculate the next refresh time to be 4 hours minus 5 minutes from now
-    next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes for refresh
+    # Wait for 5 minutes before the first token refresh
+    await asyncio.sleep(300)
+    next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
     while True:
         current_time = time.time()
         time_until_expiration = next_refresh_time - current_time
         if current_time >= next_refresh_time:
-            REFRESH_TOKEN, next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
+            next_refresh_time = await refresh_twitch_token(REFRESH_TOKEN)
         else:
-            if time_until_expiration > 3600:  # More than 1 hour until expiration
-                sleep_time = 3600  # Check again in 1 hour
-            elif time_until_expiration > 300:  # More than 5 minutes until expiration
-                sleep_time = 300  # Check again in 5 minutes
+            # Adjust sleep intervals based on time remaining until next refresh
+            if time_until_expiration > 3600:
+                sleep_time = 3600  # Sleep for 1 hour
+            elif time_until_expiration > 300:
+                sleep_time = 300  # Sleep for 5 minutes
             else:
-                sleep_time = 60  # Check every minute when close to expiration
+                sleep_time = 60  # Sleep for 1 minute
             await asyncio.sleep(sleep_time)
 
 # Function to refresh Twitch token
 async def refresh_twitch_token(current_refresh_token):
-    global CHANNEL_AUTH, REFRESH_TOKEN
+    global CHANNEL_AUTH
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
         'grant_type': 'refresh_token',
@@ -183,25 +180,27 @@ async def refresh_twitch_token(current_refresh_token):
                 if response.status == 200:
                     response_json = await response.json()
                     new_access_token = response_json.get('access_token')
+                    expires_in = response_json.get('expires_in', 14400)  # Default to 4 hours if not provided
+                    next_refresh_time = time.time() + expires_in - 300  # Refresh 5 minutes before expiration
                     if new_access_token:
-                        # Token refreshed successfully
-                        new_refresh_token = response_json.get('refresh_token', current_refresh_token)
-                        # Update the global variables with the new tokens
+                        # Update the global access token
                         CHANNEL_AUTH = new_access_token
-                        REFRESH_TOKEN = new_refresh_token
-                        # Calculate the next refresh time to be 5 minutes before the 4-hour mark
-                        next_refresh_time = time.time() + 4 * 60 * 60 - 300  # 4 hours in seconds, minus 5 minutes, so we refresh before actual expiration
-                        log_message = "Refreshed token. New Access Token: {}".format(new_access_token)
-                        twitch_logger.info(log_message)
-                        return new_refresh_token, next_refresh_time
+                        # Save the new access token in the database
+                        sqldb = await access_website_database()
+                        async with sqldb.cursor() as cursor:
+                            await cursor.execute("UPDATE users SET access_token = %s WHERE twitch_user_id = %s", (new_access_token, CHANNEL_ID))
+                            await sqldb.commit()
+                        await sqldb.ensure_closed()
+                        twitch_logger.info(f"Twitch token refreshed successfully. New access token saved: {new_access_token}.")
+                        return next_refresh_time
                     else:
-                        twitch_logger.error("Token refresh failed: 'access_token' not found in response")
+                        twitch_logger.error("Token refresh failed: 'access_token' not found in response.")
                 else:
-                    twitch_logger.error(f"Token refresh failed: HTTP {response.status}")
+                    error_response = await response.json()
+                    twitch_logger.error(f"Twitch token refresh failed: HTTP {response.status} - {error_response}")
     except Exception as e:
-        # Log the error if token refresh fails
-        twitch_logger.error(f"Token refresh failed: {e}")
-        return current_refresh_token, next_refresh_time
+        twitch_logger.error(f"Twitch token refresh error: {e}")
+    return time.time() + 3600  # Default retry time of 1 hour
 
 # Setup Spotify Access
 async def spotify_token_refresh():
