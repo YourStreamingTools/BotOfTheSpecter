@@ -487,7 +487,7 @@ export default {
         });
       } else if (request.method === 'POST') {
         const requestIP = request.headers.get('CF-Connecting-IP') || '';
-        const AUTH_API = await env.namespace.get('AUTH_API');
+        const AUTH_API = env.AUTH_IP;
         if (requestIP !== AUTH_API) {
           console.warn(`Unauthorized access attempt from IP: ${requestIP}`);
           return new Response('Unauthorized', { status: 401 });
