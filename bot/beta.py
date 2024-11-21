@@ -122,16 +122,20 @@ global SPOTIFY_REFRESH_TOKEN
 global SPOTIFY_ACCESS_TOKEN
 global next_spotify_refresh_time
 global HEARTRATE
+global TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
+global TWITCH_SHOUTOUT_USER_COOLDOWN
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()
 scheduled_tasks = asyncio.Queue()
+shoutout_queue = asyncio.Queue()
 specterSocket = socketio.AsyncClient()
 hyperateSocket = socketio.AsyncClient()
 ureg = UnitRegistry()
 permitted_users = {}
 connected = set()
 pending_removals = {}
+shoutout_tracker = {}
 last_poll_progress_update = 0
 
 # Initialize global variables
@@ -142,6 +146,8 @@ SPOTIFY_REFRESH_TOKEN = None
 SPOTIFY_ACCESS_TOKEN = None
 next_spotify_refresh_time = None
 HEARTRATE = None
+TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)
+TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)
 
 # Setup Token Refresh
 async def twitch_token_refresh():
@@ -1021,6 +1027,7 @@ class BotOfTheSpecter(commands.Bot):
         await builtin_commands_creation()
         await known_users()
         await channel_point_rewards()
+        asyncio.create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(twitch_token_refresh())
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
@@ -3604,7 +3611,7 @@ class BotOfTheSpecter(commands.Bot):
                         )
                     chat_logger.info(shoutout_message)
                     await ctx.send(shoutout_message)
-                    asyncio.create_task(trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id))
+                    await add_shoutout(user_to_shoutout, mentioned_user_id)
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
@@ -4345,6 +4352,7 @@ class GameNotFoundException(Exception):
 class GameUpdateFailedException(Exception):
     pass
 
+# Function to udpate the stream title
 async def trigger_twitch_title_update(new_title):
     # Twitch API
     url = "https://api.twitch.tv/helix/channels"
@@ -4363,6 +4371,7 @@ async def trigger_twitch_title_update(new_title):
             else:
                 twitch_logger.error(f'Failed to update stream title: {await response.text()}')
 
+# Function to update the current stream category
 async def update_twitch_game(game_name):
     # Twitch API to retrieve game ID and update stream game/category
     url_get_game = "https://api.twitch.tv/helix/games"
@@ -4398,6 +4407,37 @@ async def update_twitch_game(game_name):
                 twitch_logger.error(f'Failed to update stream game: {await response.text()}')
                 raise GameUpdateFailedException('Failed to update stream game')
 
+# Enqueue shoutout requests
+async def add_shoutout(user_to_shoutout, mentioned_user_id):
+    await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
+    twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue.")
+
+# Worker to process shoutout queue
+async def shoutout_worker():
+    global last_shoutout_time
+    while True:
+        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
+        now = datetime.now()
+        # Check global cooldown
+        if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
+            wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
+            twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
+            await asyncio.sleep(wait_time)
+        # Check user-specific cooldown
+        if mentioned_user_id in shoutout_tracker:
+            last_user_shoutout_time = shoutout_tracker[mentioned_user_id]
+            if now - last_user_shoutout_time < TWITCH_SHOUTOUT_USER_COOLDOWN:
+                twitch_logger.info(f"Skipping shoutout for {user_to_shoutout}. User-specific cooldown in effect.")
+                shoutout_queue.task_done()
+                continue
+        # Trigger the shoutout
+        await trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id)
+        # Update cooldown trackers
+        last_shoutout_time = datetime.now()
+        shoutout_tracker[mentioned_user_id] = last_shoutout_time
+        # Mark the task as done
+        shoutout_queue.task_done()
+
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
     url = 'https://api.twitch.tv/helix/chat/shoutouts'
@@ -4417,11 +4457,10 @@ async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
                     twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
                 else:
                     twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-        # Wait for 3 minutes before ending the task
-        await asyncio.sleep(180)
     except aiohttp.ClientError as e:
         twitch_logger.error(f"Error triggering shoutout: {e}")
 
+# Function to get the last stream category for a user to shoutout
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     headers = {
         'Client-ID': CLIENT_ID,
