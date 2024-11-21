@@ -207,7 +207,7 @@ class BotOfTheSpecter(commands.Bot):
                 os.remove(file_path)
             # Write the new version to the file
             with open(file_path, "w") as file:
-                file.write(VERSION)
+                file.write(str(VERSION))
         except Exception as e:
             self.logger.error(f"An error occurred: {e}")
 
