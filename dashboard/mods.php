@@ -88,27 +88,24 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
 <div class="container">
     <br>
     <h1 class="title is-4">Your Moderators:</h1>
-    <div class="columns is-multiline is-centered">
-        <?php foreach ($moderatorsForCurrentPage as $moderator) : 
-            $modDisplayName = $moderator['user_name'];
-        ?>
-        <div class="column is-one-quarter">
-            <div class="centered-box"><?php echo $modDisplayName; ?></div>
-        </div>
-        <?php endforeach; ?>
-    </div>  
-    <!-- Pagination -->
-    <nav class="pagination is-centered" role="navigation" aria-label="pagination">
-        <?php if ($totalPages > 1) : ?>
-            <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
-                <?php if ($page === $currentPage) : ?>
-                    <span class="pagination-link is-current"><?php echo $page; ?></span>
-                <?php else : ?>
-                    <a class="pagination-link" href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
-                <?php endif; ?>
-            <?php endfor; ?>
-        <?php endif; ?>
-    </nav>
+    <div class="table-container">
+        <table class="table is-striped is-fullwidth">
+            <thead>
+                <tr>
+                    <th>Moderator Name</th>
+                    <th>Specter Moderator Access</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($allModerators as $moderator) : $modDisplayName = $moderator['user_name']; ?>
+                <tr>
+                    <td><?php echo $modDisplayName; ?></td>
+                    <td>Coming Soon</td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
