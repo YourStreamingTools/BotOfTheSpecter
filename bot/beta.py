@@ -207,7 +207,7 @@ async def spotify_token_refresh():
     global SPOTIFY_REFRESH_TOKEN, SPOTIFY_ACCESS_TOKEN, next_spotify_refresh_time
     try:
         # Connect to the database to retrieve the user's Spotify tokens
-        sqldb = await get_spotify_settings()
+        sqldb = await access_website_database()
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             # Fetch the user ID for the specified CHANNEL_NAME
             await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
@@ -260,7 +260,7 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                     SPOTIFY_ACCESS_TOKEN = new_access_token
                     SPOTIFY_REFRESH_TOKEN = new_refresh_token
                     # Save the new tokens in the database
-                    sqldb = await get_spotify_settings()
+                    sqldb = await access_website_database()
                     async with sqldb.cursor() as cursor:
                         await cursor.execute(
                             "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s WHERE user_id = %s",
@@ -6305,7 +6305,7 @@ async def get_spam_patterns():
     return compiled_patterns
 
 # Connect to database to get Spotify Settings
-async def get_spotify_settings():
+async def access_website_database():
     # Connect to your MySQL database
     return await aiomysql.connect(
         host=SQL_HOST,
