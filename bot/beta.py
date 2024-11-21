@@ -191,13 +191,7 @@ async def refresh_twitch_token(current_refresh_token):
                     if new_access_token:
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
-                        # Save the new access token in the database
-                        sqldb = await access_website_database()
-                        async with sqldb.cursor() as cursor:
-                            await cursor.execute("UPDATE users SET access_token = %s WHERE twitch_user_id = %s", (new_access_token, CHANNEL_ID))
-                            await sqldb.commit()
-                        await sqldb.ensure_closed()
-                        twitch_logger.info(f"Twitch token refreshed successfully. New access token saved: {new_access_token}.")
+                        twitch_logger.info(f"Refreshed token. New Access Token: {new_access_token}.")
                         return next_refresh_time
                     else:
                         twitch_logger.error("Token refresh failed: 'access_token' not found in response.")
