@@ -190,6 +190,26 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Setting channel {config.live_channel_id} to offline status on bot start.')
         await self.add_cog(WebSocketCog(self, config.api_token, self.logger))
         await self.update_channel_status(config.live_channel_id, "offline")
+        await self.update_version_control()
+
+    async def update_version_control(self):
+        VERSION = 4.3
+        try:
+            # Define the directory path for Discord bot version control
+            directory = "/var/www/logs/version/"
+            # Ensure the directory exists, create it if it doesn't
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            # Define the file path with the channel name
+            file_path = os.path.join(directory, f"{self.channel_name}_discord_version_control.txt")
+            # Delete the file if it exists
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            # Write the new version to the file
+            with open(file_path, "w") as file:
+                file.write(VERSION)
+        except Exception as e:
+            self.logger.error(f"An error occurred: {e}")
 
     async def on_member_join(self, member):
         self.logger.info(f'{member.name} has joined the server!')
