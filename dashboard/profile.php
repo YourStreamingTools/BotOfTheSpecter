@@ -59,6 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 // Function to get all PHP timezones
+$timezones = get_timezones();
 function get_timezones() {
     $timezones = DateTimeZone::listIdentifiers();
     $timezone_offsets = [];
@@ -86,58 +87,39 @@ function get_timezones() {
 
 <div class="container">
   <br>
-  <div class="columns">
-    <div class="column is-one-third">
-      <table class="table is-fullwidth">
-        <tr>
-          <td>Your Username:</td>
-          <td><?php echo $username; ?></td>
-        </tr>
-        <tr>
-          <td>Display Name:</td>
-          <td><?php echo $twitchDisplayName; ?></td>
-        </tr>
-        <tr>
-          <td>You Joined:</td>
-          <td><span id="localSignupDate"></span></td>
-        </tr>
-        <tr>
-          <td>Your Last Login:</td>
-          <td><span id="localLastLogin"></span></td>
-        </tr>
-        <tr>
-          <td>Time Zone:</td>
-          <td><?php echo $timezone; ?></td>
-        </tr>
-        <tr>
-          <td>Weather Location:</td>
-          <td><?php echo $weather; ?></td>
-        </tr>
-      </table>
+  <h4 class="title is-3">Your Specter Dashboard Profile</h4>
+  <div class="columns is-desktop is-multiline box-container">
+    <div class="column bot-box is-5">
+      <ol>Your Username: <?php echo $username; ?></ol>
+      <ol>Display Name: <?php echo $twitchDisplayName; ?></ol>
+      <ol>You Joined: <span id="localSignupDate"></span></ol>
+      <ol>Your Last Login: <span id="localLastLogin"></span></ol>
+      <ol>Time Zone: <?php echo $timezone; ?></ol>
+      <ol>Weather Location: <?php echo $weather; ?></ol>
       <p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
-      <button type="button" class="button is-primary" id="show-api-key">Show API Key</button>
-      <button type="button" class="button is-primary" id="hide-api-key" style="display:none;">Hide API Key</button>
+      <button type="button" class="button is-primary" id="show-api-key" style="width: 130px;">Show API Key</button>
+      <button type="button" class="button is-primary" id="hide-api-key" style="display:none; width: 130px;">Hide API Key</button>
     </div>
-    <div class="column is-one-third">
+    <div class="column bot-box is-4">
       <?php if (!empty($status)): ?>
         <div class="notification is-primary">
           <?php echo htmlspecialchars($status); ?>
         </div>
       <?php endif; ?>
-      <h2 class="title is-4">Update Profile</h2>
+      <h2 class="is-4">Update Profile</h2>
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
-          <label class="label" for="timezone">Timezone:</label>
+          <label class="is-4" for="timezone">Timezone:</label>
           <div class="control">
             <div class="select">
-              <select id="timezone" name="timezone">
+              <select style="width: 350px;" id="timezone" name="timezone">
                 <?php
-                $timezones = get_timezones();
                 foreach ($timezones as $tz => $offset) {
                     $offset_prefix = $offset < 0 ? '-' : '+';
                     $offset_hours = gmdate('H:i', abs($offset));
                     $selected = ($tz == $timezone) ? ' selected' : '';
-                    echo "<option value=\"$tz\"$selected>(UTC $offset_prefix$offset_hours) $tz</option>";
+                    echo "<option value=\"$tz\"$selected>(UTC $offset_prefix$offset_hours) $tz</option>
+                    ";
                 }
                 ?>
               </select>
@@ -145,20 +127,21 @@ function get_timezones() {
           </div>
         </div>
         <div class="field">
-          <label class="label" for="weather_location">Weather Location:</label>
+          <label class="is-4" for="weather_location">Weather Location:</label>
           <div class="control">
-            <input class="input" type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>">
+            <input style="width: 350px;" class="input" type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>">
           </div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
       </form>
-      <br>
+    </div>
+    <div class="column bot-box is-5">
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
-          <label class="label">Heart Rate Code:</label>
+          <label class="is-4">Heart Rate Code:</label><br>
           Heart Rate in chat via Specter is powered by: <a href="https://www.hyperate.io/" target="_blank">HypeRate.io</a>
           <div class="control">
-            <input class="input" type="text" id="hyperate_code" name="hyperate_code" value="<?php echo $dbHyperateCode; ?>">
+            <input style="width: 130px;" class="input" type="text" id="hyperate_code" name="hyperate_code" value="<?php echo $dbHyperateCode; ?>">
           </div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
@@ -171,33 +154,5 @@ function get_timezones() {
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/profile.js"></script>
 <script src="/js/timezone.js"></script>
-
-<!-- JavaScript code to convert and display the dates -->
-<script>
-  // Function to convert UTC date to local date in the desired format
-  function convertUTCToLocalFormatted(utcDateStr) {
-    const options = {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true,
-      timeZoneName: 'short'
-    };
-    const utcDate = new Date(utcDateStr + ' UTC');
-    const localDate = new Date(utcDate.toLocaleString('en-US', { timeZone: '<?php echo $timezone; ?>' }));
-    const dateTimeFormatter = new Intl.DateTimeFormat('en-US', options);
-    return dateTimeFormatter.format(localDate);
-  }
-
-  // PHP variables holding the UTC date and time
-  const signupDateUTC = "<?php echo $signup_date_utc; ?>";
-  const lastLoginUTC = "<?php echo $last_login_utc; ?>";
-
-  // Display the dates in the user's local time zone
-  document.getElementById('localSignupDate').innerText = convertUTCToLocalFormatted(signupDateUTC);
-  document.getElementById('localLastLogin').innerText = convertUTCToLocalFormatted(lastLoginUTC);
-</script>
 </body>
 </html>
