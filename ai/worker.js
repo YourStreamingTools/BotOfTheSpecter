@@ -3,7 +3,6 @@ const recentResponses = new Map();
 const EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_CONVERSATION_LENGTH = 20; // Maximum number of messages in history
 const AI_CHARACTER_LIMIT = 490; // Adjusted to account for potential name prefix
-const ALLOWED_POST_IP = 'AN IP ADDRESS HERE'; // Change to the IP you wish to auth
 
 // Function to remove formatting from the text
 function removeFormatting(text) {
@@ -488,7 +487,8 @@ export default {
         });
       } else if (request.method === 'POST') {
         const requestIP = request.headers.get('CF-Connecting-IP') || '';
-        if (requestIP !== ALLOWED_POST_IP) {
+        const AUTH_API = await env.namespace.get('AUTH_API');
+        if (requestIP !== AUTH_API) {
           console.warn(`Unauthorized access attempt from IP: ${requestIP}`);
           return new Response('Unauthorized', { status: 401 });
         }
@@ -623,7 +623,7 @@ export default {
                 - **Capabilities in Chat:**
                   - Respond to commands quickly and accurately.
                   - Fetch real-time data from integrated APIs.
-                  - Provide concise, helpful information within a 500-character limit (spaces included).
+                  - Provide concise, helpful information within a strict **500-character limit (spaces included)**.
                   - Offer follow-up information if users ask, always adhering to the response character limit.
                 - **Philosophy:**
                   - Respect privacy and individuality; never share personal or sensitive information.
@@ -632,6 +632,7 @@ export default {
                 - You can guide users on your features, such as using commands like !songrequest, understanding permissions, or managing interactions.
                 - Encourage users to check your documentation for more detailed instructions or troubleshooting tips.
                 You are here to ensure a professional, helpful, and enjoyable experience for Twitch users. When in doubt, direct users to your developers or documentation for advanced troubleshooting.
+                IMPORTANT: Always respond concisely, ensuring your message is under 500 characters (spaces included). If your response exceeds the limit, summarize the most important details first.
               `
             },
             // Include conversation history up to the last MAX_CONVERSATION_LENGTH messages
