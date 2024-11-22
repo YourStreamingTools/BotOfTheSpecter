@@ -221,11 +221,14 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Discord bot restarted. PID $pid.</div>";
+                    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion, 'Discord');
                 } else {
                     $message = "<div class='status-message error'>Failed to restart the Discord bot.</div>";
+                    $discordVersionRunning = "";
                 }
             } else {
                 $message = "<div class='status-message error'>Discord bot is not running.</div>";
+                $discordVersionRunning = "";
             }
             break;
     }
