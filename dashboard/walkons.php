@@ -130,7 +130,13 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 
 <div class="container">
     <br>
-    <div class="notification is-danger">Before uploading, ensure the file is an MP3 and the filename is the user's lowercase username. (V4.6+)</div>
+    <div class="notification is-danger">
+        Important:
+        <ul>
+            <li>Before uploading, make sure the file is an MP3, and the filename matches the user's lowercase username. (V4.6+)</li>
+            <li>Before clicking the "Test" button, ensure your streaming software is running and the overlay with audio is enabled in the software.</li>
+        </ul>
+    </div>
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
             <h1 class="title is-4">Upload MP3 Files:</h1>
