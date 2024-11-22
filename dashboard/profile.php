@@ -72,6 +72,59 @@ function get_timezones() {
     asort($timezone_offsets);
     return $timezone_offsets;
 }
+
+// Define user-specific storage limits
+$base_storage_size = 2 * 1024 * 1024; // 2MB in bytes
+$tier = $_SESSION['tier'] ?? "None";
+
+switch ($tier) {
+    case "1000":
+        $max_storage_size = 5 * 1024 * 1024; // 5MB
+        break;
+    case "2000":
+        $max_storage_size = 10 * 1024 * 1024; // 10MB
+        break;
+    case "3000":
+        $max_storage_size = 20 * 1024 * 1024; // 20MB
+        break;
+    case "4000":
+        $max_storage_size = 50 * 1024 * 1024; // 50MB
+        break;
+    default:
+        $max_storage_size = $base_storage_size; // Default 2MB
+        break;
+}
+
+// User's walkon directory
+$walkon_path = "/var/www/walkons/" . $username;
+$soundalert_path = "/var/www/soundalerts/" . $username;
+
+// Create the user's directory if it doesn't exist
+if (!is_dir($walkon_path)) {
+    if (!mkdir($walkon_path, 0755, true)) {
+        exit("Failed to create directory.");
+    }
+}
+
+if (!is_dir($soundalert_path)) {
+    if (!mkdir($soundalert_path, 0755, true)) {
+        exit("Failed to create directory.");
+    }
+}
+
+// Calculate total storage used by the user across both directories
+function calculateStorageUsed($directories) {
+    $size = 0;
+    foreach ($directories as $directory) {
+        foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
+            $size += is_file($file) ? filesize($file) : calculateStorageUsed([$file]);
+        }
+    }
+    return $size;
+}
+
+$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
+$storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -106,7 +159,7 @@ function get_timezones() {
           <?php echo htmlspecialchars($status); ?>
         </div>
       <?php endif; ?>
-      <h2 class="is-4">Update Profile</h2>
+      <h4 class="label is-4">Update Profile</h4>
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
           <label class="is-4" for="timezone">Timezone:</label>
@@ -139,13 +192,20 @@ function get_timezones() {
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
           <label class="is-4">Heart Rate Code:</label><br>
-          Heart Rate in chat via Specter is powered by: <a href="https://www.hyperate.io/" target="_blank">HypeRate.io</a>
           <div class="control">
             <input style="width: 130px;" class="input" type="text" id="hyperate_code" name="hyperate_code" value="<?php echo $dbHyperateCode; ?>">
           </div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
+        Heart Rate in chat via Specter is powered by: <a href="https://www.hyperate.io/" target="_blank">HypeRate.io</a>
       </form>
+    </div>
+    <div class="column bot-box is-4">
+      <h4 class="label is-4">Storage Used</h4>
+      <div class="progress-bar-container">
+        <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+      </div>
+      <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB used</p>
     </div>
   </div>
 </div>
