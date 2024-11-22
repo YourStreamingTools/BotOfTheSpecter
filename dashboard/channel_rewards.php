@@ -78,20 +78,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
   <table class="table is-striped is-fullwidth">
     <thead>
       <tr>
-        <th>ID</th>
-        <th>Name</th>
-        <th>Cost</th>
-        <th>Bot Message</th>
-        <th>Edit</th>
-        <th>Delete</th>
+        <th>Reward Name</th>
+        <th>Custom Message</th>
+        <th style="width: 150px;">Reward Cost</th>
+        <th style="width: 100px;">Editing</th>
+        <th style="width: 100px;">Deleting</th>
       </tr>
     </thead>
     <tbody>
       <?php foreach ($channelPointRewards as $reward): ?>
         <tr>
-          <td><?php echo isset($reward['reward_id']) ? htmlspecialchars($reward['reward_id']) : ''; ?></td>
           <td><?php echo isset($reward['reward_title']) ? htmlspecialchars($reward['reward_title']) : ''; ?></td>
-          <td><?php echo isset($reward['reward_cost']) ? htmlspecialchars($reward['reward_cost']) : ''; ?></td>
           <td>
             <div id="<?php echo $reward['reward_id']; ?>">
               <?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?>
@@ -100,6 +97,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
               <textarea class="textarea custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
             </div>
           </td>
+          <td><?php echo isset($reward['reward_cost']) ? htmlspecialchars($reward['reward_cost']) : ''; ?></td>
           <td>
             <button class="button is-small is-info edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-pencil-alt"></i></button>
           </td>
