@@ -111,12 +111,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <table class="table is-fullwidth" id="commandsTable">
       <thead>
         <tr>
-          <th>Username</th>
-          <th>Welcome Message</th>
-          <th>Status</th>
-          <th>Action</th>
-          <th>Edit</th>
-          <th>Remove</th>
+          <th style="width: 50%;">Username</th>
+          <th style="width: 50%;">Welcome Message</th>
+          <th style="width: 100px;">Status</th>
+          <th style="width: 100px;">Action</th>
+          <th style="width: 100px;">Editing</th>
+          <th style="width: 100px;">Removing</th>
         </tr>
       </thead>
       <tbody id="user-table">
