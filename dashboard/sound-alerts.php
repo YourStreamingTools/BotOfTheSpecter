@@ -149,7 +149,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 <div class="container">
     <br>
     <div class="notification is-danger">
-        Important:
         <ul>
             <li>Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.</li>
             <li>Note: For rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.</li>
