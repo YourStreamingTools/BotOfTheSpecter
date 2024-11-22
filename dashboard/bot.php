@@ -205,7 +205,7 @@ if (file_exists($restartLog)) {
         <i class="fas fa-question-circle" id="discord-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4 bot-box-title">Discord Bot: (<?php echo "V" . htmlspecialchars($discordNewVersion); ?>)</h4>
         <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
-        <div id="discordVersion"><?php echo !empty($discordVersionRunning) ? $discordVersionRunning : 'Version not available'; ?></div>
+        <div id="discordVersion"><?php echo $discordVersionRunning; ?></div>
         <div class="buttons">
           <form action="" method="post">
             <button class="button is-danger bot-button button-size" type="submit" name="killDiscordBot">Stop Discord Bot</button>
