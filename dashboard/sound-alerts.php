@@ -149,9 +149,13 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 <div class="container">
     <br>
     <div class="notification is-danger">
-        Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.<br>
-        Note: for rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.<br>
-        Sound alerts will play through Specter Overlays when the selected channel point is redeemed. (V4.8+)
+        Important:
+        <ul>
+            <li>Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.</li>
+            <li>Note: For rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.</li>
+            <li>Sound alerts will play through Specter Overlays when the selected channel point is redeemed. (V4.8+)</li>
+            <li>Before clicking the "Test" button, ensure your streaming software is running and the overlay with audio is enabled in the software.</li>
+        </ul>
     </div>
     <div class="columns is-desktop is-multiline box-container" style="width: 100%;">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
