@@ -131,9 +131,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 <div class="container">
     <br>
     <div class="notification is-danger">
-        Important:
         <ul>
-            <li>Before uploading, make sure the file is an MP3, and the filename matches the user's lowercase username. (V4.6+)</li>
+            <li>Upload your audio file by dragging and dropping or browsing to select files. Ensure the file is an MP3, and the filename matches the user's lowercase username. (V4.6+)</li>
             <li>Before clicking the "Test" button, ensure your streaming software is running and the overlay with audio is enabled in the software.</li>
         </ul>
     </div>
