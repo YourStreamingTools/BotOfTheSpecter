@@ -290,7 +290,11 @@ if ($betaBotSystemStatus) {
 }
 
 if ($discordBotSystemStatus) {
-    $discordRunning = $discordBotSystemStatus ? "<div class='status-message'>Discord bot is running.</div>" : "<div class='status-message error'>Discord bot is NOT RUNNING.</div>";
+    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
+    $discordRunning = "<div class='status-message'>Discord bot is running.</div>";
+} else {
+    $discordRunning = "<div class='status-message error'>Discord bot is NOT RUNNING.</div>";
+    $discordVersionRunning = "";
 }
 
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
