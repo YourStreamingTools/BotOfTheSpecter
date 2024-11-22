@@ -1,4 +1,10 @@
 <?php
+// Display running versions if bots are running
+$versionRunning = '';
+$betaVersionRunning = '';
+$discordRunning = '';
+$discordVersionRunning = "";
+
 // Define variables for standard bot
 $versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt';
 $newVersion = file_get_contents("/var/www/api/bot_version_control.txt") ?: 'N/A';
@@ -30,12 +36,6 @@ $discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, 
 $directory = dirname($logPath);
 $betaDirectory = dirname($BetaLogPath);
 $discordDirectory = dirname($discordLogPath);
-
-// Display running versions if bots are running
-$versionRunning = '';
-$betaVersionRunning = '';
-$discordRunning = '';
-$discordVersionRunning = "";
 
 // Check if directories exist, if not, create them
 if (!file_exists($directory)) {
@@ -119,7 +119,7 @@ if (isset($_POST['restartBetaBot'])) {
 // Handle Discord bot actions
 if (isset($_POST['runDiscordBot'])) {
     $discordStatusOutput = handleDiscordBotAction('run', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
-    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion, 'Discord');
+    $discordVersionRunning = "Running Version: " . $discordVersionFilePath;
 }
 
 // Handling Discord bot stop
@@ -189,14 +189,14 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
         case 'run':
             if ($pid > 0) {
                 $message = "<div class='status-message'>Discord bot is already running. PID $pid.</div>";
-                $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion, 'Discord');
+                $discordVersionRunning = "Running Version: " . $discordVersionFilePath;
             } else {
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
                 $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Discord bot started successfully. PID $pid.</div>";
-                    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion, 'Discord');
+                    $discordVersionRunning = "Running Version: " . $discordVersionFilePath;
                 } else {
                     $message = "<div class='status-message error'>Failed to start the Discord bot. Please check the configuration or server status.</div>";
                     $discordVersionRunning = "";
@@ -221,7 +221,7 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 $pid = intval(preg_replace('/\D/', '', $statusOutput));
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Discord bot restarted. PID $pid.</div>";
-                    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion, 'Discord');
+                    $discordVersionRunning = "Running Version: " . $discordVersionFilePath;
                 } else {
                     $message = "<div class='status-message error'>Failed to restart the Discord bot.</div>";
                     $discordVersionRunning = "";
