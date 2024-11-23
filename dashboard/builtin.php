@@ -46,7 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $updateQuery = $db->prepare("UPDATE builtin_commands SET permission = ? WHERE command = ?");
         $updateQuery->bind_param("ss", $dbPermission, $command_name);
         $updateQuery->execute();
-        header("Location: beta_builtin.php");
+        header("Location: builtin.php");
     }
     // Process status update
     if (isset($_POST['command_name']) && isset($_POST['status'])) {
@@ -57,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $updateQuery->bindParam(':status', $dbstatus);
         $updateQuery->bindParam(':command_name', $dbcommand);
         $updateQuery->execute();
-        header("Location: beta_builtin.php");
+        header("Location: builtin.php");
     }
 }
 ?>
