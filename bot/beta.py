@@ -1031,6 +1031,7 @@ class BotOfTheSpecter(commands.Bot):
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
         asyncio.get_event_loop().create_task(timed_message())
         asyncio.get_event_loop().create_task(midnight())
+        asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
@@ -4405,7 +4406,6 @@ async def update_twitch_game(game_name):
 # Enqueue shoutout requests
 async def add_shoutout(user_to_shoutout, user_id):
     await shoutout_queue.put((user_to_shoutout, user_id))
-    await shoutout_worker()
     twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue.")
 
 # Worker to process shoutout queue
