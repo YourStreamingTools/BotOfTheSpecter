@@ -121,8 +121,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <form action="" method="post">
                 <div class="field">
                     <label for="whitelist_link">Enter Link to Whitelist:</label>
-                    <div class="control">
+                    <div class="control has-icons-left">
                         <input class="input" type="url" name="whitelist_link" id="whitelist_link" placeholder="Enter a URL" required>
+                        <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
                     </div>
                 </div>
                 <div class="field">
@@ -135,8 +136,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <form action="" method="post">
                 <div class="field">
                     <label for="blacklist_link">Enter Link to Blacklist:</label>
-                    <div class="control">
+                    <div class="control has-icons-left">
                         <input class="input" type="url" name="blacklist_link" id="blacklist_link" placeholder="Enter a URL" required>
+                        <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
                     </div>
                 </div>
                 <div class="field">
