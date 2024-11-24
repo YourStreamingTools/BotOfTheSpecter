@@ -114,20 +114,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <form method="post" action="">
                 <div class="field">
                     <label for="command">Command:</label>
-                    <div class="control">
+                    <div class="control has-icons-left">
                         <input class="input" type="text" name="command" id="command" required>
+                        <div class="icon is-small is-left"><i class="fas fa-terminal"></i></div>
                     </div>
                 </div>
                 <div class="field">
                     <label for="response">Response:</label>
-                    <div class="control">
+                    <div class="control has-icons-left">
                         <input class="input" type="text" name="response" id="response" required>
+                        <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
                     </div>
                 </div>
                 <div class="field">
                     <label for="cooldown">Cooldown:</label>
-                    <div class="control">
+                    <div class="control has-icons-left">
                         <input class="input" type="text" name="cooldown" id="cooldown" value="15" required>
+                        <div class="icon is-small is-left"><i class="fas fa-clock"></i></div>
                     </div>
                 </div>
                 <div class="control">
@@ -154,14 +157,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                     <div class="field">
                         <label for="command_response">Response:</label>
-                        <div class="control">
+                        <div class="control has-icons-left">
                             <input class="input" type="text" name="command_response" id="command_response" value="" required>
+                            <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
                         </div>
                     </div>
                     <div class="field">
                         <label for="cooldown">Cooldown:</label>
-                        <div class="control">
+                        <div class="control has-icons-left">
                             <input class="input" type="text" name="cooldown" id="cooldown" value="" required>
+                            <div class="icon is-small is-left"><i class="fas fa-clock"></i></div>
                         </div>
                     </div>
                     <div class="control"><button type="submit" class="button is-primary">Update Command</button></div>
