@@ -124,6 +124,7 @@ global next_spotify_refresh_time
 global HEARTRATE
 global TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
 global TWITCH_SHOUTOUT_USER_COOLDOWN
+global last_shoutout_time
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()
@@ -148,6 +149,7 @@ next_spotify_refresh_time = None
 HEARTRATE = None
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)
+last_shoutout_time = datetime.min
 
 # Setup Token Refresh
 async def twitch_token_refresh():
@@ -1021,7 +1023,6 @@ class BotOfTheSpecter(commands.Bot):
         await builtin_commands_creation()
         await known_users()
         await channel_point_rewards()
-        asyncio.create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(twitch_token_refresh())
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
@@ -3371,9 +3372,9 @@ class BotOfTheSpecter(commands.Bot):
                     if mentioned_username:
                         user_info = await self.fetch_users(names=[target_user])
                         if user_info:
-                            mentioned_user_id = user_info[0].id
+                            user_id = user_info[0].id
                             params = {
-                                'user_id': mentioned_user_id,
+                                'user_id': user_id,
                                 'broadcaster_id': CHANNEL_ID
                             }
                         else:
@@ -3589,8 +3590,8 @@ class BotOfTheSpecter(commands.Bot):
                     if not user_info:
                         await ctx.send("Failed to fetch user information.")
                         return
-                    mentioned_user_id = user_info[0].id
-                    game = await get_latest_stream_game(mentioned_user_id, user_to_shoutout)
+                    user_id = user_info[0].id
+                    game = await get_latest_stream_game(user_id, user_to_shoutout)
                     if not game:
                         shoutout_message = (
                             f"Hey, huge shoutout to @{user_to_shoutout}! "
@@ -3605,7 +3606,7 @@ class BotOfTheSpecter(commands.Bot):
                         )
                     chat_logger.info(shoutout_message)
                     await ctx.send(shoutout_message)
-                    await add_shoutout(user_to_shoutout, mentioned_user_id)
+                    await add_shoutout(user_to_shoutout, user_id)
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
@@ -4402,15 +4403,16 @@ async def update_twitch_game(game_name):
                 raise GameUpdateFailedException('Failed to update stream game')
 
 # Enqueue shoutout requests
-async def add_shoutout(user_to_shoutout, mentioned_user_id):
-    await shoutout_queue.put((user_to_shoutout, mentioned_user_id))
+async def add_shoutout(user_to_shoutout, user_id):
+    await shoutout_queue.put((user_to_shoutout, user_id))
+    await shoutout_worker()
     twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue.")
 
 # Worker to process shoutout queue
 async def shoutout_worker():
     global last_shoutout_time
     while True:
-        user_to_shoutout, mentioned_user_id = await shoutout_queue.get()
+        user_to_shoutout, user_id = await shoutout_queue.get()
         now = datetime.now()
         # Check global cooldown
         if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
@@ -4418,22 +4420,22 @@ async def shoutout_worker():
             twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
             await asyncio.sleep(wait_time)
         # Check user-specific cooldown
-        if mentioned_user_id in shoutout_tracker:
-            last_user_shoutout_time = shoutout_tracker[mentioned_user_id]
+        if user_id in shoutout_tracker:
+            last_user_shoutout_time = shoutout_tracker[user_id]
             if now - last_user_shoutout_time < TWITCH_SHOUTOUT_USER_COOLDOWN:
                 twitch_logger.info(f"Skipping shoutout for {user_to_shoutout}. User-specific cooldown in effect.")
                 shoutout_queue.task_done()
                 continue
         # Trigger the shoutout
-        await trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id)
+        await trigger_twitch_shoutout(user_to_shoutout, user_id)
         # Update cooldown trackers
         last_shoutout_time = datetime.now()
-        shoutout_tracker[mentioned_user_id] = last_shoutout_time
+        shoutout_tracker[user_id] = last_shoutout_time
         # Mark the task as done
         shoutout_queue.task_done()
 
 # Function to trigger a Twitch shoutout via Twitch API
-async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
+async def trigger_twitch_shoutout(user_to_shoutout, user_id):
     url = 'https://api.twitch.tv/helix/chat/shoutouts'
     headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
@@ -4441,7 +4443,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, mentioned_user_id):
     }
     payload = {
         "from_broadcaster_id": CHANNEL_ID,
-        "to_broadcaster_id": mentioned_user_id,
+        "to_broadcaster_id": user_id,
         "moderator_id": CHANNEL_ID
     }
     try:
