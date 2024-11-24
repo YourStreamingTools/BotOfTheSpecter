@@ -47,7 +47,7 @@ try {
                 command TEXT,
                 response TEXT,
                 status TEXT,
-                cooldown VARCHAR(20) DEFAULT NULL,
+                cooldown VARCHAR(20) DEFAULT '15',
                 PRIMARY KEY (command)
             ) ENGINE=InnoDB",
         'builtin_commands' => "
