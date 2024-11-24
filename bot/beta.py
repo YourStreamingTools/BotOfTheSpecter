@@ -137,6 +137,7 @@ permitted_users = {}
 connected = set()
 pending_removals = {}
 shoutout_tracker = {}
+command_last_used = {}
 last_poll_progress_update = 0
 
 # Initialize global variables
@@ -1094,11 +1095,22 @@ class BotOfTheSpecter(commands.Bot):
                         chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                         return  # It's a built-in command or alias, do nothing more
                     # Check if the command exists in a hypothetical database and respond
-                    await cursor.execute('SELECT response, status FROM custom_commands WHERE command = %s', (command,))
+                    await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
                     result = await cursor.fetchone()
                     if result:
-                        if result[1] == 'Enabled':
-                            response = result[0]
+                        response, status, cooldown = result
+                        if status == 'Enabled':
+                            cooldown = int(cooldown)
+                            # Checking if the command is on cooldown
+                            last_used = command_last_used.get(command, None)
+                            if last_used:
+                                time_since_last_used = (datetime.now() - last_used).total_seconds()
+                                if time_since_last_used < cooldown:
+                                    remaining_time = cooldown - time_since_last_used
+                                    chat_logger.info(f"{command} is on cooldown. {remaining_time:.1f} seconds remaining.")
+                                    await channel.send(f"The command {command} is on cooldown. Please wait {remaining_time:.1f}")
+                                    return
+                            command_last_used[command] = datetime.now()
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
                                 '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
