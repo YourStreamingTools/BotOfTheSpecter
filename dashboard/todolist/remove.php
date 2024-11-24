@@ -88,8 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="container">
   <br>
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <br>
   <?php if ($num_rows > 0) { ?>
   <!-- Category Filter Dropdown & Search Bar -->
   <div class="field is-grouped">
