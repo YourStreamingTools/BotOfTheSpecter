@@ -61,34 +61,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['command_to_edit'], $_P
 
 <div class="container">
     <br>
-    <?php if (!empty($commands)): ?>
-        <p>Select the command you want to edit:</p>
-        <form method="post" action="">
-            <div class="field">
-                <label class="label" for="command_to_edit">Command to Edit:</label>
-                <div class="control">
-                    <div class="select">
-                        <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
-                            <option value="">Select a Command...</option>
-                            <?php foreach ($commands as $command): ?>
-                                <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
-                            <?php endforeach; ?>
-                        </select>
+    <h4 class="title is-4">Edit Custom Commands</h4>
+    <div class="columns is-desktop is-multiline box-container">
+        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
+            <?php if (!empty($commands)): ?>
+                <h4 class="subtitle is-4">Select the command you want to edit</h4>
+                <form method="post" action="">
+                    <div class="field">
+                        <label for="command_to_edit">Command to Edit:</label>
+                        <div class="control">
+                            <div class="select">
+                                <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
+                                    <option value="">Select a Command...</option>
+                                    <?php foreach ($commands as $command): ?>
+                                        <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-            <div class="field">
-                <label class="label" for="command_response">Response:</label>
-                <div class="control">
-                    <input class="input" type="text" name="command_response" id="command_response" value="" required>
-                </div>
-            </div>
-            <div class="control"><button type="submit" class="button is-primary">Update Command</button></div>
-        </form>
-    <?php else: ?>
-        <p>No commands available to edit.</p>
-    <?php endif; ?>
-    <?php echo $status; ?>
+                    <div class="field">
+                        <label for="command_response">Response:</label>
+                        <div class="control">
+                            <input class="input" type="text" name="command_response" id="command_response" value="" required>
+                        </div>
+                    </div>
+                    <div class="control"><button type="submit" class="button is-primary">Update Command</button></div>
+                </form>
+            <?php else: ?>
+                <h4 class="subtitle is-4">No commands available to edit.</h4>
+            <?php endif; ?>
+            <?php echo $status; ?>
+        </div>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
