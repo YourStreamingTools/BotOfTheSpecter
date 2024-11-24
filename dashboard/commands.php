@@ -84,6 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <tr>
               <th style="width: 200px;">Command</th>
               <th>Response</th>
+              <th style="width: 100px;">Cooldown</th>
               <th style="width: 100px;">Status</th>
               <th style="width: 100px;">Action</th>
               <th style="width: 100px;">Remove</th>
@@ -94,6 +95,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
               <tr>
                 <td>!<?php echo $command['command']; ?></td>
                 <td><?php echo $command['response']; ?></td>
+                <td><?php echo $command['cooldown']; ?>s</td>
                 <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;"><?php echo $command['status']; ?></td>
                 <td>
                   <label class="checkbox">
