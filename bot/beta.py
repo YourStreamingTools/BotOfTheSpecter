@@ -1107,8 +1107,8 @@ class BotOfTheSpecter(commands.Bot):
                                 time_since_last_used = (datetime.now() - last_used).total_seconds()
                                 if time_since_last_used < cooldown:
                                     remaining_time = cooldown - time_since_last_used
-                                    chat_logger.info(f"{command} is on cooldown. {remaining_time:.1f} seconds remaining.")
-                                    await channel.send(f"The command {command} is on cooldown. Please wait {remaining_time:.1f}")
+                                    chat_logger.info(f"{command} is on cooldown. {int(remaining_time)} seconds remaining.")
+                                    await channel.send(f"The command {command} is on cooldown. Please wait {int(remaining_time)} seconds.")
                                     return
                             command_last_used[command] = datetime.now()
                             switches = [
