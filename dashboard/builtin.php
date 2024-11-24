@@ -107,34 +107,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <td colspan="4" style="text-align: center; color: red;">No commands found. Please run the Twitch Chat Bot to sync the commands.</td>
                 </tr>
             <?php else: ?>
-            <?php foreach ($builtinCommands as $command): ?>
-            <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
-                <td>!<?php echo htmlspecialchars($command['command']); ?></td>
-                <td>
-                    <form method="post">
-                        <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
-                        <div class="select is-fullwidth">
-                            <select name="usage_level" onchange="this.form.submit()">
-                                <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
-                                    <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
-                                        <?php echo $displayValue; ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </form>
-                </td>
-                <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
-                    <?php echo htmlspecialchars($command['status']); ?>
-                </td>
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
-                        <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                    </label>
-                </td>
-            </tr>
-            <?php endforeach; ?>
+                <?php foreach ($builtinCommands as $command): ?>
+                <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
+                    <td>!<?php echo htmlspecialchars($command['command']); ?></td>
+                    <td>
+                        <form method="post">
+                            <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
+                            <div class="select is-fullwidth">
+                                <select name="usage_level" onchange="this.form.submit()">
+                                    <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
+                                        <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
+                                            <?php echo $displayValue; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </form>
+                    </td>
+                    <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
+                        <?php echo htmlspecialchars($command['status']); ?>
+                    </td>
+                    <td>
+                        <label class="switch">
+                            <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
+                            <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                        </label>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </tbody>
     </table>
 </div>
