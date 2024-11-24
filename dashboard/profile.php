@@ -1,4 +1,4 @@
-<?php 
+<?php
 // Initialize the session
 session_start();
 
@@ -149,7 +149,7 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
       <ol>Your Last Login: <span id="localLastLogin"></span></ol>
       <ol>Time Zone: <?php echo $timezone; ?></ol>
       <ol>Weather Location: <?php echo $weather; ?></ol>
-      <p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
+      <p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;" id="api-key"><?php echo $api_key; ?></span></p>
       <button type="button" class="button is-primary" id="show-api-key" style="width: 130px;">Show API Key</button>
       <button type="button" class="button is-primary" id="hide-api-key" style="display:none; width: 130px;">Hide API Key</button>
       <button type="button" class="button is-primary" id="regen-api-key-open" style="width: 180px;">Regenerate API Key</button>
@@ -237,6 +237,7 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 
 <!-- Warning Modal JavaScript -->
 <script>
+  // Modal handling: Open and close modals
   const modalIds = [
     { open: "regen-api-key-open", close: "regen-api-key-close" }
   ];
@@ -256,20 +257,24 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
       });
     }
   });
-  
-  // Confirm Regen
-  document.getElementById("confirm-regen)").addEventListener("click", function(){
+
+  // Confirm Regen button action
+  document.getElementById("confirm-regen").addEventListener("click", function() {
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "regen_api_key.php", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr. onload = function() {
-      if (xhr.status == 200) {
-        // Update the displayed API Key
-        document.getElementById("api-key").textContent = xhr.responseText;
-      };
+    // Handle the response when the API key is regenerated
+    xhr.onload = function() {
+        if (xhr.status == 200) {
+            // Update the displayed API Key with the new one
+            document.getElementById("api-key").textContent = xhr.responseText;
+            alert("Your API key has been successfully regenerated.");
+        } else {
+            alert("Error regenerating API key. Please try again.");
+        }
     };
+    // Send the AJAX request to regenerate the API key
     xhr.send("action=regen_api_key");
-    document.getElementById("warning-modal").style.display = "none";
   });
 </script>
 
