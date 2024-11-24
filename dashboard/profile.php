@@ -265,11 +265,11 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
     xhr. onload = function() {
       if (xhr.status == 200) {
         // Update the displayed API Key
-        document.getElemenetByID("api-key").textContent = xhr.responseText;
+        document.getElementById("api-key").textContent = xhr.responseText;
       };
     };
     xhr.send("action=regen_api_key");
-    document.getElemenetById("warning-modal").style.display = "none";
+    document.getElementById("warning-modal").style.display = "none";
   });
 </script>
 
