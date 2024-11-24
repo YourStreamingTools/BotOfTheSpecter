@@ -35,40 +35,78 @@ try {
     $usernames = [];
 }
 
-// Handling form submission for updating typo count
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'update') {
-    $formUsername = $_POST['typo-username'] ?? '';
-    $typoCount = $_POST['typo_count'] ?? '';
-    if ($formUsername && is_numeric($typoCount)) {
-        try {
-            $stmt = $db->prepare("UPDATE user_typos SET typo_count = :typo_count WHERE username = :username");
-            $stmt->bindParam(':username', $formUsername);
-            $stmt->bindParam(':typo_count', $typoCount, PDO::PARAM_INT);
-            $stmt->execute();
-            $status = "Typo count updated successfully for user {$formUsername}.";
-            $notification_status = "is-success";
-        } catch (PDOException $e) {
-            $status = "Error: " . $e->getMessage();
-            $notification_status = "is-danger";
-        }
-    } else {
-        $status = "Invalid input.";
-        $notification_status = "is-danger";
-    }
+// Fetch commands from the custom_counts table
+try {
+    $stmt = $db->prepare("SELECT command FROM custom_counts");
+    $stmt->execute();
+    $commands = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $status = "Error fetching commands: " . $e->getMessage();
+    $notification_status = "is-danger";
+    $commands = [];
 }
 
-// Handling form submission for removing a user
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'remove') {
-    $formUsername = $_POST['typo-username-remove'] ?? '';
-    try {
-        $stmt = $db->prepare("DELETE FROM user_typos WHERE username = :username");
-        $stmt->bindParam(':username', $formUsername, PDO::PARAM_STR);
-        $stmt->execute();
-        $status = "Typo record for user '$formUsername' has been removed.";
-        $notification_status = "is-success";
-    } catch (PDOException $e) {
-        $status = 'Error: ' . $e->getMessage();
-        $notification_status = "is-danger";
+// Handling form submissions
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $action = $_POST['action'] ?? '';
+    switch ($action) {
+        case 'update': 
+            $formUsername = $_POST['typo-username'] ?? '';
+            $typoCount = $_POST['typo_count'] ?? '';
+            $formCommand = $_POST['command'] ?? '';
+            $commandCount = $_POST['command_count'] ?? '';
+            // Update typo count
+            if ($formUsername && is_numeric($typoCount)) {
+                try {
+                    $stmt = $db->prepare("UPDATE user_typos SET typo_count = :typo_count WHERE username = :username");
+                    $stmt->bindParam(':username', $formUsername);
+                    $stmt->bindParam(':typo_count', $typoCount, PDO::PARAM_INT);
+                    $stmt->execute();
+                    $status = "Typo count updated successfully for user {$formUsername}.";
+                    $notification_status = "is-success";
+                } catch (PDOException $e) {
+                    $status = "Error: " . $e->getMessage();
+                    $notification_status = "is-danger";
+                }
+            }
+            // Update command count
+            if ($formCommand && is_numeric($commandCount)) {
+                try {
+                    $stmt = $db->prepare("UPDATE custom_counts SET count = :command_count WHERE command = :command");
+                    $stmt->bindParam(':command', $formCommand);
+                    $stmt->bindParam(':command_count', $commandCount, PDO::PARAM_INT);
+                    $stmt->execute();
+                    $status = "Count updated successfully for the command {$formCommand}.";
+                    $notification_status = "is-success";
+                } catch (PDOException $e) {
+                    $status = "Error: " . $e->getMessage();
+                    $notification_status = "is-danger";
+                }
+            }
+            break;
+        case 'remove':
+            $formUsername = $_POST['typo-username-remove'] ?? '';
+            // Remove typo record
+            if ($formUsername) {
+                try {
+                    $stmt = $db->prepare("DELETE FROM user_typos WHERE username = :username");
+                    $stmt->bindParam(':username', $formUsername, PDO::PARAM_STR);
+                    $stmt->execute();
+                    $status = "Typo record for user '$formUsername' has been removed.";
+                    $notification_status = "is-success";
+                } catch (PDOException $e) {
+                    $status = 'Error: ' . $e->getMessage();
+                    $notification_status = "is-danger";
+                }
+            } else {
+                $status = "Invalid input.";
+                $notification_status = "is-danger";
+            }
+            break;
+        default:
+            $status = "Invalid action.";
+            $notification_status = "is-danger";
+            break;
     }
 }
 
@@ -83,59 +121,6 @@ try {
     $typoData = [];
 }
 
-// Check for AJAX request to get the current typo count
-if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET['username'])) {
-    $requestedUsername = $_GET['username'];
-    try {
-        $stmt = $db->prepare("SELECT typo_count FROM user_typos WHERE username = :username");
-        $stmt->bindParam(':username', $requestedUsername);
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($result) {
-            $status = $result['typo_count'];
-        } else {
-            $status = "0";
-        }
-        echo $status;
-    } catch (PDOException $e) {
-        $status = "Error: " . $e->getMessage();
-        $notification_status = "is-danger";
-    }
-    exit;
-}
-
-// Fetch commands from the custom_counts table
-try {
-    $stmt = $db->prepare("SELECT command FROM custom_counts");
-    $stmt->execute();
-    $commands = $stmt->fetchAll(PDO::FETCH_COLUMN);
-} catch (PDOException $e) {
-    $status = "Error fetching commands: " . $e->getMessage();
-    $notification_status = "is-danger";
-    $commands = [];
-}
-
-// Handling form submission for updating custom count
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'update') {
-    $formCommand = $_POST['command'] ?? '';
-    $commandCount = $_POST['command_count'] ?? '';
-    if ($formCommand && is_numeric($commandCount)) {
-        try {
-            $stmt = $db->prepare("UPDATE custom_counts SET count = :command_count WHERE command = :command");
-            $stmt->bindParam(':command', $formCommand);
-            $stmt->bindParam(':command_count', $commandCount, PDO::PARAM_INT);
-            $stmt->execute();
-            $status = "Count updated successfully for the command {$formCommand}.";
-            $notification_status = "is-success";
-        } catch (PDOException $e) {
-            $status = "Error: " . $e->getMessage();
-        }
-    } else {
-        $status = "Invalid input.";
-        $notification_status = "is-danger";
-    }
-}
-
 // Fetch command counts
 try {
     $stmt = $db->prepare("SELECT command, count FROM custom_counts");
@@ -147,23 +132,30 @@ try {
     $commandData = [];
 }
 
-// Check for AJAX request to get the current typo count
-if (isset($_GET['action']) && $_GET['action'] == 'get_command_count' && isset($_GET['command'])) {
-    $requestedCommand = $_GET['command'];
-    try {
-        $stmt = $db->prepare("SELECT count FROM custom_counts WHERE command = :command");
-        $stmt->bindParam(':command', $requestedCommand);
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($result) {
-            $status = $result['count'];
-        } else {
-            $status = "0";
+// Check for AJAX requests
+if (isset($_GET['action']) && isset($_GET['username'])) {
+    if ($_GET['action'] == 'get_typo_count') {
+        $requestedUsername = $_GET['username'];
+        try {
+            $stmt = $db->prepare("SELECT typo_count FROM user_typos WHERE username = :username");
+            $stmt->bindParam(':username', $requestedUsername);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            echo $result['typo_count'] ?? "0";
+        } catch (PDOException $e) {
+            echo "Error: " . $e->getMessage();
         }
-        echo $status;
-    } catch (PDOException $e) {
-        $status = "Error: " . $e->getMessage();
-        $notification_status = "is-danger";
+    } elseif ($_GET['action'] == 'get_command_count') {
+        $requestedCommand = $_GET['command'];
+        try {
+            $stmt = $db->prepare("SELECT count FROM custom_counts WHERE command = :command");
+            $stmt->bindParam(':command', $requestedCommand);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            echo $result['count'] ?? "0";
+        } catch (PDOException $e) {
+            echo "Error: " . $e->getMessage();
+        }
     }
     exit;
 }
@@ -190,7 +182,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
         <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
     <?php endif; ?>
     <div class="columns is-desktop is-multiline box-container">
-        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
+        <div class="column is-3 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-5">Edit User Typos</h2>
             <form action="" method="post">
                 <input type="hidden" name="action" value="update">
@@ -216,7 +208,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                 <div class="control"><button type="submit" class="button is-primary">Update Typo Count</button></div>
             </form>
         </div>
-        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
+        <div class="column is-3 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-5">Remove User Typo Record</h2>
             <form action="" method="post">
                 <input type="hidden" name="action" value="remove">
@@ -236,7 +228,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                 <div class="control"><button type="submit" class="button is-danger">Remove Typo Record</button></div>
             </form>
         </div>
-        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
+        <div class="column is-3 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-5">Edit Custom Counter</h2>
             <form action="" method="post">
                 <input type="hidden" name="action" value="update">
@@ -267,32 +259,14 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
-function updateCurrentCount(username) {
-    if (username) {
-        fetch('?action=get_typo_count&username=' + encodeURIComponent(username))
+function fetchCurrentCount(type, value, inputId) {
+    if (value) {
+        fetch(`?action=get_${type}_count&${type}=${encodeURIComponent(value)}`)
             .then(response => response.text())
-            .then(data => {
-                var typoCountInput = document.getElementById('typo_count');
-                typoCountInput.value = data;
-            })
+            .then(data => document.getElementById(inputId).value = data)
             .catch(error => console.error('Error:', error));
     } else {
-        var typoCountInput = document.getElementById('typo_count');
-        typoCountInput.value = '';
-    }
-}
-function updateCurrentCount(command) {
-    if (command) {
-        fetch('?action=get_command_count&command=' + encodeURIComponent(command))
-            .then(response => response.text())
-            .then(data => {
-                var commandCountInput = document.getElementById('command_count');
-                commandCountInput.value = data;
-            })
-            .catch(error => console.error('Error:', error));
-    } else {
-        var commandCountInput = document.getElementById('command_count');
-        commandCountInput.value = '';
+        document.getElementById(inputId).value = '';
     }
 }
 </script>
