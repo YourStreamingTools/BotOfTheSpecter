@@ -177,7 +177,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="modal-background"></div>
     <div class="modal-card custom-width">
         <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white">Custom Variables to use while adding commands</p>
+            <p class="modal-card-title has-text-white">Custom Variables to use while adding commands<br>
+                <span class="has-text-white is-size-6">
+                    If the Custom Variable title color is <span class="variable-title">Yellow</span>, it is available in both Stable and Beta bot versions.
+                    If the title color is <span style="color: red;">Red</span>, it is only available in the Beta bot at this stage.
+                </span>
+            </p>
             <button class="delete" aria-label="close" id="closeModalButton"></button>
         </header>
         <section class="modal-card-body has-background-dark has-text-white">
