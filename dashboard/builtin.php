@@ -102,6 +102,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </tr>
         </thead>
         <tbody>
+            <?php if (empty($builtinCommands)): ?>
+                <tr>
+                    <td colspan="4" style="text-align: center; color: red;">No commands found. Please run the Twitch Chat Bot to sync the commands.</td>
+                </tr>
+            <?php else: ?>
             <?php foreach ($builtinCommands as $command): ?>
             <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
                 <td>!<?php echo htmlspecialchars($command['command']); ?></td>
