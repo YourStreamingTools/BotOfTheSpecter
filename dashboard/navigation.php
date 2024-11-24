@@ -40,7 +40,6 @@
           <a class="navbar-item" href="../commands.php">View Custom Commands</a>
           <a class="navbar-item" href="../add-commands.php">Add Custom Command</a>
           <a class="navbar-item" href="../edit-commands.php">Edit Custom Command</a>
-          <a class="navbar-item" href="../remove-commands.php">Remove Custom Command</a>
           <hr class="navbar-divider">
           <a class="navbar-item" href="../walkons.php">Walkon Audio</a>
           <a class="navbar-item" href="../sound-alerts.php">Sound Alerts</a>
