@@ -125,43 +125,43 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
         <section class="modal-card-body" style="background-color: #2b2b2b; color: #ffffff;">
             <form method="POST" action="">
                 <div class="field">
-                    <label class="label" for="point_name" style="color: #ffffff;">Points Name</label>
+                    <label for="point_name" style="color: #ffffff;">Points Name</label>
                     <div class="control">
                         <input class="input" type="text" name="point_name" value="<?php echo $pointsName; ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_chat" style="color: #ffffff;"><?php echo $pointsName; ?> Earned per Chat Message</label>
+                    <label for="point_amount_chat" style="color: #ffffff;"><?php echo $pointsName; ?> Earned per Chat Message</label>
                     <div class="control">
                         <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_follower" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Following</label>
+                    <label for="point_amount_follower" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Following</label>
                     <div class="control">
                         <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_amount_follower']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_subscriber" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Subscribing</label>
+                    <label for="point_amount_subscriber" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Subscribing</label>
                     <div class="control">
                         <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_cheer" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Cheer</label>
+                    <label for="point_amount_cheer" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Cheer</label>
                     <div class="control">
                         <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="point_amount_raid" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Raid Viewer</label>
+                    <label for="point_amount_raid" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Raid Viewer</label>
                     <div class="control">
                         <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="subscriber_multiplier" style="color: #ffffff;">Subscriber Multiplier</label>
+                    <label for="subscriber_multiplier" style="color: #ffffff;">Subscriber Multiplier</label>
                     <div class="control">
                         <div class="select is-fullwidth" style="background-color: #3a3a3a; color: #ffffff; border: none;">
                             <select name="subscriber_multiplier" style="background-color: #3a3a3a; color: #ffffff; border: none;">
@@ -180,11 +180,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="excluded_users" style="color: #ffffff;">Excluded Users (comma-separated)</label>
+                    <label for="excluded_users" style="color: #ffffff;">Excluded Users (comma-separated)</label>
                     <div class="control">
                         <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
                     </div>
-                    <p style="color: #ffffff;">By default, both the bot and yourself are excluded.</p>
+                    <p class="help" style="color: #ffffff;">By default, both the bot and yourself are excluded.</p>
                 </div>
                 <div class="field">
                     <div class="control">
