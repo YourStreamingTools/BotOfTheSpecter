@@ -138,7 +138,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <td rowspan="6">
                 <form method="post">
                     <div class="field">
-                        <label class="label" for="font">Font:</label>
+                        <label for="font">Font:</label>
                         <div class="control">
                             <div class="select">
                                 <select name="font">
@@ -151,7 +151,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label" for="color">Color:</label>
+                        <label for="color">Color:</label>
                         <div class="control">
                             <div class="select">
                                 <select name="color" id="color-select">
@@ -165,13 +165,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </div>
                     </div>
                     <div class="field" id="custom-color-group"<?php if ($color !== 'Other') echo ' style="display: none;"'; ?>>
-                        <label class="label" for="custom_color">Custom Color:</label>
+                        <label for="custom_color">Custom Color:</label>
                         <div class="control">
                             <input type="text" name="custom_color" id="custom-color-input" class="input">
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label" for="list">List Type:</label>
+                        <label for="list">List Type:</label>
                         <div class="control">
                             <div class="select">
                                 <select name="list">
@@ -182,19 +182,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label" for="font_size">Font Size:</label>
+                        <label for="font_size">Font Size:</label>
                         <div class="control">
                             <input type="text" name="font_size" value="<?php echo htmlspecialchars($font_size); ?>" class="input">
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label" for="shadow">Text Shadow:</label>
+                        <label for="shadow">Text Shadow:</label>
                         <div class="control">
                             <input type="checkbox" name="shadow" value="1" <?php if ($shadow) echo 'checked'; ?>>
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label" for="bold">Text Bold:</label>
+                        <label for="bold">Text Bold:</label>
                         <div class="control">
                             <input type="checkbox" name="bold" value="1" <?php if ($bold) echo 'checked'; ?>>
                         </div>
