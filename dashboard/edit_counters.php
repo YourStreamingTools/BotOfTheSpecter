@@ -269,6 +269,34 @@ function fetchCurrentCount(type, value, inputId) {
         document.getElementById(inputId).value = '';
     }
 }
+function updateCurrentCount(value) {
+    if (value) {
+        // Check whether the input is for a typo count or a command count
+        const isTypoInput = document.getElementById('typo-username') && document.getElementById('typo-username').value === value;
+        const isCommandInput = document.getElementById('command') && document.getElementById('command').value === value;
+        // Determine the input ID and action type based on the selection
+        let inputId, type;
+        if (isTypoInput) {
+            inputId = 'typo_count';
+            type = 'typo';
+        } else if (isCommandInput) {
+            inputId = 'command_count';
+            type = 'command';
+        } else {
+            console.error('Invalid input selection.');
+            return;
+        }
+        // Fetch the current count using the AJAX endpoint
+        fetch(`?action=get_${type}_count&${type}=${encodeURIComponent(value)}`)
+            .then(response => response.text())
+            .then(data => document.getElementById(inputId).value = data || 0)
+            .catch(error => console.error('Error fetching count:', error));
+    } else {
+        // Clear the input if no value is selected
+        if (document.getElementById('typo_count')) document.getElementById('typo_count').value = '';
+        if (document.getElementById('command_count')) document.getElementById('command_count').value = '';
+    }
+}
 </script>
 </body>
 </html>
