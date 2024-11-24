@@ -37,8 +37,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
         } else {
             try {
-                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`) VALUES (?, ?)');
-                $stmt->execute([$interval, $message]);
+                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`) VALUES (?, ?, ?)');
+                // Assuming the default status is 'True' (Enabled)
+                $stmt->execute([$interval, $message, 'True']);
                 $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.';
             } catch (PDOException $e) {
                 $errorMessage = "Error adding message: " . $e->getMessage();
@@ -63,7 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Error removing message: " . $e->getMessage();
         }
     }
-    // Check if the form was submitted for editing the message or the interval of a message
+    // Check if the form was submitted for editing the message, interval, or status
     elseif (isset($_POST['edit_message']) && isset($_POST['edit_interval']) && isset($_POST['edit_status'])) {
         $edit_message_id = $_POST['edit_message'];
         $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
@@ -74,7 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->execute([$edit_message_id]);
         $message_exists = $stmt->fetchColumn();
         if ($message_exists && $edit_interval !== false) {
-            // Update the message and/or interval for the selected message in the database
+            // Update the message, interval, and status for the selected message in the database
             try {
                 $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ? WHERE id = ?');
                 $stmt->execute([$edit_interval, $edit_message_content, $edit_status, $edit_message_id]);
@@ -162,14 +163,14 @@ if ($displayMessageData) {
                         <label for="edit_message">Select Message to Edit:</label>
                         <div class="control">
                             <div class="select is-fullwidth">
-                                <select name="edit_message" id="edit_message">
+                                <select name="edit_message" id="edit_message" onchange="showResponse()">
                                     <option value="">PICK A MESSAGE TO EDIT</option>
                                     <?php
                                     usort($timedMessagesData, function($a, $b) {
                                         return $a['id'] - $b['id'];
                                     });
                                     foreach ($timedMessagesData as $message): ?>
-                                        <option value="<?php echo $message['id']; ?>">
+                                        <option value="<?php echo $message['id']; ?>" <?php echo $message['status'] == 'True' ? 'selected' : ''; ?>>
                                             (<?php echo $message['id']; ?>) <?php echo $message['message']; ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -178,11 +179,13 @@ if ($displayMessageData) {
                         </div>
                     </div>
                     <div class="field">
-                        <label for="edit_interval">New Interval:</label>
-                        <div class="control"><input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required></div>
+                        <label for="edit_interval">Interval:</label>
+                        <div class="control">
+                            <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required>
+                        </div>
                     </div>
                     <div class="field">
-                        <label for="edit_message_content">New Message:</label>
+                        <label for="edit_message_content">Message:</label>
                         <div class="control">
                             <input class="input" type="text" name="edit_message_content" id="edit_message_content" required>
                         </div>
@@ -192,13 +195,13 @@ if ($displayMessageData) {
                         <div class="control">
                             <div class="select is-fullwidth">
                                 <select name="edit_status" id="edit_status">
-                                    <option value="True"<?php echo $message['status'] == 'True' ? ' selected' : '' ?>>Enabled</option>
-                                    <option value="False"<?php echo $message['status'] == 'False' ? ' selected' : '' ?>>Disabled</option>
+                                    <option value="True" <?php echo isset($status) && $status == 'True' ? 'selected' : ''; ?>>Enabled</option>
+                                    <option value="False" <?php echo isset($status) && $status == 'False' ? 'selected' : ''; ?>>Disabled</option>
                                 </select>
                             </div>
                         </div>
                     </div>
-                    <div class="control"><button type="submit" class="button is-primary">Edit Message</button></div>
+                    <div class="control"><button type="submit" class="button is-primary">Save Changes</button></div>
                 </form>
             </div>
             <div class="column is-4 bot-box">
@@ -209,8 +212,11 @@ if ($displayMessageData) {
                         <div class="control">
                             <div class="select is-fullwidth">
                                 <select name="remove_message" id="remove_message">
+                                    <option value="">PICK A MESSAGE TO REMOVE</option>
                                     <?php foreach ($timedMessagesData as $message): ?>
-                                        <option value="<?php echo $message['id']; ?>"><?php echo $message['message']; ?></option>
+                                        <option value="<?php echo $message['id']; ?>">
+                                            (<?php echo $message['id']; ?>) <?php echo $message['message']; ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
