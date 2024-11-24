@@ -44,9 +44,9 @@ try {
             ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci",
         'custom_commands' => "
             CREATE TABLE IF NOT EXISTS custom_commands (
-                command VARCHAR(255),
+                command TEXT,
                 response TEXT,
-                status VARCHAR(255),
+                status TEXT,
                 cooldown VARCHAR(20) DEFAULT NULL,
                 PRIMARY KEY (command)
             ) ENGINE=InnoDB",
@@ -332,7 +332,7 @@ try {
     $columns = [
         'everyone' => ['group_name' => "VARCHAR(255) DEFAULT NULL"],
         'groups' => ['name' => "VARCHAR(255)"],
-        'custom_commands' => ['response' => "TEXT",'status' => "VARCHAR(255)",'cooldown' => 'VARCHAR(20) DEFAULT NULL'],
+        'custom_commands' => ['response' => "TEXT",'status' => "TEXT",'cooldown' => 'VARCHAR(20) DEFAULT NULL'],
         'builtin_commands' => ['status' => "VARCHAR(255)",'permission' => "VARCHAR(255)"],
         'user_typos' => ['typo_count' => "INT DEFAULT 0"],
         'lurk_times' => ['start_time' => "VARCHAR(255) NOT NULL"],
