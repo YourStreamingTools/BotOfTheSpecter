@@ -170,8 +170,9 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
           </div>
           <div class="field">
             <label class="label" for="webhook">Discord Webhook URL:</label>
-            <div class="control">
+            <div class="control has-icons-left">
               <input class="input" type="text" id="webhook" name="webhook" required>
+              <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
             </div>
           </div>
           <div class="control">
@@ -186,15 +187,17 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
           <div class="field">
             <label class="label" for="live_channel_id">Live Channel ID:</label>
             <p>This is the Channel ID of the voice channel you wish to update with the live status.</p>
-            <div class="control">
+            <div class="control has-icons-left">
               <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>" required>
+              <div class="icon is-small is-left"><i class="fas fa-id-card"></i></div>
             </div>
           </div>
           <div class="field">
             <label class="label" for="guild_id">Guild ID:</label>
             <p>This is your discord Server/Guild ID</p>
-            <div class="control">
+            <div class="control has-icons-left">
               <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required>
+              <div class="icon is-small is-left"><i class="fas fa-id-card"></i></div>
             </div>
           </div>
           <div class="control">
@@ -208,14 +211,16 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
         <form action="" method="post">
           <div class="field">
             <label class="label" for="online_text">Online Text:</label>
-            <div class="control">
+            <div class="control has-icons-left">
               <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required>
+              <div class="icon is-small is-left"><i style="color: green;" class="fas fa-circle"></i></div>
             </div>
           </div>
           <div class="field">
             <label class="label" for="offline_text">Offline Text:</label>
-            <div class="control">
+            <div class="control has-icons-left">
               <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required>
+              <div class="icon is-small is-left"><i style="color: red;" class="fas fa-circle"></i></div>
             </div>
           </div>
           <div class="control">
