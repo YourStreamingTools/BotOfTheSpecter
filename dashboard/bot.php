@@ -449,7 +449,9 @@ function showTooltip(eventType) {
     tooltip.style.opacity = '0';
   }, 2000);
 }
-
+</script>
+<?php if ($showButtons): ?>
+<script>
 function checkHeartbeat() {
   fetch('https://api.botofthespecter.com/websocket/heartbeat')
     .then(response => response.json())
@@ -523,6 +525,7 @@ checkHeartbeat();
 updateApiLimits();
 checkLastModified();
 </script>
+<?php endif; ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <?php include 'usr_database.php'; ?>
 </body>
