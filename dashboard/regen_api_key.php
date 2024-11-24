@@ -7,12 +7,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'regen_api_key
     // Generate a new API Key
     $new_api_key = bin2hex(random_bytes(16));
     // Update the database with the new API Key using prepared statements
-    $stmt = $conn->prepare("UPDATE users SET api_key = ? WHERE id = ?");
+    $stmt = $conn->prepare("UPDATE users SET api_key = ? WHERE twitch_user_id = ?");
     if ($stmt === false) {
         die('Prepare failed: ' . $conn->error);
     }
     // Bind parameters (s for string, i for integer)
-    $stmt->bind_param("si", $new_api_key, $user_id);
+    $stmt->bind_param("si", $new_api_key, $_SESSION['$twitchUserId']);
     // Execute the statement
     if ($stmt->execute()) {
         // Return the new API key back to the frontend
