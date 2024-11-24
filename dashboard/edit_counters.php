@@ -22,6 +22,7 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 $status = '';
+$notification_status = '';
 
 // Fetch usernames from the user_typos table
 try {
@@ -30,6 +31,7 @@ try {
     $usernames = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
     $status = "Error fetching usernames: " . $e->getMessage();
+    $notification_status = "is-danger";
     $usernames = [];
 }
 
@@ -44,11 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt->bindParam(':typo_count', $typoCount, PDO::PARAM_INT);
             $stmt->execute();
             $status = "Typo count updated successfully for user {$formUsername}.";
+            $notification_status = "is-success";
         } catch (PDOException $e) {
             $status = "Error: " . $e->getMessage();
+            $notification_status = "is-danger";
         }
     } else {
         $status = "Invalid input.";
+        $notification_status = "is-danger";
     }
 }
 
@@ -60,8 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         $stmt->bindParam(':username', $formUsername, PDO::PARAM_STR);
         $stmt->execute();
         $status = "Typo record for user '$formUsername' has been removed.";
+        $notification_status = "is-success";
     } catch (PDOException $e) {
-        echo 'Error: ' . $e->getMessage();
+        $status = 'Error: ' . $e->getMessage();
+        $notification_status = "is-danger";
     }
 }
 
@@ -72,6 +79,7 @@ try {
     $typoData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $status = "Error fetching typo data: " . $e->getMessage();
+    $notification_status = "is-danger";
     $typoData = [];
 }
 
@@ -91,6 +99,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_typo_count' && isset($_GET
         echo $status;
     } catch (PDOException $e) {
         $status = "Error: " . $e->getMessage();
+        $notification_status = "is-danger";
     }
     exit;
 }
@@ -102,6 +111,7 @@ try {
     $commands = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
     $status = "Error fetching commands: " . $e->getMessage();
+    $notification_status = "is-danger";
     $commands = [];
 }
 
@@ -116,11 +126,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt->bindParam(':command_count', $commandCount, PDO::PARAM_INT);
             $stmt->execute();
             $status = "Count updated successfully for the command {$formCommand}.";
+            $notification_status = "is-success";
         } catch (PDOException $e) {
             $status = "Error: " . $e->getMessage();
         }
     } else {
         $status = "Invalid input.";
+        $notification_status = "is-danger";
     }
 }
 
@@ -131,6 +143,7 @@ try {
     $commandData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $status = "Error fetching data: " . $e->getMessage();
+    $notification_status = "is-danger";
     $commandData = [];
 }
 
@@ -150,6 +163,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_command_count' && isset($_
         echo $status;
     } catch (PDOException $e) {
         $status = "Error: " . $e->getMessage();
+        $notification_status = "is-danger";
     }
     exit;
 }
@@ -172,6 +186,9 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 
 <div class="container">
     <br>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+        <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
+    <?php endif; ?>
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-5">Edit User Typos</h2>
@@ -198,7 +215,6 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                 </div>
                 <div class="control"><button type="submit" class="button is-primary">Update Typo Count</button></div>
             </form>
-            <?php echo "<p>$status</p>" ?>
         </div>
         <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-5">Remove User Typo Record</h2>
@@ -245,7 +261,6 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                 </div>
                 <div class="control"><button type="submit" class="button is-primary">Update Command Count</button></div>
             </form>
-            <?php echo "<p>$status</p>" ?>
         </div>
     </div>
 </div>
