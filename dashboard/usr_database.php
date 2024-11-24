@@ -48,7 +48,7 @@ try {
                 response TEXT,
                 status TEXT,
                 cooldown INT DEFAULT '15',
-                PRIMARY KEY (command)
+                PRIMARY KEY (command(255))
             ) ENGINE=InnoDB",
         'builtin_commands' => "
             CREATE TABLE IF NOT EXISTS builtin_commands (
