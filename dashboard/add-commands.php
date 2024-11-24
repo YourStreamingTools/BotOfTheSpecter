@@ -23,7 +23,7 @@ foreach ($profileData as $profile) {
 date_default_timezone_set($timezone);
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (isset($_POST['command']) && isset($_POST['response'])) {
+    if (isset($_POST['command']) && isset($_POST['response']) && isset($_POST['cooldown'])) {
         $newCommand = strtolower(str_replace(' ', '', $_POST['command']));
         $newResponse = $_POST['response'];
         $cooldown = $_POST['cooldown'];
