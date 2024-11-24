@@ -69,7 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
             <?php echo htmlspecialchars($message); ?>
         </div>
     <?php endif; ?>
-    <div class="notification is-danger">5.0+ Feature</div>
     <div class="notification is-warning">
         The donation feature for adding time to the subathon is not yet fully tested. Until this feature is ready, you can manually add time using a command.<br>
         <strong>Instructions:</strong>
@@ -79,46 +78,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
         </ul>
         Please use this method until the donation feature is confirmed to be working properly.
     </div>
-    <form method="POST" action="">
-        <div class="field">
-            <label class="label" for="starting_minutes">Starting Minutes:</label>
-            <div class="control">
-                <input class="input" type="number" name="starting_minutes" id="starting_minutes" value="<?php echo htmlspecialchars($starting_minutes); ?>" required>
-            </div>
-            <p class="help">This is the default starting time (in minutes) for the subathon timer when it begins. It indicates how long the subathon will run before any additional time is added. The default value is 60 minutes.</p>
+    <div class="columns is-desktop is-multiline box-container">
+        <div class="column is-5" id="stable-bot-status" style="position: relative;">
+            <form method="POST" action="">
+                <div class="field">
+                    <label for="starting_minutes">Starting Minutes:</label>
+                    <div class="control">
+                        <input class="input" type="number" name="starting_minutes" id="starting_minutes" value="<?php echo htmlspecialchars($starting_minutes); ?>" required>
+                    </div>
+                    <p class="help">This is the default starting time (in minutes) for the subathon timer when it begins. It indicates how long the subathon will run before any additional time is added. The default value is 60 minutes.</p>
+                </div>
+                <div class="field">
+                    <label for="cheer_add">Cheer Add:</label>
+                    <div class="control">
+                        <input class="input" type="number" name="cheer_add" id="cheer_add" value="<?php echo htmlspecialchars($cheer_add); ?>" required>
+                    </div>
+                    <p class="help">The number of minutes added to the subathon for each cheer received (per 100 bits). Default is 5 minutes.</p>
+                </div>
+                <div class="field">
+                    <label for="sub_add_1">Tier 1 Subscription:</label>
+                    <div class="control">
+                        <input class="input" type="number" name="sub_add_1" id="sub_add_1" value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
+                    </div>
+                    <p class="help">The number of minutes added for each Tier 1 subscription received.</p>
+                </div>
+                <div class="field">
+                    <label for="sub_add_2">Tier 2 Subscription:</label>
+                    <div class="control">
+                        <input class="input" type="number" name="sub_add_2" id="sub_add_2" value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
+                    </div>
+                    <p class="help">The number of minutes added for each Tier 2 subscription received.</p>
+                </div>
+                <div class="field">
+                    <label for="sub_add_3">Tier 3 Subscription:</label>
+                    <div class="control">
+                        <input class="input" type="number" name="sub_add_3" id="sub_add_3" value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
+                    </div>
+                    <p class="help">The number of minutes added for each Tier 3 subscription received.</p>
+                </div>
+                <div class="control">
+                    <button class="button is-primary" type="submit" name="update_settings">Update Settings</button>
+                </div>
+            </form>
         </div>
-        <div class="field">
-            <label class="label" for="cheer_add">Cheer Add:</label>
-            <div class="control">
-                <input class="input" type="number" name="cheer_add" id="cheer_add" value="<?php echo htmlspecialchars($cheer_add); ?>" required>
-            </div>
-            <p class="help">The number of minutes added to the subathon for each cheer received (per 100 bits). Default is 5 minutes.</p>
-        </div>
-        <div class="field">
-            <label class="label" for="sub_add_1">Tier 1 Subscription:</label>
-            <div class="control">
-                <input class="input" type="number" name="sub_add_1" id="sub_add_1" value="<?php echo htmlspecialchars($sub_add_1); ?>" required>
-            </div>
-            <p class="help">The number of minutes added for each Tier 1 subscription received.</p>
-        </div>
-        <div class="field">
-            <label class="label" for="sub_add_2">Tier 2 Subscription:</label>
-            <div class="control">
-                <input class="input" type="number" name="sub_add_2" id="sub_add_2" value="<?php echo htmlspecialchars($sub_add_2); ?>" required>
-            </div>
-            <p class="help">The number of minutes added for each Tier 2 subscription received.</p>
-        </div>
-        <div class="field">
-            <label class="label" for="sub_add_3">Tier 3 Subscription:</label>
-            <div class="control">
-                <input class="input" type="number" name="sub_add_3" id="sub_add_3" value="<?php echo htmlspecialchars($sub_add_3); ?>" required>
-            </div>
-            <p class="help">The number of minutes added for each Tier 3 subscription received.</p>
-        </div>
-        <div class="control">
-            <button class="button is-primary" type="submit" name="update_settings">Update Settings</button>
-        </div>
-    </form>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
