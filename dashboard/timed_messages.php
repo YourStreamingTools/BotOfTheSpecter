@@ -211,15 +211,22 @@ if ($displayMessageData) {
                         <label for="remove_message">Select Message to Remove:</label>
                         <div class="control">
                             <div class="select is-fullwidth">
-                                <select name="remove_message" id="remove_message">
+                                <select name="remove_message" id="remove_message" onchange="showMessage()">
                                     <option value="">PICK A MESSAGE TO REMOVE</option>
                                     <?php foreach ($timedMessagesData as $message): ?>
                                         <option value="<?php echo $message['id']; ?>">
-                                            (<?php echo $message['id']; ?>) <?php echo $message['message']; ?>
+                                            Message ID: <?php echo $message['id']; ?> - 
+                                            <?php echo htmlspecialchars(mb_strimwidth($message['message'], 0, 40, "")); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="remove_message_content">Message:</label>
+                        <div class="control">
+                            <textarea class="textarea" id="remove_message_content" disabled rows="7"></textarea>
                         </div>
                     </div>
                     <div class="control"><button type="submit" class="button is-danger">Remove Message</button></div>
@@ -247,9 +254,18 @@ function showResponse() {
         editIntervalInput.value = '';
     }
 }
-
 // Call the function initially to pre-fill the fields if a default message is selected
 window.onload = showResponse;
+
+function showMessage() {
+    var select = document.getElementById('remove_message');
+    var selectedMessage = select.options[select.selectedIndex].value;
+    <?php foreach ($timedMessagesData as $message): ?>
+        if (selectedMessage == '<?php echo $message['id']; ?>') {
+            document.getElementById('remove_message_content').value = '<?php echo addslashes($message['message']); ?>';
+        }
+    <?php endforeach; ?>
+}
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
