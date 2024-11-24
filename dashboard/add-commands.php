@@ -26,10 +26,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['command']) && isset($_POST['response'])) {
         $newCommand = strtolower(str_replace(' ', '', $_POST['command']));
         $newResponse = $_POST['response'];
+        $cooldown = $_POST['cooldown'];
         // Insert new command into MySQL database
         try {
-            $stmt = $db->prepare("INSERT INTO custom_commands (command, response, status) VALUES (?, ?, 'Enabled')");
-            $stmt->execute([$newCommand, $newResponse]);
+            $stmt = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
+            $stmt->execute([$newCommand, $newResponse, $cooldown]);
         } catch (PDOException $e) {
             echo 'Error adding command: ' . $e->getMessage();
         }
@@ -68,17 +69,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
+            <h4 class="subtitle is-4">Adding a custom command</h4>
             <form method="post" action="">
                 <div class="field">
-                    <label class="label" for="command">Command:</label>
+                    <label for="command">Command:</label>
                     <div class="control">
                         <input class="input" type="text" name="command" id="command" required>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="response">Response:</label>
+                    <label for="response">Response:</label>
                     <div class="control">
                         <input class="input" type="text" name="response" id="response" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="cooldown">Cooldown:</label>
+                    <div class="control">
+                        <input class="input" type="text" name="cooldown" id="cooldown" value="15" required>
                     </div>
                 </div>
                 <div class="control">
