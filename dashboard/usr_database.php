@@ -47,7 +47,7 @@ try {
                 command TEXT,
                 response TEXT,
                 status TEXT,
-                cooldown VARCHAR(20) DEFAULT '15',
+                cooldown VARCHAR(2) DEFAULT '15',
                 PRIMARY KEY (command)
             ) ENGINE=InnoDB",
         'builtin_commands' => "
@@ -332,7 +332,7 @@ try {
     $columns = [
         'everyone' => ['group_name' => "VARCHAR(255) DEFAULT NULL"],
         'groups' => ['name' => "VARCHAR(255)"],
-        'custom_commands' => ['response' => "TEXT",'status' => "TEXT",'cooldown' => "VARCHAR(20) DEFAULT '15'"],
+        'custom_commands' => ['response' => "TEXT",'status' => "TEXT",'cooldown' => "VARCHAR(2) DEFAULT '15'"],
         'builtin_commands' => ['status' => "VARCHAR(255)",'permission' => "VARCHAR(255)"],
         'user_typos' => ['typo_count' => "INT DEFAULT 0"],
         'lurk_times' => ['start_time' => "VARCHAR(255) NOT NULL"],
