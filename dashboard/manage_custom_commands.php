@@ -238,12 +238,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <br> "Raid 3 message."
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.number)</span><br>This picks a random number between two numbers you specify, or by default between 0 and 100.<br>You can specify a range by using a dot followed by the numbers, like (random.number.1-1000), which will give you a random number within that range.
+                    <span class="has-text-weight-bold variable-title">(random.number)</span><br>This picks a random number between two numbers you specify, or by default between 0 and 100.<br>You can specify a range by using a dot followed by the numbers, like <span class="has-text-weight-bold variable-title">(random.number.1-1000)</span>, which will give you a random number within that range.
                     <br><span class="has-text-weight-bold">Example:</span><br><code>You've broken (random.number.1-1000) hearts!</code>
                     <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>You've broken 583 hearts!"</code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.percent)</span><br>This generates a random percentage between 0% and 100%, or any custom range you define.<br>You can specify a range by using a dot followed by the numbers, like (random.percent.0-200), which will give you a random percentage between those two numbers.
+                    <span class="has-text-weight-bold variable-title">(random.percent)</span><br>This generates a random percentage between 0% and 100%, or any custom range you define.<br>You can specify a range by using a dot followed by the numbers, like <span class="has-text-weight-bold variable-title">(random.percent.0-200)</span>, which will give you a random percentage between those two numbers.
                     <br><span class="has-text-weight-bold">Example:</span><br><code>You have a (random.percent.0-200) chance of winning this game.</code>
                     <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"You have a 167% chance of winning this game."</code>
                 </div>
