@@ -38,8 +38,7 @@
           <a class="navbar-item" href="../edit_custom_counts.php">Edit Custom Counters</a>
           <hr class="navbar-divider">
           <a class="navbar-item" href="../commands.php">View Custom Commands</a>
-          <a class="navbar-item" href="../add-commands.php">Add Custom Command</a>
-          <a class="navbar-item" href="../edit-commands.php">Edit Custom Command</a>
+          <a class="navbar-item" href="../manage_custom_commands.php">Manage Custom Commands</a>
           <hr class="navbar-divider">
           <a class="navbar-item" href="../walkons.php">Walkon Audio</a>
           <a class="navbar-item" href="../sound-alerts.php">Sound Alerts</a>
