@@ -95,10 +95,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <table class="table is-fullwidth" id="commandsTable">
         <thead>
             <tr>
-                <th>Command</th>
+                <th style="width: 200px;">Command</th>
                 <th>Usage Level</th>
-                <th>Status</th>
-                <th>Action</th>
+                <th style="width: 100px;">Status</th>
+                <th style="width: 100px;">Action</th>
             </tr>
         </thead>
         <tbody>
