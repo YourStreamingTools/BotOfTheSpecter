@@ -1106,68 +1106,7 @@ class BotOfTheSpecter(commands.Bot):
                             ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
-                                # Handle (customapi.)
-                                if '(customapi.' in response:
-                                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                                    if url_match:
-                                        url = url_match.group(1)
-                                        api_response = fetch_api_response(url)
-                                        response = response.replace(f"(customapi.{url})", api_response)
-                                # Handle (count)
-                                if '(count)' in response:
-                                    try:
-                                        await update_custom_count(command)
-                                        get_count = await get_custom_count(command)
-                                        response = response.replace('(count)', str(get_count))
-                                    except Exception as e:
-                                        chat_logger.error(f"{e}")
-                                # Handle (usercount)
-                                if '(usercount)' in response:
-                                    try:
-                                        user_mention = re.search(r'@(\w+)', messageContent)
-                                        user_name = user_mention.group(1) if user_mention else messageAuthor
-                                        # Get the user count for the specific command
-                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
-                                        result = await cursor.fetchone()
-                                        if result:
-                                            user_count = result[0]
-                                        else:
-                                            # If no entry found, initialize it to 0
-                                            user_count = 0
-                                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user_name, user_count))
-                                            await cursor.connection.commit()
-                                        # Increment the count
-                                        user_count += 1
-                                        await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, user_name))
-                                        await cursor.connection.commit()
-                                        # Fetch the updated count
-                                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
-                                        updated_result = await cursor.fetchone()
-                                        if updated_result:
-                                            updated_user_count = updated_result[0]
-                                        else:
-                                            updated_user_count = 0
-                                        # Replace the (usercount) placeholder with the updated user count
-                                        response = response.replace('(usercount)', str(updated_user_count))
-                                    except Exception as e:
-                                        chat_logger.error(f"Error while handling (usercount): {e}")
-                                        response = response.replace('(usercount)', "Error")
-                                # Handle (daysuntil.)
-                                if '(daysuntil.' in response:
-                                    get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
-                                    if get_date:
-                                        date_str = get_date.group(1)
-                                        event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                                        current_date = datetime.now().date()
-                                        days_left = (event_date - current_date).days
-                                        response = response.replace(f"(daysuntil.{date_str})", str(days_left))
-                                # Handle (user) and (author)
-                                if '(user)' in response:
-                                    user_mention = re.search(r'@(\w+)', messageContent)
-                                    user_name = user_mention.group(1) if user_mention else messageAuthor
-                                    response = response.replace('(user)', user_name)
-                                if '(author)' in response:
-                                    response = response.replace('(author)', messageAuthor)
+                                response = await custom_variables(response, command, messageAuthor, messageContent)
                                 # Handle (command.)
                                 if '(command.' in response:
                                     command_match = re.search(r'\(command\.(\w+)\)', response)
@@ -1187,48 +1126,6 @@ class BotOfTheSpecter(commands.Bot):
                                     if calling_match:
                                         match_call = calling_match.group(1)
                                         await self.call_command(match_call, message)
-                                # Handle (random.percent)
-                                if '(random.percent)' in response:
-                                    random_percent = random.randint(0, 100)
-                                    response = response.replace('(random.percent)', f'{random_percent}%')
-                                # Handle user-defined (random.percent.x-y)
-                                if '(random.percent.' in response:
-                                    random_percent_match = re.search(r'\(random\.percent\.(\d+)-(\d+)\)', response)
-                                    if random_percent_match:
-                                        lower_bound = int(random_percent_match.group(1))
-                                        upper_bound = int(random_percent_match.group(2))
-                                        random_percent = random.randint(lower_bound, upper_bound)
-                                        response = response.replace(f'(random.percent.{lower_bound}-{upper_bound})', f'{random_percent}%')
-                                # Handle (random.number)
-                                if '(random.number)' in response:
-                                    random_number = random.randint(0, 100)
-                                    response = response.replace('(random.number)', str(random_number))
-                                # Handle user-defined (random.number.x-y)
-                                if '(random.number.' in response:
-                                    random_number_match = re.search(r'\(random\.number\.(\d+)-(\d+)\)', response)
-                                    if random_number_match:
-                                        lower_bound = int(random_number_match.group(1))
-                                        upper_bound = int(random_number_match.group(2))
-                                        random_number = random.randint(lower_bound, upper_bound)
-                                        response = response.replace(f'(random.number.{lower_bound}-{upper_bound})', str(random_number))
-                                # Handle (random.pick.*)
-                                if '(random.pick.' in response:
-                                    random_pick_match = re.search(r'\(random\.pick\.(.+?)\)', response)
-                                    if random_pick_match:
-                                        items = random_pick_match.group(1).split('.')
-                                        chosen_item = random.choice(items)
-                                        response = response.replace(f'(random.pick.{random_pick_match.group(1)})', chosen_item)
-                                # Handle (math.x+y)
-                                if '(math.' in response:
-                                    math_match = re.search(r'\(math\.(.+)\)', response)
-                                    if math_match:
-                                        math_expression = math_match.group(1)
-                                        try:
-                                            math_result = eval(math_expression)
-                                            response = response.replace(f'(math.{math_expression})', str(math_result))
-                                        except Exception as e:
-                                            chat_logger.error(f"Math expression error: {e}")
-                                            response = response.replace(f'(math.{math_expression})', "Error")
                             await channel.send(response)
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
@@ -6430,6 +6327,130 @@ async def track_watch_time(active_users):
         bot_logger.error(f"Error in track_watch_time: {e}")
     finally:
         await sqldb.ensure_closed()
+
+async def custom_variables(response, command, messageAuthor, messageContent):
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor() as cursor:
+        # Handle (customapi.)
+        if '(customapi.' in response:
+            url_match = re.search(r'\(customapi\.(\S+)\)', response)
+            if url_match:
+                url = url_match.group(1)
+                api_response = fetch_api_response(url)
+                response = response.replace(f"(customapi.{url})", api_response)
+                return response
+        # Handle (count)
+        if '(count)' in response:
+            try:
+                await update_custom_count(command)
+                get_count = await get_custom_count(command)
+                response = response.replace('(count)', str(get_count))
+                return response
+            except Exception as e:
+                chat_logger.error(f"{e}")
+                response = response.replace('(count)', "ERROR")
+                return response
+        # Handle (usercount)
+        if '(usercount)' in response:
+            try:
+                user_mention = re.search(r'@(\w+)', messageContent)
+                user_name = user_mention.group(1) if user_mention else messageAuthor
+                # Get the user count for the specific command
+                await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
+                result = await cursor.fetchone()
+                if result:
+                    user_count = result[0]
+                else:
+                    # If no entry found, initialize it to 0
+                    user_count = 0
+                    await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user_name, user_count))
+                    await cursor.connection.commit()
+                # Increment the count
+                user_count += 1
+                await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (user_count, command, user_name))
+                await cursor.connection.commit()
+                # Fetch the updated count
+                await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
+                updated_result = await cursor.fetchone()
+                if updated_result:
+                    updated_user_count = updated_result[0]
+                else:
+                    updated_user_count = 0
+                # Replace the (usercount) placeholder with the updated user count
+                response = response.replace('(usercount)', str(updated_user_count))
+                return response
+            except Exception as e:
+                chat_logger.error(f"Error while handling (usercount): {e}")
+                response = response.replace('(usercount)', "Error")
+                return response
+        # Handle (daysuntil.)
+        if '(daysuntil.' in response:
+            get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
+            if get_date:
+                date_str = get_date.group(1)
+                event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                current_date = datetime.now().date()
+                days_left = (event_date - current_date).days
+                response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                return response
+        # Handle (user) and (author)
+        if '(user)' in response:
+            user_mention = re.search(r'@(\w+)', messageContent)
+            user_name = user_mention.group(1) if user_mention else messageAuthor
+            response = response.replace('(user)', user_name)
+            return response
+        if '(author)' in response:
+            response = response.replace('(author)', messageAuthor)
+            return response
+        # Handle (random.percent)
+        if '(random.percent)' in response:
+            random_percent = random.randint(0, 100)
+            response = response.replace('(random.percent)', f'{random_percent}%')
+            return response
+        # Handle user-defined (random.percent.x-y)
+        if '(random.percent.' in response:
+            random_percent_match = re.search(r'\(random\.percent\.(\d+)-(\d+)\)', response)
+            if random_percent_match:
+                lower_bound = int(random_percent_match.group(1))
+                upper_bound = int(random_percent_match.group(2))
+                random_percent = random.randint(lower_bound, upper_bound)
+                response = response.replace(f'(random.percent.{lower_bound}-{upper_bound})', f'{random_percent}%')
+                return response
+        # Handle (random.number)
+        if '(random.number)' in response:
+            random_number = random.randint(0, 100)
+            response = response.replace('(random.number)', str(random_number))
+            return response
+        # Handle user-defined (random.number.x-y)
+        if '(random.number.' in response:
+            random_number_match = re.search(r'\(random\.number\.(\d+)-(\d+)\)', response)
+            if random_number_match:
+                lower_bound = int(random_number_match.group(1))
+                upper_bound = int(random_number_match.group(2))
+                random_number = random.randint(lower_bound, upper_bound)
+                response = response.replace(f'(random.number.{lower_bound}-{upper_bound})', str(random_number))
+                return response
+        # Handle (random.pick.*)
+        if '(random.pick.' in response:
+            random_pick_match = re.search(r'\(random\.pick\.(.+?)\)', response)
+            if random_pick_match:
+                items = random_pick_match.group(1).split('.')
+                chosen_item = random.choice(items)
+                response = response.replace(f'(random.pick.{random_pick_match.group(1)})', chosen_item)
+                return response
+        # Handle (math.x+y)
+        if '(math.' in response:
+            math_match = re.search(r'\(math\.(.+)\)', response)
+            if math_match:
+                math_expression = math_match.group(1)
+                try:
+                    math_result = eval(math_expression)
+                    response = response.replace(f'(math.{math_expression})', str(math_result))
+                    return response
+                except Exception as e:
+                    chat_logger.error(f"Math expression error: {e}")
+                    response = response.replace(f'(math.{math_expression})', "Error")
+                    return response
 
 # Here is the BOT
 bot = BotOfTheSpecter(
