@@ -71,8 +71,6 @@ if (!$result) {
 
 <div class="container">
   <br>
-  <h1 class="title"><?php echo "$greeting, $twitchDisplayName <img id='profile-image' class='round-image' src='$twitch_profile_image_url' width='50px' height='50px' alt='$twitchDisplayName Profile Image'>"; ?></h1>
-  <br>
   <p>Here is the current list of categories you can filter your lists in, each category is its own list.</p>
   <table class="table is-striped is-fullwidth sortable">
     <thead>
