@@ -163,7 +163,7 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
           <label class="is-4" for="timezone">Timezone:</label>
-          <div class="control">
+          <div class="control has-icons-left">
             <div class="select">
               <select style="width: 350px;" id="timezone" name="timezone">
                 <?php
@@ -176,13 +176,15 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
                 }
                 ?>
               </select>
+              <div class="icon is-small is-left"><i class="fas fa-clock"></i></div>
             </div>
           </div>
         </div>
         <div class="field">
           <label class="is-4" for="weather_location">Weather Location:</label>
-          <div class="control">
+          <div class="control has-icons-left">
             <input style="width: 350px;" class="input" type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>">
+            <div class="icon is-small is-left"><i class="fas fa-globe"></i></div>
           </div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
@@ -192,8 +194,9 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <div class="field">
           <label class="is-4">Heart Rate Code:</label><br>
-          <div class="control">
+          <div class="control has-icons-left">
             <input style="width: 130px;" class="input" type="text" id="hyperate_code" name="hyperate_code" value="<?php echo $dbHyperateCode; ?>">
+            <span class="icon is-small is-left"><i class="fa-solid fa-heart-pulse"></i></span>
           </div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
