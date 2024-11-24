@@ -220,8 +220,6 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                 <div class="control"><button type="submit" class="button is-danger">Remove Typo Record</button></div>
             </form>
         </div>
-    </div>
-    <div class="columns is-desktop is-multiline box-container">
         <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-5">Edit Custom Counter</h2>
             <form action="" method="post">
