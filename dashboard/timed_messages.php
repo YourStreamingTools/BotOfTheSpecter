@@ -32,7 +32,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['message']) && isset($_POST['interval'])) {
         $message = $_POST['message'];
         $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
-
         // Validate input data
         if ($interval === false) {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
@@ -45,12 +44,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $errorMessage = "Error adding message: " . $e->getMessage();
             }
         }
-    }    
-
+    }
     // Check if the form was submitted for removing a message
     elseif (isset($_POST['remove_message'])) {
         $message_id = $_POST['remove_message'];
-
         // Remove the selected message from the database
         try {
             $stmt = $db->prepare("DELETE FROM timed_messages WHERE id = ?");
@@ -66,23 +63,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Error removing message: " . $e->getMessage();
         }
     }
-
     // Check if the form was submitted for editing the message or the interval of a message
-    elseif (isset($_POST['edit_message']) && isset($_POST['edit_interval'])) {
+    elseif (isset($_POST['edit_message']) && isset($_POST['edit_interval']) && isset($_POST['edit_status'])) {
         $edit_message_id = $_POST['edit_message'];
         $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
         $edit_message_content = $_POST['edit_message_content'];
-
+        $edit_status = $_POST['edit_status'];
         // Check if the edit_message_id exists in the timed_messages table
         $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
         $stmt->execute([$edit_message_id]);
         $message_exists = $stmt->fetchColumn();
-
         if ($message_exists && $edit_interval !== false) {
             // Update the message and/or interval for the selected message in the database
             try {
-                $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ? WHERE id = ?');
-                $stmt->execute([$edit_interval, $edit_message_content, $edit_message_id]);
+                $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ? WHERE id = ?');
+                $stmt->execute([$edit_interval, $edit_message_content, $edit_status, $edit_message_id]);
                 // Optionally, you can check if the update was successful and provide feedback to the user
                 $updated = $stmt->rowCount() > 0; // Check if any rows were affected
                 if ($updated) {
@@ -97,7 +92,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $errorMessage = "Invalid input data.";
         }
     }
-    
     // Redirect with message
     if (!empty($successMessage)) {
         header("Location: {$_SERVER['PHP_SELF']}?successMessage=" . urlencode($successMessage));
@@ -108,7 +102,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 $displayMessageData = !empty($_GET['successMessage']) || !empty($_GET['errorMessage']);
-
 if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
         $errorMessage = isset($_GET['successMessage']) ? $_GET['successMessage'] : '';
@@ -140,19 +133,19 @@ if ($displayMessageData) {
     </div>
     <br>
     <?php if ($displayMessages): ?><div class="notification is-primary"><?php echo $displayMessages; ?></div><br><?php endif; ?>
-    <div class="columns">
-        <div class="column is-one-third">
+    <div class="columns is-desktop is-multiline box-container">
+        <div class="column is-3 bot-box">
             <h4 class="title is-5">Add a timed message:</h4>
             <form id="addMessageForm" method="post" action="">
                 <div class="field">
-                    <label class="label" for="message">Message:</label>
+                    <label for="message">Message:</label>
                     <div class="control">
                         <input class="input" type="text" name="message" id="message" required>
                         <span id="messageError" class="help is-danger" style="display: none;">Message is required</span>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label" for="interval">Interval: (Minutes, Between 5-60)</label>
+                    <label for="interval">Interval: (Minutes, Between 5-60)</label>
                     <div class="control">
                         <input class="input" type="number" name="interval" id="interval" min="5" max="60" required>
                         <span id="intervalError" class="help is-danger" style="display: none;">Please pick a time between 5 and 60 minutes</span>
@@ -162,11 +155,11 @@ if ($displayMessageData) {
             </form>
         </div>
         <?php if (!empty($timedMessagesData)): ?>
-            <div class="column is-one-third">
+            <div class="column is-4 bot-box">
                 <h4 class="title is-5">Edit a timed message:</h4>
                 <form method="post" action="">
                     <div class="field">
-                        <label class="label" for="edit_message">Select Message to Edit:</label>
+                        <label for="edit_message">Select Message to Edit:</label>
                         <div class="control">
                             <div class="select is-fullwidth">
                                 <select name="edit_message" id="edit_message">
@@ -185,23 +178,34 @@ if ($displayMessageData) {
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label" for="edit_interval">New Interval:</label>
+                        <label for="edit_interval">New Interval:</label>
                         <div class="control"><input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required></div>
                     </div>
                     <div class="field">
-                        <label class="label" for="edit_message_content">New Message:</label>
+                        <label for="edit_message_content">New Message:</label>
                         <div class="control">
                             <input class="input" type="text" name="edit_message_content" id="edit_message_content" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="edit_status">Status:</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select name="edit_status" id="edit_status">
+                                    <option value="True"<?php echo $message['status'] == 'True' ? ' selected' : '' ?>>Enabled</option>
+                                    <option value="False"<?php echo $message['status'] == 'False' ? ' selected' : '' ?>>Disabled</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="control"><button type="submit" class="button is-primary">Edit Message</button></div>
                 </form>
             </div>
-            <div class="column is-one-third">
+            <div class="column is-4 bot-box">
                 <h4 class="title is-5">Remove a timed message:</h4>
                 <form method="post" action="">
                     <div class="field">
-                        <label class="label" for="remove_message">Select Message to Remove:</label>
+                        <label for="remove_message">Select Message to Remove:</label>
                         <div class="control">
                             <div class="select is-fullwidth">
                                 <select name="remove_message" id="remove_message">
