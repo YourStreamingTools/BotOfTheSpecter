@@ -268,6 +268,20 @@ function updateCurrentCount(username) {
         typoCountInput.value = '';
     }
 }
+function updateCurrentCount(command) {
+    if (command) {
+        fetch('?action=get_command_count&command=' + encodeURIComponent(command))
+            .then(response => response.text())
+            .then(data => {
+                var commandCountInput = document.getElementById('command_count');
+                commandCountInput.value = data;
+            })
+            .catch(error => console.error('Error:', error));
+    } else {
+        var commandCountInput = document.getElementById('command_count');
+        commandCountInput.value = '';
+    }
+}
 </script>
 </body>
 </html>
