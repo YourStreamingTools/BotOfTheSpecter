@@ -113,13 +113,14 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 
 <div class="container">
   <br>
-  <div class="columns">
-    <div class="column is-half">
+  <h4 class="title is-4">User Typos</h4>
+  <div class="columns is-desktop is-multiline box-container">
+    <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
       <h2 class="title is-5">Edit User Typos</h2>
       <form action="" method="post">
         <input type="hidden" name="action" value="update">
         <div class="field">
-          <label class="label" for="typo-username">Username:</label>
+          <label for="typo-username">Username:</label>
           <div class="control">
             <div class="select">
               <select id="typo-username" name="typo-username" required onchange="updateCurrentCount(this.value)">
@@ -132,7 +133,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
           </div>
         </div>
         <div class="field">
-          <label class="label" for="typo_count">New Typo Count:</label>
+          <label for="typo_count">New Typo Count:</label>
           <div class="control">
             <input class="input" type="number" id="typo_count" name="typo_count" required min="0">
           </div>
@@ -141,12 +142,12 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
       </form>
       <?php echo "<p>$status</p>" ?>
     </div>
-    <div class="column is-half">
+    <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
       <h2 class="title is-5">Remove User Typo Record</h2>
       <form action="" method="post">
         <input type="hidden" name="action" value="remove">
         <div class="field">
-          <label class="label" for="typo-username-remove">Username:</label>
+          <label for="typo-username-remove">Username:</label>
           <div class="control">
             <div class="select">
               <select id="typo-username-remove" name="typo-username-remove" required onchange="updateCurrentCount(this.value)">
