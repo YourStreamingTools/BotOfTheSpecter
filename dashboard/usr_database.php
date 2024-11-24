@@ -327,6 +327,16 @@ try {
                 excluded_users VARCHAR(255) DEFAULT NULL,
                 UNIQUE (excluded_users)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'subathon_settings' => "
+            CREATE TABLE IF NOT EXISTS subathon_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                starting_minutes INT DEFAULT NULL,
+                cheer_add INT DEFAULT NULL,
+                sub_add_1 INT DEFAULT NULL,
+                sub_add_2 INT DEFAULT NULL,
+                sub_add_3 INT DEFAULT NULL,
+                donation_add INT DEFAULT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
