@@ -33,9 +33,8 @@
           <a class="navbar-item" href="../timed_messages.php">Timed Chat Messages</a>
           <a class="navbar-item" href="../bot_points.php">Bot Point System</a>
           <hr class="navbar-divider">
-          <a class="navbar-item" href="../counters.php">Counters</a>
-          <a class="navbar-item" href="../edit_typos.php">Edit Typos</a>
-          <a class="navbar-item" href="../edit_custom_counts.php">Edit Custom Counters</a>
+          <a class="navbar-item" href="../counters.php">View Counters</a>
+          <a class="navbar-item" href="../edit_counters.php">Edit Counters</a>
           <hr class="navbar-divider">
           <a class="navbar-item" href="../commands.php">View Custom Commands</a>
           <a class="navbar-item" href="../manage_custom_commands.php">Manage Custom Commands</a>
