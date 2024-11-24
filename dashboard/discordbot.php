@@ -157,7 +157,7 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
         <h2 class="title is-4">Add Discord Webhook URLs</h2>
         <form action="" method="post">
           <div class="field">
-            <label class="label" for="option">Select an option:</label>
+            <label for="option">Select an option:</label>
             <div class="control">
               <div class="select">
                 <select id="option" name="option">
@@ -169,7 +169,7 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
             </div>
           </div>
           <div class="field">
-            <label class="label" for="webhook">Discord Webhook URL:</label>
+            <label for="webhook">Discord Webhook URL:</label>
             <div class="control has-icons-left">
               <input class="input" type="text" id="webhook" name="webhook" required>
               <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
@@ -185,16 +185,16 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
         <h2 class="title is-4">Set Live Channel ID and Guild ID</h2>
         <form action="" method="post">
           <div class="field">
-            <label class="label" for="live_channel_id">Live Channel ID:</label>
-            <p>This is the Channel ID of the voice channel you wish to update with the live status.</p>
+            <label for="live_channel_id">Live Channel ID:</label>
+            <p class="help">This is the Channel ID of the voice channel you wish to update with the live status.</p>
             <div class="control has-icons-left">
               <input class="input" type="text" id="live_channel_id" name="live_channel_id" value="<?php echo htmlspecialchars($existingLiveChannelId); ?>" required>
               <div class="icon is-small is-left"><i class="fas fa-id-card"></i></div>
             </div>
           </div>
           <div class="field">
-            <label class="label" for="guild_id">Guild ID:</label>
-            <p>This is your discord Server/Guild ID</p>
+            <label for="guild_id">Guild ID:</label>
+            <p class="help">This is your discord Server/Guild ID</p>
             <div class="control has-icons-left">
               <input class="input" type="text" id="guild_id" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" required>
               <div class="icon is-small is-left"><i class="fas fa-id-card"></i></div>
@@ -210,14 +210,14 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
         <h2 class="title is-4">Set Discord Channel Text</h2>
         <form action="" method="post">
           <div class="field">
-            <label class="label" for="online_text">Online Text:</label>
+            <label for="online_text">Online Text:</label>
             <div class="control has-icons-left">
               <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required>
               <div class="icon is-small is-left"><i style="color: green;" class="fas fa-circle"></i></div>
             </div>
           </div>
           <div class="field">
-            <label class="label" for="offline_text">Offline Text:</label>
+            <label for="offline_text">Offline Text:</label>
             <div class="control has-icons-left">
               <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required>
               <div class="icon is-small is-left"><i style="color: red;" class="fas fa-circle"></i></div>
