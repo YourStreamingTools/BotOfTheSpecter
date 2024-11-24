@@ -40,5 +40,6 @@ $authToken = $access_token;
 
 // Cache user data in session
 $_SESSION['user_id'] = $user_id;
+$_SESSION['$twitchUserId'] = $twitchUserId;
 $_SESSION['user_data'] = $user;
 ?>
