@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       </div>
     </div>
     <div class="field">
-      <label for="category" class="label">Category:</label>
+      <label for="category">Category:</label>
       <div class="control">
         <div class="select">
           <select id="category" name="category">
