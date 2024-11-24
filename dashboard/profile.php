@@ -152,6 +152,7 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
       <p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;"><?php echo $api_key; ?></span></p>
       <button type="button" class="button is-primary" id="show-api-key" style="width: 130px;">Show API Key</button>
       <button type="button" class="button is-primary" id="hide-api-key" style="display:none; width: 130px;">Hide API Key</button>
+      <button type="button" class="button is-primary" id="regen-api-key-open" style="width: 180px;">Regenerate API Key</button>
     </div>
     <div class="column bot-box is-4">
       <?php if (!empty($status)): ?>
@@ -213,10 +214,64 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
   </div>
 </div>
 
+<div class="modal" id="regen-api-key">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head has-background-dark">
+      <p class="modal-card-title has-text-white">Regenerating API Key Warning</p>
+      <button class="delete" aria-label="close" id="regen-api-key-close"></button>
+    </header>
+    <section class="modal-card-body has-background-dark has-text-white">
+        <p>Regenerating your API Key will require a restart of the entire system, including the Twitch Chat Bot, Discord Bot, and Stream Overlays.</p>
+        <p>Please ensure you go back to the dashboard to restart them.</p>
+        <br>
+        <button id="confirm-regen" class="button is-danger">Confirm</button>
+      </section>
+  </div>
+</div>
+
 <!-- Include the JavaScript files -->
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/profile.js"></script>
 <script src="/js/timezone.js"></script>
+
+<!-- Warning Modal JavaScript -->
+<script>
+  const modalIds = [
+    { open: "regen-api-key-open", close: "regen-api-key-close" }
+  ];
+
+  modalIds.forEach(modal => {
+    const openButton = document.getElementById(modal.open);
+    const closeButton = document.getElementById(modal.close);
+
+    if (openButton) {
+      openButton.addEventListener("click", function() {
+        document.getElementById(modal.close.replace('-close', '')).classList.add("is-active");
+      });
+    }
+    if (closeButton) {
+      closeButton.addEventListener("click", function() {
+        document.getElementById(modal.close.replace('-close', '')).classList.remove("is-active");
+      });
+    }
+  });
+  
+  // Confirm Regen
+  document.getElementById("confirm-regen)").addEventListener("click", function(){
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "regen_api_key.php", true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr. onload = function() {
+      if (xhr.status == 200) {
+        // Update the displayed API Key
+        document.getElemenetByID("api-key").textContent = xhr.responseText;
+      };
+    };
+    xhr.send("action=regen_api_key");
+    document.getElemenetById("warning-modal").style.display = "none";
+  });
+</script>
 
 <!-- JavaScript code to convert and display the dates -->
 <script>
