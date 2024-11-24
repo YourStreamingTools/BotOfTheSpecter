@@ -22,6 +22,7 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 $status = "";
+$notification_status = "";
 
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -38,14 +39,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $updateSTMT->bindParam(3, $command_to_edit);
             $updateSTMT->execute();
             if ($updateSTMT->rowCount() > 0) {
-                $status = "<p class='has-text-success'>Command updated successfully!</p>";
+                $status = "Command ". $command_to_edit . " updated successfully!";
+                $notification_status = "is-success";
             } else {
                 // No rows updated, which means the command was not found
-                $status = "<p class='has-text-danger'>Command not found or no changes made.</p>";
+                $status = $command_to_edit . " not found or no changes made.";
+                $notification_status = "is-danger";
             }
         } catch (Exception $e) {
             // Catch any exceptions and display an error message
-            $status = "<p class='has-text-danger'>Error updating command: " . $e->getMessage() . "</p>";
+            $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
+            $notification_status = "is-danger";
         }
     }
     // Adding a new custom command
@@ -55,10 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $cooldown = $_POST['cooldown'];
         // Insert new command into MySQL database
         try {
-            $stmt = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
-            $stmt->execute([$newCommand, $newResponse, $cooldown]);
+            $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
+            $insertSTMT->execute([$newCommand, $newResponse, $cooldown]);
         } catch (PDOException $e) {
-            echo 'Error adding command: ' . $e->getMessage();
+            echo 'Error adding ' . $newCommand . ': ' . $e->getMessage();
         }
     }
 }
@@ -95,6 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <p>Note: Custom Variables are only accepted in the response part of your command. Make sure to include them in the message that will be displayed to the user.</p>
         <button class="button is-primary" id="openModalButton">View Custom Variables</button>
     </div>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+        <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
+            <div class="notification is-success">
+                <p>Command "<?php $commandAdded = strtolower(str_replace(' ', '', $_POST['command'])); echo $commandAdded; ?>" has been successfully added to the database.</p>
+            </div>
+        <?php else: ?>
+            <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
+        <?php endif; ?>
+    <?php endif; ?>
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-5 bot-box" style="position: relative;">
             <h4 class="subtitle is-4">Adding a custom command</h4>
@@ -121,12 +134,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <button class="button is-primary" type="submit">Add Command</button>
                 </div>
             </form>
-            <br>
-            <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
-                <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
-                    <p class="has-text-success">Command "<?php $commandAdded = strtolower(str_replace(' ', '', $_POST['command'])); echo $commandAdded; ?>" has been successfully added to the database.</p>
-                <?php endif; ?>
-            <?php endif; ?>
         </div>
         <div class="column is-5 bot-box" style="position: relative;">
             <?php if (!empty($commands)): ?>
@@ -162,7 +169,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <?php else: ?>
                 <h4 class="subtitle is-4">No commands available to edit.</h4>
             <?php endif; ?>
-            <?php echo $status; ?>
         </div>
     </div>
 </div>
