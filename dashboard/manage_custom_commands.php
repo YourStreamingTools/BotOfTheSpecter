@@ -165,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="field">
                         <label for="cooldown">Cooldown:</label>
                         <div class="control has-icons-left">
-                            <input class="input" type="text" name="cooldown" id="cooldown" value="" required>
+                            <input class="input" type="number" name="cooldown" id="cooldown" value="" required>
                             <div class="icon is-small is-left"><i class="fas fa-clock"></i></div>
                         </div>
                     </div>
