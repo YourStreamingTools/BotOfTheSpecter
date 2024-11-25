@@ -1081,13 +1081,14 @@ class BotOfTheSpecter(commands.Bot):
                 messageAuthorID = message.author.id if message.author else ""
                 AuthorMessage = message.content if message.content else ""
                 # Check if the message matches the spam pattern
-                spam_pattern = await get_spam_patterns()
-                for pattern in spam_pattern:
-                    if pattern.search(messageContent):
-                        bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                        await ban_user(messageAuthor, messageAuthorID)
-                        bannedUser = messageAuthor
-                        return
+                spam_pattern = await get_spam_patterns()  
+                if spam_pattern:  # Check if spam_pattern is not empty
+                    for pattern in spam_pattern:
+                        if pattern.search(messageContent):
+                            bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            await ban_user(messageAuthor, messageAuthorID)
+                            bannedUser = messageAuthor
+                            return
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
                     command = command_parts[0][1:]  # Extract the command without '!'
@@ -1167,9 +1168,9 @@ class BotOfTheSpecter(commands.Bot):
                             return  # Mods and broadcaster have permission by default
                         # Fetch whitelist and blacklist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
-                        whitelisted_links = [link[0] for link in await cursor.fetchall()]
+                        whitelisted_links = [link[0] for link in await cursor.fetchall()] if await cursor.fetchall() else []
                         await cursor.execute('SELECT link FROM link_blacklisting')
-                        blacklisted_links = [link[0] for link in await cursor.fetchall()]
+                        blacklisted_links = [link[0] for link in await cursor.fetchall()] if await cursor.fetchall() else []
                         # Check if message contains whitelisted or blacklisted links using domain matching
                         contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
                         contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
