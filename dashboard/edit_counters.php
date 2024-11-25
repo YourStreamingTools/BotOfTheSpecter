@@ -133,8 +133,8 @@ try {
 }
 
 // Check for AJAX requests
-if (isset($_GET['action']) && isset($_GET['username'])) {
-    if ($_GET['action'] == 'get_typo_count') {
+if (isset($_GET['action'])) {
+    if ($_GET['action'] == 'get_typo_count' && isset($_GET['username'])) {
         $requestedUsername = $_GET['username'];
         try {
             $stmt = $db->prepare("SELECT typo_count FROM user_typos WHERE username = :username");
@@ -145,7 +145,7 @@ if (isset($_GET['action']) && isset($_GET['username'])) {
         } catch (PDOException $e) {
             echo "Error: " . $e->getMessage();
         }
-    } elseif ($_GET['action'] == 'get_command_count') {
+    } elseif ($_GET['action'] == 'get_command_count' && isset($_GET['command'])) {
         $requestedCommand = $_GET['command'];
         try {
             $stmt = $db->prepare("SELECT count FROM custom_counts WHERE command = :command");
