@@ -218,6 +218,7 @@ function getTimeDifference($start_time) {
 </div>
 
 <div class="container mt-6">
+    <br><br>
     <div class="columns is-centered">
         <div class="column is-three-quarters">
             <div class="buttons">
@@ -242,7 +243,7 @@ function getTimeDifference($start_time) {
         </div>
     </div>
 </div>
-
+<br><br>
 <footer class="footer">
     <div class="content has-text-centered">
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
@@ -275,7 +276,6 @@ function getTimeDifference($start_time) {
         const tableBody = document.getElementById('table-body');
         tableHeader.innerHTML = ''; // Clear existing headers
         tableBody.innerHTML = ''; // Clear existing rows
-
         if (type === 'commands') {
             tableHeader.innerHTML = '<th>Command</th>';
             data.commands.forEach(item => {
@@ -289,7 +289,8 @@ function getTimeDifference($start_time) {
         } else if (type === 'lurkers') {
             tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
             data.lurkers.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.start_time}</td></tr>`;
+                const duration = calculateDuration(item.start_time);
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${duration}</td></tr>`;
             });
         } else if (type === 'typos') {
             tableHeader.innerHTML = '<th>Username</th><th>Typo Count</th>';
@@ -316,9 +317,29 @@ function getTimeDifference($start_time) {
             });
         }
     }
-
     // Initialize the table with the first dataset (e.g., commands)
     document.addEventListener('DOMContentLoaded', () => updateTable('commands'));
+
+    // Function to calculate duration in a human-readable format
+    function calculateDuration(startTime) {
+        const start = new Date(startTime);
+        const now = new Date();
+        const diff = now - start; // Difference in milliseconds
+        // Calculate individual time units
+        const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
+        const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
+        const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        // Construct the readable duration string
+        const parts = [];
+        if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
+        if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
+        if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+        if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+        if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+        return parts.length > 0 ? parts.join(', ') : 'Just now';
+    }
 </script>
 </body>
 </html>
