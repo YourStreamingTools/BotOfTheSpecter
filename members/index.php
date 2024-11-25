@@ -231,26 +231,41 @@ function getTimeDifference($start_time) {
     <br><br>
     <div class="columns is-centered">
         <div class="column is-three-quarters">
-            <div class="buttons">
-                <button class="button is-link" onclick="updateTable('commands')">Commands</button>
-                <button class="button is-link" onclick="updateTable('customCommands')">Custom Commands</button>
-                <button class="button is-link" onclick="updateTable('lurkers')">Lurkers</button>
-                <button class="button is-link" onclick="updateTable('typos')">Typos</button>
-                <button class="button is-link" onclick="updateTable('deaths')">Deaths</button>
-                <button class="button is-link" onclick="updateTable('hugs')">Hugs</button>
-                <button class="button is-link" onclick="updateTable('kisses')">Kisses</button>
-                <button class="button is-link" onclick="updateTable('todos')">To-Do Items</button> 
-            </div>
-            <table class="table is-fullwidth is-striped">
-                <thead>
-                    <tr id="table-header">
-                        <!-- Default table header -->
-                    </tr>
-                </thead>
-                <tbody id="table-body">
-                    <!-- Dynamic table content goes here -->
-                </tbody>
-            </table>
+            <?php if (!$username): ?> 
+                <br>
+                <div class="box">
+                    <h2 class="title">Enter the Twitch Username:</h2>
+                    <form id="usernameForm" class="field is-grouped" onsubmit="redirectToUser(event)">
+                        <div class="control is-expanded">
+                            <input type="text" id="user_search" name="user" class="input" placeholder="Enter username" required>
+                        </div>
+                        <div class="control">
+                            <input type="submit" value="Search" class="button is-link">
+                        </div>
+                    </form>
+                </div>
+            <?php else: ?> 
+                <div class="buttons">
+                    <button class="button is-link" onclick="updateTable('commands')">Commands</button>
+                    <button class="button is-link" onclick="updateTable('customCommands')">Custom Commands</button>
+                    <button class="button is-link" onclick="updateTable('lurkers')">Lurkers</button>
+                    <button class="button is-link" onclick="updateTable('typos')">Typos</button>
+                    <button class="button is-link" onclick="updateTable('deaths')">Deaths</button>
+                    <button class="button is-link" onclick="updateTable('hugs')">Hugs</button>
+                    <button class="button is-link" onclick="updateTable('kisses')">Kisses</button>
+                    <button class="button is-link" onclick="updateTable('todos')">To-Do Items</button> 
+                </div>
+                <table class="table is-fullwidth is-striped">
+                    <thead>
+                        <tr id="table-header">
+                            <!-- Default table header -->
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Dynamic table content goes here -->
+                    </tbody>
+                </table>
+            <?php endif; ?> 
         </div>
     </div>
 </div>
@@ -262,105 +277,110 @@ function getTimeDifference($start_time) {
 </footer>
 
 <script>
-    // Sample data for the table (replace with PHP variables if needed)
-    const data = {
-        commands: <?php echo json_encode($commands); ?>,
-        customCommands: <?php echo json_encode($customCounts); ?>,
-        lurkers: <?php echo json_encode($lurkers); ?>,
-        typos: <?php echo json_encode($typos); ?>,
-        deaths: {
-            total: "<?php echo htmlspecialchars($totalDeaths['death_count']); ?>",
-            games: <?php echo json_encode($gameDeaths); ?>
-        },
-        hugs: {
-            total: "<?php echo htmlspecialchars($totalHugs); ?>",
-            users: <?php echo json_encode($hugCounts); ?>
-        },
-        kisses: {
-            total: "<?php echo htmlspecialchars($totalKisses); ?>",
-            users: <?php echo json_encode($kissCounts); ?>
-        },
-        todos: <?php echo json_encode($todos); ?> 
-    };
+const data = {
+    commands: <?php echo json_encode($commands); ?>,
+    customCommands: <?php echo json_encode($customCounts); ?>,
+    lurkers: <?php echo json_encode($lurkers); ?>,
+    typos: <?php echo json_encode($typos); ?>,
+    deaths: {
+        total: "<?php echo htmlspecialchars($totalDeaths['death_count']); ?>",
+        games: <?php echo json_encode($gameDeaths); ?>
+    },
+    hugs: {
+        total: "<?php echo htmlspecialchars($totalHugs); ?>",
+        users: <?php echo json_encode($hugCounts); ?>
+    },
+    kisses: {
+        total: "<?php echo htmlspecialchars($totalKisses); ?>",
+        users: <?php echo json_encode($kissCounts); ?>
+    },
+    todos: <?php echo json_encode($todos); ?> 
+};
 
-    function updateTable(type) {
-        const tableHeader = document.getElementById('table-header');
-        const tableBody = document.getElementById('table-body');
-        tableHeader.innerHTML = ''; // Clear existing headers
-        tableBody.innerHTML = ''; // Clear existing rows
-        if (type === 'commands') {
-            tableHeader.innerHTML = '<th>Command</th>';
-            data.commands.forEach(item => {
-                tableBody.innerHTML += `<tr><td>!${item.command}</td></tr>`;
-            });
-        } else if (type === 'customCommands') {
-            tableHeader.innerHTML = '<th>Custom Command</th><th>Count</th>';
-            data.customCommands.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.command}</td><td>${item.count}</td></tr>`;
-            });
-        } else if (type === 'lurkers') {
-            tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
-            data.lurkers.forEach(item => {
-                const duration = calculateDuration(item.start_time);
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${duration}</td></tr>`;
-            });
-        } else if (type === 'typos') {
-            tableHeader.innerHTML = '<th>Username</th><th>Typo Count</th>';
-            data.typos.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.typo_count}</td></tr>`;
-            });
-        } else if (type === 'deaths') {
-            tableHeader.innerHTML = '<th>Game</th><th>Death Count</th>';
-            tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total}</td></tr>`;
-            data.deaths.games.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.game_name}</td><td>${item.death_count}</td></tr>`;
-            });
-        } else if (type === 'hugs') {
-            tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
-            tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
-            data.hugs.users.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
-            });
-        } else if (type === 'kisses') {
-            tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
-            tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
-            data.kisses.users.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
-            });
-        } else if (type === 'todos') { 
-            tableHeader.innerHTML = '<th>Objective</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
-            data.todos.forEach(item => {
-                tableBody.innerHTML += `<tr>
-                    <td>${item.completed == 'Yes' ? '<s>' + item.objective + '</s>' : item.objective}</td><td>${item.created_at}</td>
-                    <td>${item.updated_at}</td>
-                    <td>${item.completed}</td>
-                </tr>`;
-            });
-        }
+function updateTable(type) {
+    const tableHeader = document.getElementById('table-header');
+    const tableBody = document.getElementById('table-body');
+    tableHeader.innerHTML = ''; // Clear existing headers
+    tableBody.innerHTML = ''; // Clear existing rows
+    if (type === 'commands') {
+        tableHeader.innerHTML = '<th>Command</th>';
+        data.commands.forEach(item => {
+            tableBody.innerHTML += `<tr><td>!${item.command}</td></tr>`;
+        });
+    } else if (type === 'customCommands') {
+        tableHeader.innerHTML = '<th>Custom Command</th><th>Count</th>';
+        data.customCommands.forEach(item => {
+            tableBody.innerHTML += `<tr><td>${item.command}</td><td>${item.count}</td></tr>`;
+        });
+    } else if (type === 'lurkers') {
+        tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
+        data.lurkers.forEach(item => {
+            const duration = calculateDuration(item.start_time);
+            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${duration}</td></tr>`;
+        });
+    } else if (type === 'typos') {
+        tableHeader.innerHTML = '<th>Username</th><th>Typo Count</th>';
+        data.typos.forEach(item => {
+            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.typo_count}</td></tr>`;
+        });
+    } else if (type === 'deaths') {
+        tableHeader.innerHTML = '<th>Game</th><th>Death Count</th>';
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total}</td></tr>`;
+        data.deaths.games.forEach(item => {
+            tableBody.innerHTML += `<tr><td>${item.game_name}</td><td>${item.death_count}</td></tr>`;
+        });
+    } else if (type === 'hugs') {
+        tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
+        data.hugs.users.forEach(item => {
+            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
+        });
+    } else if (type === 'kisses') {
+        tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
+        data.kisses.users.forEach(item => {
+            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
+        });
+    } else if (type === 'todos') { 
+        tableHeader.innerHTML = '<th>Objective</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
+        data.todos.forEach(item => {
+            tableBody.innerHTML += `<tr>
+                <td>${item.completed == 'Yes' ? '<s>' + item.objective + '</s>' : item.objective}</td>
+                <td>${item.created_at}</td>
+                <td>${item.updated_at}</td>
+                <td>${item.completed}</td>
+            </tr>`;
+        });
     }
-    // Initialize the table with the first dataset (e.g., commands)
-    document.addEventListener('DOMContentLoaded', () => updateTable('commands'));
+}
 
-    // Function to calculate duration in a human-readable format
-    function calculateDuration(startTime) {
-        const start = new Date(startTime);
-        const now = new Date();
-        const diff = now - start; // Difference in milliseconds
-        // Calculate individual time units
-        const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
-        const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
-        const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        // Construct the readable duration string
-        const parts = [];
-        if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
-        if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
-        if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
-        if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-        if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-        return parts.length > 0 ? parts.join(', ') : 'Just now';
+document.addEventListener('DOMContentLoaded', () => updateTable('commands')); 
+
+function calculateDuration(startTime) {
+    const start = new Date(startTime);
+    const now = new Date();
+    const diff = now - start; // Difference in milliseconds
+    const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
+    const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
+    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const parts = [];
+    if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
+    if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
+    if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+    if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+    if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+    return parts.length > 0 ? parts.join(', ') : 'Just now';
+}
+
+function redirectToUser(event) {
+    event.preventDefault();
+    const username = document.getElementById('user_search').value.trim();
+    if (username) {
+        window.location.href = `/${encodeURIComponent(username)}/`;
     }
+}
 </script>
 </body>
 </html>
