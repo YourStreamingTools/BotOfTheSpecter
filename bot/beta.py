@@ -3920,6 +3920,7 @@ class BotOfTheSpecter(commands.Bot):
                 return
             action, *params = message_content[5:].strip().split(' ', 1)
             action = action.lower()
+            bot_logger.info(f"Action: {action}, Params: {params}")
             actions = {
                 'add': add_task,
                 'edit': edit_task,
@@ -3940,6 +3941,8 @@ class BotOfTheSpecter(commands.Bot):
             else:
                 await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
                 chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
+        except Exception as e:
+            bot_logger.error(f"An error occurred in todo_command: {e}")
         finally:
             await sqldb.ensure_closed()
 
