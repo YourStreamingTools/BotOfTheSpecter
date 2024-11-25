@@ -1458,7 +1458,7 @@ class BotOfTheSpecter(commands.Bot):
                         builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
                         await ctx.send(f"General commands: {builtin_commands_list}")
                         # Custom commands link
-                        custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/commands"
+                        custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await ctx.send(custom_response_message)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the commands command but lacked permissions.")
@@ -3915,7 +3915,7 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             if message_content.lower() == '!todo':
-                await ctx.send(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/todo")
+                await ctx.send(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/")
                 chat_logger.info(f"{user.name} viewed the todo list.")
                 return
             action, *params = message_content[5:].strip().split(' ', 1)
