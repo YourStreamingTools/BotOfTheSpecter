@@ -3908,7 +3908,7 @@ class BotOfTheSpecter(commands.Bot):
 
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
     @commands.command(name='todo')
-    async def todo_command(ctx: commands.Context):
+    async def todo_command(self, ctx: commands.Context):
         message_content = ctx.message.content.strip()
         user = ctx.author
         user_id = user.id
