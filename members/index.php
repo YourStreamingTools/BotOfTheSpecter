@@ -158,6 +158,9 @@ if ($username) {
         $totalDeaths = $getTotalDeaths->fetch(PDO::FETCH_ASSOC);
         $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
         $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch todo items
+        $getTodos = $db->query("SELECT * FROM todos ORDER BY id ASC");
+        $todos = $getTodos->fetchAll(PDO::FETCH_ASSOC);
         // Close database connection
         $db = null;
         $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
@@ -236,6 +239,7 @@ function getTimeDifference($start_time) {
                 <button class="button is-link" onclick="updateTable('deaths')">Deaths</button>
                 <button class="button is-link" onclick="updateTable('hugs')">Hugs</button>
                 <button class="button is-link" onclick="updateTable('kisses')">Kisses</button>
+                <button class="button is-link" onclick="updateTable('todos')">To-Do Items</button> 
             </div>
             <table class="table is-fullwidth is-striped">
                 <thead>
@@ -275,7 +279,8 @@ function getTimeDifference($start_time) {
         kisses: {
             total: "<?php echo htmlspecialchars($totalKisses); ?>",
             users: <?php echo json_encode($kissCounts); ?>
-        }
+        },
+        todos: <?php echo json_encode($todos); ?> 
     };
 
     function updateTable(type) {
@@ -321,6 +326,15 @@ function getTimeDifference($start_time) {
             tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
             data.kisses.users.forEach(item => {
                 tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
+            });
+        } else if (type === 'todos') { 
+            tableHeader.innerHTML = '<th>Objective</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
+            data.todos.forEach(item => {
+                tableBody.innerHTML += `<tr>
+                    <td>${item.completed == 'Yes' ? '<s>' + item.objective + '</s>' : item.objective}</td><td>${item.created_at}</td>
+                    <td>${item.updated_at}</td>
+                    <td>${item.completed}</td>
+                </tr>`;
             });
         }
     }
