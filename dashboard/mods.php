@@ -72,6 +72,19 @@ $endIndex = $startIndex + $moderatorsPerPage;
 
 // Get moderators for the current page
 $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderatorsPerPage);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $moderator_id = $_POST['moderator_id'];
+    $broadcaster_id = $_SESSION['twitchUserId'];
+    // Insert the new moderator access into the database
+    $stmt = $pdo->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (:moderator_id, :broadcaster_id)');
+    $stmt->execute([
+        ':moderator_id' => $moderator_id,
+        ':broadcaster_id' => $broadcaster_id
+    ]);
+    echo 'success';
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -100,7 +113,7 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
                 <?php foreach ($allModerators as $moderator) : $modDisplayName = $moderator['user_name']; ?>
                 <tr>
                     <td><?php echo $modDisplayName; ?></td>
-                    <td>Coming Soon</td>
+                    <td><button class="button is-primary add-access" data-user-id="<?php echo $moderator['user_id']; ?>">Add Access</button></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -108,6 +121,25 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('.add-access').on('click', function() {
+        var twitchUserId = $(this).data('user-id');
+        $.ajax({
+            url: 'mods.php',
+            type: 'POST',
+            data: { moderator_id: twitchUserId },
+            success: function(response) {
+                alert('Moderator access granted successfully!');
+            },
+            error: function(xhr, status, error) {
+                console.error('Error: ' + error);
+                alert('Failed to grant moderator access. Please try again.');
+            }
+        });
+    });
+});
+</script>
 </body>
 </html>
