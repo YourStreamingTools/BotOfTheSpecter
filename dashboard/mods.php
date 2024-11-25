@@ -115,6 +115,9 @@ $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 <div class="container">
     <br>
     <h1 class="title is-4">Your Moderators:</h1>
+    <div class="notification is-info">
+        <p>Specter Moderator Access is currently being worked on.<br>If you wish to add your moderators to the list you can do so, however it will do nothing at this stage.</p>
+    </div>
     <div class="table-container">
         <table class="table is-striped is-fullwidth">
             <thead>
