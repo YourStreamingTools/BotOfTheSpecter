@@ -190,7 +190,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                     <label for="typo-username">Username:</label>
                     <div class="control">
                         <div class="select">
-                            <select id="typo-username" name="typo-username" required onchange="updateCurrentCount(this.value)">
+                            <select id="typo-username" name="typo-username" required onchange="updateCurrentCount('typo', this.value)">
                                 <option value="">Select a user</option>
                                 <?php foreach ($usernames as $typo_name): ?>
                                     <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
@@ -202,7 +202,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                 <div class="field">
                     <label for="typo_count">New Typo Count:</label>
                     <div class="control">
-                        <input class="input" type="number" id="typo_count" name="typo_count" required min="0">
+                        <input class="input" type="number" id="typo_count" name="typo_count" value="" required min="0">
                     </div>
                 </div>
                 <div class="control"><button type="submit" class="button is-primary">Update Typo Count</button></div>
@@ -216,7 +216,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                     <label for="typo-username-remove">Username:</label>
                     <div class="control">
                         <div class="select">
-                            <select id="typo-username-remove" name="typo-username-remove" required onchange="updateCurrentCount(this.value)">
+                            <select id="typo-username-remove" name="typo-username-remove" required>
                                 <option value="">Select a user</option>
                                 <?php foreach ($usernames as $typo_name): ?>
                                     <option value="<?php echo htmlspecialchars($typo_name); ?>"><?php echo htmlspecialchars($typo_name); ?></option>
@@ -236,7 +236,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                     <label for="command">Command:</label>
                     <div class="control">
                         <div class="select">
-                            <select id="command" name="command" required onchange="updateCurrentCount(this.value)">
+                            <select id="command" name="command" required onchange="updateCurrentCount('command', this.value)">
                                 <option value="">Select a command</option>
                                 <?php foreach ($commands as $command): ?>
                                     <option value="<?php echo htmlspecialchars($command); ?>"><?php echo htmlspecialchars($command); ?></option>
@@ -248,7 +248,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
                 <div class="field">
                     <label for="command_count">New Command Count:</label>
                     <div class="control">
-                        <input class="input" type="number" id="command_count" name="command_count" min="0" required>
+                        <input class="input" type="number" id="command_count" name="command_count" value="" min="0" required>
                     </div>
                 </div>
                 <div class="control"><button type="submit" class="button is-primary">Update Command Count</button></div>
@@ -261,41 +261,37 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 <script>
 function fetchCurrentCount(type, value, inputId) {
     if (value) {
-        fetch(`?action=get_${type}_count&${type}=${encodeURIComponent(value)}`)
-            .then(response => response.text())
-            .then(data => document.getElementById(inputId).value = data)
-            .catch(error => console.error('Error:', error));
+        console.log('Fetching count for:', type, 'with value:', value);
+        const param = type === 'typo' ? 'username' : 'command';
+        fetch(`?action=get_${type}_count&${param}=` + encodeURIComponent(value))
+            .then(response => {
+                console.log('Response:', response);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                return response.text();
+            })
+            .then(data => {
+                console.log('Data:', data);
+                const inputField = document.getElementById(inputId);
+                if (inputField && data) {
+                    console.log('Updating input field:', inputId, 'with data:', data);
+                    inputField.value = data;
+                } else {
+                    console.error('No data returned from server for type:', type, 'value:', value);
+                    inputField.value = 0;
+                }
+            })
+            .catch(error => console.error('Error fetching count:', error));
     } else {
         document.getElementById(inputId).value = '';
     }
 }
-function updateCurrentCount(value) {
-    if (value) {
-        // Check whether the input is for a typo count or a command count
-        const isTypoInput = document.getElementById('typo-username') && document.getElementById('typo-username').value === value;
-        const isCommandInput = document.getElementById('command') && document.getElementById('command').value === value;
-        // Determine the input ID and action type based on the selection
-        let inputId, type;
-        if (isTypoInput) {
-            inputId = 'typo_count';
-            type = 'typo';
-        } else if (isCommandInput) {
-            inputId = 'command_count';
-            type = 'command';
-        } else {
-            console.error('Invalid input selection.');
-            return;
-        }
-        // Fetch the current count using the AJAX endpoint
-        fetch(`?action=get_${type}_count&${type}=${encodeURIComponent(value)}`)
-            .then(response => response.text())
-            .then(data => document.getElementById(inputId).value = data || 0)
-            .catch(error => console.error('Error fetching count:', error));
-    } else {
-        // Clear the input if no value is selected
-        if (document.getElementById('typo_count')) document.getElementById('typo_count').value = '';
-        if (document.getElementById('command_count')) document.getElementById('command_count').value = '';
-    }
+
+function updateCurrentCount(type, value) {
+    const inputId = type === 'typo' ? 'typo_count' : 'command_count';
+    console.log('Updating count for:', type, 'with value:', value);
+    fetchCurrentCount(type, value, inputId);
 }
 </script>
 </body>
