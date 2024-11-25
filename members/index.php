@@ -71,7 +71,6 @@ $dbPassword = 'PASSWORD';
 
 $path = trim($_SERVER['REQUEST_URI'], '/');
 $path = parse_url($path, PHP_URL_PATH);
-$pathParts = explode('/', $path);
 $username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
 $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
@@ -245,6 +244,7 @@ function getTimeDifference($start_time) {
                     </form>
                 </div>
             <?php else: ?> 
+                <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username; ?> </div>
                 <div class="buttons">
                     <button class="button is-link" onclick="updateTable('commands')">Commands</button>
                     <button class="button is-link" onclick="updateTable('customCommands')">Custom Commands</button>
@@ -374,8 +374,7 @@ function calculateDuration(startTime) {
     return parts.length > 0 ? parts.join(', ') : 'Just now';
 }
 
-function redirectToUser(event) {
-    event.preventDefault();
+function redirectToUser() {
     const username = document.getElementById('user_search').value.trim();
     if (username) {
         window.location.href = `/${encodeURIComponent(username)}/`;
