@@ -130,7 +130,7 @@ global last_shoutout_time
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()  # Translator instance
-scheduled_tasks = Queue()        # Queue for scheduled tasks
+scheduled_tasks = []             # List for scheduled tasks
 shoutout_queue = Queue()         # Queue for shoutouts
 specterSocket = SocketClient()   # Socket client instance for specter
 hyperateSocket = SocketClient()  # Socket client instance for hyperate
