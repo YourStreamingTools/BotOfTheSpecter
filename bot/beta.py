@@ -65,7 +65,7 @@ SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths", "heartrate"}
-mod_commands = {"addcommand", "removecommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
+mod_commands = {"addcommand", "removecommand", "editcommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
 # Logs
@@ -3555,6 +3555,37 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='editcommand')
+    async def editcommand_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("editcommand",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    if status == 'Disabled':
+                        return
+                    # Check if the user has the required permissions for this command
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Parse the command and new response from the message
+                try:
+                    command, new_response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+                except ValueError:
+                    await ctx.send(f"Invalid command format. Use: !editcommand [command] [new_response]")
+                    return
+                # Update the command's response in the database
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute('UPDATE custom_commands SET response = %s WHERE command = %s', (new_response, command))
+                    await sqldb.commit()
+                chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
+                await ctx.send(f'Custom command edited: !{command}')
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -3586,37 +3617,6 @@ class BotOfTheSpecter(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='disablecommand')
-    async def disablecommand_command(self, ctx):
-        sqldb = await get_mysql_connection()
-        try:
-            async with sqldb.cursor() as cursor:
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("disablecommand",))
-                result = await cursor.fetchone()
-                if result:
-                    status, permissions = result
-                    if status == 'Disabled':
-                        return
-                    # Check if the user has the required permissions for this command
-                    if not await command_permissions(permissions, ctx.author):
-                        await ctx.send("You do not have the required permissions to use this command.")
-                        return
-                # Parse the command from the message
-                try:
-                    command = ctx.message.content.strip().split(' ')[1]
-                except IndexError:
-                    await ctx.send(f"Invalid command format. Use: !disablecommand [command]")
-                    return
-                # Disable the command in the database
-                async with sqldb.cursor() as cursor:
-                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
-                    await sqldb.commit()
-                chat_logger.info(f"{ctx.author.name} has disabled the command: {command}")
-                await ctx.send(f'Custom command disabled: !{command}')
-        finally:
-            await sqldb.ensure_closed()
-
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='enablecommand')
     async def enablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
@@ -3644,6 +3644,37 @@ class BotOfTheSpecter(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has enabled the command: {command}")
                 await ctx.send(f'Custom command enabled: !{command}')
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='disablecommand')
+    async def disablecommand_command(self, ctx):
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor() as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("disablecommand",))
+                result = await cursor.fetchone()
+                if result:
+                    status, permissions = result
+                    if status == 'Disabled':
+                        return
+                    # Check if the user has the required permissions for this command
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                # Parse the command from the message
+                try:
+                    command = ctx.message.content.strip().split(' ')[1]
+                except IndexError:
+                    await ctx.send(f"Invalid command format. Use: !disablecommand [command]")
+                    return
+                # Disable the command in the database
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
+                    await sqldb.commit()
+                chat_logger.info(f"{ctx.author.name} has disabled the command: {command}")
+                await ctx.send(f'Custom command disabled: !{command}')
         finally:
             await sqldb.ensure_closed()
 
