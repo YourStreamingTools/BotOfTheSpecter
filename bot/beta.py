@@ -2,6 +2,7 @@
 import os
 import re
 import asyncio
+from asyncio import Queue
 import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
@@ -19,6 +20,7 @@ import ast
 import aiohttp
 from aiohttp import ClientSession
 import socketio
+from socketio import AsyncClient as SocketClient
 import aiomysql
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands
@@ -127,18 +129,18 @@ global TWITCH_SHOUTOUT_USER_COOLDOWN
 global last_shoutout_time
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
-translator = GoogleTranslator()
-scheduled_tasks = asyncio.Queue()
-shoutout_queue = asyncio.Queue()
-specterSocket = socketio.AsyncClient()
-hyperateSocket = socketio.AsyncClient()
-ureg = UnitRegistry()
-permitted_users = {}
-connected = set()
-pending_removals = {}
-shoutout_tracker = {}
-command_last_used = {}
-last_poll_progress_update = 0
+translator = GoogleTranslator()  # Translator instance
+scheduled_tasks = Queue()        # Queue for scheduled tasks
+shoutout_queue = Queue()         # Queue for shoutouts
+specterSocket = SocketClient()   # Socket client instance for specter
+hyperateSocket = SocketClient()  # Socket client instance for hyperate
+ureg = UnitRegistry()            # Unit registry instance
+permitted_users = {}             # Dictionary for permitted users
+connected = set()                # Set for connected users
+pending_removals = {}            # Dictionary for pending removals
+shoutout_tracker = {}            # Dictionary for tracking shoutouts
+command_last_used = {}           # Dictionary for tracking command usage
+last_poll_progress_update = 0    # Variable for last poll progress update
 
 # Initialize global variables
 bot_started = datetime.now()
@@ -1060,11 +1062,6 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         async with sqldb.cursor() as cursor:
             channel = message.channel
-            messageAuthor = None
-            messageAuthorID = None
-            messageContent = None
-            AuthorMessage = None
-            bannedUser = None
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
