@@ -76,15 +76,31 @@ $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderators
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $moderator_id = $_POST['moderator_id'];
     $broadcaster_id = $_SESSION['twitchUserId'];
-    // Insert the new moderator access into the database
-    $stmt = $pdo->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (:moderator_id, :broadcaster_id)');
-    $stmt->execute([
-        ':moderator_id' => $moderator_id,
-        ':broadcaster_id' => $broadcaster_id
-    ]);
-    echo 'success';
+    $action = $_POST['action'];
+    if ($action === 'add') {
+        // Insert the new moderator access into the database
+        $stmt = $pdo->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (:moderator_id, :broadcaster_id)');
+        $stmt->execute([
+            ':moderator_id' => $moderator_id,
+            ':broadcaster_id' => $broadcaster_id
+        ]);
+    } elseif ($action === 'remove') {
+        // Remove the moderator access from the database
+        $stmt = $pdo->prepare('DELETE FROM moderator_access WHERE moderator_id = :moderator_id AND broadcaster_id = :broadcaster_id');
+        $stmt->execute([
+            ':moderator_id' => $moderator_id,
+            ':broadcaster_id' => $broadcaster_id
+        ]);
+    }
+    // Redirect back to the moderators page
+    header('Location: mods.php');
     exit();
 }
+
+// Fetch all moderators and their access status
+$stmt = $pdo->prepare('SELECT * FROM moderator_access WHERE broadcaster_id = :broadcaster_id');
+$stmt->execute([':broadcaster_id' => $_SESSION['twitchUserId']]);
+$moderatorsAccess = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,10 +126,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($allModerators as $moderator) : $modDisplayName = $moderator['user_name']; ?>
+                <?php 
+                // Fetch all moderators who already have access
+                $stmt = $pdo->prepare('SELECT moderator_id FROM moderator_access WHERE broadcaster_id = :broadcaster_id');
+                $stmt->execute([':broadcaster_id' => $_SESSION['twitchUserId']]);
+                $existingModerators = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($allModerators as $moderator) : 
+                    $modDisplayName = $moderator['user_name'];
+                    $modUserId = $moderator['user_id'];
+                ?>
                 <tr>
                     <td><?php echo $modDisplayName; ?></td>
-                    <td><button class="button is-primary add-access" data-user-id="<?php echo $moderator['user_id']; ?>">Add Access</button></td>
+                    <td>
+                        <?php if (in_array($modUserId, $existingModerators)) : ?>
+                            <form action="mods.php" method="POST" style="display:inline;">
+                                <input type="hidden" name="moderator_id" value="<?php echo $modUserId; ?>">
+                                <input type="hidden" name="action" value="remove">
+                                <button class="button is-danger" type="submit">Remove Access</button>
+                            </form>
+                        <?php else : ?>
+                            <form action="mods.php" method="POST" style="display:inline;">
+                                <input type="hidden" name="moderator_id" value="<?php echo $modUserId; ?>">
+                                <input type="hidden" name="action" value="add">
+                                <button class="button is-primary" type="submit">Add Access</button>
+                            </form>
+                        <?php endif; ?>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
