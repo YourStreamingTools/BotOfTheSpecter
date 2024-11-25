@@ -1062,6 +1062,9 @@ class BotOfTheSpecter(commands.Bot):
         sqldb = await get_mysql_connection()
         async with sqldb.cursor() as cursor:
             channel = message.channel
+            messageAuthor = ""
+            messageAuthorID = ""
+            bannedUser = None
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
@@ -1191,7 +1194,7 @@ class BotOfTheSpecter(commands.Bot):
                 else:
                     pass
             except Exception as e:
-                if "NoneType" in e:
+                if isinstance(e, AttributeError) and "NoneType" in str(e):
                     pass
                 else:
                     bot_logger.error(f"An error occurred in event_message: {e}")
