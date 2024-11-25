@@ -112,23 +112,30 @@ if ($username) {
             $commands[] = $row;
         }
 
-        $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time DESC");
+        // Lurkers
+        $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
         $lurkerData = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
         if (!empty($lurkerData)) {
             $lurkerUserIds = array_column($lurkerData, 'user_id');
             $twitchUsers = getTwitchUsernames($lurkerUserIds);
+            $currentTime = time(); // Current timestamp
             foreach ($twitchUsers as $user) {
                 foreach ($lurkerData as $lurker) {
                     if ($lurker['user_id'] == $user['id']) {
                         $lurkers[] = [
                             'user_id' => $user['id'],
                             'username' => $user['display_name'],
-                            'start_time' => $lurker['start_time']
+                            'start_time' => $lurker['start_time'],
+                            'duration' => $currentTime - strtotime($lurker['start_time'])
                         ];
                         break;
                     }
                 }
             }
+            // Sort the array by 'duration' in descending order (longest lurking time first)
+            usort($lurkers, function ($a, $b) {
+                return $b['duration'] <=> $a['duration'];
+            });
         }
         // Typos
         $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
