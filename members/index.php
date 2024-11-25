@@ -76,16 +76,6 @@ $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
 
-$modalMapping = [
-    'commands' => 'commands-modal',
-    'command-counts' => 'custom-command-modal',
-    'lurkers' => 'lurkers-modal',
-    'typos' => 'typos-modal',
-    'deaths' => 'deaths-modal',
-    'hugs' => 'hugs-modal',
-    'kisses' => 'kisses-modal',
-];
-
 if ($username) {
     try {
         $checkDb = new PDO("mysql:host=$dbHost", $dbUsername, $dbPassword);
@@ -158,7 +148,21 @@ if ($username) {
         $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
         $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
         // Fetch todo items
-        $getTodos = $db->query("SELECT * FROM todos ORDER BY id ASC");
+        $getTodos = $db->query("
+            SELECT 
+                t.id, 
+                t.objective, 
+                t.completed, 
+                t.created_at, 
+                t.updated_at,
+                c.category AS category_name  
+            FROM 
+                todos t
+            JOIN 
+                categories c ON t.category = c.id 
+            ORDER BY 
+                t.id ASC
+        ");
         $todos = $getTodos->fetchAll(PDO::FETCH_ASSOC);
         // Close database connection
         $db = null;
@@ -342,10 +346,11 @@ function updateTable(type) {
             tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
         });
     } else if (type === 'todos') { 
-        tableHeader.innerHTML = '<th>Objective</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
+        tableHeader.innerHTML = '<th>Objective</th><th>Category</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
         data.todos.forEach(item => {
             tableBody.innerHTML += `<tr>
                 <td>${item.completed == 'Yes' ? '<s>' + item.objective + '</s>' : item.objective}</td>
+                <td>${item.category_name}</td>
                 <td>${item.created_at}</td>
                 <td>${item.updated_at}</td>
                 <td>${item.completed}</td>
