@@ -1118,33 +1118,34 @@ class BotOfTheSpecter(commands.Bot):
                                 '(random.pick.', '(math.', '(call.', '(usercount)'
                             ]
                             responses_to_send = []
-                            while any(switch in response for switch in switches):
-                                response = await custom_variables(response, command, messageAuthor, messageContent)
-                                # Handle (command.)
-                                if '(command.' in response:
-                                    command_match = re.search(r'\(command\.(\w+)\)', response)
-                                    if command_match:
-                                        sub_command = command_match.group(1)
-                                        await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
-                                        sub_response = await cursor.fetchone()
-                                        if sub_response:
-                                            response = response.replace(f"(command.{sub_command})", "")
-                                            responses_to_send.append(sub_response[0])
-                                        else:
-                                            chat_logger.error(f"{sub_command} is no longer available.")
-                                            await channel.send(f"The command {sub_command} is no longer available.")
-                                # Handle (call.)
-                                if '(call.' in response:
-                                    calling_match = re.search(r'\(call\.(\w+)\)', response)
-                                    if calling_match:
-                                        match_call = calling_match.group(1)
-                                        await self.call_command(match_call, message)
-                            await channel.send(response)
-                            for resp in responses_to_send:
-                                chat_logger.info(f"{command} command ran with response: {resp}")
-                                await channel.send(resp)
-                        else:
-                            chat_logger.info(f"{command} not ran because it's disabled.")
+                            if response:
+                                while any(switch in response for switch in switches):
+                                    response = await custom_variables(response, command, messageAuthor, messageContent)
+                                    # Handle (command.)
+                                    if '(command.' in response:
+                                        command_match = re.search(r'\(command\.(\w+)\)', response)
+                                        if command_match:
+                                            sub_command = command_match.group(1)
+                                            await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
+                                            sub_response = await cursor.fetchone()
+                                            if sub_response:
+                                                response = response.replace(f"(command.{sub_command})", "")
+                                                responses_to_send.append(sub_response[0])
+                                            else:
+                                                chat_logger.error(f"{sub_command} is no longer available.")
+                                                await channel.send(f"The command {sub_command} is no longer available.")
+                                    # Handle (call.)
+                                    if '(call.' in response:
+                                        calling_match = re.search(r'\(call\.(\w+)\)', response)
+                                        if calling_match:
+                                            match_call = calling_match.group(1)
+                                            await self.call_command(match_call, message)
+                                    await channel.send(response)
+                                    for resp in responses_to_send:
+                                        chat_logger.info(f"{command} command ran with response: {resp}")
+                                        await channel.send(resp)
+                            else:
+                                chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
                         chat_logger.info(f"{command} not found in the database.")
                 # Handle AI responses
@@ -6402,6 +6403,7 @@ async def track_watch_time(active_users):
     finally:
         await sqldb.ensure_closed()
 
+# Function for the custom variables
 async def custom_variables(response, command, messageAuthor, messageContent):
     sqldb = await get_mysql_connection()
     async with sqldb.cursor() as cursor:
@@ -6410,7 +6412,7 @@ async def custom_variables(response, command, messageAuthor, messageContent):
             url_match = re.search(r'\(customapi\.(\S+)\)', response)
             if url_match:
                 url = url_match.group(1)
-                api_response = fetch_api_response(url)
+                api_response = await fetch_api_response(url)
                 response = response.replace(f"(customapi.{url})", api_response)
                 return response
         # Handle (count)
