@@ -92,8 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':broadcaster_id' => $broadcaster_id
         ]);
     }
-    // Redirect back to the moderators page
-    header('Location: mods.php');
     exit();
 }
 
@@ -139,17 +137,9 @@ $moderatorsAccess = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <td><?php echo $modDisplayName; ?></td>
                     <td>
                         <?php if (in_array($modUserId, $existingModerators)) : ?>
-                            <form action="mods.php" method="POST" style="display:inline;">
-                                <input type="hidden" name="moderator_id" value="<?php echo $modUserId; ?>">
-                                <input type="hidden" name="action" value="remove">
-                                <button class="button is-danger" type="submit">Remove Access</button>
-                            </form>
+                            <button class="button is-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove">Remove Access</button>
                         <?php else : ?>
-                            <form action="mods.php" method="POST" style="display:inline;">
-                                <input type="hidden" name="moderator_id" value="<?php echo $modUserId; ?>">
-                                <input type="hidden" name="action" value="add">
-                                <button class="button is-primary" type="submit">Add Access</button>
-                            </form>
+                            <button class="button is-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add">Add Access</button>
                         <?php endif; ?>
                     </td>
                 </tr>
@@ -162,18 +152,17 @@ $moderatorsAccess = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function() {
-    $('.add-access').on('click', function() {
+    $('.access-control').on('click', function() {
         var twitchUserId = $(this).data('user-id');
+        var action = $(this).data('action');
         $.ajax({
             url: 'mods.php',
             type: 'POST',
-            data: { moderator_id: twitchUserId },
-            success: function(response) {
-                alert('Moderator access granted successfully!');
-            },
+            data: { moderator_id: twitchUserId, action: action },
+            success: function(response) { location.reload(); },
             error: function(xhr, status, error) {
                 console.error('Error: ' + error);
-                alert('Failed to grant moderator access. Please try again.');
+                alert('Failed to update moderator access. Please try again.');
             }
         });
     });
