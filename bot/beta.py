@@ -3916,6 +3916,7 @@ class BotOfTheSpecter(commands.Bot):
         try:
             if message_content.lower() == '!todo':
                 await ctx.send(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/todo")
+                chat_logger.info(f"{user.name} viewed the todo list.")
                 return
             action, *params = message_content[5:].strip().split(' ', 1)
             action = action.lower()
@@ -3932,10 +3933,13 @@ class BotOfTheSpecter(commands.Bot):
                 if action in ['add', 'edit', 'remove', 'complete', 'done']:
                     if not await command_permissions("mod", user):
                         await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
+                        chat_logger.warning(f"{user.name} attempted to {action} without proper permissions.")
                         return
                 await actions[action](ctx, params, user_id, sqldb)
+                chat_logger.info(f"{user.name} executed the action {action} with params {params}.")
             else:
                 await ctx.send(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
+                chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
         finally:
             await sqldb.ensure_closed()
 
@@ -5830,10 +5834,13 @@ async def add_task(ctx, params, user_id, sqldb):
                 await sqldb.commit()
                 category_name = await fetch_category_name(cursor, category_id)
                 await ctx.send(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or ("Unknown" if category_name is None else category_name)}".')
+                chat_logger.info(f"{user.name} added a task: '{task_description}' in category: '{category_name or 'Unknown'}' with ID {task_id}.")
             except (ValueError, IndexError):
                 await ctx.send(f"{user.name}, please provide a valid task description and optional category ID.")
+                chat_logger.warning(f"{user.name} provided invalid task description or category ID for adding a task.")
         else:
             await ctx.send(f"{user.name}, please provide a task to add.")
+            chat_logger.warning(f"{user.name} did not provide any task to add.")
 
 # ToDo List Function - Edit Task
 async def edit_task(ctx, params, user_id, sqldb):
@@ -5847,13 +5854,17 @@ async def edit_task(ctx, params, user_id, sqldb):
                 await cursor.execute("UPDATE todos SET objective = %s WHERE id = %s", (new_task, todo_id))
                 if cursor.rowcount == 0:
                     await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    chat_logger.warning(f"{user.name} tried to edit non-existing task ID {todo_id}.")
                 else:
                     await sqldb.commit()
                     await ctx.send(f"{user.name}, task {todo_id} has been updated to \"{new_task}\".")
+                    chat_logger.info(f"{user.name} edited task ID {todo_id} to new task: '{new_task}'.")
             except ValueError:
                 await ctx.send(f"{user.name}, please provide the task ID and new description separated by a comma.")
+                chat_logger.warning(f"{user.name} provided invalid format for editing a task.")
         else:
             await ctx.send(f"{user.name}, please provide the task ID and new description.")
+            chat_logger.warning(f"{user.name} did not provide task ID and new description for editing.")
 
 # ToDo List Function - Remove Task
 async def remove_task(ctx, params, user_id, sqldb):
@@ -5866,12 +5877,16 @@ async def remove_task(ctx, params, user_id, sqldb):
                 if await cursor.fetchone():
                     pending_removals[user_id] = todo_id
                     await ctx.send(f"{user.name}, please use `!todo confirm` to remove task ID {todo_id}.")
+                    chat_logger.info(f"{user.name} initiated removal of task ID {todo_id}.")
                 else:
                     await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    chat_logger.warning(f"{user.name} tried to remove non-existing task ID {todo_id}.")
             except ValueError:
                 await ctx.send(f"{user.name}, please provide a valid task ID to remove.")
+                chat_logger.warning(f"{user.name} provided invalid task ID for removal.")
         else:
             await ctx.send(f"{user.name}, please provide the task ID to remove.")
+            chat_logger.warning(f"{user.name} did not provide task ID for removal.")
 
 # ToDo List Function - Complete Task
 async def complete_task(ctx, params, user_id, sqldb):
@@ -5883,13 +5898,17 @@ async def complete_task(ctx, params, user_id, sqldb):
                 await cursor.execute("UPDATE todos SET completed = 'Yes' WHERE id = %s", (todo_id,))
                 if cursor.rowcount == 0:
                     await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    chat_logger.warning(f"{user.name} tried to complete non-existing task ID {todo_id}.")
                 else:
                     await sqldb.commit()
                     await ctx.send(f"{user.name}, task {todo_id} has been marked as complete.")
+                    chat_logger.info(f"{user.name} marked task ID {todo_id} as complete.")
             except ValueError:
                 await ctx.send(f"{user.name}, please provide a valid task ID to mark as complete.")
+                chat_logger.warning(f"{user.name} provided invalid task ID for completion.")
         else:
             await ctx.send(f"{user.name}, please provide the task ID to mark as complete.")
+            chat_logger.warning(f"{user.name} did not provide task ID for completion.")
 
 # ToDo List Function - Confirm Removal
 async def confirm_removal(ctx, params, user_id, sqldb):
@@ -5900,8 +5919,10 @@ async def confirm_removal(ctx, params, user_id, sqldb):
             await cursor.execute("DELETE FROM todos WHERE id = %s", (todo_id,))
             await sqldb.commit()
             await ctx.send(f"{user.name}, task ID {todo_id} has been removed.")
+            chat_logger.info(f"{user.name} confirmed and removed task ID {todo_id}.")
         else:
             await ctx.send(f"{user.name}, you have no pending task removal to confirm.")
+            chat_logger.warning(f"{user.name} tried to confirm removal without pending task.")
 
 # ToDo List Function - View Task
 async def view_task(ctx, params, user_id, sqldb):
@@ -5916,12 +5937,16 @@ async def view_task(ctx, params, user_id, sqldb):
                     objective, category_id, completed = result
                     category_name = await fetch_category_name(cursor, category_id)
                     await ctx.send(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}")
+                    chat_logger.info(f"{user.name} viewed task ID {todo_id}.")
                 else:
                     await ctx.send(f"{user.name}, task ID {todo_id} does not exist.")
+                    chat_logger.warning(f"{user.name} tried to view non-existing task ID {todo_id}.")
             except ValueError:
                 await ctx.send(f"{user.name}, please provide a valid task ID to view.")
+                chat_logger.warning(f"{user.name} provided invalid task ID for viewing.")
         else:
             await ctx.send(f"{user.name}, please provide the task ID to view.")
+            chat_logger.warning(f"{user.name} did not provide task ID for viewing.")
 
 # Function to get Category Names for the ToDo List
 async def fetch_category_name(cursor, category_id):
