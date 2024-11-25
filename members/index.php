@@ -1,11 +1,14 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
-    header('Location: ../login.php');
+    header('Location: login.php');
     exit();
 }
 
@@ -18,31 +21,28 @@ function sanitize_input($input) {
 function getTwitchUsernames($userIds) {
     $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
     $accessToken = $_SESSION['access_token'];
-
-    // Twitch API endpoint
     $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . implode('&id=', $userIds);
 
-    // Set up headers for the API request
     $headers = [
         "Client-ID: $clientID",
         "Authorization: Bearer $accessToken",
     ];
 
-    // Initialize cURL session
     $ch = curl_init();
-
     curl_setopt($ch, CURLOPT_URL, $twitchApiUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
-    // Execute API request
     $response = curl_exec($ch);
+    if ($response === false) {
+        // Handle cURL error
+        error_log('cURL Error: ' . curl_error($ch));
+        curl_close($ch);
+        return [];
+    }
     curl_close($ch);
 
-    // Decode the JSON response
     $data = json_decode($response, true);
-
-    // Check for valid response
     if (isset($data['data'])) {
         return $data['data'];
     }
@@ -77,7 +77,6 @@ $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
 
-// Mapping of page paths to modal IDs
 $modalMapping = [
     'commands' => 'commands-modal',
     'command-counts' => 'custom-command-modal',
@@ -90,22 +89,20 @@ $modalMapping = [
 
 if ($username) {
     try {
-        // Check if the database exists for the given username
         $checkDb = new PDO("mysql:host=$dbHost", $dbUsername, $dbPassword);
         $checkDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        // Escape underscore (_) only for the SHOW DATABASES LIKE query
-        $username = isset($_GET['user']) ? strtolower(sanitize_input($_GET['user'])) : null;
+
         $escapedUsername = str_replace('_', '\\_', $username);
-        // Prepare the statement to prevent SQL injection
         $stmt = $checkDb->prepare("SHOW DATABASES LIKE :username");
         $stmt->bindParam(':username', $escapedUsername, PDO::PARAM_STR);
         $stmt->execute();
         $result = $stmt->fetch();
+
         if (!$result) {
             $notFound = true;
             throw new PDOException("Database does not exist", 1049);
         }
-        // Use the real username (without escaping) when connecting to the actual database
+
         $db = new PDO("mysql:host=$dbHost;dbname={$username}", $dbUsername, $dbPassword);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
@@ -114,10 +111,9 @@ if ($username) {
         while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             $commands[] = $row;
         }
-        // Lurkers
+
         $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time DESC");
         $lurkerData = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
-        // Use the Twitch API to get usernames based on user_ids
         if (!empty($lurkerData)) {
             $lurkerUserIds = array_column($lurkerData, 'user_id');
             $twitchUsers = getTwitchUsernames($lurkerUserIds);
@@ -159,17 +155,14 @@ if ($username) {
         $db = null;
         $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
     } catch (PDOException $e) {
-        // Check if the error is due to "Unknown database" (error code 1049)
         if ($e->getCode() === '1049') {
-            $notFound = true;  // The database does not exist, mark user as not found
+            $notFound = true;
         } else {
-            // For other database-related errors, display the error message
             $buildResults = "Error: " . $e->getMessage();
         }
     }
 }
 
-// Function to calculate the time difference and return it in a human-readable format
 function getTimeDifference($start_time) {
     $startDateTime = new DateTime($start_time);
     $currentDateTime = new DateTime();
