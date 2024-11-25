@@ -1095,7 +1095,7 @@ class BotOfTheSpecter(commands.Bot):
                     if command in builtin_commands or command in builtin_aliases:
                         chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                         return  # It's a built-in command or alias, do nothing more
-                    # Check if the command exists in a hypothetical database and respond
+                    # Check if the command exists in the database and respond
                     await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
                     result = await cursor.fetchone()
                     if result:
@@ -1168,9 +1168,11 @@ class BotOfTheSpecter(commands.Bot):
                             return  # Mods and broadcaster have permission by default
                         # Fetch whitelist and blacklist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
-                        whitelisted_links = [link[0] for link in await cursor.fetchall()] if await cursor.fetchall() else []
+                        whitelist_result = await cursor.fetchall()  # Fetch whitelist results
+                        whitelisted_links = [link[0] for link in whitelist_result] if whitelist_result else []
                         await cursor.execute('SELECT link FROM link_blacklisting')
-                        blacklisted_links = [link[0] for link in await cursor.fetchall()] if await cursor.fetchall() else []
+                        blacklist_result = await cursor.fetchall()  # Fetch blacklist results
+                        blacklisted_links = [link[0] for link in blacklist_result] if blacklist_result else []
                         # Check if message contains whitelisted or blacklisted links using domain matching
                         contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
                         contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
