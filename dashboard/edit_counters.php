@@ -178,6 +178,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 
 <div class="container">
     <br>
+    <h4 class="title is-4">Edit and Manage Bot Counters</h4>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
         <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
     <?php endif; ?>
