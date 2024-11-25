@@ -200,6 +200,7 @@ function getTimeDifference($start_time) {
     <meta name="twitter:title" content="BotOfTheSpecter" />
     <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 </head>
 <body>
 <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
@@ -216,277 +217,108 @@ function getTimeDifference($start_time) {
     </div>
 </div>
 
-<div class="container">
+<div class="container mt-6">
     <div class="columns is-centered">
         <div class="column is-three-quarters">
-        <?php if ($notFound): ?>
-            <div class="notification is-danger">The username "<?php echo htmlspecialchars($username); ?>" was not found in our system.</div>
-        <?php else: ?>
-            <div class="notification is-info"><?php echo $buildResults; ?></div>
-            <?php if ($username): ?>
-                <div class="buttons">
-                    <button class="button is-link" data-target="#commands-modal" aria-haspopup="true">Commands</button>
-                    <button class="button is-link" data-target="#custom-command-modal" aria-haspopup="true">Custom Command Count</button>
-                    <button class="button is-link" data-target="#lurkers-modal" aria-haspopup="true">Lurkers</button>
-                    <button class="button is-link" data-target="#typos-modal" aria-haspopup="true">Typos</button>
-                    <button class="button is-link" data-target="#deaths-modal" aria-haspopup="true">Deaths</button>
-                    <button class="button is-link" data-target="#hugs-modal" aria-haspopup="true">Hugs</button>
-                    <button class="button is-link" data-target="#kisses-modal" aria-haspopup="true">Kisses</button>
-                    <!--<button class="button is-link" data-target="#todo-modal" aria-haspopup="true">To Do List</button>-->
-                </div>
-                <!-- Commands Modal -->
-                <div id="commands-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">Commands</h2>
-                            <div class="columns is-multiline">
-                                <?php foreach ($commands as $command): ?>
-                                    <div class="column is-one-third">
-                                        <div class="box has-text-centered command-box" data-command="!<?php echo htmlspecialchars($command['command']); ?>" style="cursor: pointer;">
-                                            <p>!<?php echo htmlspecialchars($command['command']); ?></p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
-                <!-- Custom Command Count Modal -->
-                <div id="custom-command-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">Custom Command Count</h2>
-                            <div class="columns is-multiline">
-                                <?php foreach ($customCounts as $custom): ?>
-                                    <div class="column is-one-third">
-                                        <div class="box has-text-centered">
-                                            <p><?php echo htmlspecialchars($custom['command']); ?></p>
-                                            <p><?php echo htmlspecialchars($custom['count']); ?> uses</p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
-                <!-- Lurkers Modal -->
-                <div id="lurkers-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">Lurkers</h2>
-                            <div class="columns is-multiline">
-                                <?php foreach ($lurkers as $lurker): ?>
-                                    <div class="column is-one-third">
-                                        <div class="box has-text-centered">
-                                            <p><?php echo htmlspecialchars($lurker['username']); ?></p>
-                                            <p><?php echo getTimeDifference($lurker['start_time']); ?></p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
-                <!-- Typos Modal -->
-                <div id="typos-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">Typos</h2>
-                            <div class="columns is-multiline">
-                                <?php foreach ($typos as $typo): ?>
-                                    <div class="column is-one-third">
-                                        <div class="box has-text-centered">
-                                            <p><?php echo htmlspecialchars($typo['username']); ?></p>
-                                            <p><?php echo htmlspecialchars($typo['typo_count']); ?> typos</p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
-                <!-- Deaths Modal -->
-                <div id="deaths-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">Deaths</h2>
-                            <div class="columns is-multiline">
-                                <div class="column is-full">
-                                    <p>Total Deaths: <?php echo htmlspecialchars($totalDeaths['death_count']); ?></p>
-                                </div>
-                                <?php foreach ($gameDeaths as $gameDeath): ?>
-                                    <div class="column is-one-third">
-                                        <div class="box has-text-centered">
-                                            <p><?php echo htmlspecialchars($gameDeath['game_name']); ?></p>
-                                            <p><?php echo htmlspecialchars($gameDeath['death_count']); ?> deaths</p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
-                <!-- Hugs Modal -->
-                <div id="hugs-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">Hugs</h2>
-                            <div class="columns is-multiline">
-                                <div class="column is-full">
-                                    <p>Total Hugs: <?php echo htmlspecialchars($totalHugs); ?></p>
-                                </div>
-                                <?php foreach ($hugCounts as $hug): ?>
-                                    <div class="column is-one-third">
-                                        <div class="box has-text-centered">
-                                            <p><?php echo htmlspecialchars($hug['username']); ?></p>
-                                            <p><?php echo htmlspecialchars($hug['hug_count']); ?> hugs</p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
-                <!-- Kisses Modal -->
-                <div id="kisses-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">Kisses</h2>
-                            <div class="columns is-multiline">
-                                <div class="column is-full">
-                                    <p>Total Kisses: <?php echo htmlspecialchars($totalKisses); ?></p>
-                                </div>
-                                <?php foreach ($kissCounts as $kiss): ?>
-                                    <div class="column is-one-third">
-                                        <div class="box has-text-centered">
-                                            <p><?php echo htmlspecialchars($kiss['username']); ?></p>
-                                            <p><?php echo htmlspecialchars($kiss['kiss_count']); ?> kisses</p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
-                <!-- To Do List Modal --><!--
-                <div id="todo-modal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-content">
-                        <div class="box">
-                            <h2 class="title">To Do List</h2>
-                            <!-- Your To Do List content goes here --><!--
-                            <p>Coming soon!</p>
-                        </div>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>-->
-            <?php else: ?>
-                <br>
-                <div class="box">
-                    <h2 class="title">Enter the Twitch Username:</h2>
-                    <form id="usernameForm" class="field is-grouped" onsubmit="redirectToUser(event)">
-                        <div class="control is-expanded">
-                            <input type="text" id="user_search" name="user" class="input" placeholder="Enter username" required>
-                        </div>
-                        <div class="control">
-                            <input type="submit" value="Search" class="button is-link">
-                        </div>
-                    </form>
-                </div>
-            <?php endif; ?>
-        <?php endif; ?>
+            <div class="buttons">
+                <button class="button is-link" onclick="updateTable('commands')">Commands</button>
+                <button class="button is-link" onclick="updateTable('customCommands')">Custom Commands</button>
+                <button class="button is-link" onclick="updateTable('lurkers')">Lurkers</button>
+                <button class="button is-link" onclick="updateTable('typos')">Typos</button>
+                <button class="button is-link" onclick="updateTable('deaths')">Deaths</button>
+                <button class="button is-link" onclick="updateTable('hugs')">Hugs</button>
+                <button class="button is-link" onclick="updateTable('kisses')">Kisses</button>
+            </div>
+            <table class="table is-fullwidth is-striped">
+                <thead>
+                    <tr id="table-header">
+                        <!-- Default table header -->
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Dynamic table content goes here -->
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
 <footer class="footer">
     <div class="content has-text-centered">
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </div>
 </footer>
 
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
-// Pass the modal mapping to JavaScript
-var modalMapping = <?php echo json_encode($modalMapping); ?>;
-var page = '<?php echo $page; ?>';
-
-// Function to redirect form submission to the new URL structure
-function redirectToUser(event) {
-    event.preventDefault();
-    const username = document.getElementById('user_search').value.trim();
-    if (username) {
-        // Redirect to the desired URL structure
-        window.location.href = `/${encodeURIComponent(username)}`;
-    }
-}
-
-// Attach event listener to all command boxes to copy command to clipboard
-document.querySelectorAll('.command-box').forEach(box => {
-    box.addEventListener('click', () => {
-        const command = box.getAttribute('data-command');
-        // Create a temporary text area to copy the command to clipboard
-        const tempTextArea = document.createElement('textarea');
-        tempTextArea.value = command;
-        document.body.appendChild(tempTextArea);
-        tempTextArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(tempTextArea);
-        Toastify({
-            text: `Copied: ${command}`,
-            duration: 3000,
-            gravity: "top",
-            position: "center",
-            backgroundColor: "#4CAF50",
-            stopOnFocus: true,
-        }).showToast();
-    });
-});
-
-// Script to handle modal open and close
-document.querySelectorAll('.button').forEach(button => {
-    button.addEventListener('click', () => {
-        const target = button.dataset.target;
-        const modal = document.querySelector(target);
-        if (modal) {
-            modal.classList.add('is-active');
+    // Sample data for the table (replace with PHP variables if needed)
+    const data = {
+        commands: <?php echo json_encode($commands); ?>,
+        customCommands: <?php echo json_encode($customCounts); ?>,
+        lurkers: <?php echo json_encode($lurkers); ?>,
+        typos: <?php echo json_encode($typos); ?>,
+        deaths: {
+            total: "<?php echo htmlspecialchars($totalDeaths['death_count']); ?>",
+            games: <?php echo json_encode($gameDeaths); ?>
+        },
+        hugs: {
+            total: "<?php echo htmlspecialchars($totalHugs); ?>",
+            users: <?php echo json_encode($hugCounts); ?>
+        },
+        kisses: {
+            total: "<?php echo htmlspecialchars($totalKisses); ?>",
+            users: <?php echo json_encode($kissCounts); ?>
         }
-    });
-});
+    };
 
-document.querySelectorAll('.modal-close, .modal-background').forEach(close => {
-    close.addEventListener('click', () => {
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.classList.remove('is-active');
-        });
-    });
-});
+    function updateTable(type) {
+        const tableHeader = document.getElementById('table-header');
+        const tableBody = document.getElementById('table-body');
+        tableHeader.innerHTML = ''; // Clear existing headers
+        tableBody.innerHTML = ''; // Clear existing rows
 
-// Auto-open modal based on the page variable
-document.addEventListener('DOMContentLoaded', function() {
-    if (page) {
-        var modalId = modalMapping[page];
-        if (modalId) {
-            var modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.add('is-active');
-            }
+        if (type === 'commands') {
+            tableHeader.innerHTML = '<th>Command</th>';
+            data.commands.forEach(item => {
+                tableBody.innerHTML += `<tr><td>!${item.command}</td></tr>`;
+            });
+        } else if (type === 'customCommands') {
+            tableHeader.innerHTML = '<th>Custom Command</th><th>Count</th>';
+            data.customCommands.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.command}</td><td>${item.count}</td></tr>`;
+            });
+        } else if (type === 'lurkers') {
+            tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
+            data.lurkers.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.start_time}</td></tr>`;
+            });
+        } else if (type === 'typos') {
+            tableHeader.innerHTML = '<th>Username</th><th>Typo Count</th>';
+            data.typos.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.typo_count}</td></tr>`;
+            });
+        } else if (type === 'deaths') {
+            tableHeader.innerHTML = '<th>Game</th><th>Death Count</th>';
+            tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total}</td></tr>`;
+            data.deaths.games.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.game_name}</td><td>${item.death_count}</td></tr>`;
+            });
+        } else if (type === 'hugs') {
+            tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
+            tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
+            data.hugs.users.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
+            });
+        } else if (type === 'kisses') {
+            tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
+            tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
+            data.kisses.users.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
+            });
         }
     }
-});
+
+    // Initialize the table with the first dataset (e.g., commands)
+    document.addEventListener('DOMContentLoaded', () => updateTable('commands'));
 </script>
 </body>
 </html>
