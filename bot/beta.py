@@ -6527,6 +6527,8 @@ async def custom_variables(response, command, messageAuthor, messageContent):
                     chat_logger.error(f"Math expression error: {e}")
                     response = response.replace(f'(math.{math_expression})', "Error")
                     return response
+        # If no switches were found, return the original response
+        return response
 
 # Here is the BOT
 bot = BotOfTheSpecter(
