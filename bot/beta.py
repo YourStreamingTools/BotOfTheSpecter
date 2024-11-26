@@ -4818,18 +4818,17 @@ async def timed_message():
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()
-            # Sequentially schedule messages
-            previous_time = datetime.now()
+            # Calculate initial time ONCE outside the loop
+            initial_time = datetime.now() 
             for message_id, interval, message in messages:
                 time_now = datetime.now()
-                next_time = previous_time + timedelta(minutes=int(interval))
+                next_time = initial_time + timedelta(minutes=int(interval))
                 wait_time = (next_time - time_now).total_seconds()
                 message_send_in = next_time - time_now
                 bot_logger.info(f"Scheduling message ID: {message_id} - '{message}' to be sent in {message_send_in}")
                 task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
                 task.set_name(f"Message ID: {message_id}")
-                scheduled_tasks.append(task)
-                previous_time = next_time  # Update previous_time for the next interval
+                scheduled_tasks.append(task) 
         else:
             # Cancel all scheduled tasks if the stream goes offline
             for task in scheduled_tasks:
