@@ -171,7 +171,7 @@ if ($displayMessageData) {
                                     });
                                     foreach ($timedMessagesData as $message): ?>
                                         <option value="<?php echo $message['id']; ?>" <?php echo $message['status'] == 'True' ? 'selected' : ''; ?>>
-                                            (<?php echo $message['id']; ?>) <?php echo $message['message']; ?>
+                                            (<?php echo "ID: " . $message['id']; ?>) <?php echo $message['message']; ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
