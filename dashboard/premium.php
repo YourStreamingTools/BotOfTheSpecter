@@ -24,31 +24,31 @@ $plans = [
         'name' => 'Twitch Tier 1',
         'price' => '$5.99 USD',
         'features' => [
-            '!song & !weather Commands',
-            'Full Support',
-            'Exclusive Beta Features',
-            '5MB of total storage',
-            'Shared Bot (BotOfTheSpecter)',
+            ['text' => '!song & !weather Commands', 'tip' => 'Use commands to request songs or get weather updates in chat.'],
+            ['text' => 'Full Support', 'tip' => 'Get priority assistance and support for any bot-related issues.'],
+            ['text' => 'Exclusive Beta Features', 'tip' => 'Early access to new and experimental bot features.'],
+            ['text' => '5MB of total storage', 'tip' => 'Store your own sound effects and music files for alerts and walk-on sounds.'],
+            ['text' => 'Shared Bot (BotOfTheSpecter)', 'tip' => 'The bot\'s username will be the same across all channels.'] 
         ],
     ],
     '2000' => [
         'name' => 'Twitch Tier 2',
         'price' => '$9.99 USD',
         'features' => [
-            'Everything From Tier 1',
-            'Personalized Support',
-            'AI Features & Conversations',
-            '10MB of total storage',
-            'Shared Bot (BotOfTheSpecter)',
+            ['text' => 'Everything From Tier 1', 'tip' => 'Includes all the benefits of the Tier 1 subscription.'],
+            ['text' => 'Personalized Support', 'tip' => 'Receive dedicated one-on-one support for your bot needs.'],
+            ['text' => 'AI Features & Conversations', 'tip' => 'Enjoy advanced AI-powered features and interactive conversations in chat.'],
+            ['text' => '10MB of total storage', 'tip' => 'Store more of your own sound effects and music files for alerts and walk-on sounds.'],
+            ['text' => 'Shared Bot (BotOfTheSpecter)', 'tip' => 'The bot\'s username will be the same across all channels.'] 
         ],
     ],
     '3000' => [
         'name' => 'Twitch Tier 3',
         'price' => '$24.99 USD',
         'features' => [
-            'Everything from Tier 2',
-            '20MB of total storage',
-            'Dedicated bot (custom bot name) [feature coming soon]',
+            ['text' => 'Everything from Tier 2', 'tip' => 'Includes all the benefits of the Tier 2 subscription.'],
+            ['text' => '20MB of total storage', 'tip' => 'Store an even larger collection of custom sound effects and music files.'],
+            ['text' => 'Dedicated bot (custom bot name) [feature coming soon]', 'tip' => 'Get a dedicated bot instance with a custom name for your channel (coming soon).'] 
         ],
     ],
 ];
@@ -135,10 +135,10 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
             <div class="card-content">
                 <h2 class="card-title subtitle">Free Plan<br>$0 USD</h2>
                 <ul>
-                    <li>Basic Commands</li>
-                    <li>Limited Support</li>
-                    <li>2MB of total storage</li>
-                    <li>Shared Bot (BotOfTheSpecter)</li>
+                    <li title="Use basic bot commands in your chat.">Basic Commands</li>
+                    <li title="Receive community-based support for basic issues.">Limited Support</li>
+                    <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">2MB of total storage</li> 
+                    <li title="The bot's username will be the same across all channels.">Shared Bot (BotOfTheSpecter)</li>
                 </ul>
             </div>
             <?php if ($currentPlan === 'free' && !$isBetaUser): ?>
@@ -156,7 +156,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                     <h2 class="card-title subtitle"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
                     <ul>
                         <?php foreach ($planDetails['features'] as $feature): ?>
-                            <li><?php echo $feature; ?></li>
+                            <li title="<?php echo $feature['tip']; ?>"><?php echo $feature['text']; ?></li> 
                         <?php endforeach; ?>
                     </ul>
                 </div>
@@ -185,8 +185,8 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                 <div class="card-content">
                     <h2 class="card-title subtitle">Exclusive Beta Plan<br>Free Access Forever!</h2>
                     <ul>
-                        <li>All Features FOREVER</li>
-                        <li>50MB of total storage</li>
+                        <li title="Enjoy all bot features for free, forever!">All Features FOREVER</li>
+                        <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">50MB of total storage</li> 
                     </ul>
                 </div>
                 <div class="card-footer">
@@ -196,6 +196,5 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
         <?php endif; ?>
     </div>
 </div>
-
 </body>
 </html>
