@@ -2112,8 +2112,12 @@ class BotOfTheSpecter(commands.Bot):
                 # Check Spotify for the current song
                 song_info = await get_spotify_current_song()
                 if song_info:
-                    await ctx.send(f"The current song is: {song_info}")
-                    return
+                    if not stream_online:
+                        await ctx.send(f"{CHANNEL_NAME} is currently listening to \"{song_info}\" while being offline.")
+                        return
+                    else:
+                        await ctx.send(f"The current playing song is: {song_info}")
+                        return
                 if not stream_online:
                     await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
                     return
@@ -2123,7 +2127,7 @@ class BotOfTheSpecter(commands.Bot):
                     # Premium feature access granted
                     await ctx.send("Please stand by, checking what song is currently playing...")
                     try:
-                        song_info = await get_current_song()
+                        song_info = await shazam_the_song()
                         await ctx.send(song_info)
                         await delete_recorded_files()
                     except Exception as e:
@@ -4875,9 +4879,9 @@ async def get_spotify_current_song():
                 return None
 
 # Function to get the current playing song
-async def get_current_song():
+async def shazam_the_song():
     try:
-        song_info = await get_song_info()
+        song_info = await shazam_song_info()
         if "error" in song_info:
             error_message = song_info["error"]
             chat_logger.error(f"Error: {error_message}")
@@ -4892,7 +4896,7 @@ async def get_current_song():
         api_logger.error(f"An error occurred while getting song info: {e}")
         return "Error: Failed to get song information."
 
-async def get_song_info():
+async def shazam_song_info():
     global stream_recording_file_global, raw_recording_file_global
     try:
         # Test validity of GQL OAuth token
@@ -4917,7 +4921,7 @@ async def get_song_info():
             songBytes = song.read()
             songb64 = base64.b64encode(songBytes)
             # Detect the song
-            matches = await detect_song(songb64)
+            matches = await shazam_detect_song(songb64)
             if "track" in matches.keys():
                 artist = matches["track"].get("subtitle", "")
                 song_title = matches["track"].get("title", "")
@@ -4962,7 +4966,7 @@ async def twitch_gql_token_valid():
         api_logger.error(f"An error occurred while checking Twitch GQL token validity: {e}")
         return False
 
-async def detect_song(raw_audio_b64):
+async def shazam_detect_song(raw_audio_b64):
     try:
         url = "https://shazam.p.rapidapi.com/songs/v2/detect"
         querystring = {"timezone": "Australia/Sydney", "locale": "en-US"}
