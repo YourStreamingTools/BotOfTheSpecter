@@ -131,7 +131,7 @@ if ($spotifyResult->num_rows > 0) {
 
 <div class="container">
     <br>
-    <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
+    <?php if (empty($spotifyUserInfo) || !isset($spotifyUserInfo['display_name'])): ?> 
         <div class="notification is-info"> 
             <div class="columns is-vcentered">
                 <div class="column is-narrow">
@@ -147,6 +147,20 @@ if ($spotifyResult->num_rows > 0) {
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
                         <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
                     </ul>
+                </div>
+            </div>
+        </div>
+    <?php elseif (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?> 
+        <div class="notification is-success"> 
+            <div class="columns is-vcentered">
+                <div class="column is-narrow">
+                    <span class="icon is-large">
+                        <i class="fab fa-spotify fa-2x"></i> 
+                    </span>
+                </div>
+                <div class="column">
+                    <p><strong>Spotify Connected!</strong></p>
+                    <p>Your Spotify account is linked and ready to go. Rock on!</p> 
                 </div>
             </div>
         </div>
@@ -178,23 +192,21 @@ if ($spotifyResult->num_rows > 0) {
         <?php if (!empty($spotifyUserInfo['images'][0]['url'])): ?>
             <img id='profile-image' class='round-image' src="<?php echo $spotifyUserInfo['images'][0]['url']; ?>" width="100" height="100" alt="<?php echo htmlspecialchars($spotifyUserInfo['id']); ?> spotify profile picture">
         <?php else: ?>
-            <p><em>No profile image available.</em></p>
-        <?php endif; ?>
-    <?php else: ?>
-        <div class="notification is-info">
-            <div class="columns is-vcentered">
-                <div class="column is-narrow">
-                    <span class="icon is-large">
-                        <i class="fas fa-link fa-2x"></i> 
-                    </span>
-                </div>
-                <div class="column">
-                    <p><strong>Link your Spotify account!</strong></p>
-                    <p>It looks like your Spotify account needs to be linked. Click the button below to start the linking process.</p>
-                    <a href="<?php echo $authURL; ?>" class="button is-primary">Link Spotify Account</a>
+            <div class="notification is-info">
+                <div class="columns is-vcentered">
+                    <div class="column is-narrow">
+                        <span class="icon is-large">
+                            <i class="fas fa-link fa-2x"></i> 
+                        </span>
+                    </div>
+                    <div class="column">
+                        <p><strong>Link your Spotify account!</strong></p>
+                        <p>It looks like your Spotify account needs to be linked. Click the button below to start the linking process.</p>
+                        <a href="<?php echo $authURL; ?>" class="button is-primary">Link Spotify Account</a>
+                    </div>
                 </div>
             </div>
-        </div>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
 
