@@ -4844,7 +4844,8 @@ async def timed_message():
                     }
         else:
             # Cancel all scheduled tasks if the stream goes offline
-            bot_logger.info("Stream is offline. Cancelling all timed messages.")
+            bot_logger.info("Stream is offline. Resetting counters and cancelling all timed messages.")
+            chat_line_count = 0  # Reset global chat counter
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()
