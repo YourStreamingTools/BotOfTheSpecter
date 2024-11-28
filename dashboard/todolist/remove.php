@@ -72,54 +72,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><?php echo $title; ?></title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-    <link rel="stylesheet" href="../css/bulma-custom.css">
-    <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
-    <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
-  </head>
-  <body>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><?php echo $title; ?></title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+  <link rel="stylesheet" href="../css/bulma-custom.css">
+  <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
+  <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
+</head>
+<body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
 <!-- /Navigation -->
 
 <div class="container">
   <br>
-  <?php if ($num_rows > 0) { ?>
-  <!-- Category Filter Dropdown & Search Bar -->
-  <div class="field is-grouped">
-    <p class="control is-expanded">
-      <form method="GET" action="">
-        <input type="text" name="search" placeholder="Search todos" class="input">
-      </form>
-    </p>
-    <p class="control">
-      <div class="select">
-        <select id="categoryFilter" onchange="applyCategoryFilter()">
-          <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
-          <?php
-          $categories_sql = "SELECT * FROM categories";
-          $categories_stmt = $db->prepare($categories_sql);
-          $categories_stmt->execute();
-          $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-          foreach ($categories_result as $category_row) {
-            $categoryId = $category_row['id'];
-            $categoryName = htmlspecialchars($category_row['category']);
-            $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
-            echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
-          }
-          ?>
-        </select>
+  <?php if ($num_rows < 1): ?>
+    <div class="notification is-info">
+      <div class="columns is-vcentered">
+        <div class="column is-narrow">
+          <span class="icon is-large">
+            <i class="fas fa-tasks fa-2x"></i> 
+          </span>
+        </div>
+        <div class="column">
+          <p><strong>Your to-do list is empty!</strong></p>
+          <p>You can't remove any tasks because there aren't any yet.</p> 
+        </div>
       </div>
-    </p>
-  </div>
-  <!-- /Category Filter Dropdown & Search Bar -->
-  <?php } ?>
-  <div class="container">
-    <?php if ($num_rows < 1) { echo '<h3 class="has-text-danger">There are no rows to edit</h3>'; } else { ?>
+    </div>
+  <?php else: ?>
+    <div class="field is-grouped">
+      <p class="control is-expanded">
+        <form method="GET" action="">
+          <input type="text" name="search" placeholder="Search todos" class="input">
+        </form>
+      </p>
+      <p class="control">
+        <div class="select">
+          <select id="categoryFilter" onchange="applyCategoryFilter()">
+            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+            <?php
+            $categories_sql = "SELECT * FROM categories";
+            $categories_stmt = $db->prepare($categories_sql);
+            $categories_stmt->execute();
+            $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            foreach ($categories_result as $category_row) {
+              $categoryId = $category_row['id'];
+              $categoryName = htmlspecialchars($category_row['category']);
+              $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
+              echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
+            }
+            ?>
+          </select>
+        </div>
+      </p>
+    </div>
     <h1 class="title">Please pick which task to remove from your list:</h1>
     <table class="table is-fullwidth is-striped">
       <thead>
@@ -155,8 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endforeach; ?>
       </tbody>
     </table>
-    <?php } ?>
-  </div>
+  <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
