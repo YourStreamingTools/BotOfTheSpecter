@@ -62,15 +62,15 @@ $num_rows = count($result);
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><?php echo $title; ?></title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-    <link rel="stylesheet" href="../css/bulma-custom.css">
-    <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
-    <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
-  </head>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><?php echo $title; ?></title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+  <link rel="stylesheet" href="../css/bulma-custom.css">
+  <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
+  <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
