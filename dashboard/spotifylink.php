@@ -131,7 +131,7 @@ if ($spotifyResult->num_rows > 0) {
 
 <div class="container">
     <br>
-    <?php if (empty($spotifyUserInfo) || !isset($spotifyUserInfo['display_name'])): ?> 
+    <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
         <div class="notification is-info"> 
             <div class="columns is-vcentered">
                 <div class="column is-narrow">
