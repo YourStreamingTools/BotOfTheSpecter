@@ -83,52 +83,67 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <div class="container">
   <br>
-  <?php if ($num_rows < 1) { echo '<h3 class="has-text-danger">There are no rows to edit</h3>'; } else { echo "<h2 class='subtitle'>Please pick which row to update on your list:</h2>"; ?>
-  <form method="POST">
-  <button type="submit" name="submit" class="button is-primary">Update All</button>
-  <table class="table is-fullwidth is-striped">
-    <thead>
-      <tr>
-        <th>Objective</th>
-        <th>Category</th>
-        <th>Update Category</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($rows as $row) { ?>
-        <tr>
-          <td><?php echo htmlspecialchars($row['objective']); ?></td>
-          <td>
-            <?php
-              $category_id = $row['category'];
-              $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
-              $category_stmt->bind_param('i', $category_id);
-              $category_stmt->execute();
-              $category_row = $category_stmt->get_result()->fetch_assoc();
-              echo htmlspecialchars($category_row['category']);
-            ?>
-          </td>
-          <td>
-            <div class="select">
-              <select id="category" name="category[<?php echo $row['id']; ?>]" class="form-control">
+  <?php if ($num_rows < 1): ?>
+    <div class="notification is-info">
+      <div class="columns is-vcentered">
+        <div class="column is-narrow">
+          <span class="icon is-large">
+            <i class="fas fa-tasks fa-2x"></i> 
+          </span>
+        </div>
+        <div class="column">
+          <p><strong>Your to-do list is empty!</strong></p>
+          <p>You can't update any categories because there aren't any tasks yet.</p> 
+        </div>
+      </div>
+    </div>
+  <?php else: ?> 
+    <h2 class='subtitle'>Please pick which row to update on your list:</h2>
+    <form method="POST">
+      <button type="submit" name="submit" class="button is-primary">Update All</button>
+      <table class="table is-fullwidth is-striped">
+        <thead>
+          <tr>
+            <th>Objective</th>
+            <th>Category</th>
+            <th>Update Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($rows as $row): ?>
+            <tr>
+              <td><?php echo htmlspecialchars($row['objective']); ?></td>
+              <td>
                 <?php
-                  $stmt = $db->prepare("SELECT * FROM categories");
-                  $stmt->execute();
-                  $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                  foreach ($categories as $category_row) {
-                    $selected = ($category_row['id'] == $row['category']) ? 'selected' : '';
-                    echo '<option value="'.$category_row['id'].'" '.$selected.'>'.htmlspecialchars($category_row['category']).'</option>';
-                  }
+                  $category_id = $row['category'];
+                  $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
+                  $category_stmt->bind_param('i', $category_id);
+                  $category_stmt->execute();
+                  $category_row = $category_stmt->get_result()->fetch_assoc();
+                  echo htmlspecialchars($category_row['category']);
                 ?>
-              </select>
-            </div>
-          </td>
-        </tr>
-      <?php } ?>
-    </tbody>
-  </table>
-  </form>
-  <?php } ?>
+              </td>
+              <td>
+                <div class="select">
+                  <select id="category" name="category[<?php echo $row['id']; ?>]" class="form-control">
+                    <?php
+                      $stmt = $db->prepare("SELECT * FROM categories");
+                      $stmt->execute();
+                      $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                      foreach ($categories as $category_row) {
+                        $selected = ($category_row['id'] == $row['category']) ? 'selected' : '';
+                        echo '<option value="'.$category_row['id'].'" '.$selected.'>'.htmlspecialchars($category_row['category']).'</option>';
+                      }
+                    ?>
+                  </select>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </form>
+  <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
