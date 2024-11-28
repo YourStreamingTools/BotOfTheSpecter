@@ -96,60 +96,73 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 
 <div class="container">
   <br>
-  <?php if ($num_rows < 1) {} else { ?>
-  <!-- Category Filter Dropdown & Search Bar -->
-  <div class="field is-grouped">
-    <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search objectives">
-    <p class="control">
-      <div class="select">
-        <select id="categoryFilter" onchange="applyCategoryFilter()">
-          <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
-          <?php foreach ($categories as $category): ?>
-            <option value="<?php echo $category['id']; ?>" <?php if ($categoryFilter == $category['id']) echo 'selected'; ?>>
-              <?php echo htmlspecialchars($category['category']); ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
+  <?php if ($num_rows < 1): ?>
+    <div class="notification is-info">
+      <div class="columns is-vcentered">
+        <div class="column is-narrow">
+          <span class="icon is-large">
+            <i class="fas fa-tasks fa-2x"></i> 
+          </span>
+        </div>
+        <div class="column">
+          <p><strong>Your to-do list is empty!</strong></p>
+          <p>Start adding tasks to get organized.</p> 
+        </div>
       </div>
-    </p>
-  </div>
-  <!-- /Category Filter Dropdown & Search Bar -->
-  <?php } ?>
-  <?php if ($num_rows < 1) { echo '<h4 style="color: red;">There are no tasks to show.</h4>'; } else { echo "<h3>Completed Tasks:</h3><br><h4>Number of total tasks in the category: " . $num_rows; echo "</h4>"; ?>
-  <table class="table is-striped is-fullwidth sortable" id="commandsTable">
-    <thead>
-      <tr>
-        <th width="700">Objective</th>
-        <th width="300">Category</th>
-        <th width="200">Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($incompleteTasks as $row): ?>
+    </div>
+  <?php else: ?>
+    <div class="field is-grouped">
+      <input class="input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search objectives">
+      <p class="control">
+        <div class="select">
+          <select id="categoryFilter" onchange="applyCategoryFilter()">
+            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+            <?php foreach ($categories as $category): ?>
+              <option value="<?php echo $category['id']; ?>" <?php if ($categoryFilter == $category['id']) echo 'selected'; ?>>
+                <?php echo htmlspecialchars($category['category']); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </p>
+    </div>
+    <h3>Completed Tasks:</h3>
+    <br>
+    <h4>Number of total tasks in the category: <?php echo $num_rows; ?></h4> 
+    <table class="table is-striped is-fullwidth sortable" id="commandsTable">
+      <thead>
         <tr>
-          <td><?php echo htmlspecialchars($row['objective']); ?></td>
-          <td>
-          <?php
-          $category_id = $row['category'];
-          $category_sql = "SELECT category FROM categories WHERE id = ?";
-          $category_stmt = $db->prepare($category_sql);
-          $category_stmt->bind_param("i", $category_id);
-          $category_stmt->execute();
-          $category_row = $category_stmt->get_result()->fetch_assoc();
-          echo htmlspecialchars($category_row['category']);
-          ?>
-          </td>
-          <td>
-            <form method="post" action="completed.php">
-              <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
-              <button type="submit" class="button is-primary">Mark as completed</button>
-            </form>
-          </td>
+          <th width="700">Objective</th>
+          <th width="300">Category</th>
+          <th width="200">Action</th>
         </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
-  <?php } ?>
+      </thead>
+      <tbody>
+        <?php foreach ($incompleteTasks as $row): ?>
+          <tr>
+            <td><?php echo htmlspecialchars($row['objective']); ?></td>
+            <td>
+            <?php
+              $category_id = $row['category'];
+              $category_sql = "SELECT category FROM categories WHERE id = ?";
+              $category_stmt = $db->prepare($category_sql);
+              $category_stmt->bind_param("i", $category_id);
+              $category_stmt->execute();
+              $category_row = $category_stmt->get_result()->fetch_assoc();
+              echo htmlspecialchars($category_row['category']);
+            ?>
+            </td>
+            <td>
+              <form method="post" action="completed.php">
+                <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
+                <button type="submit" class="button is-primary">Mark as completed</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
