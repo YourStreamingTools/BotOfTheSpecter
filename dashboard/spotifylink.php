@@ -131,28 +131,44 @@ if ($spotifyResult->num_rows > 0) {
 
 <div class="container">
     <br>
-    <!-- Info Box for Beta Feature -->
-    <div class="notification is-info"> 
-        <div class="columns is-vcentered">
-            <div class="column is-narrow">
-                <span class="icon is-large">
-                    <i class="fab fa-spotify fa-2x"></i> 
-                </span>
-            </div>
-            <div class="column">
-                <p><strong>Spotify Connected!</strong></p>
-                <p>Link your Spotify account to enhance your stream with music integration:</p>
-                <ul>
-                    <li>See what's playing with <code>!song</code></li>
-                    <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
-                    <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
-                </ul>
+    <?php if (empty($spotifyUserInfo) || !isset($spotifyUserInfo['display_name'])): ?> 
+        <div class="notification is-info"> 
+            <div class="columns is-vcentered">
+                <div class="column is-narrow">
+                    <span class="icon is-large">
+                        <i class="fab fa-spotify fa-2x"></i> 
+                    </span>
+                </div>
+                <div class="column">
+                    <p><strong>Connect to Spotify!</strong></p>
+                    <p>Link your Spotify account to enhance your stream with music integration:</p>
+                    <ul>
+                        <li>See what's playing with <code>!song</code></li>
+                        <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
+                        <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
+                    </ul>
+                </div>
             </div>
         </div>
-    </div>
+    <?php endif; ?> 
     <?php if ($message): ?>
-        <div class="notification <?php echo $messageType; ?>">
-            <?php echo $message; ?>
+        <div class="notification <?php echo $messageType; ?>"> 
+            <div class="columns is-vcentered">
+                <div class="column is-narrow">
+                    <span class="icon is-large"> 
+                        <?php if ($messageType === 'is-danger'): ?>
+                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                        <?php elseif ($messageType === 'is-warning'): ?>
+                            <i class="fas fa-exclamation-circle fa-2x"></i>
+                        <?php else: ?>
+                            <i class="fas fa-info-circle fa-2x"></i>
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div class="column">
+                    <p><?php echo $message; ?></p> 
+                </div>
+            </div>
         </div>
     <?php endif; ?>
     <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
@@ -165,10 +181,19 @@ if ($spotifyResult->num_rows > 0) {
             <p><em>No profile image available.</em></p>
         <?php endif; ?>
     <?php else: ?>
-        <!-- Relink Spotify Account Button -->
         <div class="notification is-info">
-            <p>It looks like your Spotify account needs to be linked. Click the button below to start the linking process.</p>
-            <a href="<?php echo $authURL; ?>" class="button is-primary">Relink Spotify Account</a>
+            <div class="columns is-vcentered">
+                <div class="column is-narrow">
+                    <span class="icon is-large">
+                        <i class="fas fa-link fa-2x"></i> 
+                    </span>
+                </div>
+                <div class="column">
+                    <p><strong>Link your Spotify account!</strong></p>
+                    <p>It looks like your Spotify account needs to be linked. Click the button below to start the linking process.</p>
+                    <a href="<?php echo $authURL; ?>" class="button is-primary">Link Spotify Account</a>
+                </div>
+            </div>
         </div>
     <?php endif; ?>
 </div>
