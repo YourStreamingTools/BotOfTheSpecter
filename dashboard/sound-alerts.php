@@ -149,12 +149,22 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 <div class="container">
     <br>
     <div class="notification is-danger">
-        <ul>
-            <li>Upload your audio file below by dragging and dropping or browsing to select files. Once ready, click 'Upload MP3 Files' and choose the channel point to trigger the sound.</li>
-            <li>Note: For rewards to appear in the dropdown, ensure they are created on Twitch and synced with Specter.</li>
-            <li>Sound alerts will play through Specter Overlays when the selected channel point is redeemed. (V4.8+)</li>
-            <li>Before clicking the "Test" button, ensure your streaming software is running and the overlay with audio is enabled in the software.</li>
-        </ul>
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-bell fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                <p><strong>Setting up Channel Point Sound Alerts</strong></p>
+                <ul>
+                    <li><span class="icon"><i class="fas fa-upload"></i></span> Upload your audio file.  Click 'Upload MP3 Files' and choose the channel point to trigger it.</li>
+                    <li><span class="icon"><i class="fab fa-twitch"></i></span> Make sure your rewards are created on Twitch and synced with Specter to see them in the dropdown.</li>
+                    <li><span class="icon"><i class="fas fa-play-circle"></i></span> Sound alerts will play through Specter Overlays when the channel point is redeemed.</li>
+                    <li><span class="icon"><i class="fas fa-headphones"></i></span> Start your streaming software and enable the overlay with audio <span class="has-text-weight-bold">before</span> testing.</li> 
+                </ul>
+            </div>
+        </div>
     </div>
     <div class="columns is-desktop is-multiline box-container" style="width: 100%;">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
