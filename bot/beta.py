@@ -6343,7 +6343,6 @@ async def known_users():
                         for mod in mod_list:
                             await cursor.execute("INSERT INTO everyone (username, group_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE group_name = %s", (mod, "MOD", "MOD"))
                         await sqldb.commit()
-                    api_logger.info(f"Added moderators to the database: {mod_list}")
                 else:
                     api_logger.error(f"Failed to fetch moderators: {response.status} - {await response.text()}")
             # Get all the VIPs and put them into the database
