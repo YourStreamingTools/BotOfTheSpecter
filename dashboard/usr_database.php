@@ -160,6 +160,7 @@ try {
             CREATE TABLE IF NOT EXISTS timed_messages (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 interval_count INT,
+                chat_line_trigger INT DEFAULT 5,
                 message TEXT,
                 status VARCHAR(10) DEFAULT True
             ) ENGINE=InnoDB",
@@ -358,7 +359,7 @@ try {
         'quotes' => ['quote' => "TEXT"],
         'seen_users' => ['username' => "VARCHAR(255)",'welcome_message' => "VARCHAR(255) DEFAULT NULL",'status' => "VARCHAR(255)"],
         'seen_today' => ['user_id' => "VARCHAR(255)",'username' => "VARCHAR(255)"],
-        'timed_messages' => ['interval_count' => "INT",'message' => "TEXT",'status' => "VARCHAR(10) DEFAULT True"],
+        'timed_messages' => ['interval_count' => "INT",'chat_line_trigger' => 'INT DEFAULT 5','message' => "TEXT",'status' => "VARCHAR(10) DEFAULT True"],
         'profile' => ['timezone' => "VARCHAR(255) DEFAULT NULL",'weather_location' => "VARCHAR(255) DEFAULT NULL",'discord_alert' => "VARCHAR(255) DEFAULT NULL",'discord_mod' => "VARCHAR(255) DEFAULT NULL",'discord_alert_online' => "VARCHAR(255) DEFAULT NULL",'heartrate_code' => 'VARCHAR(8) DEFAULT NULL'],
         'protection' => ['url_blocking' => "VARCHAR(255)"],
         'link_whitelist' => ['link' => "VARCHAR(255)"],
