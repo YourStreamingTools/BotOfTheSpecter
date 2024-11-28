@@ -141,6 +141,8 @@ pending_removals = {}            # Dictionary for pending removals
 shoutout_tracker = {}            # Dictionary for tracking shoutouts
 command_last_used = {}           # Dictionary for tracking command usage
 last_poll_progress_update = 0    # Variable for last poll progress update
+chat_line_count = 0              # Tracks the number of chat messages
+chat_trigger_tasks = {}          # Maps message IDs to chat line counts
 
 # Initialize global variables
 bot_started = datetime.now()
@@ -1315,6 +1317,7 @@ class BotOfTheSpecter(commands.Bot):
             return
         if messageAuthor == bannedUser:
             return
+        await handle_chat_message()
         sqldb = await get_mysql_connection()
         channel = message.channel
         try:
@@ -4809,36 +4812,64 @@ async def clear_credits_data():
 
 # Function for timed messages
 async def timed_message():
+    global scheduled_tasks, chat_trigger_tasks, stream_online, chat_line_count
     sqldb = await get_mysql_connection()
     async with sqldb.cursor() as cursor:
-        global scheduled_tasks
-        global stream_online
         if stream_online:
-            # Fetch enabled messages with their interval and ID from the database
-            await cursor.execute('SELECT id, interval_count, message FROM timed_messages WHERE status = "true" ORDER BY interval_count')
+            # Fetch enabled messages with their interval, chat trigger, and ID
+            await cursor.execute('SELECT id, interval_count, chat_line_trigger, message FROM timed_messages WHERE status = "true"')
             messages = await cursor.fetchall()
             bot_logger.info(f"Timed Messages: {messages}")
-            # Clear any old tasks
+            # Cancel and clear any old tasks
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()
-            # Calculate initial time ONCE outside the loop
-            current_time = datetime.now()
-            for message_id, interval, message in messages:
-                wait_time = int(interval) * 60
-                send_time = current_time + timedelta(seconds=wait_time)
-                bot_logger.info(f"Scheduling Message ID: {message_id} - '{message}' to be sent at {send_time}")
-                # Create and store the task
-                task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
-                task.set_name(f"Message ID: {message_id}")
-                scheduled_tasks.append(task)
+            chat_trigger_tasks.clear()
+            # Schedule each message for intervals or chat triggers
+            for message_id, interval, chat_line_trigger, message in messages:
+                # Handle timed intervals
+                if interval and int(interval) > 0:
+                    wait_time = int(interval) * 60  # Convert minutes to seconds
+                    bot_logger.info(f"Scheduling Message ID: {message_id} - '{message}' for interval: {interval} minutes")
+                    task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
+                    task.set_name(f"Interval Message ID: {message_id}")
+                    scheduled_tasks.append(task)
+                # Handle chat line triggers
+                if chat_line_trigger and int(chat_line_trigger) > 0:
+                    bot_logger.info(f"Tracking Message ID: {message_id} - '{message}' for chat line trigger: {chat_line_trigger}")
+                    chat_trigger_tasks[message_id] = {
+                        "chat_line_trigger": int(chat_line_trigger),
+                        "message": message,
+                        "last_trigger_count": chat_line_count,  # Start tracking from the current global counter
+                    }
         else:
-            # If the stream is offline, cancel all scheduled tasks
+            # Cancel all scheduled tasks if the stream goes offline
             bot_logger.info("Stream is offline. Cancelling all timed messages.")
             for task in scheduled_tasks:
                 task.cancel()
             scheduled_tasks.clear()
+            chat_trigger_tasks.clear()
     await sqldb.ensure_closed()
+
+async def handle_chat_message():
+    global chat_trigger_tasks, chat_line_count, stream_online
+    if not stream_online:
+        return
+    # Increment the global chat message counter
+    chat_line_count += 1
+    # Check each tracked message for trigger conditions
+    for message_id, trigger_info in chat_trigger_tasks.items():
+        chat_line_trigger = trigger_info["chat_line_trigger"]
+        last_trigger_count = trigger_info["last_trigger_count"]
+        message = trigger_info["message"]
+        # Check if enough new chat lines have occurred since the last trigger
+        if chat_line_count - last_trigger_count >= chat_line_trigger:
+            # Update the last trigger count
+            trigger_info["last_trigger_count"] = chat_line_count
+            # Send the message
+            chat_logger.info(f"Sending Chat Line-Triggered Message ID: {message_id} - {message}")
+            channel = bot.get_channel(CHANNEL_NAME)
+            await channel.send(message)
 
 async def send_timed_message(message_id, message, delay):
     global stream_online
