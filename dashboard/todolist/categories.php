@@ -71,7 +71,19 @@ if (!$result) {
 
 <div class="container">
   <br>
-  <p>Here is the current list of categories you can filter your lists in, each category is its own list.</p>
+  <div class="notification is-info">
+    <div class="columns is-vcentered">
+      <div class="column is-narrow">
+        <span class="icon is-large">
+          <i class="fas fa-list-ul fa-2x"></i> 
+        </span>
+      </div>
+      <div class="column">
+        <p><strong>Manage Your Categories</strong></p>
+        <p>Here's the list of categories you've created. Each category helps you organize your tasks into separate lists.</p> 
+      </div>
+    </div>
+  </div>
   <table class="table is-striped is-fullwidth sortable">
     <thead>
       <tr>
@@ -80,12 +92,12 @@ if (!$result) {
       </tr>
     </thead>
     <tbody>
-      <?php foreach ($result as $row): ?>
+    <?php foreach ($result as $row): ?>
       <tr>
         <td><?php echo htmlspecialchars($row['id']); ?></td>
         <td><?php echo htmlspecialchars($row['category']); ?></td>
       </tr>
-      <?php endforeach; ?>
+    <?php endforeach; ?>
     </tbody>
   </table>
 </div>
