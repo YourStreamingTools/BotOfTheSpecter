@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
             <div class="column">
                 <p><span class="has-text-weight-bold">Adding Commands</span></p>
-                <ol>
+                <ol style="padding-left: 30px;">
                     <li>Skip the "!". We'll automatically add it to your command.</li>
                     <li>
                         You can also add commands directly in chat with <code>!addcommand [command] [message]</code>
