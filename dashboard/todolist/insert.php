@@ -43,16 +43,30 @@ $greeting = 'Hello';
 // Include the secondary database connection
 include 'database.php';
 
+// Initialize message variables
+$message = ""; 
+$messageType = ""; 
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   // Get form data
   $objective = $_POST['objective'];
   $category = $_POST['category'];
-  // Prepare and execute query
-  $stmt = $db->prepare("INSERT INTO todos (objective, category, created_at, updated_at, completed) VALUES (?, ?, NOW(), NOW(), 'No')");
-  $stmt->bind_param("si", $objective, $category);
-  $stmt->execute();
-  header('Location: index.php');
-  exit();
+  // Basic validation
+  if (empty($objective)) {
+    $message = "Please enter a task.";
+    $messageType = "is-danger"; 
+  } else {
+    // Prepare and execute query
+    $stmt = $db->prepare("INSERT INTO todos (objective, category, created_at, updated_at, completed) VALUES (?, ?, NOW(), NOW(), 'No')");
+    $stmt->bind_param("si", $objective, $category);
+    if ($stmt->execute()) {
+      $message = "Task added successfully!";
+      $messageType = "is-success"; 
+    } else {
+      $message = "Error adding task. Please try again.";
+      $messageType = "is-danger"; 
+    }
+  }
 }
 ?>
 <!DOCTYPE html>
@@ -73,6 +87,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <div class="container">
   <br>
+  <?php if ($message): ?>
+    <div class="notification <?php echo $messageType; ?>"> 
+      <div class="columns is-vcentered">
+        <div class="column is-narrow">
+          <span class="icon is-large"> 
+            <?php if ($messageType === 'is-danger'): ?>
+              <i class="fas fa-exclamation-triangle fa-2x"></i>
+            <?php elseif ($messageType === 'is-warning'): ?>
+              <i class="fas fa-exclamation-circle fa-2x"></i>
+            <?php elseif ($messageType === 'is-success'): ?>
+              <i class="fas fa-check-circle fa-2x"></i>
+            <?php else: ?>
+              <i class="fas fa-info-circle fa-2x"></i>
+            <?php endif; ?>
+          </span>
+        </div>
+        <div class="column">
+          <p><?php echo $message; ?></p> 
+        </div>
+      </div>
+    </div>
+  <?php endif; ?>
   <form method="post">
     <h3 class="title is-3">Please enter your task to add it to your list:</h3>
     <div class="field">
@@ -86,12 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="select">
           <select id="category" name="category">
             <?php
-            // Retrieve categories from secondary database
             $stmt = $db->query("SELECT * FROM categories");
             $result = $stmt->fetch_all(MYSQLI_ASSOC);
-            // Display categories as options in dropdown menu
-            foreach ($result as $row) {
-              echo '<option value="'.htmlspecialchars($row['id']).'">'.htmlspecialchars($row['category']).'</option>';
+            foreach ($result as $row) { echo '<option value="'.htmlspecialchars($row['id']).'">'.htmlspecialchars($row['category']).'</option>';
             }
             ?>
           </select>
