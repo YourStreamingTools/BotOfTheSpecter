@@ -123,7 +123,7 @@ $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 </span>
             </div>
             <div class="column">
-                <p><strong>Moderator Dashboard Access: Coming Soon!</strong></p>
+                <p><span class="has-text-weight-bold">Moderator Dashboard Access: Coming Soon!</span></p>
                 <p>We're working on a feature to let your Twitch moderators access your Specter dashboard. This will allow them to manage Specter settings without using chat commands.</p>
             </div>
         </div>
