@@ -78,7 +78,6 @@ $num_rows = count($result);
 
 <div class="container">
   <br>
-  <!-- Category Filter Dropdown & Search Bar -->
   <div class="field is-grouped">
     <p class="control is-expanded">
     <div class="field">
@@ -106,41 +105,55 @@ $num_rows = count($result);
       </div>
     </p>
   </div>
-  <!-- /Category Filter Dropdown & Search Bar -->
-  <?php if ($num_rows < 1) { echo '<h4 style="color: red;">There are no tasks to show.</h4>'; } else { echo "<h4>Number of total tasks in the category: " . $num_rows; echo "</h4>"; ?>
-  <table class="table is-striped is-fullwidth sortable" id="commandsTable">
-    <thead>
-      <tr>
-        <th width="700">Objective</th>
-        <th width="300">Category</th>
-        <th width="300">Created</th>
-        <th width="300">Last Updated</th>
-        <th width="150">Completed</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($result as $row): ?>
+  <?php if ($num_rows < 1): ?>
+    <div class="notification is-info">
+      <div class="columns is-vcentered">
+        <div class="column is-narrow">
+          <span class="icon is-large">
+            <i class="fas fa-tasks fa-2x"></i> 
+          </span>
+        </div>
+        <div class="column">
+          <p><strong>Your to-do list is empty!</strong></p>
+          <p>Start adding tasks to get organized.</p> 
+        </div>
+      </div>
+    </div>
+  <?php else: ?>
+    <h4>Number of total tasks in the category: <?php echo $num_rows; ?></h4> 
+    <table class="table is-striped is-fullwidth sortable" id="commandsTable">
+      <thead>
         <tr>
-          <td><?php echo ($row['completed'] == 'Yes') ? '<s>' . htmlspecialchars($row['objective']) . '</s>' : htmlspecialchars($row['objective']); ?></td>
-          <td>
-            <?php
-              $category_id = $row['category'];
-              $category_sql = "SELECT category FROM categories WHERE id = ?";
-              $category_stmt = $db->prepare($category_sql);
-              $category_stmt->bind_param("i", $category_id);
-              $category_stmt->execute();
-              $category_row = $category_stmt->get_result()->fetch_assoc();
-              echo htmlspecialchars($category_row['category']);
-            ?>
-          </td>
-          <td><?php echo htmlspecialchars($row['created_at']); ?></td>
-          <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
-          <td><?php echo htmlspecialchars($row['completed']); ?></td>
+          <th width="700">Objective</th>
+          <th width="300">Category</th>
+          <th width="300">Created</th>
+          <th width="300">Last Updated</th>
+          <th width="150">Completed</th>
         </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
-  <?php } ?>
+      </thead>
+      <tbody>
+        <?php foreach ($result as $row): ?>
+          <tr>
+            <td><?php echo ($row['completed'] == 'Yes') ? '<s>' . htmlspecialchars($row['objective']) . '</s>' : htmlspecialchars($row['objective']); ?></td>
+            <td>
+              <?php
+                $category_id = $row['category'];
+                $category_sql = "SELECT category FROM categories WHERE id = ?";
+                $category_stmt = $db->prepare($category_sql);
+                $category_stmt->bind_param("i", $category_id);
+                $category_stmt->execute();
+                $category_row = $category_stmt->get_result()->fetch_assoc();
+                echo htmlspecialchars($category_row['category']);
+              ?>
+            </td>
+            <td><?php echo htmlspecialchars($row['created_at']); ?></td>
+            <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
+            <td><?php echo htmlspecialchars($row['completed']); ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?> 
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
