@@ -88,16 +88,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <br>
     <h4 class="title is-4">Manage Custom Commands</h4>
     <div class="notification is-info">
-        <p>When adding commands via this page, please note the following:<br>
-            <ol style="padding-left: 30px;">
-                <li>Avoid using the exclamation mark (!) in your command name. The exclamation mark is automatically added to the beginning of your command.</li>
-                <li>Alternatively, you or your moderators can add commands directly using the !addcommand command in your Twitch chat.<br>
-                    Example: <code>!addcommand mycommand This is my custom command</code></li>
-            </ol>
-        </p>
-        <p>If you want to add custom features or functionalities to your commands, check out the Custom Variables that can be used to make your command more dynamic. These variables allow you to personalize the behavior of your commands.</p>
-        <p>Note: Custom Variables are only accepted in the response part of your command. Make sure to include them in the message that will be displayed to the user.</p>
-        <button class="button is-primary" id="openModalButton">View Custom Variables</button>
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-info-circle fa-2x"></i>
+                </span>
+            </div>
+            <div class="column">
+                <p><strong>Adding Commands</strong></p>
+                <p>When adding commands here, keep these tips in mind:</p>
+                <ol style="padding-left: 30px;">
+                    <li>Skip the "!". We'll automatically add it to your command.</li>
+                    <li>You can also add commands directly in chat with <code>!addcommand [command] [message]</code> 
+                        <br>For example: <code>!addcommand mycommand This is my custom command</code></li>
+                </ol>
+                <p><strong>Want to level up your commands?</strong></p>
+                <p>Explore Custom Variables to add dynamic features and personalize your command responses. </p>
+                <p>Note: Custom Variables only work in the response part of your command.</p>
+                <button class="button is-primary" id="openModalButton">View Custom Variables</button>
+            </div>
+        </div>
     </div>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
         <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
