@@ -90,21 +90,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="notification is-info">
         <div class="columns is-vcentered">
             <div class="column is-narrow">
-                <span class="icon is-large">
-                    <i class="fas fa-info-circle fa-2x"></i>
-                </span>
+                <span class="icon"> <i class="fas fa-info-circle"></i> </span> 
             </div>
             <div class="column">
-                <p><strong>Adding Commands</strong></p>
-                <p>When adding commands here, keep these tips in mind:</p>
-                <ol style="padding-left: 30px;">
+                <p><span class="has-text-weight-bold">Adding Commands</span></p>
+                <ul>
                     <li>Skip the "!". We'll automatically add it to your command.</li>
-                    <li>You can also add commands directly in chat with <code>!addcommand [command] [message]</code> 
-                        <br>For example: <code>!addcommand mycommand This is my custom command</code></li>
-                </ol>
-                <p><strong>Want to level up your commands?</strong></p>
-                <p>Explore Custom Variables to add dynamic features and personalize your command responses. </p>
-                <p>Note: Custom Variables only work in the response part of your command.</p>
+                    <li>
+                        You can also add commands directly in chat with <code>!addcommand [command] [message]</code>
+                        <p style="padding-left: 30px;">For example: <code>!addcommand mycommand This is my custom command</code></p> 
+                    </li>
+                </ul>
+                <p><span class="has-text-weight-bold">Want to level up your commands?</span></p>
+                <p>Explore Custom Variables to add dynamic features and personalize your command responses.</p>
+                <p><span class="has-text-weight-bold">Note:</span> Custom Variables only work in the response part of your command.</p> 
                 <button class="button is-primary" id="openModalButton">View Custom Variables</button>
             </div>
         </div>
