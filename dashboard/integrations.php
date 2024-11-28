@@ -36,6 +36,19 @@ date_default_timezone_set($timezone);
 
 <div class="container">
   <br>
+  <div class="notification is-info">
+    <div class="columns is-vcentered">
+      <div class="column is-narrow">
+        <span class="icon is-large">
+          <i class="fas fa-plug fa-2x"></i> 
+        </span>
+      </div>
+      <div class="column">
+        <p><strong>Connect Your Accounts</strong></p>
+        <p>Enhance your stream by integrating Specter with your Fourthwall and Ko-fi accounts. Follow the simple steps below to get started!</p>
+      </div>
+    </div>
+  </div>
   <div class="columns is-desktop is-multiline box-container">
     <div class="column bot-box content content-card" id="fourthwall"> 
       <h2 class="subtitle">Fourthwall Integration</h2>
