@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <br>
     <h4 class="title is-4">Manage Custom Commands</h4>
     <div class="notification is-info">
-        <div class="columns is-vcentered">
+        <div class="columns">
             <div class="column is-narrow">
                 <span class="icon"> <i class="fas fa-info-circle"></i> </span> 
             </div>
