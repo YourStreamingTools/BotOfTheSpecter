@@ -132,8 +132,23 @@ if ($spotifyResult->num_rows > 0) {
 <div class="container">
     <br>
     <!-- Info Box for Beta Feature -->
-    <div class="notification is-warning">
-        Beta Feature: This Spotify linking feature is currently in beta and is available from Version 5.1+. Your feedback is appreciated as we improve this functionality.
+    <div class="notification is-info"> 
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fab fa-spotify fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                <p><strong>Spotify Connected!</strong></p>
+                <p>Link your Spotify account to enhance your stream with music integration:</p>
+                <ul>
+                    <li>See what's playing with <code>!song</code></li>
+                    <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
+                    <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
+                </ul>
+            </div>
+        </div>
     </div>
     <?php if ($message): ?>
         <div class="notification <?php echo $messageType; ?>">
