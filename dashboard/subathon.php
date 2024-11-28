@@ -70,13 +70,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
         </div>
     <?php endif; ?>
     <div class="notification is-warning">
-        The donation feature for adding time to the subathon is not yet fully tested. Until this feature is ready, you can manually add time using a command.<br>
-        <strong>Instructions:</strong>
-        <ul>
-            <li>Type <code>!subathon addtime [minutes]</code> in the chat.</li>
-            <li>For example, if you want to add 10 minutes, type <code>!subathon addtime 10</code>.</li>
-        </ul>
-        Please use this method until the donation feature is confirmed to be working properly.
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-hourglass-half fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                <p><span class="has-text-weight-bold">Subathon Time: Work in Progress!</span></p>
+                <p>We're still fine-tuning the donation feature for adding time to your subathon. In the meantime, you can easily add time with a quick command. </p>
+                <p><span class="has-text-weight-bold">Here's how:</span></p>
+                <ul>
+                    <li><span class="icon"><i class="fas fa-comment-dots"></i></span> Type <code>!subathon addtime [minutes]</code> in chat.</li>
+                    <li> For example: <code>!subathon addtime 10</code> (adds 10 minutes).</li>
+                </ul>
+                <p>We'll keep you updated on the donation feature. Thanks for your patience!</p> 
+            </div>
+        </div>
     </div>
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-5" id="stable-bot-status" style="position: relative;">
