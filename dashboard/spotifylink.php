@@ -140,7 +140,7 @@ if ($spotifyResult->num_rows > 0) {
                     </span>
                 </div>
                 <div class="column">
-                    <p><strong>Connect to Spotify!</strong></p>
+                    <p><span class="has-text-weight-bold">Connect to Spotify!</span></p>
                     <p>Link your Spotify account to enhance your stream with music integration:</p>
                     <ul>
                         <li>See what's playing with <code>!song</code></li>
@@ -159,7 +159,7 @@ if ($spotifyResult->num_rows > 0) {
                     </span>
                 </div>
                 <div class="column">
-                    <p><strong>Spotify Connected!</strong></p>
+                    <p><span class="has-text-weight-bold">Spotify Connected!</span></p>
                     <p>Your Spotify account is linked and ready to go. Rock on!</p> 
                 </div>
             </div>
@@ -200,7 +200,7 @@ if ($spotifyResult->num_rows > 0) {
                         </span>
                     </div>
                     <div class="column">
-                        <p><strong>Link your Spotify account!</strong></p>
+                        <p><span class="has-text-weight-bold">Link your Spotify account!</span></p>
                         <p>It looks like your Spotify account needs to be linked. Click the button below to start the linking process.</p>
                         <a href="<?php echo $authURL; ?>" class="button is-primary">Link Spotify Account</a>
                     </div>
