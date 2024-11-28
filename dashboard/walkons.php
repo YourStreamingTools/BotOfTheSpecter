@@ -131,10 +131,20 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 <div class="container">
     <br>
     <div class="notification is-danger">
-        <ul>
-            <li>Upload your audio file by dragging and dropping or browsing to select files. Ensure the file is an MP3, and the filename matches the user's lowercase username. (V4.6+)</li>
-            <li>Before clicking the "Test" button, ensure your streaming software is running and the overlay with audio is enabled in the software.</li>
-        </ul>
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-volume-up fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                <p><strong>Setting up Audio Walkons</strong></p>
+                <ul>
+                    <li><span class="icon"><i class="fas fa-upload"></i></span> Upload your MP3 audio file. Make sure the filename matches the user's lowercase username.</li>
+                    <li><span class="icon"><i class="fas fa-headphones"></i></span>  Start your streaming software and enable the overlay with audio <span class="has-text-weight-bold">before</span> testing.</li>
+                </ul>
+            </div>
+        </div>
     </div>
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
