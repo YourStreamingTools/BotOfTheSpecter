@@ -37,11 +37,23 @@ date_default_timezone_set($timezone);
 <div class="container">
     <br>
     <div class="notification is-info">
-        This system is fully compatible with all popular streaming software, including OBS Studio, Streamlabs OBS, XSplit Broadcaster, Wirecast, vMix, Lightstream, and more.<br>
-        To integrate with your streaming setup, simply add one or more of the following links to a browser source in your streaming software.<br>
-        Your API key is unique to you and acts as a password to access your overlays, so it must be kept secure and private.<br>
-        You can find your API key on your profile page in the Specter Dashboard, which is accessible via the link in the navigation bar above.<br>
-        Be sure to replace `API_KEY_HERE` in each URL below with your actual key.
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-broadcast-tower fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                <p><span class="has-text-weight-bold">Seamless Streaming Integration</span></p>
+                <p>Specter works with all your favorite streaming software: OBS Studio, Streamlabs OBS, XSplit Broadcaster, and more!</p>
+                <p><span class="has-text-weight-bold">To connect Specter to your stream:</span></p>
+                <ul>
+                    <li><span class="icon"><i class="fas fa-link"></i></span> Add these links as browser sources in your streaming software.</li>
+                    <li><span class="icon"><i class="fas fa-key"></i></span>  Replace <code>API_KEY_HERE</code> with your unique API key (found on your profile page).</li> 
+                </ul>
+                <p><span class="icon"><i class="fas fa-user-secret"></i></span> Keep your API key safe—it's like a password for your overlays! </p>
+            </div>
+        </div>
     </div>
     <br>
     <div class="columns is-desktop is-multiline">
