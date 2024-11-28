@@ -4823,27 +4823,27 @@ async def timed_message():
                 task.cancel()
             scheduled_tasks.clear()
             # Calculate initial time ONCE outside the loop
-            initial_time = datetime.now() 
+            current_time = datetime.now()
             for message_id, interval, message in messages:
-                time_now = datetime.now()
-                next_time = initial_time + timedelta(minutes=int(interval))
-                wait_time = (next_time - time_now).total_seconds()
-                message_send_in = next_time - time_now
-                bot_logger.info(f"Scheduling message ID: {message_id} - '{message}' to be sent in {message_send_in}")
+                wait_time = int(interval) * 60
+                send_time = current_time + timedelta(seconds=wait_time)
+                bot_logger.info(f"Scheduling Message ID: {message_id} - '{message}' to be sent at {send_time}")
+                # Create and store the task
                 task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
                 task.set_name(f"Message ID: {message_id}")
-                scheduled_tasks.append(task) 
+                scheduled_tasks.append(task)
         else:
-            # Cancel all scheduled tasks if the stream goes offline
+            # If the stream is offline, cancel all scheduled tasks
+            bot_logger.info("Stream is offline. Cancelling all timed messages.")
             for task in scheduled_tasks:
                 task.cancel()
-            scheduled_tasks.clear()  # Clear the list of tasks
+            scheduled_tasks.clear()
     await sqldb.ensure_closed()
 
 async def send_timed_message(message_id, message, delay):
     global stream_online
-    await asyncio.sleep(delay)
     try:
+        await asyncio.sleep(delay)
         if stream_online:
             chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
             channel = bot.get_channel(CHANNEL_NAME)
