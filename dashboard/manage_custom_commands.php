@@ -94,13 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
             <div class="column">
                 <p><span class="has-text-weight-bold">Adding Commands</span></p>
-                <ul>
+                <ol>
                     <li>Skip the "!". We'll automatically add it to your command.</li>
                     <li>
                         You can also add commands directly in chat with <code>!addcommand [command] [message]</code>
                         <p style="padding-left: 30px;">For example: <code>!addcommand mycommand This is my custom command</code></p> 
                     </li>
-                </ul>
+                </ol>
                 <p><span class="has-text-weight-bold">Want to level up your commands?</span></p>
                 <p>Explore Custom Variables to add dynamic features and personalize your command responses.</p>
                 <p><span class="has-text-weight-bold">Note:</span> Custom Variables only work in the response part of your command.</p> 
