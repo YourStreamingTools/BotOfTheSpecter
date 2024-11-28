@@ -32,15 +32,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['message']) && isset($_POST['interval'])) {
         $message = $_POST['message'];
         $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
+        $chat_line_trigger = filter_input(INPUT_POST, 'chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
         // Validate input data
         if ($interval === false) {
             $errorMessage = "Interval must be a valid integer between 5 and 60.";
+        } elseif ($chat_line_trigger !== null && $chat_line_trigger === false) {
+            $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
         } else {
             try {
-                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`) VALUES (?, ?, ?)');
-                // Assuming the default status is 'True' (Enabled)
-                $stmt->execute([$interval, $message, 'True']);
-                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ' has been successfully added to the database.';
+                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`, `chat_line_trigger`) VALUES (?, ?, ?, ?)');
+                // Default status is 'True' (Enabled)
+                $stmt->execute([$interval, $message, 'True', $chat_line_trigger]);
+                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . 
+                                  ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
             } catch (PDOException $e) {
                 $errorMessage = "Error adding message: " . $e->getMessage();
             }
@@ -53,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         try {
             $stmt = $db->prepare("DELETE FROM timed_messages WHERE id = ?");
             $stmt->execute([$message_id]);
-            // Optionally, you can check if the deletion was successful and provide feedback to the user
+            // Check if the deletion was successful and provide feedback to the user
             $deleted = $stmt->rowCount() > 0; // Check if any rows were affected
             if ($deleted) {
                 $successMessage = "Message removed successfully.";
@@ -70,6 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
         $edit_message_content = $_POST['edit_message_content'];
         $edit_status = $_POST['edit_status'];
+        $edit_chat_line_trigger = filter_input(INPUT_POST, 'edit_chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
         // Check if the edit_message_id exists in the timed_messages table
         $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
         $stmt->execute([$edit_message_id]);
@@ -77,9 +82,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($message_exists && $edit_interval !== false) {
             // Update the message, interval, and status for the selected message in the database
             try {
-                $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ? WHERE id = ?');
-                $stmt->execute([$edit_interval, $edit_message_content, $edit_status, $edit_message_id]);
-                // Optionally, you can check if the update was successful and provide feedback to the user
+                $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ?, `chat_line_trigger` = ? WHERE id = ?');
+                $stmt->execute([$edit_interval, $edit_message_content, $edit_status, $edit_chat_line_trigger, $edit_message_id]);
+                // Check if the update was successful and provide feedback to the user
                 $updated = $stmt->rowCount() > 0; // Check if any rows were affected
                 if ($updated) {
                     $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
@@ -128,9 +133,19 @@ if ($displayMessageData) {
 <div class="container">
     <br>
     <div class="notification is-danger">
-        Important Notice: This feature is currently under heavy development and testing. As such, it may not work as expected at this time.<br>
-        Any changes made to a timed message will require a bot reboot for the update to take effect.<br>
-        Please ensure the bot is restarted after editing or adding messages.
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-tools fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                <p><strong>🚧 Under Construction! 🚧</strong></p> 
+                <p>Our timed messages are getting a major upgrade. Things might get a little bumpy while we're working on them.</p>
+                <p> <span class="icon"><i class="fas fa-power-off"></i></span> Don't forget to give your bot a power nap (restart it) after making any changes to your timed messages.</p>
+                <p>We appreciate your patience!</p>
+            </div>
+        </div>
     </div>
     <br>
     <?php if ($displayMessages): ?><div class="notification is-primary"><?php echo $displayMessages; ?></div><br><?php endif; ?>
@@ -150,6 +165,13 @@ if ($displayMessageData) {
                     <div class="control">
                         <input class="input" type="number" name="interval" id="interval" min="5" max="60" required>
                         <span id="intervalError" class="help is-danger" style="display: none;">Please pick a time between 5 and 60 minutes</span>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="chat_line_trigger">Chat Line Trigger: (Minimum 5)</label>
+                    <div class="control">
+                        <input class="input" type="number" name="chat_line_trigger" id="chat_line_trigger" min="5">
+                        <span id="chatLineTriggerError" class="help is-danger" style="display: none;">Please enter a valid number of chat lines</span>
                     </div>
                 </div>
                 <div class="control"><button type="submit" class="button is-primary">Add Message</button></div>
@@ -179,9 +201,15 @@ if ($displayMessageData) {
                         </div>
                     </div>
                     <div class="field">
-                        <label for="edit_interval">Interval:</label>
+                        <label for="edit_interval">Interval: (Minutes, Between 5-60)</label>
                         <div class="control">
                             <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="edit_chat_line_trigger">Chat Line Trigger: (Minimum 5)</label>
+                        <div class="control">
+                            <input class="input" type="number" name="edit_chat_line_trigger" id="edit_chat_line_trigger" min="5">
                         </div>
                     </div>
                     <div class="field">
@@ -243,15 +271,18 @@ function showResponse() {
     var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
     var editMessageContent = document.getElementById('edit_message_content');
     var editIntervalInput = document.getElementById('edit_interval');
-    
-    // Find the message content and interval for the selected message and update the corresponding input fields
+    var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
+
+    // Find the message content, interval, and chat line trigger for the selected message and update the corresponding input fields
     var messageData = timedMessagesData.find(m => m.id == editMessage);
     if (messageData) {
         editMessageContent.value = messageData.message;
         editIntervalInput.value = messageData.interval_count;
+        editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
     } else {
         editMessageContent.value = '';
         editIntervalInput.value = '';
+        editChatLineTriggerInput.value = '';
     }
 }
 // Call the function initially to pre-fill the fields if a default message is selected
