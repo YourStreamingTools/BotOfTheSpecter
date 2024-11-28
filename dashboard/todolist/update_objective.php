@@ -83,40 +83,55 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <div class="container">
   <br>
-  <form method="POST">
-    <?php if ($num_rows < 1) { echo '<h3 class="has-text-danger">There are no rows to edit</h3>'; } else { echo "<h2 class='subtitle'>Please pick which row to update on your list:</h2>"; ?>
-    <?php if ($num_rows > 0) { echo '<button type="submit" name="submit" class="button is-primary">Update All</button>'; } ?>
-    <table class="table is-striped is-fullwidth sortable">
-      <thead>
-        <tr>
-          <th>Objective</th>
-          <th>Category</th>
-          <th>Update Objective</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($rows as $row) { ?>
-        <tr>
-          <td><?php echo htmlspecialchars($row['objective']); ?></td>
-          <td>
-            <?php
-              $category_id = $row['category'];
-              $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
-              $category_stmt->bind_param('i', $category_id);
-              $category_stmt->execute();
-              $category_row = $category_stmt->get_result()->fetch_assoc();
-              echo htmlspecialchars($category_row['category']);
-            ?>
-          </td>
-          <td>
-            <input type="text" name="objective[<?php echo $row['id']; ?>]" class="input" value="<?php echo htmlspecialchars($row['objective']); ?>">
-          </td>
-        </tr>
-        <?php } ?>
-      </tbody>
-    </table>
-    <?php } ?>
-  </form>
+  <?php if ($num_rows < 1): ?>
+    <div class="notification is-info">
+      <div class="columns is-vcentered">
+        <div class="column is-narrow">
+          <span class="icon is-large">
+            <i class="fas fa-tasks fa-2x"></i> 
+          </span>
+        </div>
+        <div class="column">
+          <p><strong>Your to-do list is empty!</strong></p>
+          <p>You can't update any tasks because there aren't any yet.</p> 
+        </div>
+      </div>
+    </div>
+  <?php else: ?> 
+    <form method="POST">
+      <h2 class='subtitle'>Please pick which row to update on your list:</h2>
+      <button type="submit" name="submit" class="button is-primary">Update All</button>
+      <table class="table is-striped is-fullwidth sortable">
+        <thead>
+          <tr>
+            <th>Objective</th>
+            <th>Category</th>
+            <th>Update Objective</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($rows as $row): ?>
+          <tr>
+            <td><?php echo htmlspecialchars($row['objective']); ?></td>
+            <td>
+              <?php
+                $category_id = $row['category'];
+                $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
+                $category_stmt->bind_param('i', $category_id);
+                $category_stmt->execute();
+                $category_row = $category_stmt->get_result()->fetch_assoc();
+                echo htmlspecialchars($category_row['category']);
+              ?>
+            </td>
+            <td>
+              <input type="text" name="objective[<?php echo $row['id']; ?>]" class="input" value="<?php echo htmlspecialchars($row['objective']); ?>">
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </form>
+  <?php endif; ?>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
