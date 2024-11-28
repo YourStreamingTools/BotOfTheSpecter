@@ -116,7 +116,17 @@ $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     <br>
     <h1 class="title is-4">Your Moderators:</h1>
     <div class="notification is-info">
-        <p>Specter Moderator Access is currently being worked on.<br>If you wish to add your moderators to the list you can do so, however it will do nothing at this stage.</p>
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-user-shield fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                <p><strong>Moderator Access: Coming Soon!</strong></p>
+                <p>We're working on Specter Moderator Access. You can add your moderators to the list now, but it won't have any effect just yet.</p>
+            </div>
+        </div>
     </div>
     <div class="table-container">
         <table class="table is-striped is-fullwidth">
