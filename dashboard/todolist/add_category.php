@@ -46,6 +46,8 @@ include 'database.php';
 // Initialize variables
 $category = "";
 $category_err = "";
+$message = "";
+$messageType = "";
 
 // Process form submission when form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -76,25 +78,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Attempt to execute the prepared statement
     if ($stmt->execute()) {
       // Redirect to categories page
-      header("location: categories.php");
-      exit();
+      $message = "Category added successfully!";
+      $messageType = "is-success";
     } else {
-      echo "Oops! Something went wrong. Please try again later.";
+      $message = "Oops! Something went wrong. Please try again later.";
+      $messageType = "is-danger";
     }
   }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><?php echo $title; ?></title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-    <link rel="stylesheet" href="../css/bulma-custom.css">
-    <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
-    <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
-  </head>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><?php echo $title; ?></title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+  <link rel="stylesheet" href="../css/bulma-custom.css">
+  <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
+  <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
+</head>
 <body>
 <!-- Navigation -->
 <?php include('navigation.php'); ?>
@@ -102,13 +105,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <div class="container">
   <br>
+  <?php if ($message): ?>
+    <div class="notification <?php echo $messageType; ?>"> 
+      <div class="columns is-vcentered">
+        <div class="column is-narrow">
+          <span class="icon is-large"> 
+            <?php if ($messageType === 'is-danger'): ?>
+              <i class="fas fa-exclamation-triangle fa-2x"></i>
+            <?php elseif ($messageType === 'is-warning'): ?>
+              <i class="fas fa-exclamation-circle fa-2x"></i>
+            <?php elseif ($messageType === 'is-success'): ?>
+              <i class="fas fa-check-circle fa-2x"></i>
+            <?php else: ?>
+              <i class="fas fa-info-circle fa-2x"></i>
+            <?php endif; ?>
+          </span>
+        </div>
+        <div class="column">
+          <p><?php echo $message; ?></p> 
+        </div>
+      </div>
+    </div>
+  <?php endif; ?>
   <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
     <h3 class="title is-3">Type in what your new category will be:</h3>
     <div class="field <?php echo (!empty($category_err)) ? 'has-error' : ''; ?>">
       <div class="control">
         <input type="text" name="category" class="input" value="<?php echo htmlspecialchars($category); ?>">
       </div>
-      <p class="help is-danger"><?php echo $category_err; ?></p>
+      <p class="help is-danger"><?php echo $category_err; ?></p> 
     </div>
     <div class="field">
       <div class="control">
