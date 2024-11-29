@@ -196,7 +196,6 @@ if ($spotifyResult->num_rows > 0) {
         <p>Spotify ID: <?php echo htmlspecialchars($spotifyUserInfo['id']); ?></p>
         <?php if (!empty($spotifyUserInfo['images'][0]['url'])): ?>
             <img id='profile-image' class='round-image' src="<?php echo $spotifyUserInfo['images'][0]['url']; ?>" width="100" height="100" alt="<?php echo htmlspecialchars($spotifyUserInfo['id']); ?> spotify profile picture">
-            
         <?php endif; ?>
     <?php else: ?>
         <div class="notification is-info">
