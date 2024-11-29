@@ -141,7 +141,7 @@ if ($spotifyResult->num_rows > 0) {
                 </div>
                 <div class="column">
                     <p><span class="has-text-weight-bold">Connect to Spotify!</span></p>
-                    <p>Link your Spotify account to enhance your stream with music integration:</p>
+                    <p>To link your Spotify account and enjoy music integration, please request access by sending an email to <a href="mailto:admin@botofthespecter.com">admin@botofthespecter.com</a> using the email address associated with your Spotify account. Once your request is processed, you'll be able to:</p>
                     <ul>
                         <li>See what's playing with <code>!song</code></li>
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
