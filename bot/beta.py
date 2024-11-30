@@ -1317,7 +1317,7 @@ class BotOfTheSpecter(commands.Bot):
             return
         if messageAuthor == bannedUser:
             return
-        await handle_chat_message()
+        await handle_chat_message(messageAuthor)
         sqldb = await get_mysql_connection()
         channel = message.channel
         try:
@@ -4852,9 +4852,11 @@ async def timed_message():
             chat_trigger_tasks.clear()
     await sqldb.ensure_closed()
 
-async def handle_chat_message():
+async def handle_chat_message(messageAuthor):
     global chat_trigger_tasks, chat_line_count, stream_online
     if not stream_online:
+        return
+    if messageAuthor.lower() == BOT_USERNAME:
         return
     # Increment the global chat message counter
     chat_line_count += 1
