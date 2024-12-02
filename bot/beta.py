@@ -24,8 +24,6 @@ from socketio import AsyncClient as SocketClient
 import aiomysql
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands as twitch_commands
-import discord
-from discord.ext import commands as discord_commands
 import streamlink
 import pytz
 from geopy.geocoders import Nominatim
