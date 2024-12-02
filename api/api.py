@@ -653,15 +653,15 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         raise HTTPException(status_code=401, detail="Invalid API Key")
     # Fetch weather data
     try:
-        lat, lon = await get_weather_lat_lon(location)
+        location_data, lat, lon = await get_weather_lat_lon(location)
         if lat is None or lon is None:
             raise HTTPException(status_code=404, detail=f"Location '{location}' not found.")
         weather_data_metric = await fetch_weather_data(lat, lon, units='metric')
         weather_data_imperial = await fetch_weather_data(lat, lon, units='imperial')
         if not weather_data_metric or not weather_data_imperial:
             raise HTTPException(status_code=500, detail="Error fetching weather data.")
-        # Format weather data
-        formatted_weather_data = format_weather_data(weather_data_metric, weather_data_imperial, location)
+        # Format weather data & include location data
+        formatted_weather_data = format_weather_data(weather_data_metric, weather_data_imperial, location_data['name'])
         # Log the request for tracking remaining requests
         log_file_path = "/home/fastapi/api/weather_requests.txt"
         remaining_requests = 1000  # Default daily request limit
@@ -686,18 +686,24 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         # Trigger WebSocket weather event
         params = {"event": "WEATHER_DATA", "weather_data": formatted_weather_data}
         await websocket_notice("WEATHER_DATA", params, api_key)
-        return {"status": "success", "weather_data": formatted_weather_data, "remaining_requests": remaining_requests}
+        return {
+            "status": "success",
+            "weather_data": formatted_weather_data,
+            "remaining_requests": remaining_requests,
+            "location_data": location_data
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 # Functions to fetch weather data
 async def get_weather_lat_lon(location):
+    location = location.replace(" ", "%20")
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
             data = await response.json()
             if len(data) > 0:
-                return data[0]['lat'], data[0]['lon']
-            return None, None
+                return data[0], data[0]['lat'], data[0]['lon']
+            return None, None, None
 
 async def fetch_weather_data(lat, lon, units='metric'):
     async with aiohttp.ClientSession() as session:
