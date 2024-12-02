@@ -5920,7 +5920,7 @@ async def channel_point_rewards():
                             # Check if the reward already exists in the database
                             await cursor.execute("SELECT COUNT(*) FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
                             count_result = await cursor.fetchone()
-                            if count_result[0] == 0:
+                            if count_result["COUNT(*)"] == 0:
                                 # Insert new reward
                                 api_logger.info(f"Inserting new reward: {reward_id}, {reward_title}, {reward_cost}")
                                 await cursor.execute(
