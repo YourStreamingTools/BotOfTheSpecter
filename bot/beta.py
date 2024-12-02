@@ -152,6 +152,7 @@ chat_trigger_tasks = {}          # Maps message IDs to chat line counts
 bot_started = datetime.now()
 stream_online = False
 current_game = None
+stream_title = None
 SPOTIFY_REFRESH_TOKEN = None
 SPOTIFY_ACCESS_TOKEN = None
 next_spotify_refresh_time = None
