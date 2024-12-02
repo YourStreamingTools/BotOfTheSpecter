@@ -1000,11 +1000,11 @@ async def join_channel(hyperate_websocket):
         sqldb = await get_mysql_connection()
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute('SELECT heartrate_code FROM profile')
-            heartrate_code = await cursor.fetchone()
-            if not heartrate_code:
+            heartrate_code_data = await cursor.fetchone()
+            if not heartrate_code_data:
                 bot_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
                 return
-            heartrate_code = heartrate_code[0]  # Extract the value from the tuple
+            heartrate_code = heartrate_code_data['heartrate_code']
             # Construct the 'phx_join' event payload
             phx_join = {
                 "topic": f"hr:{heartrate_code}",
