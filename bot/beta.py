@@ -133,33 +133,33 @@ global TWITCH_SHOUTOUT_USER_COOLDOWN
 global last_shoutout_time
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
-translator = GoogleTranslator()  # Translator instance
-scheduled_tasks = []             # List for scheduled tasks
-shoutout_queue = Queue()         # Queue for shoutouts
-specterSocket = SocketClient()   # Socket client instance for specter
-hyperateSocket = SocketClient()  # Socket client instance for hyperate
-ureg = UnitRegistry()            # Unit registry instance
-permitted_users = {}             # Dictionary for permitted users
-connected = set()                # Set for connected users
-pending_removals = {}            # Dictionary for pending removals
-shoutout_tracker = {}            # Dictionary for tracking shoutouts
-command_last_used = {}           # Dictionary for tracking command usage
-last_poll_progress_update = 0    # Variable for last poll progress update
-chat_line_count = 0              # Tracks the number of chat messages
-chat_trigger_tasks = {}          # Maps message IDs to chat line counts
+translator = GoogleTranslator()                         # Translator instance 
+scheduled_tasks = []                                    # List for scheduled tasks
+shoutout_queue = Queue()                                # Queue for shoutouts
+specterSocket = SocketClient()                          # Socket client instance for specter
+hyperateSocket = SocketClient()                         # Socket client instance for hyperate
+ureg = UnitRegistry()                                   # Unit registry instance
+permitted_users = {}                                    # Dictionary for permitted users
+connected = set()                                       # Set for connected users
+pending_removals = {}                                   # Dictionary for pending removals
+shoutout_tracker = {}                                   # Dictionary for tracking shoutouts
+command_last_used = {}                                  # Dictionary for tracking command usage
+last_poll_progress_update = 0                           # Variable for last poll progress update
+chat_line_count = 0                                     # Tracks the number of chat messages
+chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
 
 # Initialize global variables
-bot_started = datetime.now()
-stream_online = False
-current_game = None
-stream_title = None
-SPOTIFY_REFRESH_TOKEN = None
-SPOTIFY_ACCESS_TOKEN = None
-next_spotify_refresh_time = None
-HEARTRATE = None
-TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)
-TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)
-last_shoutout_time = datetime.min
+bot_started = datetime.now()                            # Time the bot started
+stream_online = False                                   # Whether the stream is currently online 
+current_game = None                                     # Current game being streamed 
+stream_title = None                                     # Title of the stream 
+SPOTIFY_REFRESH_TOKEN = None                            # Spotify API refresh token 
+SPOTIFY_ACCESS_TOKEN = None                             # Spotify API access token 
+next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
+HEARTRATE = None                                        # Current heart rate value 
+TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
+TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
+last_shoutout_time = datetime.min                       # Last time a shoutout was performed
 
 # Setup Token Refresh
 async def twitch_token_refresh():
