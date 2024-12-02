@@ -4267,7 +4267,7 @@ async def is_user_mod(username):
             # Query the database to check if the user is a moderator
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
-            if result and result[0] == 'MOD':
+            if result and result['group_name'] == 'MOD':
                 #twitch_logger.info(f"User {username} is a Moderator")
                 return True
             else:
@@ -4287,7 +4287,7 @@ async def is_user_vip(username):
             # Query the database to check if the user is a VIP
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
-            if result and result[0] == 'VIP':
+            if result and result['group_name'] == 'VIP':
                 #twitch_logger.info(f"User ID {username} is a VIP Member")
                 return True
             else:
