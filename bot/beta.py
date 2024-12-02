@@ -6518,7 +6518,7 @@ async def track_watch_time(active_users):
                 # Fetch the excluded_users list from the watch_time_excluded_users table
                 await cursor.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
                 excluded_users_data = await cursor.fetchone()
-                excluded_users = excluded_users_data[0] if excluded_users_data else ''
+                excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
                 excluded_users_list = excluded_users.split(',') if excluded_users else []
                 # Skip the user if they are marked as excluded
                 if user_login in excluded_users_list:
@@ -6527,10 +6527,9 @@ async def track_watch_time(active_users):
                 await cursor.execute("SELECT total_watch_time_live, total_watch_time_offline, last_active FROM watch_time WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
                 if user_data:
-                    total_watch_time_live = user_data[0]
-                    total_watch_time_offline = user_data[1]
-                    # Fetch the excluded_users list from the watch_time_excluded_users table
-                    # Increment the appropriate watch time counter
+                    bot_logger.info(f"User data found: {user_data}")
+                    total_watch_time_live = user_data['total_watch_time_live']
+                    total_watch_time_offline = user_data['total_watch_time_offline']
                     if stream_online:
                         total_watch_time_live += 60
                     else:
@@ -6542,7 +6541,7 @@ async def track_watch_time(active_users):
                     await cursor.execute("INSERT INTO watch_time (user_id, username, total_watch_time_live, total_watch_time_offline, last_active) VALUES (%s, %s, %s, %s, %s)", (user_id, user_login, 60 if stream_online else 0, 60 if not stream_online else 0, current_time))
             await sqldb.commit()
     except Exception as e:
-        bot_logger.error(f"Error in track_watch_time: {e}")
+        bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
     finally:
         await sqldb.ensure_closed()
 
