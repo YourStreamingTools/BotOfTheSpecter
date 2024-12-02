@@ -1058,7 +1058,7 @@ class TwitchBot(commands.Bot):
             else:
                 bot_logger.error("Target channel not joined yet.") 
         else:
-            bot_logger.error(f"Error: {error}")
+            bot_logger.error(f"event_command_error error: {error}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -3844,11 +3844,11 @@ class TwitchBot(commands.Bot):
                             kill_message = data.get("killcommand", {})
                             if not kill_message:
                                 chat_logger.error("No 'killcommand' found in the API response.")
-                                await ctx.send("Error: No kill messages found.")
+                                await ctx.send("No kill messages found.")
                                 return
                         else:
                             chat_logger.error(f"Failed to fetch kill messages from API. Status code: {response.status}")
-                            await ctx.send("Error: Unable to retrieve kill messages.")
+                            await ctx.send("Unable to retrieve kill messages.")
                             return
                 if mention:
                     mention = mention.lstrip('@')
@@ -4927,7 +4927,7 @@ async def shazam_the_song():
         song_info = await shazam_song_info()
         if "error" in song_info:
             error_message = song_info["error"]
-            chat_logger.error(f"Error: {error_message}")
+            chat_logger.error(f"Trying to Shazam the audio I got an error: {error_message}")
             return error_message
         else:
             artist = song_info.get('artist', '')
@@ -4937,7 +4937,7 @@ async def shazam_the_song():
             return message
     except Exception as e:
         api_logger.error(f"An error occurred while getting song info: {e}")
-        return "Error: Failed to get song information."
+        return "Failed to get song information."
 
 async def shazam_song_info():
     global stream_recording_file_global, raw_recording_file_global
@@ -5752,7 +5752,7 @@ async def builtin_commands_creation():
                 for command in new_commands:
                     bot_logger.info(f"Command '{command}' added to database successfully.")
     except aiomysql.Error as e:
-        bot_logger.error(f"Error: {e}")
+        bot_logger.error(f"builtin_commands_creation function error: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -5835,9 +5835,9 @@ async def convert_currency(amount, from_currency, to_currency):
                     return converted_amount
                 else:
                     error_message = data.get('error-type', 'Unknown error')
-                    api_logger.error(f"Error: {error_message}")
+                    api_logger.error(f"convert_currency Error: {error_message}")
                     sanitized_error = str(error_message).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
-                    return f"Error: {sanitized_error}"
+                    return f"Sorry, I got an error: {sanitized_error}"
     except aiohttp.ClientError as e:
         sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
