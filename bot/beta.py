@@ -1432,7 +1432,7 @@ class TwitchBot(twitch_commands.Bot):
                 if author_lower not in excluded_users:
                     await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
                     result = await cursor.fetchone()
-                    current_points = result[0] if result else 0
+                    current_points = result['points'] if result else 0
                     new_points = current_points + chat_points
                     if result:
                         await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
