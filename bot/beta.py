@@ -5687,7 +5687,7 @@ async def group_creation():
                 # Execute the query with the tuple of group names
                 await cursor.execute(query, tuple(group_names))
                 # Fetch the existing groups from the database
-                existing_groups = [row[0] for row in await cursor.fetchall()]
+                existing_groups = [row["name"] for row in await cursor.fetchall()]
                 # Filter out existing groups
                 new_groups = [name for name in group_names if name not in existing_groups]
                 # Insert new groups
@@ -5716,7 +5716,7 @@ async def builtin_commands_creation():
             await cursor.execute(query, tuple(all_commands))
             # Fetch the existing commands from the database
             existing_commands = await cursor.fetchall()
-            existing_command_dict = {row[0]: row[1] for row in existing_commands}  # command: permission
+            existing_command_dict = {row["command"]: row["permission"] for row in existing_commands}
             # Filter out existing commands
             new_commands = [command for command in all_commands if command not in existing_command_dict]
             # Check for commands with NULL permission and update accordingly
@@ -6262,13 +6262,13 @@ async def midnight():
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         await cursor.execute("SELECT timezone FROM profile")
         result = await cursor.fetchone()
-        if result and result[0]:
-            timezone = result[0]
+        if result and result["timezone"]:
+            timezone = result["timezone"]
             tz = pytz.timezone(timezone)
         else:
-            # If no timezone is set, stop the function
-            chat_logger.info("No timezone set for the user. Stopping the midnight check.")
-            return
+            # Default to UTC if no timezone is set
+            bot_logger.info("No timezone set for the user. Defaulting to UTC.")
+            tz = pytz.UTC  # Set to UTC
     while True:
         # Get the current time in the user's timezone
         current_time = datetime.now(tz)
