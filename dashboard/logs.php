@@ -139,15 +139,6 @@ const logSelect = document.getElementById("logs-select");
 const buttonsContainer = document.querySelector(".buttons-container"); // Target the buttons container
 const autoRefreshInterval = 5000; // Auto-refresh interval in milliseconds (5 seconds by default)
 
-// Function to update the log title with the selected log type
-function updateLogTitle(logname) {
-  if (logname && logname !== 'SELECT A LOG TYPE') {
-    logTitle.textContent = `${capitalizeFirstLetter(logname)} Logs`;
-  } else {
-    logTitle.textContent = 'Logs';
-  }
-}
-
 // Capitalize the first letter of the log type for a nice title format
 function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
@@ -198,9 +189,6 @@ async function fetchLogData(logname, loadMore = false) {
     // Show buttons after selecting a valid log file
     toggleButtonsContainer(true);
 
-    // Update the log title based on selected log type
-    updateLogTitle(logname);
-
   } catch (error) {
     console.error("Error fetching log data:", error);
   }
@@ -224,10 +212,8 @@ logSelect.addEventListener('change', (event) => {
   const selectedLog = event.target.value;
   if (selectedLog !== 'SELECT A LOG TYPE') {
     fetchLogData(selectedLog);
-    updateLogTitle(selectedLog);  // Update the log title
   } else {
     toggleButtonsContainer(false);
-    updateLogTitle('');
   }
 });
 
