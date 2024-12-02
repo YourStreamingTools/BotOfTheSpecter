@@ -6312,14 +6312,14 @@ async def get_point_settings():
             result = await cursor.fetchone()
             if result:
                 return {
-                    'point_name': result[0],
-                    'chat_points': int(result[1]),
-                    'follower_points': int(result[2]),
-                    'subscriber_points': int(result[3]),
-                    'cheer_points': int(result[4]),
-                    'raid_points': int(result[5]),
-                    'subscriber_multiplier': int(result[6]),
-                    'excluded_users': result[7]
+                    'point_name': result['point_name'],
+                    'chat_points': int(result['point_amount_chat']),
+                    'follower_points': int(result['point_amount_follower']),
+                    'subscriber_points': int(result['point_amount_subscriber']),
+                    'cheer_points': int(result['point_amount_cheer']),
+                    'raid_points': int(result['point_amount_raid']),
+                    'subscriber_multiplier': int(result['subscriber_multiplier']),
+                    'excluded_users': result['excluded_users']
                 }
             else:
                 return None
