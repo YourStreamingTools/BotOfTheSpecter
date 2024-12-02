@@ -4765,6 +4765,10 @@ async def process_stream_online_websocket():
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await channel.send(message)
     await send_to_discord_stream_online(message, image)
+    # Log the status to the file
+    os.makedirs(f'/var/www/logs/online', exist_ok=True)
+    with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+        file.write('True')
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
@@ -4776,6 +4780,10 @@ async def process_stream_offline_websocket():
     # Schedule the clearing task with a 5-minute delay
     scheduled_clear_task = asyncio.create_task(delayed_clear_tables())
     bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
+    # Log the status to the file
+    os.makedirs(f'/var/www/logs/online', exist_ok=True)
+    with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+        file.write('False')
 
 # Function to clear both tables if the stream remains offline after 5 minutes
 async def delayed_clear_tables():
