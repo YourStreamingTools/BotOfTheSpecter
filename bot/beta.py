@@ -116,7 +116,7 @@ twitch_logger.info("Twitch Logger started.")
 api_logger.info("API Logger started.")
 chat_history_logger.info("Chat History Logger started.")
 event_logger.info("Event Logger started.")
-websocket_logger.info("Websocket Logger started.") 
+websocket_logger.info("Websocket Logger started.")
 discord_logger.info("Discord Logger started.")
 
 # Setup Globals
@@ -1424,7 +1424,7 @@ class TwitchBot(twitch_commands.Bot):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-                settings = await get_bot_settings()
+                settings = await get_point_settings()
                 chat_points = settings['chat_points']
                 excluded_users = settings['excluded_users'].split(',')
                 #bot_logger.info(f"Excluded users: {excluded_users}")
@@ -5119,7 +5119,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (from_broadcaster_name, "raid", viewer_count))
             # Retrieve the bot settings to get the raid points amount and subscriber multiplier
-            settings = await get_bot_settings()
+            settings = await get_point_settings()
             raid_points = int(settings['raid_points'])
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             # Check if the user is a subscriber and apply the multiplier
@@ -5181,7 +5181,7 @@ async def process_cheer_event(user_id, user_name, bits):
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
-            settings = await get_bot_settings()
+            settings = await get_point_settings()
             cheer_points = int(settings['cheer_points'])
             subscriber_multiplier = int(settings['subscriber_multiplier'])
             # Check if the user is a subscriber and apply the multiplier
@@ -5244,7 +5244,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
-            settings = await get_bot_settings()
+            settings = await get_point_settings()
             subscriber_points = int(settings.get('point_amount_subscriber', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
@@ -5328,7 +5328,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "subscriptions", f"{sub_plan} - {event_months} months"))
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
-            settings = await get_bot_settings()
+            settings = await get_point_settings()
             subscriber_points = int(settings.get('point_amount_subscriber', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
@@ -5435,7 +5435,7 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
                 (user_name, "follow", 0)
             )
             # Retrieve the bot settings to get the follower points amount
-            settings = await get_bot_settings()
+            settings = await get_point_settings()
             follower_points = settings['follower_points']
             # Fetch current points for the user
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -6292,7 +6292,7 @@ async def midnight():
             # Sleep for 10 seconds before checking again
             await asyncio.sleep(10)
 
-async def get_bot_settings():
+async def get_point_settings():
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
