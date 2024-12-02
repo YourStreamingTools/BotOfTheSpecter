@@ -2092,7 +2092,7 @@ class TwitchBot(twitch_commands.Bot):
                         except GameUpdateFailedException as e:
                             await ctx.send(f"Failed to update game: {str(e)}")
                         except Exception as e:
-                            await ctx.send(f'An error occurred: {str(e)}')
+                            await ctx.send(f'An error occurred in setgame command: {str(e)}')
                     else:
                         await ctx.send("You must be a moderator or the broadcaster to use this command.")
         finally:
@@ -4017,7 +4017,7 @@ class TwitchBot(twitch_commands.Bot):
                 except Exception as e:
                     await ctx.send("Failed to convert. Please ensure the format is correct: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency.")
                     sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[API_KEY]')
-                    api_logger.error(f"An error occurred: {sanitized_error}")
+                    api_logger.error(f"An error occurred in convert command: {sanitized_error}")
         except Exception as e:
             chat_logger.exception("An unexpected error occurred during the execution of the convert command.")
             await ctx.send("An unexpected error occurred. Please try again later.")
@@ -5769,7 +5769,7 @@ async def update_version_control():
         with open(file_path, "w") as file:
             file.write(VERSION)
     except Exception as e:
-        bot_logger.error(f"An error occurred: {e}")
+        bot_logger.error(f"An error occurred in update_version_control: {e}")
 
 async def check_stream_online():
     global stream_online
@@ -5941,7 +5941,7 @@ async def channel_point_rewards():
                         
         await sqldb.commit()
     except Exception as e:
-        api_logger.error(f"An error occurred: {str(e)}")
+        api_logger.error(f"An error occurred in channel_point_rewards: {str(e)}")
     finally:
         if sqldb:
             sqldb.close()
