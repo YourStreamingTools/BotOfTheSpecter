@@ -23,7 +23,9 @@ import socketio
 from socketio import AsyncClient as SocketClient
 import aiomysql
 from deep_translator import GoogleTranslator
-from twitchio.ext import commands
+from twitchio.ext import commands as twitch_commands
+import discord
+from discord.ext import commands as discord_commands
 import streamlink
 import pytz
 from geopy.geocoders import Nominatim
@@ -73,7 +75,7 @@ builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", 
 # Logs
 webroot = "/var/www/"
 logs_directory = os.path.join(webroot, "logs")
-log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket", "discord"]
 
 # Ensure directories exist
 for log_type in log_types:
@@ -105,6 +107,7 @@ api_logger = loggers['api']
 chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
+discord_logger = loggers['discord']
 
 # Log the setup for the loggers
 bot_logger.info("Bot Logger started.")
@@ -114,6 +117,7 @@ api_logger.info("API Logger started.")
 chat_history_logger.info("Chat History Logger started.")
 event_logger.info("Event Logger started.")
 websocket_logger.info("Websocket Logger started.")
+discord_logger.info("Discord Logger started")
 
 # Setup Globals
 global stream_online
@@ -1013,7 +1017,7 @@ async def join_channel(hyperate_websocket):
         bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
 
 # Bot class
-class BotOfTheSpecter(commands.Bot):
+class TwitchBot(twitch_commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
         super().__init__(token=token, prefix=prefix, initial_channels=[channel_name])
@@ -1046,7 +1050,7 @@ class BotOfTheSpecter(commands.Bot):
 
     # Errors
     async def event_command_error(self, ctx, error: Exception) -> None:
-        if isinstance(error, commands.CommandOnCooldown):
+        if isinstance(error, twitch_commands.CommandOnCooldown):
             bot_logger.info(f"Cooldown error detected: {error}")
             command_name = ctx.command.name
             retry_after = round(error.retry_after)
@@ -1542,8 +1546,8 @@ class BotOfTheSpecter(commands.Bot):
             # No premium access
             return "This channel doesn't have a premium subscription to use this feature."
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='commands', aliases=['cmds'])
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1574,12 +1578,12 @@ class BotOfTheSpecter(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
-            await ctx.send("An error occurred while fetching the commands. Please try again later.")
+            await ctx.send("An error occurred while fetching the twitch_commands. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='bot')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='bot')
     async def bot_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1602,8 +1606,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='forceonline')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1631,8 +1635,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='forceoffline')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='forceoffline')
     async def forceoffline_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1662,8 +1666,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='version')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='version')
     async def version_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1704,8 +1708,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='roadmap')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1727,8 +1731,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='weather')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='weather')
     async def weather_command(self, ctx, *, location: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1768,8 +1772,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='points')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='points')
     async def points_command(self, ctx):
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -1808,8 +1812,8 @@ class BotOfTheSpecter(commands.Bot):
             await cursor.close()
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='time')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='time')
     async def time_command(self, ctx, *, timezone: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -1874,8 +1878,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='joke')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='joke')
     async def joke_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -1912,8 +1916,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='quote')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -1948,8 +1952,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='quoteadd')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
         sqldb = await get_mysql_connection()
         try:
@@ -1973,8 +1977,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='removequote')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2004,8 +2008,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='permit')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='permit')
     async def permit_command(ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2032,8 +2036,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='settitle')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -2060,8 +2064,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='setgame')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
         sqldb = await get_mysql_connection()
         try:
@@ -2093,8 +2097,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.default)
-    @commands.command(name='song')
+    @twitch_commands.cooldown(rate=1, per=60, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='song')
     async def song_command(self, ctx):
         global stream_online
         sqldb = await get_mysql_connection()
@@ -2142,8 +2146,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
-    @commands.command(name='songrequest', aliases=['sr'])
+    @twitch_commands.cooldown(rate=1, per=60, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(self, ctx):
         global SPOTIFY_ACCESS_TOKEN
         sqldb = await get_mysql_connection()
@@ -2192,8 +2196,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='timer')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='timer')
     async def timer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2235,8 +2239,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='stoptimer')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='stoptimer')
     async def stoptimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2264,8 +2268,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='checktimer')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='checktimer')
     async def checktimer_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2295,8 +2299,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='hug')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2349,8 +2353,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='kiss')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -2403,8 +2407,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='ping')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='ping')
     async def ping_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2441,8 +2445,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='translate')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='translate')
     async def translate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2485,8 +2489,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='cheerleader')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='cheerleader')
     async def cheerleader_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2531,8 +2535,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='mybits')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='mybits')
     async def mybits_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2599,8 +2603,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='lurk')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='lurk')
     async def lurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2648,8 +2652,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='lurking')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='lurking')
     async def lurking_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2695,8 +2699,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='lurklead')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2748,8 +2752,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='unlurk', aliases=('back',))
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2797,8 +2801,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='clip')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='clip')
     async def clip_command(self, ctx):
         global stream_online
         sqldb = await get_mysql_connection()
@@ -2849,8 +2853,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='marker')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
         global stream_online
         sqldb = await get_mysql_connection()
@@ -2876,8 +2880,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='subscription', aliases=['mysub'])
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -2929,8 +2933,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='uptime')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='uptime')
     async def uptime_command(self, ctx):
         global stream_online
         sqldb = await get_mysql_connection()
@@ -2981,8 +2985,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
-    @commands.command(name='typo')
+    @twitch_commands.cooldown(rate=1, per=5, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3019,8 +3023,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='typos', aliases=('typocount',))
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3052,8 +3056,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='edittypos', aliases=('edittypo',))
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3109,8 +3113,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='removetypos', aliases=('removetypo',))
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
         sqldb = await get_mysql_connection()
         try:
@@ -3151,8 +3155,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='steam')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='steam')
     async def steam_command(self, ctx):
         global current_game
         sqldb = await get_mysql_connection()
@@ -3210,8 +3214,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='deaths')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='deaths')
     async def deaths_command(self, ctx):
         global current_game
         sqldb = await get_mysql_connection()
@@ -3247,8 +3251,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='deathadd', aliases=['death+'])
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(self, ctx):
         global current_game
         sqldb = await get_mysql_connection()
@@ -3298,8 +3302,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='deathremove', aliases=['death-'])
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(self, ctx):
         global current_game
         sqldb = await get_mysql_connection()
@@ -3345,8 +3349,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='game')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='game')
     async def game_command(self, ctx):
         global current_game
         sqldb = await get_mysql_connection()
@@ -3371,8 +3375,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='followage')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3448,8 +3452,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='schedule')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='schedule')
     async def schedule_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3536,8 +3540,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='checkupdate')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3580,8 +3584,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='shoutout', aliases=('so',))
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3636,8 +3640,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='addcommand')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3667,8 +3671,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='editcommand')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='editcommand')
     async def editcommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3698,8 +3702,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='removecommand')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3729,8 +3733,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='enablecommand')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='enablecommand')
     async def enablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3760,8 +3764,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='disablecommand')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3791,8 +3795,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='slots')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='slots')
     async def slots_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3821,8 +3825,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name='kill')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name='kill')
     async def kill_command(self, ctx, mention: str = None):
         sqldb = await get_mysql_connection()
         try:
@@ -3877,8 +3881,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
-    @commands.command(name="roulette")
+    @twitch_commands.cooldown(rate=1, per=5, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name="roulette")
     async def roulette_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3905,8 +3909,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
-    @commands.command(name="rps")
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.member)
+    @twitch_commands.command(name="rps")
     async def rps_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3942,8 +3946,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name="story")
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name="story")
     async def story_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
@@ -3971,8 +3975,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name="convert")
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name="convert")
     async def convert_command(self, ctx, *args):
         sqldb = await get_mysql_connection()
         try:
@@ -4019,9 +4023,9 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
-    @commands.command(name='todo')
-    async def todo_command(self, ctx: commands.Context):
+    @twitch_commands.cooldown(rate=1, per=5, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='todo')
+    async def todo_command(self, ctx: twitch_commands.Context):
         message_content = ctx.message.content.strip()
         user = ctx.author
         user_id = user.id
@@ -4059,8 +4063,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
-    @commands.command(name="subathon")
+    @twitch_commands.cooldown(rate=1, per=5, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name="subathon")
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
         user = ctx.author
         # Check permissions for valid actions
@@ -4086,8 +4090,8 @@ class BotOfTheSpecter(commands.Bot):
         else:
             await ctx.send(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='heartrate')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.default)
+    @twitch_commands.command(name='heartrate')
     async def heartrate_command(self, ctx):
         global HEARTRATE
         sqldb = await get_mysql_connection()
@@ -4113,8 +4117,8 @@ class BotOfTheSpecter(commands.Bot):
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.user)
-    @commands.command(name='watchtime')
+    @twitch_commands.cooldown(rate=1, per=15, bucket=twitch_commands.Bucket.user)
+    @twitch_commands.command(name='watchtime')
     async def watchtime(self, ctx):
         user_id = ctx.author.id
         username = ctx.author.name
@@ -6541,8 +6545,8 @@ async def track_watch_time(active_users):
     finally:
         await sqldb.ensure_closed()
 
-# Here is the BOT
-bot = BotOfTheSpecter(
+# Here is the TwitchBot
+bot = TwitchBot(
     token=OAUTH_TOKEN,
     prefix='!',
     channel_name=CHANNEL_NAME
