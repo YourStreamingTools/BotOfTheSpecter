@@ -5945,6 +5945,7 @@ async def channel_point_rewards():
     finally:
         if sqldb:
             sqldb.close()
+            await sqldb.ensure_closed()
 
 # Function to generate random Lotto numbers
 async def user_lotto_numbers():
