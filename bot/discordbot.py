@@ -184,12 +184,27 @@ class BotOfTheSpecter(commands.Bot):
         self.typing_speed = 50
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
 
+    # Function to read the stream status from the file
+    def read_stream_status(self, file_path):
+        if os.path.exists(file_path):
+            with open(file_path, "r") as file:
+                status = file.read().strip()
+                return status.lower() == "true"
+        return False
+
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
+        status_file_path = f"/var/www/logs/online/{self.channel_name}.txt"
+        stream_status = self.read_stream_status(status_file_path)
+        if stream_status:
+            self.logger.info("Stream is online, setting channel to online status.")
+            await self.update_channel_status(config.live_channel_id, "online")
+        else:
+            self.logger.info("Stream is offline, setting channel to offline status.")
+            await self.update_channel_status(config.live_channel_id, "offline")
         self.logger.info(f'Setting channel {config.live_channel_id} to offline status on bot start.')
         await self.add_cog(WebSocketCog(self, config.api_token, self.logger))
-        await self.update_channel_status(config.live_channel_id, "offline")
         await self.update_version_control()
 
     async def update_version_control(self):
