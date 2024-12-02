@@ -73,7 +73,7 @@ builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", 
 # Logs
 webroot = "/var/www/"
 logs_directory = os.path.join(webroot, "logs")
-log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket", "discord"]
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
 
 # Ensure directories exist
 for log_type in log_types:
@@ -105,7 +105,6 @@ api_logger = loggers['api']
 chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
-discord_logger = loggers['discord']
 
 # Log the setup for the loggers
 bot_logger.info("Bot Logger started.")
@@ -115,7 +114,6 @@ api_logger.info("API Logger started.")
 chat_history_logger.info("Chat History Logger started.")
 event_logger.info("Event Logger started.")
 websocket_logger.info("Websocket Logger started.")
-discord_logger.info("Discord Logger started.")
 
 # Setup Globals
 global stream_online
