@@ -563,7 +563,7 @@ def handle_streamelements_error(error, message):
 
 async def process_tipping_message(data, source):
     try:
-        channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         send_message = None
         if source == "StreamElements" and data.get('type') == 'tip':
             user = data['data']['username']
@@ -597,7 +597,7 @@ async def process_tipping_message(data, source):
         event_logger.error(f"Error processing tipping message: {e}")
 
 async def process_eventsub_message(message):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1517,7 +1517,7 @@ class TwitchBot(commands.Bot):
             await self.send_message_to_channel(f"{part}")
 
     async def send_message_to_channel(self, message):
-        channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         await channel.send(message)
 
     async def get_ai_response(self, user_message, user_id):
@@ -4561,7 +4561,7 @@ async def fetch_json(url, headers=None):
 
 # Function to process fourthwall events
 async def process_fourthwall_event(data):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     event_logger.info(f"Fourthwall event received: {data}")
     # Check if 'data' is a string and needs to be parsed
     if isinstance(data.get('data'), str):
@@ -4641,7 +4641,7 @@ async def process_fourthwall_event(data):
 
 # Function to process KOFI events
 async def process_kofi_event(data):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     if isinstance(data.get('data'), str):
         try:
             data['data'] = ast.literal_eval(data['data'])
@@ -4706,7 +4706,7 @@ async def process_kofi_event(data):
         event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
 async def process_weather_websocket(data):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Convert weather_data from string to dictionary
     try:
         weather_data = ast.literal_eval(data.get('weather_data', '{}'))
@@ -4735,7 +4735,7 @@ async def process_stream_online_websocket():
     global current_game
     stream_online = True
     asyncio.get_event_loop().create_task(timed_message())
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
         headers = {
@@ -4880,7 +4880,7 @@ async def handle_chat_message(messageAuthor):
             trigger_info["last_trigger_count"] = chat_line_count
             # Send the message
             chat_logger.info(f"Sending Chat Line-Triggered Message ID: {message_id} - {message}")
-            channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
             await channel.send(message)
 
 async def send_timed_message(message_id, message, delay):
@@ -4889,7 +4889,7 @@ async def send_timed_message(message_id, message, delay):
         await asyncio.sleep(delay)
         if stream_online:
             chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
-            channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
             await channel.send(message)
         else:
             chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
@@ -5090,7 +5090,7 @@ async def delete_recorded_files():
 ## Functions for the EventSub
 # Function for AD BREAK
 async def handle_ad_break(duration_seconds):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     minutes = duration_seconds // 60
     seconds = duration_seconds % 60
     if minutes == 0:
@@ -5105,7 +5105,7 @@ async def handle_ad_break(duration_seconds):
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -5160,7 +5160,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
 
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -5224,7 +5224,7 @@ async def process_cheer_event(user_id, user_name, bits):
 
 # Function for Subscriptions
 async def process_subscription_event(user_id, user_name, sub_plan, event_months):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -5308,7 +5308,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
 
 # Function for Resubscriptions with Messages
 async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -5392,7 +5392,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
 
 # Function for Gift Subscriptions
 async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -5422,7 +5422,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name, followed_at_twitch):
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
         followed_at_twitch = followed_at_twitch[:26]
@@ -5845,7 +5845,7 @@ async def convert_currency(amount, from_currency, to_currency):
 
 async def process_channel_point_rewards(event_data, event_type):
     sqldb = await get_mysql_connection()
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
@@ -6251,7 +6251,7 @@ async def get_subathon_state():
 
 # Function to start the subathon countdown
 async def subathon_countdown():
-    channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     while True:
         subathon_state = await get_subathon_state()
         if subathon_state and not subathon_state[4]: # If running
@@ -6297,7 +6297,7 @@ async def midnight():
             cur_time = current_time.strftime("%I %p")
             cur_day = current_time.strftime("%A")
             message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
-            channel = BOTP_TWITCH.get_channel(CHANNEL_NAME)
+            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
             await channel.send(message)
             # Sleep for 120 seconds to avoid sending the message multiple times
             await asyncio.sleep(120)
@@ -6559,7 +6559,7 @@ async def track_watch_time(active_users):
         await sqldb.ensure_closed()
 
 # Here is the TwitchBot
-BOTP_TWITCH = TwitchBot(
+BOTS_TWITCH_BOT = TwitchBot(
     token=OAUTH_TOKEN,
     prefix='!',
     channel_name=CHANNEL_NAME
@@ -6568,7 +6568,7 @@ BOTP_TWITCH = TwitchBot(
 # Run the bot
 def start_bot():
     # Start the bot
-    BOTP_TWITCH.run()
+    BOTS_TWITCH_BOT.run()
 
 if __name__ == '__main__':
     start_bot()
