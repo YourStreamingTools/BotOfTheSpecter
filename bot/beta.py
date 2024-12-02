@@ -1058,7 +1058,7 @@ class TwitchBot(commands.Bot):
             else:
                 bot_logger.error("Target channel not joined yet.") 
         else:
-            bot_logger.error(f"event_command_error error: {error}")
+            bot_logger.error(f"event_command_error error: {error}, type: {type(error)}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
@@ -3807,18 +3807,29 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
-                # Determine if the user wins 70% of the time
-                if random.random() < 0.7:  # 70% win chance
-                    # Generate a winning result
-                    winning_symbol = random.choice(["🍒", "🍋", "🍊", "🍉", "🍇", "🍓", "⭐"])
-                    result = [winning_symbol] * 3  # All three symbols are the same
-                    message = f"{ctx.author.name}, {''.join(result)} You Win!"
-                else:
-                    # Generate a losing result
-                    slots = ["🍒", "🍋", "🍊", "🍉", "🍇", "🍓", "⭐"]
-                    result = [random.choice(slots) for _ in range(3)]
-                    message = f"{ctx.author.name}, {''.join(result)} Better luck next time."
-                await ctx.send(message)
+                    # Define the payouts for each icon
+                    slot_payouts = {
+                        "🍒": 10,
+                        "🍋": 15,
+                        "🍊": 20,
+                        "🍉": 25,
+                        "🍇": 30,
+                        "🍓": 35,
+                        "⭐": 50
+                    }
+                    slot_icons = list(slot_payouts.keys())
+                    # Determine if the user wins 70% of the time
+                    if random.random() < 0.7:  # 70% win chance
+                        # Generate a winning result (all symbols the same)
+                        winning_icon = random.choice(slot_icons)
+                        result = [winning_icon] * 3  
+                        winnings = slot_payouts[winning_icon]
+                        message = f"{ctx.author.name}, {''.join(result)} You Win {winnings} points!"
+                    else:
+                        # Generate a losing result (different symbols)
+                        result = [random.choice(slot_icons) for _ in range(3)]
+                        message = f"{ctx.author.name}, {''.join(result)} Better luck next time."
+                    await ctx.send(message)
         finally:
             await sqldb.ensure_closed()
 
@@ -3898,8 +3909,7 @@ class TwitchBot(commands.Bot):
                     "and gets shot!"
                 ]
                 result = random.choice(outcomes)
-                message = f"{ctx.author.name} pulls the trigger... {result}"
-                await ctx.send(message)
+                await ctx.send(f"{ctx.author.name} pulls the trigger... {result}")
         except Exception as e:
             chat_logger.exception("An error occurred during the execution of the roulette command.")
             await ctx.send("An unexpected error occurred. Please try again later.")
@@ -4130,8 +4140,8 @@ class TwitchBot(commands.Bot):
                 """, (user_id,))
                 watch_time = await cursor.fetchone()
                 if watch_time:
-                    total_live = watch_time[0]  # Total live watch time in seconds
-                    total_offline = watch_time[1]  # Total offline watch time in seconds
+                    total_live = watch_time["total_watch_time_live"]  # Total live watch time in seconds
+                    total_offline = watch_time["total_watch_time_offline"]  # Total offline watch time in seconds
                     # Function to convert seconds into years, months, days, hours, minutes
                     def convert_seconds(seconds):
                         years, remainder = divmod(seconds, 31536000)
@@ -4354,7 +4364,7 @@ async def update_custom_count(command):
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
             result = await cursor.fetchone()
             if result:
-                current_count = result[0]
+                current_count = result["count"]
                 new_count = current_count + 1
                 await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
                 chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
@@ -4375,7 +4385,7 @@ async def get_custom_count(command):
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
             result = await cursor.fetchone()
             if result:
-                count = result[0]
+                count = result["count"]
                 chat_logger.info(f"Retrieved count for command '{command}': {count}")
                 return count
             else:
@@ -4395,7 +4405,7 @@ async def get_streamer_weather():
             await cursor.execute("SELECT weather_location FROM profile")
             info = await cursor.fetchone()
             if info:
-                location = info[0]
+                location = info["weather_location"]
                 chat_logger.info(f"Got {location} weather info.")
                 return location
             else:
@@ -5114,7 +5124,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             existing_data = await cursor.fetchone()
             # Update or insert raid data
             if existing_data:
-                existing_raid_count, existing_viewer_count = existing_data
+                existing_raid_count = existing_data["raid_count"]
+                existing_viewer_count = existing_data["viewers"]
                 raid_count = existing_raid_count + 1
                 viewers = existing_viewer_count + viewer_count
                 await cursor.execute('UPDATE raid_data SET raid_count = %s, viewers = %s WHERE raider_id = %s', (raid_count, viewers, from_broadcaster_id))
@@ -5134,7 +5145,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             # Fetch current points for the raider
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (from_broadcaster_id,))
             result = await cursor.fetchone()
-            current_points = result[0] if result else 0
+            current_points = result["points"] if result else 0
             # Update the raider's points
             new_points = current_points + total_awarded_points
             if result:
@@ -5169,7 +5180,7 @@ async def process_cheer_event(user_id, user_name, bits):
             existing_bits = await cursor.fetchone()
             # Update or insert bits data
             if existing_bits:
-                total_bits = existing_bits[0] + bits
+                total_bits = existing_bits["bits"] + bits
                 await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (total_bits, user_id, user_name))
                 total_bits = "{:,}".format(total_bits)
                 await channel.send(f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
@@ -5194,7 +5205,7 @@ async def process_cheer_event(user_id, user_name, bits):
             # Fetch current points for the user
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result[0] if result else 0
+            current_points = result["points"] if result else 0
             # Award points based on the cheer event
             new_points = current_points + cheer_points
             if result:
@@ -5233,7 +5244,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             existing_subscription = await cursor.fetchone()
             event_logger.debug(f"Existing subscription: {existing_subscription}")
             if existing_subscription:
-                existing_sub_plan, db_months = existing_subscription
+                existing_sub_plan, db_months = existing_subscription["sub_plan"], existing_subscription["months"]
                 new_months = db_months + event_months
                 if existing_sub_plan != sub_plan:
                     await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, new_months, user_id))
@@ -5256,7 +5267,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             # Fetch and update user points
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result[0] if result else 0
+            current_points = result["points"] if result else 0
             new_points = current_points + subscriber_points
             if result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
@@ -5317,7 +5328,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             existing_subscription = await cursor.fetchone()
             event_logger.debug(f"Existing subscription: {existing_subscription}")
             if existing_subscription:
-                existing_sub_plan, db_months = existing_subscription
+                existing_sub_plan, db_months = existing_subscription["sub_plan"], existing_subscription["months"]
                 new_months = db_months + event_months
                 if existing_sub_plan != sub_plan:
                     await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, new_months, user_id))
@@ -5340,7 +5351,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             # Fetch and update user points
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result[0] if result else 0
+            current_points = result["points"] if result else 0
             new_points = current_points + subscriber_points
             if result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
@@ -5444,7 +5455,7 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
             # Fetch current points for the user
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result[0] if result else 0
+            current_points = result["points"] if result else 0
             # Update the user's points based on the follow event
             new_points = current_points + follower_points
             if result:
@@ -5495,15 +5506,13 @@ async def send_to_discord(message, title, image):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT discord_alert FROM profile")
+            await cursor.execute("SELECT discord_alert, timezone FROM profile")
             result = await cursor.fetchone()
-            if not result or not result[0]:
+            if not result or not result["discord_alert"]:
                 bot_logger.error("Discord URL not found or is None.")
                 return
-            discord_url = result[0]
-            await cursor.execute("SELECT timezone FROM profile")
-            timezone_result = await cursor.fetchone()
-            timezone = timezone_result[0] if timezone_result else 'UTC'
+            discord_url = result["discord_alert"]
+            timezone = result["timezone"] if result["timezone"] else 'UTC'
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz)
             time_format_date = current_time.strftime("%B %d, %Y")
@@ -5511,11 +5520,11 @@ async def send_to_discord(message, title, image):
             time_format = f"{time_format_date} at {time_format_time}"
             payload = {
                 "username": "BotOfTheSpecter",
-                "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
+                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
                 "embeds": [{
                     "description": message,
                     "title": title,
-                    "thumbnail": {"url": f"https://botofthespecter.yourcdnonline.com/webhook/{image}"},
+                    "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
@@ -5535,13 +5544,13 @@ async def send_to_discord_mod(message, title, image):
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT discord_mod FROM profile")
             result = await cursor.fetchone()
-            if not result or not result[0]:
+            if not result or not result.get("discord_mod"):
                 bot_logger.error("Discord URL for mod notifications not found or is None.")
                 return
-            discord_url = result[0]
+            discord_url = result["discord_mod"]
             await cursor.execute("SELECT timezone FROM profile")
             timezone_result = await cursor.fetchone()
-            timezone = timezone_result[0] if timezone_result else 'UTC'
+            timezone = timezone_result.get("timezone", 'UTC')
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz)
             time_format_date = current_time.strftime("%B %d, %Y")
@@ -5549,11 +5558,11 @@ async def send_to_discord_mod(message, title, image):
             time_format = f"{time_format_date} at {time_format_time}"
             payload = {
                 "username": "BotOfTheSpecter",
-                "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
+                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
                 "embeds": [{
                     "description": message,
                     "title": title,
-                    "thumbnail": {"url": f"https://botofthespecter.yourcdnonline.com/webhook/{image}"},
+                    "thumbnail": {"url": f"https://cdn.botofthespecter.com/webhook/{image}"},
                     "footer": {"text": f"Autoposted by BotOfTheSpecter - {time_format}"}
                 }]
             }
@@ -5576,8 +5585,8 @@ async def send_to_discord_stream_online(message, image):
             if not result:
                 bot_logger.error("Required profile information not found.")
                 return
-            timezone = result[0] if result[0] else 'UTC'
-            discord_url = result[1]
+            timezone = result["timezone"] if result["timezone"] else 'UTC'
+            discord_url = result["discord_alert_online"]
             if not discord_url:
                 bot_logger.error("Discord URL not found.")
                 return
@@ -5590,7 +5599,7 @@ async def send_to_discord_stream_online(message, image):
             title = f"{CHANNEL_NAME} is now live on Twitch!"
             payload = {
                 "username": "BotOfTheSpecter",
-                "avatar_url": "https://botofthespecter.yourcdnonline.com/logo.png",
+                "avatar_url": "https://cdn.botofthespecter.com/logo.png",
                 "content": "@everyone",
                 "embeds": [{
                     "description": message,
@@ -5873,6 +5882,7 @@ async def process_channel_point_rewards(event_data, event_type):
                 # Check for Fortune reward
                 elif "fortune" in reward_title.lower():
                     fortune_message = await tell_fortune()
+                    fortune_message = fortune_message[0].lower() + fortune_message[1:]
                     await channel.send(f"{user_name}, {fortune_message}")
                     chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
                     return
@@ -6098,7 +6108,9 @@ async def view_task(ctx, params, user_id, sqldb):
                 await cursor.execute("SELECT objective, category, completed FROM todos WHERE id = %s", (todo_id,))
                 result = await cursor.fetchone()
                 if result:
-                    objective, category_id, completed = result
+                    objective = result["objective"]
+                    category_id = result["category"]
+                    completed = result["completed"]
                     category_name = await fetch_category_name(cursor, category_id)
                     await ctx.send(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}")
                     chat_logger.info(f"{user.name} viewed task ID {todo_id}.")
@@ -6116,7 +6128,7 @@ async def view_task(ctx, params, user_id, sqldb):
 async def fetch_category_name(cursor, category_id):
     await cursor.execute("SELECT category FROM categories WHERE id = %s", (category_id,))
     result = await cursor.fetchone()
-    return result[0] if result else None
+    return result["category"] if result else None
 
 # Function to start subathon timer
 async def start_subathon(ctx):
@@ -6124,16 +6136,16 @@ async def start_subathon(ctx):
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]: # [4] is paused?
+            if subathon_state and not subathon_state["paused"]:
                 await ctx.send(f"A subathon is already running!")
                 return
-            if subathon_state and subathon_state[4]: # If paused, continue
+            if subathon_state and subathon_state["paused"]:
                 await resume_subathon(ctx)
             else:
                 await cursor.execute("SELECT * FROM subathon_settings LIMIT 1")
                 settings = await cursor.fetchone()
                 if settings:
-                    starting_minutes = settings[1]
+                    starting_minutes = settings["starting_minutes"]
                     subathon_start_time = datetime.now()
                     subathon_end_time = subathon_start_time + timedelta(minutes=starting_minutes)
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
@@ -6155,8 +6167,8 @@ async def stop_subathon(ctx):
     subathon_state = await get_subathon_state()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            if subathon_state and not subathon_state[4]: # If running
-                await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
+            if subathon_state and not subathon_state["paused"]:
+                await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state["id"]))
                 await sqldb.commit()
                 await ctx.send(f"Subathon ended!")
                 # Send websocket notice
@@ -6173,9 +6185,9 @@ async def pause_subathon(ctx):
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]: # If subathon is running
-                remaining_minutes = (subathon_state[2] - datetime.now()).total_seconds() // 60 # [2] is end_time
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state[0]))
+            if subathon_state and not subathon_state["paused"]:
+                remaining_minutes = (subathon_state["end_time"] - datetime.now()).total_seconds() // 60
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state["id"]))  # "id" instead of [0]
                 await sqldb.commit()
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
@@ -6193,14 +6205,14 @@ async def resume_subathon(ctx):
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             subathon_state = await get_subathon_state()
-            if subathon_state and subathon_state[4]: # If paused
-                subathon_end_time = datetime.now() + timedelta(minutes=subathon_state[5]) # [5] is remaining_minutes
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state[0]))
+            if subathon_state and subathon_state["paused"]:
+                subathon_end_time = datetime.now() + timedelta(minutes=subathon_state["remaining_minutes"])
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))  # "id" instead of [0]
                 await sqldb.commit()
-                await ctx.send(f"Subathon resumed with {int(subathon_state[5])} minutes remaining!")
+                await ctx.send(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
                 asyncio.create_task(subathon_countdown())
                 # Send websocket notice
-                additional_data = {'remaining_minutes': subathon_state[5]}
+                additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
                 await websocket_notice("SUBATHON_RESUME", additional_data)
     finally:
         await cursor.close()
@@ -6212,9 +6224,9 @@ async def addtime_subathon(ctx, minutes):
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]: # If subathon is running
-                subathon_end_time = subathon_state[2] + timedelta(minutes=minutes)
-                await cursor.execute("UPDATE subathon SET end_time = %s WHERE id = %s", (subathon_end_time, subathon_state[0]))
+            if subathon_state and not subathon_state["paused"]:
+                subathon_end_time = subathon_state["end_time"] + timedelta(minutes=minutes)
+                await cursor.execute("UPDATE subathon SET end_time = %s WHERE id = %s", (subathon_end_time, subathon_state["id"]))
                 await sqldb.commit()
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
@@ -6230,15 +6242,35 @@ async def addtime_subathon(ctx, minutes):
 async def subathon_status(ctx):
     subathon_state = await get_subathon_state()
     if subathon_state:
-        if subathon_state[4]: # If paused
-            await ctx.send(f"Subathon is paused with {subathon_state[5]} minutes remaining.")
+        if subathon_state["paused"]:
+            await ctx.send(f"Subathon is paused with {subathon_state['remaining_minutes']} minutes remaining.")
         else:
-            remaining = subathon_state[2] - datetime.now()
+            remaining = subathon_state["end_time"] - datetime.now()
             await ctx.send(f"Subathon time remaining: {remaining}.")
     else:
         await ctx.send("No subathon is active!")
 
-# Fcuntion to get the current subathon
+# Function to start the subathon countdown
+async def subathon_countdown():
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+    while True:
+        subathon_state = await get_subathon_state()
+        if subathon_state and not subathon_state["paused"]:
+            now = datetime.now()
+            if now >= subathon_state["end_time"]:
+                await channel.send(f"Subathon has ended!")
+                sqldb = await get_mysql_connection()
+                try:
+                    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                        await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state["id"]))
+                        await sqldb.commit()
+                finally:
+                    await cursor.close()
+                    await sqldb.ensure_closed()
+            break
+        await asyncio.sleep(60)  # Check every minute
+
+# Function to get the current subathon state
 async def get_subathon_state():
     sqldb = await get_mysql_connection()
     try:
@@ -6248,26 +6280,6 @@ async def get_subathon_state():
     finally:
         await cursor.close()
         await sqldb.ensure_closed()
-
-# Function to start the subathon countdown
-async def subathon_countdown():
-    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    while True:
-        subathon_state = await get_subathon_state()
-        if subathon_state and not subathon_state[4]: # If running
-            now = datetime.now()
-            if now >= subathon_state[2]: # End Time
-                await channel.send(f"Subathon has ended!")
-                sqldb = await get_mysql_connection()
-                try:
-                    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-                        await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state[0]))
-                        await sqldb.commit()
-                finally:
-                    await cursor.close()
-                    await sqldb.ensure_closed()
-            break
-        await asyncio.sleep(60) # Check every minute
 
 # Function to run at midnight each night
 async def midnight():
