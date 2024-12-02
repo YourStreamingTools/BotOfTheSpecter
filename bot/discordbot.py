@@ -193,7 +193,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.update_version_control()
 
     async def update_version_control(self):
-        VERSION = 4.3
+        VERSION = "4.3.1"
         try:
             # Define the directory path for Discord bot version control
             directory = "/var/www/logs/version/"
@@ -212,6 +212,8 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.error(f"An error occurred: {e}")
 
     async def on_member_join(self, member):
+        if member.guild.id != config.guild_id:
+            return
         self.logger.info(f'{member.name} has joined the server!')
         await websocket_notice(event="DISCORD_JOIN", member=member.name, api_token=config.api_token, logger=self.logger)
 
