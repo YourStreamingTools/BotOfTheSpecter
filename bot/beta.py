@@ -2081,8 +2081,8 @@ class TwitchBot(commands.Bot):
                             await ctx.send("You must provide a game for the stream.")
                             return
                         try:
-                            await update_twitch_game(game)
-                            await ctx.send(f'Stream game updated to: {game}')
+                            game_name = await update_twitch_game(game)
+                            await ctx.send(f'Stream game updated to: {game_name}')
                         except GameNotFoundException as e:
                             await ctx.send(f"Game not found: {str(e)}")
                         except GameUpdateFailedException as e:
@@ -4439,40 +4439,46 @@ async def trigger_twitch_title_update(new_title):
                 twitch_logger.error(f'Failed to update stream title: {await response.text()}')
 
 # Function to update the current stream category
-async def update_twitch_game(game_name):
-    # Twitch API to retrieve game ID and update stream game/category
-    url_get_game = "https://api.twitch.tv/helix/games"
-    url_update_game = "https://api.twitch.tv/helix/channels"
-    headers = {
+async def update_twitch_game(game_name: str):
+    # API URLs
+    internal_api_url = "https://api.botofthespecter.com/games"
+    twitch_game_update_url = "https://api.twitch.tv/helix/channels"
+    # Headers for Twitch API
+    twitch_headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": CLIENT_ID,
     }
-    params_get_game = {
-        "name": game_name
-    }
+    # Fetch game ID using internal API
     async with aiohttp.ClientSession() as session:
-        # Get the game ID from Twitch API
-        async with session.get(url_get_game, headers=headers, params=params_get_game) as response:
+        # Call internal API to get the game ID
+        params = {
+            "api_key": API_TOKEN,
+            "twitch_auth_token": CHANNEL_AUTH,
+            "game_name": game_name,
+        }
+        async with session.get(internal_api_url, params=params) as response:
             if response.status == 200:
                 data = await response.json()
-                if data and 'data' in data and len(data['data']) > 0:
-                    game_id = data['data'][0]['id']
+                if "id" in data:
+                    game_id = data["id"]
+                    game_name = data["name"]
                 else:
-                    twitch_logger.error(f"Game '{game_name}' not found.")
-                    raise GameNotFoundException(f"Game '{game_name}' not found.")
+                    raise GameNotFoundException(f"Game '{game_name}' not found in internal API response.")
             else:
-                twitch_logger.error(f"Failed to retrieve game ID: {await response.text()}")
-                raise GameNotFoundException(f"Game '{game_name}' not found.")
-        params_update_game = {
+                error_message = await response.text()
+                raise GameNotFoundException(f"Failed to fetch game ID from internal API: {error_message}")
+        # Update the Twitch stream game/category
+        payload = {
             "broadcaster_id": CHANNEL_ID,
             "game_id": game_id
         }
-        async with session.patch(url_update_game, headers=headers, json=params_update_game) as response:
-            if response.status == 200:
-                twitch_logger.info(f'Stream game updated to: {game_name}')
+        async with session.patch(twitch_game_update_url, headers=twitch_headers, json=payload) as twitch_response:
+            if twitch_response.status == 200:
+                twitch_logger.info(f"Stream game updated to: {game_name}")
+                return game_name
             else:
-                twitch_logger.error(f'Failed to update stream game: {await response.text()}')
-                raise GameUpdateFailedException('Failed to update stream game')
+                error_message = await twitch_response.text()
+                raise GameUpdateFailedException(f"Failed to update stream game: {error_message}")
 
 # Enqueue shoutout requests
 async def add_shoutout(user_to_shoutout, user_id):
