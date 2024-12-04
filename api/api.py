@@ -851,6 +851,46 @@ async def websocket_stream_offline(api_key: str = Query(...)):
     return {"status": "success"}
 
 # Hidden Endpoints
+# Games endpoint
+@app.get(
+    "/games",
+    summary="Search for a game",
+    include_in_schema=False
+)
+async def get_game(
+    api_key: str = Query(..., description="API key to authenticate the request"),
+    game_name: str = Query(..., description="Name of the game to search for"),
+    twitch_auth_token: str = Query(..., description="Twitch OAuth token for IGDB authorization")
+):
+    # Validate API key
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    # IGDB API details
+    igdb_url = "https://api.igdb.com/v4/games"
+    headers = {
+        "Client-ID": "mrjucsmsnri89ifucl66jj1n35jkj8",
+        "Authorization": f"Bearer {twitch_auth_token}",
+        "Content-Type": "application/json"
+    }
+    body = f'fields name; search "{game_name}"; limit 1;'
+    # Make the request to IGDB
+    async with aiohttp.ClientSession() as session:
+        async with session.post(igdb_url, headers=headers, data=body) as response:
+            if response.status != 200:
+                raise HTTPException(
+                    status_code=response.status,
+                    detail=f"Error from IGDB: {await response.text()}"
+                )
+            game_data = await response.json()
+            # Handle empty response
+            if not game_data:
+                raise HTTPException(status_code=404, detail="Game not found")
+            # Return the first game
+            game = game_data[0]
+            return {"id": game["id"], "name": game["name"]}
+
+# Get a list of authorized users
 @app.get(
     "/authorizedusers",
     summary="Get a list of authorized users",
@@ -865,6 +905,7 @@ async def authorized_users(api_key: str = Query(...)):
         auth_users = json.load(auth_users_file)
     return auth_users
 
+# Check API Key Given
 @app.get(
     "/checkkey",
     summary="Check if the API key is valid",
@@ -876,10 +917,12 @@ async def check_key(api_key: str = Query(...)):
         return {"status": "Invalid API Key"}
     return {"status": "Valid API Key"}
 
+# Any root request go to the docs page
 @app.get("/", include_in_schema=False)
 async def read_root():
     return RedirectResponse(url="/docs")
 
+# Any favicon ico request get's passed onto CDN for the ico
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return "https://cdn.botofthespecter.com/logo.ico"
