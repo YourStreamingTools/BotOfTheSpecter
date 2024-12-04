@@ -2090,7 +2090,7 @@ class TwitchBot(commands.Bot):
                         except Exception as e:
                             await ctx.send(f'An error occurred in setgame command: {str(e)}')
                     else:
-                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                        await ctx.send("You do not have the correct permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
