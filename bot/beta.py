@@ -4447,6 +4447,7 @@ async def update_twitch_game(game_name: str):
     twitch_headers = {
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-ID": CLIENT_ID,
+        "Content-Type": "application/json",
     }
     # Fetch game ID using internal API
     async with aiohttp.ClientSession() as session:
@@ -4472,6 +4473,7 @@ async def update_twitch_game(game_name: str):
             "broadcaster_id": CHANNEL_ID,
             "game_id": game_id
         }
+        # Update the Twitch stream game/category
         async with session.patch(twitch_game_update_url, headers=twitch_headers, json=payload) as twitch_response:
             if twitch_response.status == 200:
                 twitch_logger.info(f"Stream game updated to: {game_name}")
