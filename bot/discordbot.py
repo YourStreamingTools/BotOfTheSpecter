@@ -208,6 +208,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.update_version_control()
 
     async def update_version_control(self):
+        global VERSION
         VERSION = "4.3.1"
         try:
             # Define the directory path for Discord bot version control
@@ -294,6 +295,7 @@ class BotOfTheSpecter(commands.Bot):
 
 class WebSocketCog(commands.Cog, name='WebSocket'):
     def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
+        global VERSION
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.bot = bot
         self.api_token = api_token
@@ -305,7 +307,7 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         @self.sio.event
         async def connect():
             self.logger.info("Connected to WebSocket server")
-            await self.sio.emit('REGISTER', {'code': self.api_token, 'name': 'DiscordBot'})
+            await self.sio.emit('REGISTER', {'code': self.api_token, 'name': f'DiscordBot V{VERSION}'})
             self.reconnect_attempts = 0
             self.connected = True
 
