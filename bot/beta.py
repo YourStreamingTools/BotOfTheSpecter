@@ -2029,7 +2029,7 @@ class TwitchBot(commands.Bot):
                             await ctx.send("Please specify a user to permit.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the permit command but lacked permissions.")
-                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                        await ctx.send("You do not have the correct permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2057,7 +2057,7 @@ class TwitchBot(commands.Bot):
                         twitch_logger.info(f'Setting stream title to: {title}')
                         await ctx.send(f'Stream title updated to: {title}')
                     else:
-                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                        await ctx.send("You do not have the correct permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2873,7 +2873,7 @@ class TwitchBot(commands.Bot):
                         else:
                             await ctx.send("Failed to create a stream marker.")
                     else:
-                        await ctx.send("You must be a moderator or the broadcaster to use this command.")
+                        await ctx.send("You do not have the correct permissions to use this command.")
         finally:
             await sqldb.ensure_closed()
 
