@@ -15,7 +15,7 @@ from dotenv import load_dotenv, find_dotenv
 # Load ENV file
 load_dotenv(find_dotenv("/home/websocket/.env"))
 
-class BotOfTheSpecterWebsocketServer:
+class BotOfTheSpecter_WebsocketServer:
     def __init__(self, logger):
         # Set up Google Cloud credentials
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/home/websocket/service-account-file.json"
@@ -549,15 +549,15 @@ class BotOfTheSpecterWebsocketServer:
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
-    parser = argparse.ArgumentParser(prog='BotOfTheSpecter Websocket Server', description='A WebSocket server for handling notifications and real-time communication between the website and the bot itself.')
+    parser = argparse.ArgumentParser(prog='BotOfTheSpecter Websocket Server', description='A WebSocket server for handling notifications and real-time communication between the Website, System Overlays, Twitch Chat Bot, and Discord Bot.')
     parser.add_argument("-H", "--host", default="0.0.0.0", help="Specify the listener host. Default is 0.0.0.0")
     parser.add_argument("-p", "--port", default=443, type=int, help="Specify the listener port number. Default is 443")
     parser.add_argument("-l", "--loglevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Specify the log level. INFO is the default.")
     parser.add_argument("-f", "--logfile", help="Specify log file location. Production location should be <WEBROOT>/log/noti_server.log")
     args = parser.parse_args()
-    log_level = logging.getLevelName(args.loglevel)
+    log_level = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR, "CRITICAL": logging.CRITICAL}[args.loglevel]
     log_file = args.logfile if args.logfile else os.path.join(SCRIPT_DIR, "noti_server.log")
     logging.basicConfig(filename=log_file, level=log_level, filemode="a", format="%(asctime)s - %(levelname)s - %(message)s")
     logging.getLogger().addHandler(logging.StreamHandler())
-    server = BotOfTheSpecterWebsocketServer(logging)
+    server = BotOfTheSpecter_WebsocketServer(logging)
     server.run_app(host=args.host, port=args.port)
