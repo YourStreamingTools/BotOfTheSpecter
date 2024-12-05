@@ -162,6 +162,7 @@ if ($spotifyResult->num_rows > 0) {
                 <div class="column">
                     <p><span class="has-text-weight-bold">Spotify Connected!</span></p>
                     <p>Your Spotify account is linked and ready to go. Rock on!</p>
+					<p style="color: #000000;" class="has-text-weight-bold">Now you're linked, if this is your fist time being linked, please restart the bot so the bot knows about this linking. </p>
                     <ul>
                         <li>See what's playing with <code>!song</code></li>
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
