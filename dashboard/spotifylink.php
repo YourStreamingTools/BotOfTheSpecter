@@ -105,7 +105,7 @@ if ($spotifyResult->num_rows > 0) {
     $profileResponse = file_get_contents($profileUrl, false, stream_context_create($profileOptions));
     $spotifyUserInfo = json_decode($profileResponse, true);
     if (!isset($spotifyUserInfo['id'])) {
-        $message = "Failed to fetch Spotify user data. Please relink your account.";
+        $message = "Please follow the linking instructions above this erorr panel. (Error: User is not authorized.)";
         $messageType = "is-danger";
         // Set authorization URL to trigger reauthorization if profile data fetch fails
         $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
@@ -142,7 +142,7 @@ if ($spotifyResult->num_rows > 0) {
                 <div class="column">
                     <p><span class="has-text-weight-bold">Connect to Spotify!</span></p>
                     <p>To link your Spotify account and enjoy music integration, please request access by sending an email to <a href="mailto:admin@botofthespecter.com">admin@botofthespecter.com</a> using the email address associated with your Spotify account. Requesting access will take less than 24-hours, if you still can't link your account after 24-hours please contact us on our discord server.<br>
-						Once your request is processed, you'll be able to:</p>
+						<br>Once your request is processed, you'll be able to:</p>
                     <ul>
                         <li>See what's currently playing on Spotify with <code>!song</code></li>
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
