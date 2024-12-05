@@ -15,7 +15,7 @@ $title = "Premium Features";
 require_once "db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
-include 'sqlite.php';
+include 'user_db.php';
 date_default_timezone_set($timezone);
 
 // Define plans with features
