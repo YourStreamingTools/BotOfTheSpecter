@@ -141,7 +141,7 @@ if ($spotifyResult->num_rows > 0) {
                 </div>
                 <div class="column">
                     <p><span class="has-text-weight-bold">Connect to Spotify!</span></p>
-                    <p>To link your Spotify account and enjoy music integration, please request access by sending an email to <a href="mailto:admin@botofthespecter.com">admin@botofthespecter.com</a> using the email address associated with your Spotify account. Requesting access will take less than 24-hours, if you still can't link your account after 24-hours please contact us on our discord server.<br>
+                    <p><span style="color: #000000;" class="has-text-weight-bold">To link your Spotify account and enjoy music integration, please request access by sending an email to <a href="mailto:admin@botofthespecter.com">admin@botofthespecter.com</a> using the email address associated with your Spotify account, in the body of the email only include your twitch username, this is an automated process. Requesting access will take less than 24-hours, if you still can't link your account after 24-hours please contact us on our discord server.</span><br>
 						<br>Once your request is processed, you'll be able to:</p>
                     <ul>
                         <li>See what's currently playing on Spotify with <code>!song</code></li>
