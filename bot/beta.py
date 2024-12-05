@@ -5821,7 +5821,7 @@ async def check_stream_online():
             if not data.get('data'):
                 stream_online = False
                 current_game = None
-                bot_logger.info(f"Bot Restarted, Stream is offline.")
+                bot_logger.info(f"Bot Starting, Stream is offline.")
                 # Log the status to the file
                 os.makedirs(f'/var/www/logs/online', exist_ok=True)
                 with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
@@ -5831,7 +5831,7 @@ async def check_stream_online():
                 stream_online = True
                 game = data['data'][0].get('game_name', None)
                 current_game = game
-                bot_logger.info(f"Bot Restarted, Stream is online. Game: {current_game}")
+                bot_logger.info(f"Bot Starting, Stream is online. Game: {current_game}")
                 # Log the status to the file
                 os.makedirs(f'/var/www/logs/online', exist_ok=True)
                 with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
