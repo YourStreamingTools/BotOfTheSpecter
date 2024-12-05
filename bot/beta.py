@@ -199,7 +199,18 @@ async def refresh_twitch_token(current_refresh_token):
                     if new_access_token:
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
-                        twitch_logger.info(f"Refreshed token. New Access Token: {new_access_token}.")
+                        twitch_logger.info(f"Refreshed token. New Access Token: {CHANNEL_AUTH}.")
+                        sqldb = await access_website_database()
+                        try:
+                            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                                # Insert or update the access token for the given twitch_user_id
+                                query = "INSERT INTO twitch_bot_access (twitch_user_id, twitch_access_token) VALUES (%s, %s) ON DUPLICATE KEY UPDATE twitch_access_token = %s;"
+                                await cursor.execute(query, (CHANNEL_ID, CHANNEL_AUTH, CHANNEL_AUTH))
+                                await sqldb.commit()
+                        except Exception as e:
+                            twitch_logger.error(f"Database update failed: {e}")
+                        finally:
+                            await sqldb.ensure_closed()
                         return next_refresh_time
                     else:
                         twitch_logger.error("Token refresh failed: 'access_token' not found in response.")
