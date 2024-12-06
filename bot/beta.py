@@ -2498,7 +2498,7 @@ class TwitchBot(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='cheerleader')
+    @commands.command(name='cheerleader', aliases=['bitsleader'])
     async def cheerleader_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
