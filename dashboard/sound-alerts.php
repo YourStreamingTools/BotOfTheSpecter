@@ -72,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
     $soundFile = $_POST['sound_file'];
     $rewardId = $_POST['reward_id'];
     $soundFile = htmlspecialchars($soundFile); 
+    $db->beginTransaction();  
     // Check if a mapping already exists for this sound file
     $checkExisting = $db->prepare("SELECT 1 FROM sound_alerts WHERE sound_mapping = :sound_mapping");
     $checkExisting->bindParam(':sound_mapping', $soundFile);
