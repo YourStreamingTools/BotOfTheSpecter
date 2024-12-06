@@ -6571,7 +6571,6 @@ async def track_watch_time(active_users):
                 await cursor.execute("SELECT total_watch_time_live, total_watch_time_offline, last_active FROM watch_time WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
                 if user_data:
-                    bot_logger.info(f"User data found: {user_data}")
                     total_watch_time_live = user_data['total_watch_time_live']
                     total_watch_time_offline = user_data['total_watch_time_offline']
                     if stream_online:
