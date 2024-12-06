@@ -1157,7 +1157,7 @@ class TwitchBot(commands.Bot):
                                         await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
                                         result = await cursor.fetchone()
                                         if result:
-                                            user_count = result[0]
+                                            user_count = result["count"]
                                         else:
                                             # If no entry found, initialize it to 0
                                             user_count = 0
@@ -1171,7 +1171,7 @@ class TwitchBot(commands.Bot):
                                         await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
                                         updated_result = await cursor.fetchone()
                                         if updated_result:
-                                            updated_user_count = updated_result[0]
+                                            updated_user_count = updated_result["count"]
                                         else:
                                             updated_user_count = 0
                                         # Replace the (usercount) placeholder with the updated user count
@@ -1275,7 +1275,7 @@ class TwitchBot(commands.Bot):
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
                     result = await cursor.fetchone()
-                    url_blocking = bool(result[0]) if result else False
+                    url_blocking = bool(result["url_blocking"]) if result else False
                     # Proceed if URL blocking is enabled
                     if url_blocking:
                         # Check if user has permission to post links
@@ -1810,7 +1810,7 @@ class TwitchBot(commands.Bot):
                         await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                         result = await cursor.fetchone()
                         if result:
-                            points = result[0]
+                            points = result["points"]
                             chat_logger.info(f"{user_name} has {points} points")
                         else:
                             points = 0
@@ -1876,8 +1876,8 @@ class TwitchBot(commands.Bot):
                         else:
                             await cursor.execute("SELECT timezone FROM profile")
                             result = await cursor.fetchone()
-                            if result and result[0]:
-                                timezone = result[0]
+                            if result and result["timezone"]:
+                                timezone = result["timezone"]
                                 tz = pytz.timezone(timezone)
                                 chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
                                 current_time = datetime.now(tz)
@@ -2370,7 +2370,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (mentioned_username,))
                 hug_count_result = await cursor.fetchone()
                 if hug_count_result:
-                    hug_count = hug_count_result[0]
+                    hug_count = hug_count_result["hug_count"]
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
                     await ctx.send(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
@@ -2425,7 +2425,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (mentioned_username,))
                 kiss_count_result = await cursor.fetchone()
                 if kiss_count_result:
-                    kiss_count = kiss_count_result[0]
+                    kiss_count = kiss_count_result["kiss_count"]
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
                     await ctx.send(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
@@ -2665,7 +2665,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        previous_start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        previous_start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
                         lurk_duration = now - previous_start_time
                         days, seconds = divmod(lurk_duration.total_seconds(), 86400)
                         months, days = divmod(days, 30)
@@ -2713,7 +2713,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = datetime.now() - start_time
                         # Calculate the duration
                         days = elapsed_time.days
@@ -2816,7 +2816,7 @@ class TwitchBot(commands.Bot):
                     if result:
                         time_now = datetime.now()
                         # Convert start_time from string to datetime
-                        start_time = datetime.strptime(result[0], "%Y-%m-%d %H:%M:%S")
+                        start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
                         elapsed_time = time_now - start_time
                         # Calculate the duration
                         days, seconds = divmod(elapsed_time.total_seconds(), 86400)
@@ -3055,7 +3055,7 @@ class TwitchBot(commands.Bot):
                         # Retrieve the updated count
                         await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                         result = await cursor.fetchone()
-                        typo_count = result[0] if result else 0
+                        typo_count = result["typo_count"] if result else 0
                         # Send the message
                         chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
                         await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
@@ -3092,7 +3092,7 @@ class TwitchBot(commands.Bot):
                     target_user = mentioned_username_lower.lstrip('@')
                     await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                     result = await cursor.fetchone()
-                    typo_count = result[0] if result else 0
+                    typo_count = result["typo_count"] if result else 0
                     chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
                     await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
         except Exception as e:
@@ -3189,7 +3189,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                     result = await cursor.fetchone()
                     if result:
-                        current_count = result[0]
+                        current_count = result["typo_count"]
                         new_count = max(0, current_count - decrease_amount)
                         await cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
                         await sqldb.commit()
@@ -3285,10 +3285,10 @@ class TwitchBot(commands.Bot):
                 chat_logger.info("Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
-                game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                game_death_count = game_death_count_result["death_count"] if game_death_count_result else 0
                 await cursor.execute('SELECT death_count FROM total_deaths')
                 total_death_count_result = await cursor.fetchone()
-                total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                total_death_count = total_death_count_result["death_count"] if total_death_count_result else 0
                 chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
                 await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
                 if await command_permissions("mod", ctx.author):
@@ -3324,7 +3324,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info("Death Add Command ran by a mod or broadcaster.")
                     await cursor.execute("SELECT COUNT(*) FROM total_deaths")
                     count_result = await cursor.fetchone()
-                    if count_result is not None and count_result[0] == 0:
+                    if count_result is not None and count_result["count"] == 0:
                         await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
                         await sqldb.commit()
                         chat_logger.info("Initialized total_deaths table.")
@@ -3335,10 +3335,10 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
-                    game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                    game_death_count = game_death_count_result["death_count"] if game_death_count_result else 0
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
-                    total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                    total_death_count = total_death_count_result["death_count"] if total_death_count_result else 0
                     chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
@@ -3383,10 +3383,10 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
-                    game_death_count = game_death_count_result[0] if game_death_count_result else 0
+                    game_death_count = game_death_count_result["death_count"] if game_death_count_result else 0
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
-                    total_death_count = total_death_count_result[0] if total_death_count_result else 0
+                    total_death_count = total_death_count_result["death_count"] if total_death_count_result else 0
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
                     await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
