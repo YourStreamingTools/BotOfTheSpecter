@@ -5871,59 +5871,57 @@ async def convert_currency(amount, from_currency, to_currency):
         api_logger.error(f"Failed to convert {amount} {from_currency} to {to_currency}. Error: {sanitized_error}")
         raise
 
+# Channel Point Rewards Proccessing
 async def process_channel_point_rewards(event_data, event_type):
     sqldb = await get_mysql_connection()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
-            if event_type == "channel.channel_points_automatic_reward_redemption.add":
-                reward_id = event_data.get("id")
-                reward_title = event_data["reward"].get("type")
-            elif event_type == "channel.channel_points_custom_reward_redemption.add":
-                reward_id = event_data["reward"].get("id")
-                reward_title = event_data["reward"].get("title")
-                # Check for TTS reward
-                if "tts" in reward_title.lower():
-                    tts_message = event_data["user_input"]
-                    await websocket_notice(event="TTS", text=tts_message)
-                    event_logger.info(f"TTS message sent: {tts_message}")
-                    return
-                # Check for Lotto Numbers reward
-                elif "lotto" in reward_title.lower():
-                    lotto_result = await user_lotto_numbers()
-                    winning = ', '.join(map(str, lotto_result['winning_numbers']))
-                    supplementary = ', '.join(map(str, lotto_result['supplementary_numbers']))
-                    lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning} Supplementary Numbers: {supplementary}"
-                    await channel.send(lotto_message)
-                    chat_logger.info(f"Lotto numbers generated: {lotto_message}")
-                    return
-                # Check for Fortune reward
-                elif "fortune" in reward_title.lower():
-                    fortune_message = await tell_fortune()
-                    fortune_message = fortune_message[0].lower() + fortune_message[1:]
-                    await channel.send(f"{user_name}, {fortune_message}")
-                    chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
-                    return
-                # Sound alert logic
-                await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
-                sound_result = await cursor.fetchone()
-                if sound_result:
-                    sound_file = sound_result[0]
-                    event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                    await websocket_notice(event="SOUND_ALERT", sound=sound_file)
+            reward_data = event_data.get("reward", {})
+            reward_id = reward_data.get("id")
+            reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
+            # Check for TTS reward
+            if "tts" in reward_title.lower():
+                tts_message = event_data["user_input"]
+                await websocket_notice(event="TTS", text=tts_message)
+                event_logger.info(f"TTS message sent: {tts_message}")
+                return
+            # Check for Lotto Numbers reward
+            elif "lotto" in reward_title.lower():
+                lotto_result = await user_lotto_numbers()
+                winning = ', '.join(map(str, lotto_result['winning_numbers']))
+                supplementary = ', '.join(map(str, lotto_result['supplementary_numbers']))
+                lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning} Supplementary Numbers: {supplementary}"
+                await channel.send(lotto_message)
+                chat_logger.info(f"Lotto numbers generated: {lotto_message}")
+                return
+            # Check for Fortune reward
+            elif "fortune" in reward_title.lower():
+                fortune_message = await tell_fortune()
+                fortune_message = fortune_message[0].lower() + fortune_message[1:]
+                await channel.send(f"{user_name}, {fortune_message}")
+                chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
+                return
+            # Sound alert logic
+            await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
+            sound_result = await cursor.fetchone()
+            if sound_result and sound_result.get("sound_mapping"):
+                sound_file = sound_result["sound_mapping"]
+                event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
+                await websocket_notice(event="SOUND_ALERT", sound=sound_file)
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             result = await cursor.fetchone()
-            if result and result[0]:
-                custom_message = result[0]
+            if result and result.get("custom_message"):
+                custom_message = result["custom_message"]
                 if '(user)' in custom_message:
                     custom_message = custom_message.replace('(user)', user_name)
                 await channel.send(custom_message)
         except Exception as e:
-            event_logger.error(f"An error occurred while processing the reward: {str(e)}")
+            event_logger.error(f"An error occurred while processing the reward: {e}")
         finally:
-            sqldb.close()
+            await sqldb.ensure_closed()
 
 async def channel_point_rewards():
     # Check the broadcaster's type
