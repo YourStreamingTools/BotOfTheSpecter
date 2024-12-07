@@ -3525,7 +3525,7 @@ class TwitchBot(commands.Bot):
                         return
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
-                timezone = timezone_row[0] if timezone_row else 'UTC'
+                timezone = timezone_row["timezone"] if timezone_row else 'UTC'
                 tz = pytz.timezone(timezone)
                 current_time = datetime.now(tz)
                 headers = {
