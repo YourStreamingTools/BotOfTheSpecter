@@ -1113,7 +1113,9 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
                     result = await cursor.fetchone()
                     if result:
-                        response, status, cooldown = result
+                        response = result["response"]
+                        status = result["status"]
+                        cooldown = result["cooldown"]
                         if status == 'Enabled':
                             cooldown = int(cooldown)
                             # Checking if the command is on cooldown
