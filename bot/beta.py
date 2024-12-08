@@ -1228,37 +1228,30 @@ class TwitchBot(commands.Bot):
                                     if calling_match:
                                         match_call = calling_match.group(1)
                                         await self.call_command(match_call, message)
-                                # Handle (random.percent)
-                                if '(random.percent)' in response:
-                                    random_percent = random.randint(0, 100)
-                                    response = response.replace('(random.percent)', f'{random_percent}%')
-                                # Handle user-defined (random.percent.x-y)
-                                if '(random.percent.' in response:
-                                    random_percent_match = re.search(r'\(random\.percent\.(\d+)-(\d+)\)', response)
-                                    if random_percent_match:
-                                        lower_bound = int(random_percent_match.group(1))
-                                        upper_bound = int(random_percent_match.group(2))
-                                        random_percent = random.randint(lower_bound, upper_bound)
-                                        response = response.replace(f'(random.percent.{lower_bound}-{upper_bound})', f'{random_percent}%')
-                                # Handle (random.number)
-                                if '(random.number)' in response:
-                                    random_number = random.randint(0, 100)
-                                    response = response.replace('(random.number)', str(random_number))
-                                # Handle user-defined (random.number.x-y)
-                                if '(random.number.' in response:
-                                    random_number_match = re.search(r'\(random\.number\.(\d+)-(\d+)\)', response)
-                                    if random_number_match:
-                                        lower_bound = int(random_number_match.group(1))
-                                        upper_bound = int(random_number_match.group(2))
-                                        random_number = random.randint(lower_bound, upper_bound)
-                                        response = response.replace(f'(random.number.{lower_bound}-{upper_bound})', str(random_number))
-                                # Handle (random.pick.*)
-                                if '(random.pick.' in response:
-                                    random_pick_match = re.search(r'\(random\.pick\.(.+?)\)', response)
-                                    if random_pick_match:
-                                        items = random_pick_match.group(1).split('.')
-                                        chosen_item = random.choice(items)
-                                        response = response.replace(f'(random.pick.{random_pick_match.group(1)})', chosen_item)
+                                # Handle random replacements
+                                if '(random.percent' in response or '(random.number' in response or '(random.pick.' in response:
+                                    # Unified pattern for all placeholders
+                                    pattern = r'\((random\.(percent|number|pick))(?:\.(.+?))?\)'
+                                    matches = re.finditer(pattern, response)
+                                    for match in matches:
+                                        category = match.group(1)  # 'random.percent', 'random.number', or 'random.pick'
+                                        details = match.group(3)  # Range (x-y) or items for pick
+                                        replacement = ''  # Initialize the replacement string
+                                        if 'percent' in category or 'number' in category:
+                                            # Default bounds for random.percent and random.number
+                                            lower_bound, upper_bound = 0, 100
+                                            if details:  # If range is specified, extract it
+                                                range_match = re.match(r'(\d+)-(\d+)', details)
+                                                if range_match:
+                                                    lower_bound, upper_bound = int(range_match.group(1)), int(range_match.group(2))
+                                            random_value = random.randint(lower_bound, upper_bound)
+                                            replacement = f'{random_value}%' if 'percent' in category else str(random_value)
+                                        elif 'pick' in category:
+                                            # Split the details into items to pick from
+                                            items = details.split('.') if details else []
+                                            replacement = random.choice(items) if items else ''
+                                        # Replace the placeholder with the generated value
+                                        response = response.replace(match.group(0), replacement)
                                 # Handle (math.x+y)
                                 if '(math.' in response:
                                     math_match = re.search(r'\(math\.(.+)\)', response)
