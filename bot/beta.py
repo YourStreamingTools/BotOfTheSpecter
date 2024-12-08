@@ -1058,28 +1058,30 @@ class TwitchBot(commands.Bot):
 
     # Errors
     async def event_command_error(self, ctx, error: Exception) -> None:
+        command = ctx.message.content.split()[0][1:]
         if isinstance(error, commands.CommandOnCooldown):
-            bot_logger.info(f"Cooldown error detected: {error}")
-            command_name = ctx.command.name
+            bot_logger.info(f"[COOLDOWN] Command: '{command}' is on cooldown for {round(error.retry_after)} seconds.")
             retry_after = round(error.retry_after)
-            message = f"Command {command_name} is on cooldown try again in {retry_after} seconds." 
+            message = f"Command '{command}' is on cooldown. Try again in {retry_after} seconds."
             channel = self.get_channel(CHANNEL_NAME)
             if channel:
                 await self.target_channel.send(message)
             else:
-                bot_logger.error("Target channel not joined yet.") 
+                bot_logger.error(f"Unable to send cooldown message: Target channel '{CHANNEL_NAME}' not joined yet.")
         elif isinstance(error, commands.CommandNotFound):
             # Check if the command is a custom command
             sqldb = await get_mysql_connection()
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-                command = ctx.message.content.split()[0][1:]
                 await cursor.execute('SELECT * FROM custom_commands WHERE command = %s', (command,))
                 result = await cursor.fetchone()
                 if result:
+                    bot_logger.debug(f"[CUSTOM COMMAND] Command '{command}' exists in the database. Ignoring error.")
+                    await cursor.close()
+                    await sqldb.ensure_closed()
                     return
-            bot_logger.error(f"Command not found: {command}, type: {type(error)}")
+            bot_logger.error(f"Command '{command}' was not found in the bot or custom commands.")
         else:
-            bot_logger.error(f"event_command_error error: {error}, type: {type(error)}")
+            bot_logger.error(f"Command: '{command}', Error: {type(error).__name__}, Details: {error}")
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
