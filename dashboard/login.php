@@ -97,22 +97,42 @@ if (isset($_GET['code'])) {
         $_SESSION['twitch_user_id'] = $twitchUserId;
         // Database connect
         require_once "db_connect.php";
-        // Insert/update user data
-        $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, is_admin)
-        VALUES ('$twitchUsername', '$accessToken', '$refreshToken', '" . bin2hex(random_bytes(16)) . "', '$profileImageUrl', '$twitchUserId', '$twitchDisplayName', 0)
-        ON DUPLICATE KEY UPDATE access_token = '$accessToken', refresh_token = '$refreshToken', profile_image = '$profileImageUrl', twitch_user_id = '$twitchUserId', twitch_display_name = '$twitchDisplayName', last_login = ?";
-        $stmt = mysqli_prepare($conn, $insertQuery);
-        $last_login = date('Y-m-d H:i:s');
-        // Bind the last login date
-        mysqli_stmt_bind_param($stmt, 's', $last_login);
-        if (mysqli_stmt_execute($stmt)) {
-            // Redirect the user to the dashboard
-            header('Location: bot.php');
-            exit;
+        // Check if the user already exists
+        $checkQuery = "SELECT id FROM users WHERE username = ?";
+        $stmt = mysqli_prepare($conn, $checkQuery);
+        mysqli_stmt_bind_param($stmt, 's', $twitchUsername);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_store_result($stmt);
+        if (mysqli_stmt_num_rows($stmt) > 0) {
+            // User exists, update their information
+            $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, twitch_user_id = ?, twitch_display_name = ?, last_login = ? WHERE username = ?";
+            $stmt = mysqli_prepare($conn, $updateQuery);
+            $last_login = date('Y-m-d H:i:s');
+            mysqli_stmt_bind_param($stmt, 'sssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName, $last_login, $twitchUsername);
+            if (mysqli_stmt_execute($stmt)) {
+                // Redirect the user to the dashboard
+                header('Location: bot.php');
+                exit;
+            } else {
+                // Handle the case where the update failed
+                $info = "Failed to update user information.";
+                exit;
+            }
         } else {
-            // Handle the case where the insertion failed
-            $info = "Failed to save user information.";
-            exit;
+            // User does not exist, insert them as a new user
+            $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, is_admin) 
+            VALUES (?, ?, ?, '" . bin2hex(random_bytes(16)) . "', ?, ?, ?, 0)";
+            $stmt = mysqli_prepare($conn, $insertQuery);
+            mysqli_stmt_bind_param($stmt, 'ssssss', $twitchUsername, $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName);
+            if (mysqli_stmt_execute($stmt)) {
+                // Redirect the user to the dashboard
+                header('Location: bot.php');
+                exit;
+            } else {
+                // Handle the case where the insertion failed
+                $info = "Failed to save user information.";
+                exit;
+            }
         }
     } else {
         // Failed to fetch user information from Twitch
