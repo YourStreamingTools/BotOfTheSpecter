@@ -1218,7 +1218,7 @@ class TwitchBot(commands.Bot):
                                         sub_response = await cursor.fetchone()
                                         if sub_response:
                                             response = response.replace(f"(command.{sub_command})", "")
-                                            responses_to_send.append(sub_response[0])
+                                            responses_to_send.append(sub_response["response"])
                                         else:
                                             chat_logger.error(f"{sub_command} is no longer available.")
                                             await channel.send(f"The command {sub_command} is no longer available.")
@@ -1300,10 +1300,10 @@ class TwitchBot(commands.Bot):
                         # Fetch whitelist and blacklist from the database
                         await cursor.execute('SELECT link FROM link_whitelist')
                         whitelist_result = await cursor.fetchall()  # Fetch whitelist results
-                        whitelisted_links = [link[0] for link in whitelist_result] if whitelist_result else []
+                        whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
                         await cursor.execute('SELECT link FROM link_blacklisting')
                         blacklist_result = await cursor.fetchall()  # Fetch blacklist results
-                        blacklisted_links = [link[0] for link in blacklist_result] if blacklist_result else []
+                        blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
                         # Check if message contains whitelisted or blacklisted links using domain matching
                         contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
                         contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
