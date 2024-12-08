@@ -1068,6 +1068,16 @@ class TwitchBot(commands.Bot):
                 await self.target_channel.send(message)
             else:
                 bot_logger.error("Target channel not joined yet.") 
+        elif isinstance(error, commands.CommandNotFound):
+            # Check if the command is a custom command
+            sqldb = await get_mysql_connection()
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                command = ctx.message.content.split()[0][1:]
+                await cursor.execute('SELECT * FROM custom_commands WHERE command = %s', (command,))
+                result = await cursor.fetchone()
+                if result:
+                    return
+            bot_logger.error(f"Command not found: {command}, type: {type(error)}")
         else:
             bot_logger.error(f"event_command_error error: {error}, type: {type(error)}")
 
