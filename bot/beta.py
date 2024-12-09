@@ -520,11 +520,14 @@ async def connect_to_streamelements():
                 }
             }
             await streamelements_websocket.send(json.dumps(auth_message))
-            event_logger.info(f"Sent auth message: {auth_message}")
+            sanitized_auth_message = auth_message.copy()
+            sanitized_auth_message['data']['token'] = "[REDACTED]"
+            event_logger.info(f"Sent auth message: {sanitized_auth_message}")
             # Listen for messages
             while True:
                 message = await streamelements_websocket.recv()
-                event_logger.info(f"StreamElements Message: {message}")
+                sanitized_message = message.replace(streamelements_token, "[REDACTED]")
+                event_logger.info(f"StreamElements Message: {sanitized_message}")
                 await process_message(message, "StreamElements")
     except websockets.ConnectionClosed as e:
         event_logger.error(f"StreamElements WebSocket connection closed: {e}")
@@ -534,12 +537,15 @@ async def connect_to_streamelements():
 async def connect_to_streamlabs():
     global streamlabs_token
     uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
+    sanitized_uri = uri.replace(streamlabs_token, "[REDACTED]")
     try:
         async with websockets.connect(uri) as streamlabs_websocket:
+            event_logger.info(f"Connected to StreamLabs WebSocket with URI: {sanitized_uri}")
             # Listen for messages
             while True:
                 message = await streamlabs_websocket.recv()
-                event_logger.info(f"StreamLabs Message: {message}")
+                sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
+                event_logger.info(f"StreamLabs Message: {sanitized_message}")
                 await process_message(message, "StreamLabs")
     except websockets.ConnectionClosed as e:
         event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
@@ -552,11 +558,14 @@ async def process_message(message, source):
         if source == "StreamElements" and data.get('type') == 'response':
             # Handle the subscription response
             if 'error' in data:
-                handle_streamelements_error(data['error'], data['data']['message'])
+                sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
+                handle_streamelements_error(data['error'], sanitized_message)
             else:
-                event_logger.info(f"StreamElements subscription success: {data['data']['message']}")
+                sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
+                event_logger.info(f"StreamElements subscription success: {sanitized_message}")
         else:
-            await process_tipping_message(data, source)
+            sanitized_message = json.dumps(data).replace(streamelements_token, "[REDACTED]") if source == "StreamElements" else message
+            await process_tipping_message(json.loads(sanitized_message), source)
     except Exception as e:
         event_logger.error(f"Error processing message from {source}: {e}")
 
@@ -568,8 +577,9 @@ def handle_streamelements_error(error, message):
         "rate_limit_exceeded": "The rate limit for the API has been exceeded.",
         "invalid_message": "The message was invalid or could not be processed."
     }
+    sanitized_message = message.replace(streamelements_token, "[REDACTED]") if message else "N/A"
     error_message = error_messages.get(error, "Unknown error occurred.")
-    event_logger.error(f"StreamElements error: {error_message} - {message}")
+    event_logger.error(f"StreamElements error: {error_message} - {sanitized_message}")
 
 async def process_tipping_message(data, source):
     try:
