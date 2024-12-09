@@ -343,7 +343,6 @@ async def subscribe_to_events(session_id):
         "channel.channel_points_automatic_reward_redemption.add",
         "channel.channel_points_custom_reward_redemption.add",
         "channel.poll.begin",
-        "channel.poll.progress",
         "channel.poll.end",
         "automod.message.hold",
         "channel.suspicious_user.message"
@@ -695,8 +694,7 @@ async def process_eventsub_message(message):
                     current_game = category_name
                     event_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 elif event_type == 'channel.ad_break.begin':
-                    duration_seconds = event_data["duration_seconds"]
-                    asyncio.create_task(handle_ad_break(duration_seconds))
+                    asyncio.create_task(handle_ad_break(event_data["duration_seconds"]))
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["event"]["user_name"]
                     charity = event_data["event"]["charity_name"]
@@ -714,11 +712,8 @@ async def process_eventsub_message(message):
                         reason = timeout_info.get("reason", "No reason provided")
                         expires_at_str = timeout_info.get("expires_at")
                         if expires_at_str:
-                            try:
-                                expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
-                                expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
-                            except ValueError:
-                                expires_at_formatted = "Invalid expiration time"
+                            expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
+                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S")
                         else:
                             expires_at_formatted = "No expiration time provided"
                         discord_message = f'{user_name} has been timed out, their timeout expires at {expires_at_formatted} for the reason "{reason}"'
@@ -758,26 +753,13 @@ async def process_eventsub_message(message):
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
                     await process_channel_point_rewards(event_data, event_type)
-                elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
+                elif event_type in ["channel.poll.begin", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
-                        choices_titles = [choice.get("title") for choice in event_data.get("choices", [])]
-                        bits_voting_enabled = event_data.get("bits_voting", {}).get("is_enabled")
-                        bits_amount_per_vote = event_data.get("bits_voting", {}).get("amount_per_vote") if bits_voting_enabled else False
-                        channel_points_voting_enabled = event_data.get("channel_points_voting", {}).get("is_enabled")
-                        channel_points_amount_per_vote = event_data.get("channel_points_voting", {}).get("amount_per_vote") if channel_points_voting_enabled else False
                         poll_ends_at = datetime.strptime(event_data.get("ends_at")[:-11], "%Y-%m-%dT%H:%M:%S")
                         message = f"Poll '{poll_title}' has started!  "
-                        message += "Choices:  "
-                        for choice_title in choices_titles:
-                            message += f"- {choice_title}  "
-                        if bits_voting_enabled:
-                            message += f"Bits Voting Enabled: Amount per Vote - {bits_amount_per_vote}  "
-                        if channel_points_voting_enabled:
-                            message += f"Channel Points Voting Enabled: Amount per Vote - {channel_points_amount_per_vote}  "
-                        tz = pytz.timezone("UTC")
-                        utc_now = datetime.now(tz)
-                        poll_ends_at_utc = tz.localize(poll_ends_at)
+                        utc_now = datetime.now(timezone.utc)
+                        poll_ends_at_utc = poll_ends_at.replace(tzinfo=timezone.utc)
                         time_until_end = poll_ends_at_utc - utc_now
                         minutes, seconds = divmod(time_until_end.total_seconds(), 60)
                         if minutes > 0:
@@ -793,31 +775,6 @@ async def process_eventsub_message(message):
                         else:
                             message += ". "
                         await channel.send(message)
-                    elif event_type == "channel.poll.progress":
-                        current_time = time.time()
-                        last_poll_progress_update = current_time
-                        if current_time - last_poll_progress_update >= 30:
-                            poll_title = event_data.get("title")
-                            choices_data = []
-                            for choice in event_data.get("choices", []):
-                                choice_title = choice.get("title")
-                                bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else False
-                                channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else False
-                                total_votes = choice.get("votes")
-                                choices_data.append({
-                                    "title": choice_title,
-                                    "bits_votes": bits_votes,
-                                    "channel_points_votes": channel_points_votes,
-                                    "total_votes": total_votes
-                                })
-                            message = f"Poll Progress: {poll_title} "
-                            for choice_data in choices_data:
-                                choice_title = choice_data["title"]
-                                bits_votes = choice_data["bits_votes"]
-                                channel_points_votes = choice_data["channel_points_votes"]
-                                total_votes = choice_data["total_votes"]
-                                message += f"- {choice_title}: Bits Votes - {bits_votes}, Channel Points Votes - {channel_points_votes}, Total Votes - {total_votes} "
-                            await channel.send(message)
                     elif event_type == "channel.poll.end":
                         poll_id = event_data.get("id")
                         poll_title = event_data.get("title")
@@ -834,14 +791,7 @@ async def process_eventsub_message(message):
                                 "total_votes": total_votes
                             })
                         sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
-                        winning_choice = sorted_choices[0] if sorted_choices else None
-                        message = f"The poll '{poll_title}' has ended!  "
-                        if winning_choice:
-                            message += f"The winning choice is '{winning_choice['title']}' with {winning_choice['total_votes']} votes.  "
-                        else:
-                            message += f"The winning choice is '{winning_choice['title']}' but there are no votes recorded for this poll.  "
-                        for choice_data in sorted_choices:
-                            message += f"- {choice_data['title']}: Bits Votes - {choice_data['bits_votes']}, Channel Points Votes - {choice_data['channel_points_votes']}, Total Votes - {choice_data['total_votes']}  "
+                        message = f"The poll '{poll_title}' has ended!"
                         await channel.send(message)
                         await cursor.execute("INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s)", (poll_id, poll_title))
                         await sqldb.commit()
@@ -893,8 +843,8 @@ async def process_eventsub_message(message):
                     if lowTrustStatus == "active_monitoring":
                         bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
                         await ban_user(messageAuthor, messageAuthorID)
-                # Logging for unknown event types
                 else:
+                    # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
     except Exception as e:
         event_logger.error(f"Error processing EventSub message: {e}")
@@ -1932,14 +1882,14 @@ class TwitchBot(commands.Bot):
                             await cursor.execute("SELECT quote FROM quotes ORDER BY RAND() LIMIT 1")
                             quote = await cursor.fetchone()
                             if quote:
-                                await ctx.send("Random Quote: " + quote[0])
+                                await ctx.send("Random Quote: " + quote["quote"])
                             else:
                                 await ctx.send("No quotes available.")
                         else:  # If a number is provided, retrieve the quote by its ID
                             await cursor.execute("SELECT quote FROM quotes WHERE id = %s", (number,))
                             quote = await cursor.fetchone()
                             if quote:
-                                await ctx.send(f"Quote {number}: " + quote[0])
+                                await ctx.send(f"Quote {number}: " + quote["quote"])
                             else:
                                 await ctx.send(f"No quote found with ID {number}.")
                     else:
@@ -2231,7 +2181,7 @@ class TwitchBot(commands.Bot):
                 except ValueError:
                     # Default to 5 minutes if the user didn't provide a valid value
                     minutes = 5
-                end_time = datetime.utcnow() + timedelta(minutes=minutes)
+                end_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
                 await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
                 await sqldb.commit()
                 await ctx.send(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
@@ -2297,8 +2247,8 @@ class TwitchBot(commands.Bot):
                 if not active_timer:
                     await ctx.send(f"@{ctx.author.name}, you don't have an active timer.")
                     return
-                end_time = active_timer[0]
-                remaining_time = end_time - datetime.utcnow()
+                end_time = active_timer["end_time"]
+                remaining_time = end_time - datetime.now(timezone.utc)
                 minutes_left = remaining_time.total_seconds() // 60
                 seconds_left = remaining_time.total_seconds() % 60
                 await ctx.send(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
@@ -2567,7 +2517,7 @@ class TwitchBot(commands.Bot):
                         await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
                         db_bits = await cursor.fetchone()
                         if db_bits:
-                            db_bits = db_bits[0]
+                            db_bits = db_bits["bits"]
                         else:
                             db_bits = 0
                         headers = {
@@ -6241,7 +6191,7 @@ async def pause_subathon(ctx):
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
                 remaining_minutes = (subathon_state["end_time"] - datetime.now()).total_seconds() // 60
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state["id"]))  # "id" instead of [0]
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state["id"]))
                 await sqldb.commit()
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
@@ -6261,7 +6211,7 @@ async def resume_subathon(ctx):
             subathon_state = await get_subathon_state()
             if subathon_state and subathon_state["paused"]:
                 subathon_end_time = datetime.now() + timedelta(minutes=subathon_state["remaining_minutes"])
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))  # "id" instead of [0]
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
                 await sqldb.commit()
                 await ctx.send(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
                 asyncio.create_task(subathon_countdown())
