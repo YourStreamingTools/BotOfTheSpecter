@@ -37,6 +37,7 @@ api/app/*.exe
 # Specific API files
 api/authusers.json
 websocket/service-account-file.json
+api/service-account-file.json
 websocket/ips.txt
 api/shazam.txt
 api/exchangerate.txt
