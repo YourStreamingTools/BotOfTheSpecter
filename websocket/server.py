@@ -10,6 +10,7 @@ from aiohttp import web
 from google.cloud import texttospeech
 import ipaddress
 import paramiko
+import uuid
 from dotenv import load_dotenv, find_dotenv
 
 # Load ENV file
@@ -200,23 +201,35 @@ class BotOfTheSpecter_WebsocketServer:
         await self.sio.emit("LIST_CLIENTS", self.registered_clients, to=sid)
 
     async def notify_http(self, request):
+        # Extract query parameters
         code = request.query.get("code")
         event = request.query.get("event")
         text = request.query.get("text")
-        if not code or not event:
-            raise web.HTTPBadRequest(text="400 Bad Request: code or event is missing")
+        language_code = request.query.get("language_code", None)
+        gender = request.query.get("gender", None)
+        voice_name = request.query.get("voice_name", None)
+        # Validate mandatory parameters
+        if not code:
+            raise web.HTTPBadRequest(text="400 Bad Request: API Key is missing")
+        if not event:
+            raise web.HTTPBadRequest(text="400 Bad Request: Event is missing")
+        # Log incoming request data
         data = {k: v for k, v in request.query.items()}
         self.logger.info(f"Notify request data: {data}")
         event = event.upper().replace(" ", "_")
         count = 0
         if event == "TTS" and text:
-            await self.tts_queue.put((text, code))
+            # Add TTS request to queue with additional parameters
+            await self.tts_queue.put({"text": text, "session_id": code, "language_code": language_code, "gender": gender,"voice_name": voice_name})
             self.logger.info(f"TTS request added to queue: {text}")
         elif event == "FOURTHWALL":
+            # Handle Fourthwall-specific event
             await self.handle_fourthwall_event(code, data)
         elif event == "KOFI":
+            # Handle Ko-Fi-specific event
             await self.handle_kofi_event(code, data)
         else:
+            # Broadcast other events to connected clients
             if code in self.registered_clients:
                 for client in self.registered_clients[code]:
                     sid = client['sid']
@@ -224,6 +237,7 @@ class BotOfTheSpecter_WebsocketServer:
                     self.logger.info(f"Emitted event '{event}' to client {sid}")
                     count += 1
             self.logger.info(f"Broadcasted event to {count} clients")
+        # Return a JSON response indicating success
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
 
     async def notify(self, sid, data):
@@ -237,39 +251,66 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def process_tts_queue(self):
         while True:
-            text, session_id = await self.tts_queue.get()
-            asyncio.create_task(self.process_tts_request(text, session_id))
-            self.tts_queue.task_done()
+            try:
+                # Wait for the next TTS request in the queue
+                request_data = await self.tts_queue.get()
+                # Unpack the data
+                text = request_data.get('text')
+                session_id = request_data.get('session_id')
+                language_code = request_data.get('language_code', None)
+                gender = request_data.get('gender', None)
+                voice_name = request_data.get('voice_name', None)
+                # Log the request
+                self.logger.info(f"Dequeued TTS request for session ID: {session_id} with text: {text}")
+                # Process the request in a separate task
+                asyncio.create_task(self.process_tts_request(text, session_id, language_code, gender, voice_name))
+                # Mark the task as done
+                self.tts_queue.task_done()
+                self.logger.info(f"TTS request for session ID {session_id} marked as done")
+            except Exception as e:
+                # Log and handle any errors that occur during queue processing
+                self.logger.error(f"Error while processing TTS queue: {e}")
 
-    async def process_tts_request(self, text, code):
+    async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
         # Generate the TTS audio
         self.logger.info(f"Processing TTS request for code {code} with text: {text}")
-        response = self.generate_speech(text)
+        response = self.generate_speech(text, language_code, gender, voice_name)
         if response is None:
             self.logger.error(f"Failed to generate speech for text: {text}")
             return
-        audio_file = os.path.join(self.tts_dir, f'tts_output_{code}.mp3')
-        with open(audio_file, 'wb') as out:
-            out.write(response.audio_content)
+        # Generate a unique filename using code and timestamp/UUID
+        unique_id = uuid.uuid4().hex[:8]
+        audio_file = os.path.join(self.tts_dir, f'tts_output_{code}_{unique_id}.mp3')
+        # Save the generated audio to a file
+        try:
+            with open(audio_file, 'wb') as out:
+                out.write(response.audio_content)
             self.logger.info(f'Audio content written to file "{audio_file}"')
-        # Transfer the file via SFTP
-        await self.sftp_transfer(audio_file)
-        # Emit the TTS audio to all clients associated with the API code
-        sids = self.registered_clients.get(code, [])
-        if sids:
-            self.logger.info(f"Emitting TTS event to clients with code {code}")
-            for sid in sids:
-                self.logger.info(f"Emitting TTS event to SID {sid}")
-                try:
-                    # Ensure valid session ID and emit the event
-                    if sid and isinstance(sid, dict) and 'sid' in sid:
-                        await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=sid['sid'])
-                    else:
-                        self.logger.error(f"Invalid SID structure for code {code}: {sid}")
-                except KeyError as e:
-                    self.logger.error(f"KeyError while emitting TTS event: {e}")
-        else:
-            self.logger.error(f"No clients found with code {code}. Unable to emit TTS event.")
+        except Exception as e:
+            self.logger.error(f'Failed to write audio content to file "{audio_file}": {e}')
+            return
+        try:
+            # Attempt to transfer the file via SFTP
+            await self.sftp_transfer(audio_file)
+            self.logger.info(f'File "{audio_file}" successfully transferred to SFTP server.')
+            # Emit the TTS event only if the file was successfully transferred
+            sids = self.registered_clients.get(code, [])
+            if sids:
+                self.logger.info(f"Emitting TTS event to clients with code {code}")
+                for sid in sids:
+                    self.logger.info(f"Emitting TTS event to SID {sid}")
+                    try:
+                        if sid and isinstance(sid, dict) and 'sid' in sid:
+                            await self.sio.emit("TTS", {"audio_file": f"https://tts.botofthespecter.com/{os.path.basename(audio_file)}"}, to=sid['sid'])
+                        else:
+                            self.logger.error(f"Invalid SID structure for code {code}: {sid}")
+                    except KeyError as e:
+                        self.logger.error(f"KeyError while emitting TTS event: {e}")
+            else:
+                self.logger.error(f"No clients found with code {code}. Unable to emit TTS event.")
+        except Exception as e:
+            self.logger.error(f'Failed to transfer file "{audio_file}" via SFTP: {e}')
+            return
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_duration(response)
         self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
@@ -280,6 +321,27 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.info(f'Audio file "{audio_file}" successfully deleted from SFTP server.')
         except Exception as e:
             self.logger.error(f'Failed to delete audio file "{audio_file}" from SFTP server: {e}')
+
+    def generate_speech(self, text, language_code=None, gender=None, voice_name=None):
+        voice_params = {
+            "language_code": language_code if language_code else "en-US",
+            "ssml_gender": getattr(texttospeech.SsmlVoiceGender,gender.upper(),texttospeech.SsmlVoiceGender.NEUTRAL),
+        }
+        if voice_name:
+            voice_params["name"] = voice_name
+        input_text = texttospeech.SynthesisInput(text=text)
+        voice = texttospeech.VoiceSelectionParams(**voice_params)
+        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
+        try:
+            response = self.tts_client.synthesize_speech(
+                input=input_text, voice=voice, audio_config=audio_config
+            )
+            if not hasattr(response, 'audio_content'):
+                raise ValueError("TTS API response does not contain audio content.")
+            return response
+        except Exception as e:
+            self.logger.error(f"Failed to generate speech: {e}")
+            return None
 
     async def sftp_transfer(self, local_file_path):
         # Set up the SFTP connection details from .env file
@@ -364,24 +426,6 @@ class BotOfTheSpecter_WebsocketServer:
                 count += 1
         self.logger.info(f"Broadcasted KOFI event to {count} clients")
 
-    def generate_speech(self, text):
-        input_text = texttospeech.SynthesisInput(text=text)
-        voice = texttospeech.VoiceSelectionParams(
-            language_code="en-US",
-            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
-        )
-        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
-        try:
-            response = self.tts_client.synthesize_speech(
-                input=input_text, voice=voice, audio_config=audio_config
-            )
-            if not hasattr(response, 'audio_content'):
-                raise ValueError("TTS API response does not contain audio content.")
-            return response
-        except Exception as e:
-            self.logger.error(f"Failed to generate speech: {e}")
-            return None
-
     async def deaths(self, sid, data):
         self.logger.info(f"Death event from SID [{sid}]: {data}")
         death_text = data.get('death-text')
@@ -398,11 +442,20 @@ class BotOfTheSpecter_WebsocketServer:
         await self.sio.emit("DEATHS", death_data)
 
     async def tts(self, sid, data):
+        # Log the incoming TTS request
         self.logger.info(f"TTS event from SID [{sid}]: {data}")
+        # Extract required and optional parameters from the data
         text = data.get("text")
+        language_code = data.get("language_code", None)
+        gender = data.get("gender", None)
+        voice_name = data.get("voice_name", None)
         if text:
-            await self.tts_queue.put((text, sid))
-            self.logger.info(f"TTS request added to queue: {text}")
+            # Add the TTS request to the queue with all parameters
+            await self.tts_queue.put({"text": text, "session_id": sid, "language_code": language_code, "gender": gender, "voice_name": voice_name})
+            self.logger.info(f"TTS request added to queue from SID [{sid}]: {text}")
+        else:
+            # Log an error if no text was provided
+            self.logger.error(f"No text provided in TTS event from SID [{sid}]")
 
     async def twitch_follow(self, sid, data):
         # Handle the Twitch follow event for SocketIO.
