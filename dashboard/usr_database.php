@@ -338,6 +338,12 @@ try {
                 sub_add_3 INT DEFAULT NULL,
                 donation_add INT DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'tts_settings' => "
+            CREATE TABLE IF NOT EXISTS tts_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                voice VARCHAR(50) DEFAULT 'default',
+                language VARCHAR(10) DEFAULT 'en',
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
