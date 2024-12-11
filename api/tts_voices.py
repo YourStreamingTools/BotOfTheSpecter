@@ -10,7 +10,7 @@ def save_voice_models():
     for voice in voices.voices:
         all_voices.append({
             "name": voice.name,
-            "language_codes": voice.language_codes,
+            "language_codes": list(voice.language_codes),
             "gender": texttospeech.SsmlVoiceGender(voice.ssml_gender).name,
             "natural_sample_rate_hertz": voice.natural_sample_rate_hertz
         })
