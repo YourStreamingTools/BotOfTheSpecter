@@ -1295,7 +1295,6 @@ class TwitchBot(commands.Bot):
             return
         await handle_chat_message(messageAuthor)
         sqldb = await get_mysql_connection()
-        channel = message.channel
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Determine user level
@@ -1336,7 +1335,7 @@ class TwitchBot(commands.Bot):
                     await websocket_notice(event="WALKON", user=messageAuthor)
                 # Handle welcome messages
                 if user_status_enabled == "True" and not is_broadcaster:
-                    await self.send_welcome_message(channel, messageAuthor, is_vip, is_mod, is_returning_user, welcome_message)
+                    await self.send_welcome_message(messageAuthor, is_vip, is_mod, is_returning_user, welcome_message)
                 else:
                     chat_logger.info(f"User status for {messageAuthor} is disabled.")
         except Exception as e:
@@ -1346,7 +1345,8 @@ class TwitchBot(commands.Bot):
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
 
-    async def send_welcome_message(self, channel, messageAuthor, is_vip, is_mod, is_returning_user, welcome_message):
+    async def send_welcome_message(self, messageAuthor, is_vip, is_mod, is_returning_user, welcome_message):
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         if is_vip:
             message = (
                 welcome_message if is_returning_user and welcome_message else
