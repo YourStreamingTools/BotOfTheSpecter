@@ -1326,7 +1326,7 @@ class TwitchBot(commands.Bot):
                 user_data = await cursor.fetchone()
                 is_returning_user = bool(user_data)
                 welcome_message = user_data["welcome_message"] if user_data else None
-                user_status_enabled = user_data["status_enabled"] if user_data else "True"
+                user_status_enabled = user_data["status"] if user_data else "True"
                 # Add to `seen_today`
                 await cursor.execute("INSERT INTO seen_today (user_id, username) VALUES (%s, %s)", (messageAuthorID, messageAuthor))
                 await sqldb.commit()
