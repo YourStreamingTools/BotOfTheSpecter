@@ -1291,7 +1291,7 @@ class TwitchBot(commands.Bot):
                 await self.message_counting(messageAuthor, messageAuthorID, bannedUser, message)
 
     async def message_counting(self, messageAuthor, messageAuthorID, bannedUser, message):
-        if messageAuthor == bannedUser or messageAuthor is None:
+        if messageAuthor in [bannedUser, None, ""]:
             return
         sqldb = await get_mysql_connection()
         try:
