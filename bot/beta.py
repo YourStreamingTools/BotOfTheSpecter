@@ -1291,60 +1291,95 @@ class TwitchBot(commands.Bot):
                 await self.message_counting(messageAuthor, messageAuthorID, bannedUser, message)
 
     async def message_counting(self, messageAuthor, messageAuthorID, bannedUser, message):
-        if not messageAuthor or messageAuthor == bannedUser:
+        if messageAuthor == bannedUser or messageAuthor is None:
             return
-        await handle_chat_message(messageAuthor)
         sqldb = await get_mysql_connection()
-        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-                # Determine user level
+                # Check user level
                 is_vip = await is_user_vip(messageAuthor)
                 is_mod = await is_user_mod(messageAuthor)
                 is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
-                user_level = (
-                    "broadcaster" if is_broadcaster else
-                    "mod" if is_mod else
-                    "vip" if is_vip else
-                    "normal"
+                user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
+                # Insert into the database the number of chats during the stream
+                await cursor.execute(
+                    'INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) '
+                    'ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s',
+                    (messageAuthor, user_level, user_level)
                 )
-                # Update message counts
-                await cursor.execute("INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s", (messageAuthor, user_level, user_level))
                 await sqldb.commit()
-                # Check if user has been seen today
-                await cursor.execute("SELECT * FROM seen_today WHERE user_id = %s", (messageAuthorID,))
-                if await cursor.fetchone():
+                # Has the user been seen during this stream
+                await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
+                temp_seen_users = await cursor.fetchone()
+                # Check if the user is in the list of already seen users
+                if temp_seen_users:
                     return
-                # Check if user is new or returning
-                await cursor.execute("SELECT * FROM seen_users WHERE username = %s", (messageAuthor,))
+                # Check if the user is new or returning
+                await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
-                is_returning_user = bool(user_data)
-                welcome_message = user_data["welcome_message"] if user_data else None
-                user_status_enabled = user_data["status"] if user_data else "True"
-                # Add to `seen_today`
-                await cursor.execute("INSERT INTO seen_today (user_id, username) VALUES (%s, %s)", (messageAuthorID, messageAuthor))
-                await sqldb.commit()
-                # Handle welcome messages
-                if user_status_enabled == "True" and not is_broadcaster:
-                    # Trigger websocket event
-                    if not is_broadcaster:
-                        await websocket_notice(event="WALKON", user=messageAuthor)
+                if user_data:
+                    # Check if the user is the broadcaster
+                    if messageAuthor.lower() == CHANNEL_NAME.lower():
+                        return
+                    user_status = True
+                    welcome_message = user_data["welcome_message"]
+                    user_status_enabled = user_data["status"]
+                    await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
+                    await sqldb.commit()
+                    await websocket_notice(event="WALKON", user=messageAuthor)
+                else:
+                    # Check if the user is the broadcaster
+                    if messageAuthor.lower() == CHANNEL_NAME.lower():
+                        return
+                    user_status = False
+                    welcome_message = None
+                    user_status_enabled = 'True'
+                    await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
+                    await sqldb.commit()
+                    await websocket_notice(event="WALKON", user=messageAuthor)
+                if user_status_enabled == 'True':
                     if is_vip:
-                        message = (
-                            welcome_message if is_returning_user and welcome_message else
-                            f"ATTENTION! {'Returning' if is_returning_user else 'New'} VIP {messageAuthor} has joined the chat!"
-                        )
+                        # VIP user
+                        if user_status and welcome_message:
+                            # Returning user with custom welcome message
+                            await self.send_message_to_channel(welcome_message)
+                        elif user_status:
+                            # Returning user
+                            vip_welcome_message = f"ATTENTION! A very important person has entered the chat, welcome {messageAuthor}!"
+                            await self.send_message_to_channel(vip_welcome_message)
+                        else:
+                            # New user
+                            await user_is_seen(messageAuthor)
+                            new_vip_welcome_message = f"ATTENTION! A very important person has entered the chat, let's give {messageAuthor} a warm welcome!"
+                            await self.send_message_to_channel(new_vip_welcome_message)
                     elif is_mod:
-                        message = (
-                            welcome_message if is_returning_user and welcome_message else
-                            f"MOD ON DUTY! {'Welcome back' if is_returning_user else 'Let’s welcome'} {messageAuthor}!"
-                        )
+                        # Moderator user
+                        if user_status and welcome_message:
+                            # Returning user with custom welcome message
+                            await self.send_message_to_channel(welcome_message)
+                        elif user_status:
+                            # Returning user
+                            mod_welcome_message = f"MOD ON DUTY! Welcome in {messageAuthor}. The power of the sword has increased!"
+                            await self.send_message_to_channel(mod_welcome_message)
+                        else:
+                            # New user
+                            await user_is_seen(messageAuthor)
+                            new_mod_welcome_message = f"MOD ON DUTY! Welcome in {messageAuthor}. The power of the sword has increased! Let's give {messageAuthor} a warm welcome!"
+                            await self.send_message_to_channel(new_mod_welcome_message)
                     else:
-                        message = (
-                            welcome_message if is_returning_user and welcome_message else
-                            f"{messageAuthor} is {'back' if is_returning_user else 'new'} to the community. Welcome!"
-                        )
-                    await channel.send(message)
+                        # Non-VIP and Non-mod user
+                        if user_status and welcome_message:
+                            # Returning user with custom welcome message
+                            await self.send_message_to_channel(welcome_message)
+                        elif user_status:
+                            # Returning user
+                            welcome_back_message = f"Welcome back {messageAuthor}, glad to see you again!"
+                            await self.send_message_to_channel(welcome_back_message)
+                        else:
+                            # New user
+                            await user_is_seen(messageAuthor)
+                            new_user_welcome_message = f"{messageAuthor} is new to the community, let's give them a warm welcome!"
+                            await self.send_message_to_channel(new_user_welcome_message)
                 else:
                     chat_logger.info(f"User status for {messageAuthor} is disabled.")
         except Exception as e:
