@@ -1295,6 +1295,7 @@ class TwitchBot(commands.Bot):
             return
         await handle_chat_message(messageAuthor)
         sqldb = await get_mysql_connection()
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Determine user level
@@ -1308,14 +1309,7 @@ class TwitchBot(commands.Bot):
                     "normal"
                 )
                 # Update message counts
-                await cursor.execute(
-                    """
-                    INSERT INTO message_counts (username, message_count, user_level)
-                    VALUES (%s, 1, %s)
-                    ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s
-                    """,
-                    (messageAuthor, user_level, user_level)
-                )
+                await cursor.execute("INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s", (messageAuthor, user_level, user_level))
                 await sqldb.commit()
                 # Check if user has been seen today
                 await cursor.execute("SELECT * FROM seen_today WHERE user_id = %s", (messageAuthorID,))
@@ -1330,12 +1324,11 @@ class TwitchBot(commands.Bot):
                 # Add to `seen_today`
                 await cursor.execute("INSERT INTO seen_today (user_id, username) VALUES (%s, %s)", (messageAuthorID, messageAuthor))
                 await sqldb.commit()
-                # Trigger websocket event
-                if not is_broadcaster:
-                    await websocket_notice(event="WALKON", user=messageAuthor)
                 # Handle welcome messages
                 if user_status_enabled == "True" and not is_broadcaster:
-                    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+                    # Trigger websocket event
+                    if not is_broadcaster:
+                        await websocket_notice(event="WALKON", user=messageAuthor)
                     if is_vip:
                         message = (
                             welcome_message if is_returning_user and welcome_message else
