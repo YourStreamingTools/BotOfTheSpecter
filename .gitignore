@@ -28,6 +28,8 @@ dashboard/cache/*
 # SSL Certificates and configurations
 ssl/*.pem
 ssl/sites-available/
+api/ssl/*
+websocket/ssl/*
 
 # Database files
 bot/commands/*.db
