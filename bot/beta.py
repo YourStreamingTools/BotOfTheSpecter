@@ -143,6 +143,7 @@ command_last_used = {}                                  # Dictionary for trackin
 last_poll_progress_update = 0                           # Variable for last poll progress update
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
+song_requests = {}                                      # Tracks song request from users
 
 # Initialize global variables
 bot_started = datetime.now()                            # Time the bot started
@@ -1010,6 +1011,7 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(midnight())
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
+        asyncio.get_event_loop().create_task(check_song_requests())
         await channel.send(f"/me is connected and ready! Running V{VERSION}B")
 
     async def event_channel_joined(self, channel):
@@ -2060,7 +2062,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.default)
     @commands.command(name='song')
     async def song_command(self, ctx):
-        global stream_online
+        global stream_online, song_requests
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2077,15 +2079,23 @@ class TwitchBot(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
-                # Check Spotify for the current song
-                song_info = await get_spotify_current_song()
-                if song_info:
+                # Get the current song and artist from Spotify
+                song_name, artist_name = await get_spotify_current_song()
+                if song_name and artist_name:
+                    # If the stream is offline, notify that the user that the streamer is listening to music while offline
                     if not stream_online:
-                        await ctx.send(f"{CHANNEL_NAME} is currently listening to \"{song_info}\" while being offline.")
+                        await ctx.send(f"{CHANNEL_NAME} is currently listening to \"{song_name} by {artist_name}\" while being offline.")
                         return
+                    # Check if the song is in the tracked list and if a user is associated
+                    song_id = song_name + artist_name
+                    requested_by = None
+                    if song_id in song_requests:
+                        requested_by = song_requests[song_id].get("user")
+                    if requested_by:
+                        await ctx.send(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
-                        await ctx.send(f"The current playing song is: {song_info}")
-                        return
+                        await ctx.send(f"The current playing song is: {song_name} by {artist_name}")
+                    return
                 if not stream_online:
                     await ctx.send("Sorry, I can only get the current playing song while the stream is online.")
                     return
@@ -2110,11 +2120,11 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN
+        global SPOTIFY_ACCESS_TOKEN, song_requests
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-                # Fetch the status and permissions for the timer command
+                # Fetch the status and permissions for the songrequest command
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songrequest",))
                 result = await cursor.fetchone()
                 if result:
@@ -2141,12 +2151,18 @@ class TwitchBot(commands.Bot):
                             song_id = data["tracks"]["items"][0]["uri"]
                             song_name = data["tracks"]["items"][0]["name"]
                             artist_name = data["tracks"]["items"][0]["artists"][0]["name"]
-                            api_logger.info(f"Song Request from {ctx.message.author.name} for the song {song_name} by {artist_name} song id: {song_id}")
+                            api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
+                            song_requests[song_id] = {
+                                "user": ctx.message.author.name,
+                                "song_name": song_name,
+                                "artist_name": artist_name,
+                                "timestamp": datetime.now()
+                            }
                         else:
                             await ctx.send(f"No song found: {message_content}")
                             return
                     else:
-                        api_logger.error(f"Spotify returned reponse code: {response.status}")
+                        api_logger.error(f"Spotify returned response code: {response.status}")
                         return
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
             async with aiohttp.ClientSession() as queue_session:
@@ -2154,11 +2170,11 @@ class TwitchBot(commands.Bot):
                     if response.status == 200:
                         await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
                     else:
-                        api_logger.error(f"Spotify returned reponse code: {response.status}")
+                        api_logger.error(f"Spotify returned response code: {response.status}")
         finally:
             await sqldb.ensure_closed()
 
-    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
+    @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.member)
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(self, ctx):
         global SPOTIFY_ACCESS_TOKEN
@@ -2180,7 +2196,7 @@ class TwitchBot(commands.Bot):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
             headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
-            # Request the queue information
+            # Request the queue information from Spotify
             queue_url = "https://api.spotify.com/v1/me/player/queue"
             async with aiohttp.ClientSession() as queue_session:
                 async with queue_session.get(queue_url, headers=headers) as response:
@@ -2189,18 +2205,48 @@ class TwitchBot(commands.Bot):
                         if data and 'queue' in data:
                             queue = data['queue']
                             queue_length = len(queue)
+                            # Get the currently playing song
+                            song_name, artist_name = await get_spotify_current_song()
+                            # Check if the current song was requested by someone
+                            current_song_requester = None
+                            song_id = song_name + artist_name
+                            if song_id in song_requests:
+                                current_song_requester = song_requests[song_id].get("user")
+                            # Send message for the current song
+                            if song_name and artist_name:
+                                if current_song_requester:
+                                    await ctx.send(f"Currently Playing: {song_name} by {artist_name}, requested by {current_song_requester}")
+                                else:
+                                    await ctx.send(f"Currently Playing: {song_name} by {artist_name}")
                             song_list = []
-                            for i, song in enumerate(queue[:3]):
+                            displayed_songs = 0
+                            # Add the songs from the queue
+                            for idx, song in enumerate(queue, start=1):
+                                song_id = song['uri']
                                 song_name = song['name']
                                 artist_name = song['artists'][0]['name']
-                                song_list.append(f"{i+1}. {song_name} by {artist_name} ")
+                                requester = None
+                                # Check if a song is in the requests list and fetch the requester
+                                if song_id in song_requests:
+                                    requester = song_requests[song_id].get("user")
+                                # Format the song entry with the requester
+                                if requester:
+                                    song_list.append(f"{idx}: {song_name} by {artist_name} ({requester}) ")
+                                else:
+                                    song_list.append(f"{idx}: {song_name} by {artist_name} ")
+                                displayed_songs += 1
+                                if displayed_songs >= 3:
+                                    break
                             # If there are more songs, add "+ X more"
-                            if queue_length > 3:
+                            if queue_length > 3 and len(song_list) > 0:
                                 song_list.append(f"+ {queue_length - 3} more")
-                            # Send the song list
-                            await ctx.send("\n".join(song_list))
+                            # Send the song queue message
+                            if song_list:
+                                await ctx.send(f"Queue: {''.join(song_list)}")
+                            else:
+                                await ctx.send("There is nothing in the queue right now.")
                         else:
-                            await ctx.send("There are no songs in the queue.")
+                            await ctx.send("There is nothing being played on Spotify right now.")
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         await ctx.send("Failed to fetch the song queue from Spotify.")
@@ -4978,22 +5024,22 @@ async def get_spotify_current_song():
         async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
-                # Extract song name, artist if spotify is currently playing
+                # Extract song name, artist if Spotify is currently playing
                 is_playing = data["is_playing"]
                 if is_playing:
                     song_name = data["item"]["name"]
                     artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
-                    api_logger.info(f"The current song from spotify is: {song_name} by {artist_name}")
-                    return f"{song_name} by {artist_name}"
+                    api_logger.info(f"The current song from Spotify is: {song_name} by {artist_name}")
+                    return song_name, artist_name  # Return song name and artist name as tuple
                 else:
-                    return None
+                    return None, None  # No song playing
             elif response.status == 204:
                 # 204 No Content means no song is currently playing
-                return None
+                return None, None
             else:
                 # Handle potential Spotify API errors
                 api_logger.error(f"Spotify API error: {response.status}")
-                return None
+                return None, None
 
 # Function to get the current playing song
 async def shazam_the_song():
@@ -6659,6 +6705,28 @@ async def track_watch_time(active_users):
         bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
     finally:
         await sqldb.ensure_closed()
+
+# Function to periodically check the queue
+async def check_song_requests():
+    global song_requests
+    while True:
+        await asyncio.sleep(180)
+        if song_requests:
+            headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+            queue_url = "https://api.spotify.com/v1/me/player/queue"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(queue_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data and 'queue' in data:
+                            queue = data['queue']
+                            queue_ids = [song['uri'] for song in queue]
+                            for song_id in list(song_requests):
+                                if song_id not in queue_ids:
+                                    del song_requests[song_id]
+                                    api_logger.info(f"Song {song_requests[song_id]['song_name']} by {song_requests[song_id]['artist_name']} removed from tracking list.")
+                    else:
+                        api_logger.error(f"Failed to fetch queue from Spotify, status code: {response.status}")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
