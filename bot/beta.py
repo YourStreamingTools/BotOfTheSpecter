@@ -1107,13 +1107,6 @@ class TwitchBot(commands.Bot):
                             ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
-                                # Handle (customapi.)
-                                if '(customapi.' in response:
-                                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
-                                    if url_match:
-                                        url = url_match.group(1)
-                                        api_response = await fetch_api_response(url)
-                                        response = response.replace(f"(customapi.{url})", api_response)
                                 # Handle (count)
                                 if '(count)' in response:
                                     try:
@@ -1223,6 +1216,13 @@ class TwitchBot(commands.Bot):
                                         except Exception as e:
                                             chat_logger.error(f"Math expression error: {e}")
                                             response = response.replace(f'(math.{math_expression})', "Error")
+                                # Handle (customapi.)
+                                if '(customapi.' in response:
+                                    url_match = re.search(r'\(customapi\.(\S+)\)', response)
+                                    if url_match:
+                                        url = url_match.group(1)
+                                        api_response = await fetch_api_response(url)
+                                        response = response.replace(f"(customapi.{url})", api_response)
                             await channel.send(response)
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
