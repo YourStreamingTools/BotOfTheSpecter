@@ -5497,10 +5497,19 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
 
 # Function to ban a user
 async def ban_user(username, user_id):
-    ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={CHANNEL_ID}"
+    # Connect to the database
+    sqldb = await access_website_database()
+    # Fetch settings from the twitch_bot_access table
+    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+        bot_id = "971436498"
+        await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access LIMIT 1 WHERE twitch_user_id = {bot_id}")
+        result = await cursor.fetchone()
+        bot_auth = result.get('twitch_access_token')
+    # Construct the ban URL using the bot's user ID
+    ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={bot_id}"
     headers = {
         "Client-ID": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
+        "Authorization": f"Bearer {bot_auth}",
         'Content-Type': "application/json",
     }
     data = {
@@ -5509,6 +5518,7 @@ async def ban_user(username, user_id):
             'reason': "Spam/Bot Account"
         }
     }
+    # Perform the ban request
     async with aiohttp.ClientSession() as session:
         async with session.post(ban_url, headers=headers, json=data) as response:
             if response.status == 200:
@@ -6511,7 +6521,7 @@ async def get_spam_patterns():
         compiled_patterns = [re.compile(row[0], re.IGNORECASE) for row in results]
     return compiled_patterns
 
-# Connect to database to get Spotify Settings
+# Connect to database to get settings from the website
 async def access_website_database():
     # Connect to your MySQL database
     return await aiomysql.connect(
