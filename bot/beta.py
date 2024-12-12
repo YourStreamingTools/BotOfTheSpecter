@@ -1335,7 +1335,23 @@ class TwitchBot(commands.Bot):
                     await websocket_notice(event="WALKON", user=messageAuthor)
                 # Handle welcome messages
                 if user_status_enabled == "True" and not is_broadcaster:
-                    await self.send_welcome_message(messageAuthor, is_vip, is_mod, is_returning_user, welcome_message)
+                    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+                    if is_vip:
+                        message = (
+                            welcome_message if is_returning_user and welcome_message else
+                            f"ATTENTION! {'Returning' if is_returning_user else 'New'} VIP {messageAuthor} has joined the chat!"
+                        )
+                    elif is_mod:
+                        message = (
+                            welcome_message if is_returning_user and welcome_message else
+                            f"MOD ON DUTY! {'Welcome back' if is_returning_user else 'Let’s welcome'} {messageAuthor}!"
+                        )
+                    else:
+                        message = (
+                            welcome_message if is_returning_user and welcome_message else
+                            f"{messageAuthor} is {'back' if is_returning_user else 'new'} to the community. Welcome!"
+                        )
+                    await channel.send(message)
                 else:
                     chat_logger.info(f"User status for {messageAuthor} is disabled.")
         except Exception as e:
@@ -1344,25 +1360,6 @@ class TwitchBot(commands.Bot):
             await sqldb.ensure_closed()
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
-
-    async def send_welcome_message(self, messageAuthor, is_vip, is_mod, is_returning_user, welcome_message):
-        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-        if is_vip:
-            message = (
-                welcome_message if is_returning_user and welcome_message else
-                f"ATTENTION! {'Returning' if is_returning_user else 'New'} VIP {messageAuthor} has joined the chat!"
-            )
-        elif is_mod:
-            message = (
-                welcome_message if is_returning_user and welcome_message else
-                f"MOD ON DUTY! {'Welcome back' if is_returning_user else 'Let’s welcome'} {messageAuthor}!"
-            )
-        else:
-            message = (
-                welcome_message if is_returning_user and welcome_message else
-                f"{messageAuthor} is {'back' if is_returning_user else 'new'} to the community. Welcome!"
-            )
-        await channel.send(message)
 
     async def user_points(self, messageAuthor, messageAuthorID):
         sqldb = await get_mysql_connection()
