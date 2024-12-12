@@ -5502,7 +5502,7 @@ async def ban_user(username, user_id):
     # Fetch settings from the twitch_bot_access table
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         bot_id = "971436498"
-        await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access LIMIT 1 WHERE twitch_user_id = {bot_id}")
+        await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
         result = await cursor.fetchone()
         bot_auth = result.get('twitch_access_token')
     # Construct the ban URL using the bot's user ID
