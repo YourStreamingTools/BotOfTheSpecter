@@ -66,7 +66,7 @@ SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths", "heartrate"}
+builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths", "heartrate"}
 mod_commands = {"addcommand", "removecommand", "editcommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
@@ -2155,6 +2155,45 @@ class TwitchBot(commands.Bot):
                         await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
                     else:
                         api_logger.error(f"Spotify returned reponse code: {response.status}")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
+    @commands.command(name='songqueue', aliases=['sq', 'queue'])
+    async def songqueue_command(self, ctx):
+        global SPOTIFY_ACCESS_TOKEN
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                # Fetch the status and permissions for the songqueue command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songqueue",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result["status"]
+                    permissions = result["permission"]
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled':
+                        await ctx.send(f"Checking the song queue is currently disabled.")
+                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+            headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+            # Request the queue information
+            queue_url = "https://api.spotify.com/v1/me/player/queue"
+            async with aiohttp.ClientSession() as queue_session:
+                async with queue_session.get(queue_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data and 'queue' in data:
+                            queue_length = len(data['queue'])
+                            await ctx.send(f"There are currently {queue_length} songs in the queue.")
+                        else:
+                            await ctx.send("There are no songs in the queue.")
+                    else:
+                        api_logger.error(f"Spotify returned response code: {response.status}")
+                        await ctx.send("Failed to fetch the song queue from Spotify.")
         finally:
             await sqldb.ensure_closed()
 
