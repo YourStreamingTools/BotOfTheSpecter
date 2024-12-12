@@ -1700,25 +1700,19 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        premium_tier = await check_premium_feature()
-                        if premium_tier in (1000, 2000, 3000, 4000):
-                            # Premium feature access granted
-                            if not location:
-                                location = await get_streamer_weather()
-                            if location:
-                                async with aiohttp.ClientSession() as session:
-                                    response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
-                                    result = await response.json()
-                                    if "detail" in result and "404: Location" in result["detail"]:
-                                        await ctx.send(f"Error: The location '{location}' was not found.")
-                                        api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
-                                    else:
-                                        api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
-                            else:
-                                await ctx.send("Unable to retrieve location.")
+                        if not location:
+                            location = await get_streamer_weather()
+                        if location:
+                            async with aiohttp.ClientSession() as session:
+                                response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
+                                result = await response.json()
+                                if "detail" in result and "404: Location" in result["detail"]:
+                                    await ctx.send(f"Error: The location '{location}' was not found.")
+                                    api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
+                                else:
+                                    api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
                         else:
-                            # No premium access
-                            await ctx.send(f"This channel doesn't have a premium subscription to use this command.")
+                            await ctx.send("Unable to retrieve location.")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the weather command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
