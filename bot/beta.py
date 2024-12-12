@@ -1330,7 +1330,7 @@ class TwitchBot(commands.Bot):
                 # Add user to `seen_today`
                 await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                 if user_status_enabled:
-                    await websocket_notice(event="WALKON", user=messageAuthor)
+                    asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
                     if is_vip:
                         message_to_send = (
                             welcome_message or
