@@ -2187,8 +2187,18 @@ class TwitchBot(commands.Bot):
                     if response.status == 200:
                         data = await response.json()
                         if data and 'queue' in data:
-                            queue_length = len(data['queue'])
-                            await ctx.send(f"There are currently {queue_length} songs in the queue.")
+                            queue = data['queue']
+                            queue_length = len(queue)
+                            song_list = []
+                            for i, song in enumerate(queue[:3]):
+                                song_name = song['name']
+                                artist_name = song['artists'][0]['name']
+                                song_list.append(f"{i+1}. {song_name} by {artist_name} ")
+                            # If there are more songs, add "+ X more"
+                            if queue_length > 3:
+                                song_list.append(f"+ {queue_length - 3} more")
+                            # Send the song list
+                            await ctx.send("\n".join(song_list))
                         else:
                             await ctx.send("There are no songs in the queue.")
                     else:
