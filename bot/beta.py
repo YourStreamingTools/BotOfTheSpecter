@@ -626,11 +626,11 @@ async def process_eventsub_message(message):
             event_data = message.get("payload", {}).get("event")
             if event_type:
                 if event_type == "channel.follow":
-                    await process_followers_event(
+                    asyncio.create_task(process_followers_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         event_data["followed_at"]
-                    )
+                    ))
                 elif event_type == "channel.subscribe":
                     tier_mapping = {
                         "1000": "Tier 1",
@@ -639,12 +639,12 @@ async def process_eventsub_message(message):
                     }
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
-                    await process_subscription_event(
+                    asyncio.create_task(process_subscription_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         tier_name,
                         event_data.get("cumulative_months", 1)
-                    )
+                    ))
                 elif event_type == "channel.subscription.message":
                     tier_mapping = {
                         "1000": "Tier 1",
@@ -654,13 +654,13 @@ async def process_eventsub_message(message):
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
                     subscription_message = event_data.get("message", {}).get("text", "")
-                    await process_subscription_message_event(
+                    asyncio.create_task(process_subscription_message_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         tier_name,
                         subscription_message,
                         event_data.get("cumulative_months", 1)
-                    )
+                    ))
                 elif event_type == "channel.subscription.gift":
                     tier_mapping = {
                         "1000": "Tier 1",
@@ -669,25 +669,25 @@ async def process_eventsub_message(message):
                     }
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
-                    await process_giftsub_event(
+                    asyncio.create_task(process_giftsub_event(
                         event_data["user_name"],
                         tier_name,
                         event_data["total"],
                         event_data.get("is_anonymous", False),
                         event_data.get["cumulative_total"]
-                    )
+                    ))
                 elif event_type == "channel.cheer":
-                    await process_cheer_event(
+                    asyncio.create_task(process_cheer_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         event_data["bits"]
-                    )
+                    ))
                 elif event_type == "channel.raid":
-                    await process_raid_event(
+                    asyncio.create_task(process_raid_event(
                         event_data["from_broadcaster_user_id"],
                         event_data["from_broadcaster_user_name"],
                         event_data["viewers"]
-                    )
+                    ))
                 elif event_type == "channel.hype_train.begin":
                     event_logger.info(f"Hype Train Start Event Data: {event_data}")
                     level = event_data["level"]
