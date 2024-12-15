@@ -6726,7 +6726,8 @@ async def check_song_requests():
 BOTS_TWITCH_BOT = TwitchBot(
     token=OAUTH_TOKEN,
     prefix='!',
-    channel_name=CHANNEL_NAME
+    channel_name=CHANNEL_NAME,
+    case_insensitive=True
 )
 
 # Run the bot
