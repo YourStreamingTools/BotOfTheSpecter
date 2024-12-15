@@ -98,6 +98,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("DISCORD_JOIN", self.discord_join),
             ("FOURTHWALL", self.handle_fourthwall_event),
             ("KOFI", self.handle_kofi_event),
+            ("OBS_EVENT", self.handle_obs_event),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -425,6 +426,12 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.info(f"Emitted KOFI event to client {sid}")
                 count += 1
         self.logger.info(f"Broadcasted KOFI event to {count} clients")
+
+    async def handle_obs_event(self, sid, data):
+        # Handle the OBS_EVENT event
+        self.logger.info(f"OBS_EVENT received from SID [{sid}]: {data}")
+        # Process the data here (e.g., extract event-name, scene-name, etc.)
+        # and decide how to handle different OBS events at a later time.
 
     async def deaths(self, sid, data):
         self.logger.info(f"Death event from SID [{sid}]: {data}")
