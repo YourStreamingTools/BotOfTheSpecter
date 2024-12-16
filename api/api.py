@@ -860,6 +860,9 @@ async def websocket_stream_offline(api_key: str = Query(...)):
     operation_id="trigger_websocket_obs_event"
 )
 async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     try:
         event_data = json.loads(data)
         simplified_event = {
