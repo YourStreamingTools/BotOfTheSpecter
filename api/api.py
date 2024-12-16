@@ -853,7 +853,7 @@ async def websocket_stream_offline(api_key: str = Query(...)):
 
 # Endpoint for receiving the event and forwarding it to the websocket server
 @app.post(
-    "/OBS_EVENT",
+    "/SEND_OBS_EVENT",
     summary="Pass OBS events to the websocket server",
     description="Send a 'OBS EVENT' to the WebSocket server to notify the system of a change in the OBS Connector.",
     tags=["Websocket"],
@@ -867,7 +867,7 @@ async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)
         event_data = json.loads(data)
         params = {
             'code': api_key,
-            'event': 'OBS_EVENT',
+            'event': 'SEND_OBS_EVENT',
             'data': event_data
         }
         async with aiohttp.ClientSession() as session:
