@@ -989,7 +989,7 @@ async def join_channel(hyperate_websocket):
 class TwitchBot(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
-        super().__init__(token=token, prefix=prefix, initial_channels=[channel_name])
+        super().__init__(token=token, prefix=prefix, initial_channels=[channel_name], case_insensitive=True)
         self.channel_name = channel_name
 
     async def event_ready(self):
@@ -6726,8 +6726,7 @@ async def check_song_requests():
 BOTS_TWITCH_BOT = TwitchBot(
     token=OAUTH_TOKEN,
     prefix='!',
-    channel_name=CHANNEL_NAME,
-    case_insensitive=True
+    channel_name=CHANNEL_NAME
 )
 
 # Run the bot
