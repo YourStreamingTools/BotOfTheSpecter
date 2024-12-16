@@ -865,19 +865,13 @@ async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)
         raise HTTPException(status_code=401, detail="Invalid API Key")
     try:
         event_data = json.loads(data)
-        simplified_event = {
-            'event-name': event_data.get('event-name', ''),
-            'scene-name': event_data.get('scene-name', ''),
-            'source-name': event_data.get('source-name', ''),
-            'item-enabled': event_data.get('item-enabled', False),
-        }
         params = {
             'code': api_key,
             'event': 'OBS_EVENT',
-            'data': simplified_event
+            'data': event_data
         }
         async with aiohttp.ClientSession() as session:
-            encoded_params = urllib.parse.urlencode(params)
+            encoded_params = urllib.parse.urlencode(params, quote_via=urllib.parse.quote_plus)
             url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
             async with session.get(url) as response:
                 if response.status == 200:
