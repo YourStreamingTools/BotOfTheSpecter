@@ -855,7 +855,7 @@ async def websocket_stream_offline(api_key: str = Query(...)):
 @app.post(
     "/OBS_EVENT",
     summary="Pass OBS events to the websocket server",
-    description="Send a 'OBS EVENT' to the WebSocket server to notify the system of a chagne in the OBS Connector.",
+    description="Send a 'OBS EVENT' to the WebSocket server to notify the system of a change in the OBS Connector.",
     tags=["Websocket"],
     operation_id="trigger_websocket_obs_event"
 )
