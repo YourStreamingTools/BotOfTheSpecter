@@ -31,6 +31,7 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 Some features of BotOfTheSpecter rely on external APIs (e.g., weather and music integrations) that require paid API keys. To access these premium features, support gfaUnDead’s Twitch channel through a subscription. These features include:
 - Real-time weather data for commands.
 - Music integrations with external services.
+
 The core functionalities of BotOfTheSpecter remain free and open source under the AGPL-3.0 license.
 
 ## Contributing Guidelines
