@@ -851,6 +851,41 @@ async def websocket_stream_offline(api_key: str = Query(...)):
     await websocket_notice("STREAM_OFFLINE", params, api_key)
     return {"status": "success"}
 
+# Endpoint for receiving the event and forwarding it to the websocket server
+@app.post(
+    "/OBS_EVENT",
+    summary="Pass OBS events to the websocket server",
+    description="Send a 'OBS EVENT' to the WebSocket server to notify the system of a chagne in the OBS Connector.",
+    tags=["Websocket"],
+    operation_id="trigger_websocket_obs_event"
+)
+async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)):
+    try:
+        event_data = json.loads(data)
+        simplified_event = {
+            'event-name': event_data.get('event-name', ''),
+            'scene-name': event_data.get('scene-name', ''),
+            'source-name': event_data.get('source-name', ''),
+            'item-enabled': event_data.get('item-enabled', False),
+        }
+        params = {
+            'code': api_key,
+            'event': 'OBS_EVENT',
+            'data': simplified_event
+        }
+        async with aiohttp.ClientSession() as session:
+            encoded_params = urllib.parse.urlencode(params)
+            url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
+            async with session.get(url) as response:
+                if response.status == 200:
+                    return {"message": "Event sent successfully", "status": response.status}
+                else:
+                    raise HTTPException(status_code=response.status, detail="Failed to send event to websocket server")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON format in 'data'")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
+
 # Hidden Endpoints
 # Games endpoint
 @app.get(
@@ -890,39 +925,6 @@ async def get_game(
             # Return the first game
             game = game_data[0]
             return {"id": game["id"], "name": game["name"]}
-
-# Endpoint for receiving the event and forwarding it to the websocket server
-@app.post(
-    "/OBS_EVENT",
-    summary="Pass OBS events to the websocket server",
-    include_in_schema=False
-)
-async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)):
-    try:
-        event_data = json.loads(data)
-        simplified_event = {
-            'event-name': event_data.get('event-name', ''),
-            'scene-name': event_data.get('scene-name', ''),
-            'source-name': event_data.get('source-name', ''),
-            'item-enabled': event_data.get('item-enabled', False),
-        }
-        params = {
-            'code': api_key,
-            'event': 'OBS_EVENT',
-            'data': simplified_event
-        }
-        async with aiohttp.ClientSession() as session:
-            encoded_params = urllib.parse.urlencode(params)
-            url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
-            async with session.get(url) as response:
-                if response.status == 200:
-                    return {"message": "Event sent successfully", "status": response.status}
-                else:
-                    raise HTTPException(status_code=response.status, detail="Failed to send event to websocket server")
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON format in 'data'")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
 # Get a list of authorized users
 @app.get(
