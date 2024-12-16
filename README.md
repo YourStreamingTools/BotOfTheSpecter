@@ -27,7 +27,7 @@ BotOfTheSpecter is a powerful Twitch chat bot designed to elevate your streaming
 - **Comprehensive Logs**: Review detailed logs covering bot activities, chat messages, Twitch events, and script errors.
 - **Easy Log Management**: Access and manage different log types conveniently through the dashboard.
 
-### API-based Premium Features
+## API-based Premium Features
 Some features of BotOfTheSpecter rely on external APIs (e.g., weather and music integrations) that require paid API keys. To access these premium features, support gfaUnDead’s Twitch channel through a subscription. These features include:
 - Real-time weather data for commands.
 - Music integrations with external services.
