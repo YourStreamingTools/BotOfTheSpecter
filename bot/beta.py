@@ -6557,7 +6557,8 @@ async def check_premium_feature():
                 else:
                     return 0  # Return 0 if not subscribed
     except aiohttp.ClientError as e:
-        twitch_logger.error(f"Error checking user/subscription: {e}")
+        sanitized_message = str(e).replace(ADMIN_API_KEY, "[ADMIN_API_KEY]")
+        twitch_logger.error(f"Error checking user/subscription: {sanitized_message}")
         return 0  # Return 0 for any API error
 
 # Make a Stream Marker for events
