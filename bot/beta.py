@@ -2156,7 +2156,24 @@ class TwitchBot(commands.Bot):
                             await ctx.send(f"No song found: {message_content}")
                             return
                     else:
+                        # Map Spotify API response codes to plain English explanations
+                        SPOTIFY_ERROR_MESSAGES = {
+                            400: "It looks like something went wrong with the request. Please try again.",
+                            401: "I couldn't connect to Spotify. Looks like the authentication failed. Please check the bot's credentials.",
+                            403: "Spotify says I don't have permission to do that. Check your Spotify account settings.",
+                            404: "I couldn't find what you were looking for. Please double-check the song or playlist.",
+                            429: "Spotify is saying we're sending too many requests. Let's wait a moment and try again.",
+                            500: "Spotify is having server issues. Please try again in a bit.",
+                            502: "Spotify is having a temporary issue. Please try again in a bit.",
+                            503: "Spotify's service is currently down. We'll need to wait until it's back online.",
+                        }
+                        # Spotify API error handling
                         api_logger.error(f"Spotify returned response code: {response.status}")
+                        error_message = SPOTIFY_ERROR_MESSAGES.get(
+                            response.status, 
+                            "Spotify gave me an unknown error. Try again in a moment."
+                        )
+                        await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
                         return
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
             async with aiohttp.ClientSession() as queue_session:
