@@ -37,17 +37,46 @@ if ($result) {
 $update_success = false;
 $update_message = '';
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Gather selected options
-    $new_blacklist = isset($_POST['blacklist']) ? $_POST['blacklist'] : [];
-    $new_blacklist_json = json_encode($new_blacklist);
-    // Update the blacklist in the database
-    $update_sql = "UPDATE joke_settings SET blacklist = :blacklist WHERE id = 1";
-    $update_stmt = $db->prepare($update_sql);
-    $update_stmt->bindParam(':blacklist', $new_blacklist_json);
-    $update_stmt->execute();
+    // Handle Joke Blacklist Update
+    if (isset($_POST['blacklist'])) {
+        $new_blacklist = isset($_POST['blacklist']) ? $_POST['blacklist'] : [];
+        $new_blacklist_json = json_encode($new_blacklist);
+        // Update the blacklist in the database
+        $update_sql = "UPDATE joke_settings SET blacklist = :blacklist WHERE id = 1";
+        $update_stmt = $db->prepare($update_sql);
+        $update_stmt->bindParam(':blacklist', $new_blacklist_json);
+        $update_stmt->execute();
+        // Set success message for blacklist update
+        $update_success = true;
+        $update_message = "Blacklist settings updated successfully.";
+    }
+    // Handle Welcome Message Settings Update
+    elseif (isset($_POST['send_welcome_messages'])) {
+        // Gather welcome message data
+        $send_welcome_messages = isset($_POST['send_welcome_messages']) ? 1 : 0;
+        $default_welcome_message = isset($_POST['default_welcome_message']) ? $_POST['default_welcome_message'] : '';
+        $default_vip_welcome_message = isset($_POST['default_vip_welcome_message']) ? $_POST['default_vip_welcome_message'] : '';
+        $default_mod_welcome_message = isset($_POST['default_mod_welcome_message']) ? $_POST['default_mod_welcome_message'] : '';
+        // Update the streamer_preferences in the database
+        $update_sql = "UPDATE streamer_preferences SET 
+                        send_welcome_messages = :send_welcome_messages, 
+                        default_welcome_message = :default_welcome_message,
+                        default_vip_welcome_message = :default_vip_welcome_message,
+                        default_mod_welcome_message = :default_mod_welcome_message
+                        WHERE id = 1";
+        $update_stmt = $db->prepare($update_sql);
+        // Bind parameters
+        $update_stmt->bindParam(':send_welcome_messages', $send_welcome_messages, PDO::PARAM_INT);
+        $update_stmt->bindParam(':default_welcome_message', $default_welcome_message, PDO::PARAM_STR);
+        $update_stmt->bindParam(':default_vip_welcome_message', $default_vip_welcome_message, PDO::PARAM_STR);
+        $update_stmt->bindParam(':default_mod_welcome_message', $default_mod_welcome_message, PDO::PARAM_STR);
+        // Execute the query
+        $update_stmt->execute();
+        // Set success message for welcome messages update
+        $update_success = true;
+        $update_message = "Welcome message settings updated successfully.";
+    }
     // Refresh the page to show updated settings
-    $update_success = true;
-    $update_message = "Blacklist settings updated successfully.";
     header("Location: " . $_SERVER['PHP_SELF']);
     exit();
 }
@@ -68,10 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <br>
     <?php if ($update_success): ?><div class="notification is-success"><?php echo $update_message; ?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline box-container">
+        <!-- Joke Blacklist Section -->
         <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
             <form method="POST" action="">
                 <h1 class="title">Manage Joke Blacklist:</h1>
-                <h1 class="subtitle has-text-danger" style="center">Any category slected here will not be allowed to be posted by the bot.</h1>
+                <h1 class="subtitle has-text-danger" style="center">Any category selected here will not be allowed to be posted by the bot.</h1>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Miscellaneous"<?php echo in_array("Miscellaneous", $current_blacklist) ? " checked" : ""; ?>> Miscellaneous</label></div>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Coding"<?php echo in_array("Coding", $current_blacklist) ? " checked" : ""; ?>> Coding</label></div>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Development"<?php echo in_array("Development", $current_blacklist) ? " checked" : ""; ?>> Development</label></div>
@@ -86,6 +116,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="explicit"<?php echo in_array("explicit", $current_blacklist) ? " checked" : ""; ?>> Explicit</label></div>
                 <button class="button is-primary" type="submit">Save Settings</button>
             </form>
+        </div>
+        <!-- New Welcome Message Settings -->
+        <div class="column is-5 bot-box" id="welcome-message-settings">
+        <form method="POST" action="">
+            <h1 class="title">Custom Welcome Messages</h1>
+            <h1 class="subtitle">Set your default welcome messages for users, VIPs, and Mods.</h1>
+            <!-- Info Box about (user) variable -->
+            <div class="notification is-info">
+                <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
+            </div>
+            <div class="field">
+                <label class="label">Default Welcome Message</label>
+                <div class="control">
+                    <textarea class="textarea" name="default_welcome_message"><?php echo htmlspecialchars($default_welcome_message ? $default_welcome_message : "(user) is new to the community, let's give them a warm welcome!"); ?></textarea>
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Default VIP Welcome Message</label>
+                <div class="control">
+                    <textarea class="textarea" name="default_vip_welcome_message"><?php echo htmlspecialchars($default_vip_welcome_message ? $default_vip_welcome_message : "ATTENTION! A very important person has entered the chat, welcome (user)"); ?></textarea>
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Default Mod Welcome Message</label>
+                <div class="control">
+                    <textarea class="textarea" name="default_mod_welcome_message"><?php echo htmlspecialchars($default_mod_welcome_message ? $default_mod_welcome_message : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"); ?></textarea>
+                </div>
+            </div>
+            <div class="field">
+                <label class="checkbox">
+                    <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages ? 'checked' : ''; ?>> Enable welcome messages
+                </label>
+            </div>
+            <button class="button is-primary" type="submit">Save Welcome Settings</button>
+        </form>
         </div>
     </div>
 </div>
