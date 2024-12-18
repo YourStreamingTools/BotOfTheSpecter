@@ -33,6 +33,18 @@ if ($result) {
     $current_blacklist = json_decode($result['blacklist'], true);
 }
 
+// Fetch the current settings from the database each time the page loads
+$fetch_sql = "SELECT send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message FROM streamer_preferences WHERE id = 1";
+$fetch_stmt = $db->prepare($fetch_sql);
+$fetch_stmt->execute();
+$preferences = $fetch_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Set default values if no settings exist in the database
+$send_welcome_messages = isset($preferences['send_welcome_messages']) ? $preferences['send_welcome_messages'] : 1;
+$default_welcome_message = isset($preferences['default_welcome_message']) ? $preferences['default_welcome_message'] : "(user) is new to the community, let's give them a warm welcome!";
+$default_vip_welcome_message = isset($preferences['default_vip_welcome_message']) ? $preferences['default_vip_welcome_message'] : "ATTENTION! A very important person has entered the chat, welcome (user)";
+$default_mod_welcome_message = isset($preferences['default_mod_welcome_message']) ? $preferences['default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
+
 // If form is submitted, update the blacklist
 $update_success = false;
 $update_message = '';
@@ -51,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // Handle Welcome Message Settings Update
     elseif (isset($_POST['send_welcome_messages'])) {
-        // Gather welcome message data
+        // Gather and save the updated welcome message data
         $send_welcome_messages = isset($_POST['send_welcome_messages']) ? 1 : 0;
         $default_welcome_message = isset($_POST['default_welcome_message']) ? $_POST['default_welcome_message'] : '';
         $default_vip_welcome_message = isset($_POST['default_vip_welcome_message']) ? $_POST['default_vip_welcome_message'] : '';
@@ -72,16 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt->bindParam(':default_mod_welcome_message', $default_mod_welcome_message, PDO::PARAM_STR);
         // Execute the query
         $update_stmt->execute();
-        // Fetch the updated values from the database
-        $fetch_sql = "SELECT send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message FROM streamer_preferences WHERE id = 1";
-        $fetch_stmt = $db->prepare($fetch_sql);
-        $fetch_stmt->execute();
-        $updated_preferences = $fetch_stmt->fetch(PDO::FETCH_ASSOC);
-        // Set the updated values to be used in the form
-        $send_welcome_messages = $updated_preferences['send_welcome_messages'];
-        $default_welcome_message = $updated_preferences['default_welcome_message'];
-        $default_vip_welcome_message = $updated_preferences['default_vip_welcome_message'];
-        $default_mod_welcome_message = $updated_preferences['default_mod_welcome_message'];
         // Set success message for welcome messages update in session
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
     }
