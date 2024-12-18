@@ -1348,9 +1348,7 @@ class TwitchBot(commands.Bot):
                             message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
                         else:
                             message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
-                        message_to_send = f"Welcome {messageAuthor}, you're new here! {message_to_send}"
-                    else:  # Returning user
-                        # Use custom welcome message if available, otherwise default
+                    else:
                         if welcome_message:
                             message_to_send = welcome_message
                         else:
@@ -1360,7 +1358,6 @@ class TwitchBot(commands.Bot):
                                 message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
                             else:
                                 message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
-                        message_to_send = f"Welcome back {messageAuthor}, we're glad to see you again! {message_to_send}"
                     # Send the welcome message
                     asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
                     await self.send_message_to_channel(message_to_send)
