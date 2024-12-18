@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
             <div class="field">
                 <label class="checkbox">
-                    <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages ? 'checked' : ''; ?>> Enable welcome messages
+                    <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages || isset($send_welcome_messages) ? 'checked' : 'checked'; ?>> Enable welcome messages
                 </label>
             </div>
             <button class="button is-primary" type="submit">Save Welcome Settings</button>
