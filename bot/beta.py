@@ -1340,6 +1340,7 @@ class TwitchBot(commands.Bot):
                     return message.replace("(user)", username)
                 # Add user to `seen_today`
                 await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
+                await sqldb.commit()
                 if user_status_enabled and send_welcome_messages:
                     if user_data is None:
                         if is_vip:
@@ -1363,7 +1364,6 @@ class TwitchBot(commands.Bot):
                     await self.send_message_to_channel(message_to_send)
                 else:
                     chat_logger.info(f"User status for {messageAuthor} is disabled or welcome messages are turned off.")
-                await sqldb.commit()
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
