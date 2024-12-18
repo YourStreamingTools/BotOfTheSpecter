@@ -1342,25 +1342,23 @@ class TwitchBot(commands.Bot):
                 # Add user to `seen_today`
                 await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                 if user_status_enabled and send_welcome_messages:
-                    asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
-                    if is_vip:
-                        message_to_send = (
-                            welcome_message or
-                            replace_user_placeholder(default_vip_welcome_message, messageAuthor) if user_data is None else 
-                            f"ATTENTION! A new VIP {messageAuthor} has joined us! Let's give a warm welcome!"
-                        )
-                    elif is_mod:
-                        message_to_send = (
-                            welcome_message or
-                            replace_user_placeholder(default_mod_welcome_message, messageAuthor) if user_data is None else
-                            f"MOD ON DUTY! A new mod {messageAuthor} has arrived. Show some love!"
-                        )
+                    if user_data is None:
+                        if is_vip:
+                            message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
+                        elif is_mod:
+                            message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
+                        else:
+                            message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
+                        message_to_send = f"Welcome {messageAuthor}, you're new here! {message_to_send}"
                     else:
-                        message_to_send = (
-                            welcome_message or
-                            replace_user_placeholder(default_welcome_message, messageAuthor) if user_data is None else 
-                             f"Welcome back {messageAuthor}, glad to see you again!"
-                        )
+                        if is_vip:
+                            message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
+                        elif is_mod:
+                            message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
+                        else:
+                            message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
+                        message_to_send = f"Welcome back {messageAuthor}, we're glad to see you again! {message_to_send}"
+                    asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
                     await self.send_message_to_channel(message_to_send)
                 else:
                     chat_logger.info(f"User status for {messageAuthor} is disabled or welcome messages are turned off.")
