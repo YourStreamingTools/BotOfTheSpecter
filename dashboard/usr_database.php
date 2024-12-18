@@ -344,6 +344,14 @@ try {
                 voice VARCHAR(50),
                 language VARCHAR(10),
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'streamer_preferences' => "
+            CREATE TABLE IF NOT EXISTS streamer_preferences (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                send_welcome_messages BOOLEAN,
+                default_welcome_message TEXT,
+                default_vip_welcome_message TEXT,
+                default_mod_welcome_message TEXT
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
