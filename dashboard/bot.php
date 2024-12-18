@@ -314,7 +314,7 @@ if (file_exists($restartLog)) {
         Keeping these two times as close as possible will ensure you’re up-to-date with the latest changes, as we continuously test and improve the bot's functionality.
         <br>
         <span class="has-text-weight-light">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span><br>
-        <span class="has-text-weight-light">You are running a version that was last started: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
+        <span class="has-text-weight-light">Last Ran: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
       </p>
     </section>
   </div>
