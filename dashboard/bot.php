@@ -308,6 +308,7 @@ if (file_exists($restartLog)) {
         <span class="has-text-weight-bold variable-title">Stop Beta Bot</span>:
         This button stops the Beta version of the Twitch bot from running.<br>
       </p>
+	  <br>
       <p>
         Beta Bot Version Control: Below you'll find information about when the beta file was last updated and how long it has been since you last started or restarted the beta bot. <br>
         Keeping these two times as close as possible will ensure you’re up-to-date with the latest changes, as we continuously test and improve the bot's functionality. <br>
