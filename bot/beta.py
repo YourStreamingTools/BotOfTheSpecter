@@ -2200,7 +2200,7 @@ class TwitchBot(commands.Bot):
                     permissions = result["permission"]
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
-                        await ctx.send(f"Checking the song queue is currently disabled.")
+                        await ctx.send(f"Sorry, checking the song queue is currently disabled.")
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
@@ -2226,12 +2226,11 @@ class TwitchBot(commands.Bot):
                             # Send message for the current song
                             if song_name and artist_name:
                                 if current_song_requester:
-                                    await ctx.send(f"Currently Playing: {song_name} by {artist_name}, requested by {current_song_requester}")
+                                    await ctx.send(f"🎵 Now Playing: {song_name} by {artist_name} (requested by {current_song_requester})")
                                 else:
-                                    await ctx.send(f"Currently Playing: {song_name} by {artist_name}")
+                                    await ctx.send(f"🎵 Now Playing: {song_name} by {artist_name}")
+                            # Format the song queue
                             song_list = []
-                            displayed_songs = 0
-                            # Add the songs from the queue
                             for idx, song in enumerate(queue, start=1):
                                 song_id = song['uri']
                                 song_name = song['name']
@@ -2242,25 +2241,34 @@ class TwitchBot(commands.Bot):
                                     requester = song_requests[song_id].get("user")
                                 # Format the song entry with the requester
                                 if requester:
-                                    song_list.append(f"{idx}: {song_name} by {artist_name} ({requester}) ")
+                                    song_list.append(f"{idx}. {song_name} by {artist_name} (requested by {requester})")
                                 else:
-                                    song_list.append(f"{idx}: {song_name} by {artist_name} ")
-                                displayed_songs += 1
-                                if displayed_songs >= 3:
+                                    song_list.append(f"{idx}. {song_name} by {artist_name}")
+                                if idx >= 3:  # Limit the display to the first 3 songs
                                     break
-                            # If there are more songs, add "+ X more"
-                            if queue_length > 3 and len(song_list) > 0:
-                                song_list.append(f"+ {queue_length - 3} more")
-                            # Send the song queue message
+                            # Add a note if there are more songs in the queue
+                            if queue_length > 3:
+                                song_list.append(f"...and {queue_length - 3} more songs in the queue.")
+                            # Send the queue to chat
                             if song_list:
-                                await ctx.send(f"Queue: {''.join(song_list)}")
+                                await ctx.send(f"Upcoming Songs:\n" + "\n".join(song_list))
                             else:
-                                await ctx.send("There is nothing in the queue right now.")
+                                await ctx.send("The queue is empty right now. Add some songs!")
                         else:
-                            await ctx.send("There is nothing being played on Spotify right now.")
+                            await ctx.send("It seems like nothing is playing on Spotify right now.")
                     else:
+                        error_message = {
+                            401: "I lost access to Spotify. Please reauthorize the bot.",
+                            403: "Spotify says I can't access the queue. Please check permissions.",
+                            404: "I couldn't find any queue. Is Spotify open and playing?",
+                            429: "Spotify is overloaded right now. Try again in a moment.",
+                            500: "Spotify is having technical difficulties. Let's try later.",
+                        }.get(response.status, "Something went wrong with Spotify. Please try again soon.")
+                        await ctx.send(f"Sorry, I couldn’t fetch the queue. {error_message}")
                         api_logger.error(f"Spotify returned response code: {response.status}")
-                        await ctx.send("Failed to fetch the song queue from Spotify.")
+        except Exception as e:
+            await ctx.send("Something went wrong while fetching the song queue. Please try again later.")
+            api_logger.error(f"Error in songqueue_command: {e}")
         finally:
             await sqldb.ensure_closed()
 
