@@ -298,15 +298,21 @@ if (file_exists($restartLog)) {
     <section class="modal-card-body has-background-dark has-text-white">
       <p>
         <span class="has-text-weight-bold variable-title">Run Beta Bot</span>:
-        This button runs the Beta version of the Twitch bot "BotOfTheSpecter". <span class="has-text-weight-light">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span>
+        This button runs the Beta version of the Twitch bot "BotOfTheSpecter".</span>
       </p>
       <p>
         <span class="has-text-weight-bold variable-title">Restart Beta Bot</span>:<br>
-        This button restarts the Beta version of the Twitch bot, refreshing its connection and settings. <span class="has-text-weight-light">You are running a version that you started, <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
+        This button restarts the Beta version of the Twitch bot, refreshing its connection and settings.</span>
       </p>
       <p>
         <span class="has-text-weight-bold variable-title">Stop Beta Bot</span>:
         This button stops the Beta version of the Twitch bot from running.<br>
+      </p>
+      <p>
+        Beta Bot Version Control: Below you'll find information about when the beta file was last updated and how long it has been since you last started or restarted the beta bot. <br>
+        Keeping these two times as close as possible will ensure you’re up-to-date with the latest changes, as we continuously test and improve the bot's functionality. <br>
+        <span class="has-text-weight-light">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span><br>
+        <span class="has-text-weight-light">You are running a version that was last started: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
       </p>
     </section>
   </div>
