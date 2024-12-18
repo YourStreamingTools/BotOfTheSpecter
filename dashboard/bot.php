@@ -310,8 +310,9 @@ if (file_exists($restartLog)) {
       </p>
       <br>
       <p>
-        Beta Bot Version Control: Below you'll find information about when the beta file was last updated and how long it has been since you last started or restarted the beta bot. <br>
-        Keeping these two times as close as possible will ensure you’re up-to-date with the latest changes, as we continuously test and improve the bot's functionality. <br>
+        Beta Bot Version Control: Below you'll find information about when the beta file was last updated and how long it has been since you last started or restarted the beta bot. 
+        Keeping these two times as close as possible will ensure you’re up-to-date with the latest changes, as we continuously test and improve the bot's functionality.
+        <br>
         <span class="has-text-weight-light">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span><br>
         <span class="has-text-weight-light">You are running a version that was last started: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
       </p>
