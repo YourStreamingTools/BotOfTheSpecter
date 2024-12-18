@@ -1331,6 +1331,7 @@ class TwitchBot(commands.Bot):
                 # Query the streamer preferences for the welcome message settings
                 await cursor.execute('SELECT * FROM streamer_preferences')
                 preferences = await cursor.fetchone()
+                preferences = preferences or {}
                 send_welcome_messages = int(preferences.get("send_welcome_messages", 1)) == 1
                 default_welcome_message = preferences.get("default_welcome_message", "(user) is new to the community, let's give them a warm welcome!")
                 default_vip_welcome_message = preferences.get("default_vip_welcome_message", "ATTENTION! A very important person has entered the chat, welcome (user)")
