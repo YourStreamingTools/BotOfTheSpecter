@@ -72,6 +72,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt->bindParam(':default_mod_welcome_message', $default_mod_welcome_message, PDO::PARAM_STR);
         // Execute the query
         $update_stmt->execute();
+        // Fetch the updated values from the database
+        $fetch_sql = "SELECT send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message FROM streamer_preferences WHERE id = 1";
+        $fetch_stmt = $db->prepare($fetch_sql);
+        $fetch_stmt->execute();
+        $updated_preferences = $fetch_stmt->fetch(PDO::FETCH_ASSOC);
+        // Set the updated values to be used in the form
+        $send_welcome_messages = $updated_preferences['send_welcome_messages'];
+        $default_welcome_message = $updated_preferences['default_welcome_message'];
+        $default_vip_welcome_message = $updated_preferences['default_vip_welcome_message'];
+        $default_mod_welcome_message = $updated_preferences['default_mod_welcome_message'];
         // Set success message for welcome messages update in session
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
     }
@@ -118,38 +128,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
         <!-- New Welcome Message Settings -->
         <div class="column is-5 bot-box" id="welcome-message-settings">
-        <form method="POST" action="">
-            <h1 class="title">Custom Welcome Messages</h1>
-            <h1 class="subtitle">Set your default welcome messages for users, VIPs, and Mods.</h1>
-            <!-- Info Box about (user) variable -->
-            <div class="notification is-info">
-                <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
-            </div>
-            <div class="field">
-                <label class="label">Default Welcome Message</label>
-                <div class="control">
-                    <textarea class="textarea" name="default_welcome_message"><?php echo htmlspecialchars($default_welcome_message ? $default_welcome_message : "(user) is new to the community, let's give them a warm welcome!"); ?></textarea>
+            <form method="POST" action="">
+                <h1 class="title">Custom Welcome Messages</h1>
+                <h1 class="subtitle">Set your default welcome messages for users, VIPs, and Mods.</h1>
+                <div class="notification is-info">
+                    <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
                 </div>
-            </div>
-            <div class="field">
-                <label class="label">Default VIP Welcome Message</label>
-                <div class="control">
-                    <textarea class="textarea" name="default_vip_welcome_message"><?php echo htmlspecialchars($default_vip_welcome_message ? $default_vip_welcome_message : "ATTENTION! A very important person has entered the chat, welcome (user)"); ?></textarea>
+                <div class="field">
+                    <label class="label">Default Welcome Message</label>
+                    <div class="control">
+                        <textarea class="textarea" name="default_welcome_message"><?php echo htmlspecialchars($default_welcome_message ? $default_welcome_message : "(user) is new to the community, let's give them a warm welcome!"); ?></textarea>
+                    </div>
                 </div>
-            </div>
-            <div class="field">
-                <label class="label">Default Mod Welcome Message</label>
-                <div class="control">
-                    <textarea class="textarea" name="default_mod_welcome_message"><?php echo htmlspecialchars($default_mod_welcome_message ? $default_mod_welcome_message : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"); ?></textarea>
+                <div class="field">
+                    <label class="label">Default VIP Welcome Message</label>
+                    <div class="control">
+                        <textarea class="textarea" name="default_vip_welcome_message"><?php echo htmlspecialchars($default_vip_welcome_message ? $default_vip_welcome_message : "ATTENTION! A very important person has entered the chat, welcome (user)"); ?></textarea>
+                    </div>
                 </div>
-            </div>
-            <div class="field">
-                <label class="checkbox">
-                    <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages || isset($send_welcome_messages) ? 'checked' : 'checked'; ?>> Enable welcome messages
-                </label>
-            </div>
-            <button class="button is-primary" type="submit">Save Welcome Settings</button>
-        </form>
+                <div class="field">
+                    <label class="label">Default Mod Welcome Message</label>
+                    <div class="control">
+                        <textarea class="textarea" name="default_mod_welcome_message"><?php echo htmlspecialchars($default_mod_welcome_message ? $default_mod_welcome_message : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"); ?></textarea>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="checkbox">
+                        <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages ? 'checked' : ''; ?>> Enable welcome messages
+                    </label>
+                </div>
+                <button class="button is-primary" type="submit">Save Welcome Settings</button>
+            </form>
         </div>
     </div>
 </div>
