@@ -1290,9 +1290,9 @@ class TwitchBot(commands.Bot):
             finally:
                 await cursor.close()
                 await sqldb.ensure_closed()
-                await self.message_counting(messageAuthor, messageAuthorID, bannedUser, message)
+                await self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, message)
 
-    async def message_counting(self, messageAuthor, messageAuthorID, bannedUser, message):
+    async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, message):
         if messageAuthor in [bannedUser, None, ""]:
             return
         sqldb = await get_mysql_connection()
@@ -1329,34 +1329,41 @@ class TwitchBot(commands.Bot):
                         return
                     welcome_message = None
                     user_status_enabled = True
+                # Query the streamer preferences for the welcome message settings
+                await cursor.execute('SELECT * FROM streamer_preferences')
+                preferences = await cursor.fetchone()
+                send_welcome_messages = preferences.get("send_welcome_messages", 'True') == 'True'
+                default_welcome_message = preferences.get("default_welcome_message", "(user) is new to the community, let's give them a warm welcome!")
+                default_vip_welcome_message = preferences.get("default_vip_welcome_message", "ATTENTION! A very important person has entered the chat, welcome (user)")
+                default_mod_welcome_message = preferences.get("default_mod_welcome_message", "MOD ON DUTY! Welcome in (user), the power of the sword has increased!")
+                # Replace (user) in the welcome messages with the actual username
+                def replace_user_placeholder(message, username):
+                    return message.replace("(user)", username)
                 # Add user to `seen_today`
                 await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
-                if user_status_enabled:
+                if user_status_enabled and send_welcome_messages:
                     asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
                     if is_vip:
                         message_to_send = (
                             welcome_message or
-                            f"ATTENTION! A very important person has entered the chat, welcome {messageAuthor}!"
-                            if user_data else
+                            replace_user_placeholder(default_vip_welcome_message, messageAuthor) if user_data is None else 
                             f"ATTENTION! A new VIP {messageAuthor} has joined us! Let's give a warm welcome!"
                         )
                     elif is_mod:
                         message_to_send = (
                             welcome_message or
-                            f"MOD ON DUTY! Welcome in {messageAuthor}, the power of the sword has increased!"
-                            if user_data else
+                            replace_user_placeholder(default_mod_welcome_message, messageAuthor) if user_data is None else
                             f"MOD ON DUTY! A new mod {messageAuthor} has arrived. Show some love!"
                         )
                     else:
                         message_to_send = (
                             welcome_message or
-                            f"Welcome back {messageAuthor}, glad to see you again!"
-                            if user_data else
-                            f"{messageAuthor} is new to the community, let's give them a warm welcome!"
+                            replace_user_placeholder(default_welcome_message, messageAuthor) if user_data is None else 
+                             f"Welcome back {messageAuthor}, glad to see you again!"
                         )
                     await self.send_message_to_channel(message_to_send)
                 else:
-                    chat_logger.info(f"User status for {messageAuthor} is disabled.")
+                    chat_logger.info(f"User status for {messageAuthor} is disabled or welcome messages are turned off.")
                 await sqldb.commit()
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
