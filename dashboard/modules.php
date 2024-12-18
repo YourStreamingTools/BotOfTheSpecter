@@ -58,12 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $default_vip_welcome_message = isset($_POST['default_vip_welcome_message']) ? $_POST['default_vip_welcome_message'] : '';
         $default_mod_welcome_message = isset($_POST['default_mod_welcome_message']) ? $_POST['default_mod_welcome_message'] : '';
         // Update the streamer_preferences in the database
-        $update_sql = "UPDATE streamer_preferences SET 
-                        send_welcome_messages = :send_welcome_messages, 
-                        default_welcome_message = :default_welcome_message,
-                        default_vip_welcome_message = :default_vip_welcome_message,
-                        default_mod_welcome_message = :default_mod_welcome_message
-                        WHERE id = 1";
+        $update_sql = "INSERT INTO streamer_preferences (id, send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message)
+                VALUES (1, :send_welcome_messages, :default_welcome_message, :default_vip_welcome_message, :default_mod_welcome_message)
+                ON DUPLICATE KEY UPDATE 
+                    send_welcome_messages = :send_welcome_messages, 
+                    default_welcome_message = :default_welcome_message,
+                    default_vip_welcome_message = :default_vip_welcome_message,
+                    default_mod_welcome_message = :default_mod_welcome_message";
         $update_stmt = $db->prepare($update_sql);
         // Bind parameters
         $update_stmt->bindParam(':send_welcome_messages', $send_welcome_messages, PDO::PARAM_INT);
