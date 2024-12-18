@@ -46,9 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt = $db->prepare($update_sql);
         $update_stmt->bindParam(':blacklist', $new_blacklist_json);
         $update_stmt->execute();
-        // Set success message for blacklist update
-        $update_success = true;
-        $update_message = "Blacklist settings updated successfully.";
+        // Set success message for blacklist update in session
+        $_SESSION['update_message'] = "Blacklist settings updated successfully.";
     }
     // Handle Welcome Message Settings Update
     elseif (isset($_POST['send_welcome_messages'])) {
@@ -73,9 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt->bindParam(':default_mod_welcome_message', $default_mod_welcome_message, PDO::PARAM_STR);
         // Execute the query
         $update_stmt->execute();
-        // Set success message for welcome messages update
-        $update_success = true;
-        $update_message = "Welcome message settings updated successfully.";
+        // Set success message for welcome messages update in session
+        $_SESSION['update_message'] = "Welcome message settings updated successfully.";
     }
     // Refresh the page to show updated settings
     header("Location: " . $_SERVER['PHP_SELF']);
@@ -96,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <div class="container">
     <br>
-    <?php if ($update_success): ?><div class="notification is-success"><?php echo $update_message; ?></div><?php endif; ?>
+    <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline box-container">
         <!-- Joke Blacklist Section -->
         <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
