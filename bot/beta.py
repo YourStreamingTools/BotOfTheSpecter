@@ -1314,19 +1314,18 @@ class TwitchBot(commands.Bot):
                 # Check if the user is in the list of already seen users
                 if await cursor.fetchone():
                     return
+                # Check if the user is the broadcaster
+                if messageAuthor.lower() == CHANNEL_NAME.lower():
+                    return
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
                 if user_data:
-                    # Check if the user is the broadcaster
-                    if messageAuthor.lower() == CHANNEL_NAME.lower():
-                        return
+                    # The user is returning
                     welcome_message = user_data.get("welcome_message")
                     user_status_enabled = user_data.get("status", 'True') == 'True'
                 else:
-                    # Check if the user is the broadcaster
-                    if messageAuthor.lower() == CHANNEL_NAME.lower():
-                        return
+                    # The user is new
                     welcome_message = None
                     user_status_enabled = True
                 # Query the streamer preferences for the welcome message settings
@@ -1350,14 +1349,19 @@ class TwitchBot(commands.Bot):
                         else:
                             message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                         message_to_send = f"Welcome {messageAuthor}, you're new here! {message_to_send}"
-                    else:
-                        if is_vip:
-                            message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
-                        elif is_mod:
-                            message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
+                    else:  # Returning user
+                        # Use custom welcome message if available, otherwise default
+                        if welcome_message:
+                            message_to_send = welcome_message
                         else:
-                            message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
+                            if is_vip:
+                                message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
+                            elif is_mod:
+                                message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
+                            else:
+                                message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                         message_to_send = f"Welcome back {messageAuthor}, we're glad to see you again! {message_to_send}"
+                    # Send the welcome message
                     asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
                     await self.send_message_to_channel(message_to_send)
                 else:
