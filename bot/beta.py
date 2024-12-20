@@ -1331,18 +1331,23 @@ class TwitchBot(commands.Bot):
                     user_status_enabled = True
                 # Query the streamer preferences for the welcome message settings
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
-                preferences = {}
                 preferences = await cursor.fetchone()
                 if preferences:
                     send_welcome_messages = int(preferences["send_welcome_messages"])
+                    new_default_welcome_message = preferences["new_default_welcome_message"]
+                    new_default_vip_welcome_message = preferences["new_default_vip_welcome_message"]
+                    new_default_mod_welcome_message = preferences["new_default_mod_welcome_message"]
                     default_welcome_message = preferences["default_welcome_message"]
                     default_vip_welcome_message = preferences["default_vip_welcome_message"]
                     default_mod_welcome_message = preferences["default_mod_welcome_message"]
                 else:
                     send_welcome_messages = 1
-                    default_welcome_message = "(user) is new to the community, let's give them a warm welcome!"
-                    default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
-                    default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
+                    new_default_welcome_message = "(user) is new to the community, let's give them a warm welcome!"
+                    default_welcome_message = new_default_welcome_message
+                    new_default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
+                    default_vip_welcome_message = new_default_vip_welcome_message
+                    new_default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
+                    default_mod_welcome_message = new_default_mod_welcome_message
                 # Replace (user) in the welcome messages with the actual username
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
@@ -1352,11 +1357,11 @@ class TwitchBot(commands.Bot):
                 if user_status_enabled and send_welcome_messages:
                     if user_data is None:
                         if is_vip:
-                            message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
+                            message_to_send = replace_user_placeholder(new_default_vip_welcome_message, messageAuthor)
                         elif is_mod:
-                            message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
+                            message_to_send = replace_user_placeholder(new_default_mod_welcome_message, messageAuthor)
                         else:
-                            message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
+                            message_to_send = replace_user_placeholder(new_default_welcome_message, messageAuthor)
                     else:
                         if has_welcome_message:
                             message_to_send = has_welcome_message
