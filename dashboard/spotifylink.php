@@ -13,6 +13,7 @@ $title = "Spotify Link";
 
 // Include all the information
 require_once "/var/www/config/db_connect.php";
+require_once "/var/www/config/spotify.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
@@ -23,9 +24,6 @@ foreach ($profileData as $profile) {
 date_default_timezone_set($timezone);
 
 // Set variables
-$client_secret = ''; // CHANGE TO MAKE THIS WORK
-$client_id = ''; // CHANGE TO MAKE THIS WORK
-$redirect_uri = 'https://dashboard.botofthespecter.com/spotifylink.php';
 $authURL = '';
 $message = '';
 $messageType = '';
