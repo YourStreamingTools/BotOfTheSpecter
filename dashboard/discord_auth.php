@@ -3,7 +3,7 @@
 session_start();
 
 // Connect to database
-require_once "db_connect.php";
+require_once "/var/www/config/db_connect.php";
 
 // Get the authorization code from Discord redirect
 $code = $_GET['code'];

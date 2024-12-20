@@ -96,7 +96,7 @@ if (isset($_GET['code'])) {
         $_SESSION['username'] = $twitchUsername;
         $_SESSION['twitch_user_id'] = $twitchUserId;
         // Database connect
-        require_once "db_connect.php";
+        require_once "/var/www/config/db_connect.php";
         // Check if the user already exists
         $checkQuery = "SELECT id FROM users WHERE username = ?";
         $stmt = mysqli_prepare($conn, $checkQuery);
