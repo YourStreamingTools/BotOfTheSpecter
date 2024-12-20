@@ -18,8 +18,7 @@ $maindb = 'website';
 
 function build_event_section($user_db, $event, $section_name, $clean_data = false) {
     $section_html = "<h2 class='subtitle has-text-white'>$section_name</h2><ul class='content has-text-white'>";
-    if ($stmt = $user_db->prepare("SELECT username, event, data FROM stream_credits WHERE event = ?")) {
-        $stmt->bind_param("s", $event);
+    if ($stmt = $user_db->prepare("SELECT username, \"event\", \"data\" FROM stream_credits WHERE \"event\" = $event")) {
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result->num_rows > 0) {
