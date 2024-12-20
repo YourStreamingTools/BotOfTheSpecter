@@ -128,10 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline box-container">
         <!-- Joke Blacklist Section -->
-        <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
+        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
             <form method="POST" action="">
-                <h1 class="title">Manage Joke Blacklist:</h1>
-                <h1 class="subtitle has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h1>
+                <h2 class="title is-3">Manage Joke Blacklist:</h2>
+                <h2 class="subtitle is-4 has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h2>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Miscellaneous"<?php echo in_array("Miscellaneous", $current_blacklist) ? " checked" : ""; ?>> Miscellaneous</label></div>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Coding"<?php echo in_array("Coding", $current_blacklist) ? " checked" : ""; ?>> Coding</label></div>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Development"<?php echo in_array("Development", $current_blacklist) ? " checked" : ""; ?>> Development</label></div>
@@ -148,11 +148,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </form>
         </div>
         <!-- New Welcome Message Settings -->
-        <div class="column is-5 bot-box" id="welcome-message-settings">
+        <div class="column is-6 bot-box" id="welcome-message-settings" style="position: relative;">
+        <span style="position: absolute; top: 10px; right: 10px;" class="has-text-danger">v5.2 Feature</span>
+            <h1 class="title is-3">Custom Welcome Messages</h1>
+            <h1 class="subtitle is-5">Set your default welcome messages for users, VIPs, and Mods.</h1>
             <form method="POST" action="">
-                <h1 class="title">Custom Welcome Messages</h1>
-                <h1 class="subtitle has-text-danger" style="text-align: center;">v5.2 Feature</h1>
-                <h1 class="subtitle">Set your default welcome messages for users, VIPs, and Mods.</h1>
                 <div class="notification is-info">
                     <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
                 </div>
