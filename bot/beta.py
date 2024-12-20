@@ -1080,7 +1080,7 @@ class TwitchBot(commands.Bot):
                 if messageContent.startswith('!'):
                     command_parts = messageContent.split()
                     command = command_parts[0][1:]  # Extract the command without '!'
-                    if command in builtin_commands or command in builtin_aliases:
+                    if command in builtin_commands or command in mod_commands or command in builtin_aliases:
                         chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                         return  # It's a built-in command or alias, do nothing more
                     # Check if the command exists in the database and respond
@@ -1309,6 +1309,7 @@ class TwitchBot(commands.Bot):
                     'ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s',
                     (messageAuthor, user_level, user_level)
                 )
+                await sqldb.commit()
                 # Has the user been seen during this stream
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 # Check if the user is in the list of already seen users
@@ -1322,14 +1323,15 @@ class TwitchBot(commands.Bot):
                 user_data = await cursor.fetchone()
                 if user_data:
                     # The user is returning
-                    welcome_message = user_data("welcome_message")
-                    user_status_enabled = user_data("status", 'True') == 'True'
+                    has_welcome_message = user_data["welcome_message"]
+                    user_status_enabled = user_data.get("status", 'True') == 'True'
                 else:
                     # The user is new
-                    welcome_message = None
+                    has_welcome_message = None
                     user_status_enabled = True
                 # Query the streamer preferences for the welcome message settings
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
+                preferences = {}
                 preferences = await cursor.fetchone()
                 if preferences:
                     send_welcome_messages = int(preferences["send_welcome_messages"])
@@ -1356,8 +1358,8 @@ class TwitchBot(commands.Bot):
                         else:
                             message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                     else:
-                        if welcome_message:
-                            message_to_send = welcome_message
+                        if has_welcome_message:
+                            message_to_send = has_welcome_message
                         else:
                             if is_vip:
                                 message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
