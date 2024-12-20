@@ -3,10 +3,16 @@
     "name": "BotOfTheSpecter Panel",
     "version": "1.0.0",
     "description": "Panel extension for BotOfTheSpecter",
+    "author_name": "YourStreamingTools",
+    "author_id": "971436498",
     "views": {
         "panel": {
-            "file": "index.html",
-            "type": "webview"
+            "viewer_url": "panel.html",
+            "height": 300
+        },
+        "config": {
+            "viewer_url": "config.html",
+            "height": 300
         }
     }
 }
