@@ -4244,7 +4244,8 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
                 try:
-                    if len(args) == 3 and args[0].startswith('$'):
+                    startwitch = ["€", "$", "£", "¥", "₹", "₣", "₽", "₺", "₩", "₼", "₱", "₪", "₴", "₭", "₨", "฿", "₮", "₳", "₵", "ƒ", "៛", "﷼", "R$"]
+                    if len(args) == 3 and (args[0].startswith(symbol) for symbol in startwitch):
                         # Handle currency conversion
                         amount_str = args[0]
                         amount = float(amount_str[1:])
