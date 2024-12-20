@@ -24,7 +24,7 @@ $lastModifiedOutput = '';
 $lastRestartOutput = '';
 
 // Include files for database and user data
-require_once "db_connect.php";
+require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';

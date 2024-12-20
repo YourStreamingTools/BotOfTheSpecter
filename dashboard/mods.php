@@ -15,7 +15,7 @@ if (!isset($_SESSION['access_token'])) {
 $title = "Twitch Data - Mods";
 
 // Include all the information
-require_once "db_connect.php";
+require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
