@@ -4,6 +4,7 @@ session_start();
 
 // Connect to database
 require_once "/var/www/config/db_connect.php";
+include "/var/www/config/discord.php";
 
 // Get the authorization code from Discord redirect
 $code = $_GET['code'];
@@ -11,8 +12,8 @@ $code = $_GET['code'];
 // Exchange the authorization code for an access token
 $token_url = 'https://discord.com/api/oauth2/token';
 $data = array(
-    'client_id' => '', // CHANGE TO MAKE THIS WORK
-    'client_secret' => '', // CHANGE TO MAKE THIS WORK
+    'client_id' => $client_id,
+    'client_secret' => $client_secret,
     'grant_type' => 'authorization_code',
     'code' => $code,
     'redirect_uri' => 'https://dashboard.botofthespecter.com/discord_auth.php',
