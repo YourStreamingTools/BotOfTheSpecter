@@ -1322,20 +1322,25 @@ class TwitchBot(commands.Bot):
                 user_data = await cursor.fetchone()
                 if user_data:
                     # The user is returning
-                    welcome_message = user_data.get("welcome_message")
-                    user_status_enabled = user_data.get("status", 'True') == 'True'
+                    welcome_message = user_data("welcome_message")
+                    user_status_enabled = user_data("status", 'True') == 'True'
                 else:
                     # The user is new
                     welcome_message = None
                     user_status_enabled = True
                 # Query the streamer preferences for the welcome message settings
-                await cursor.execute('SELECT * FROM streamer_preferences')
+                await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
                 preferences = await cursor.fetchone()
-                preferences = preferences or {}
-                send_welcome_messages = int(preferences.get("send_welcome_messages", 1)) == 1
-                default_welcome_message = preferences.get("default_welcome_message", "(user) is new to the community, let's give them a warm welcome!")
-                default_vip_welcome_message = preferences.get("default_vip_welcome_message", "ATTENTION! A very important person has entered the chat, welcome (user)")
-                default_mod_welcome_message = preferences.get("default_mod_welcome_message", "MOD ON DUTY! Welcome in (user), the power of the sword has increased!")
+                if preferences:
+                    send_welcome_messages = int(preferences["send_welcome_messages"])
+                    default_welcome_message = preferences["default_welcome_message"]
+                    default_vip_welcome_message = preferences["default_vip_welcome_message"]
+                    default_mod_welcome_message = preferences["default_mod_welcome_message"]
+                else:
+                    send_welcome_messages = 1
+                    default_welcome_message = "(user) is new to the community, let's give them a warm welcome!"
+                    default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
+                    default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
                 # Replace (user) in the welcome messages with the actual username
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
@@ -1558,6 +1563,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the bot command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the bot command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1663,6 +1671,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the version command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the version command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1687,6 +1698,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the roadmap command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the roadmap command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1723,6 +1737,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the weather command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the weather command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1763,8 +1780,10 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the points command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
-            await cursor.close()
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
@@ -1831,6 +1850,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the time command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the time command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1884,6 +1906,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the joke command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the joke command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1921,6 +1946,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the quote command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the quote command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1947,6 +1975,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to add a quote but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the quoteadd command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -1979,6 +2010,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to remove a quote but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the removequote command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2008,6 +2042,9 @@ class TwitchBot(commands.Bot):
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the permit command but lacked permissions.")
                         await ctx.send("You do not have the correct permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the permit command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2037,6 +2074,9 @@ class TwitchBot(commands.Bot):
                         await ctx.send(f'Stream title updated to: {title}')
                     else:
                         await ctx.send("You do not have the correct permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the settitle command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2071,6 +2111,9 @@ class TwitchBot(commands.Bot):
                             await ctx.send(f'An error occurred in setgame command: {str(e)}')
                     else:
                         await ctx.send("You do not have the correct permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the setgame command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2129,6 +2172,9 @@ class TwitchBot(commands.Bot):
                 else:
                     # No premium access
                     await ctx.send("This channel doesn't have a premium subscription to use the alternative method.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the song command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2203,6 +2249,9 @@ class TwitchBot(commands.Bot):
                         await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the songrequest command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2334,6 +2383,9 @@ class TwitchBot(commands.Bot):
                 # Remove the timer from the active_timers table
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await sqldb.commit()
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2364,6 +2416,9 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await sqldb.commit()
                 await ctx.send(f"Your timer has been stopped @{ctx.author.name}.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2396,6 +2451,9 @@ class TwitchBot(commands.Bot):
                 minutes_left = remaining_time.total_seconds() // 60
                 seconds_left = remaining_time.total_seconds() % 60
                 await ctx.send(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -2989,6 +3047,9 @@ class TwitchBot(commands.Bot):
                             await ctx.send("Failed to create a stream marker.")
                     else:
                         await ctx.send("You do not have the correct permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the marker command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3043,6 +3104,9 @@ class TwitchBot(commands.Bot):
                                     twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
                     else:
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3096,6 +3160,9 @@ class TwitchBot(commands.Bot):
                             await ctx.send("Oops, something went wrong while trying to check uptime.")
                     else:
                         await ctx.send("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the uptime command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3227,6 +3294,9 @@ class TwitchBot(commands.Bot):
                     except Exception as e:
                         chat_logger.error(f"Error in edit_typo_command: {e}")
                         await ctx.send(f"An error occurred while trying to edit typos. {e}")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3573,6 +3643,9 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"Error retrieving followage: {e}")
                     await ctx.send(f"Oops, something went wrong while trying to check followage.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the followage command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3662,6 +3735,9 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"Error retrieving schedule: {e}")
                     await ctx.send(f"Oops, something went wrong while trying to check the schedule.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3764,6 +3840,9 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"Error in shoutout_command: {e}")
                     await ctx.send("An error occurred while processing the shoutout command.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3796,6 +3875,9 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
                 await ctx.send(f'Custom command added: !{command}')
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3828,6 +3910,9 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
                 await ctx.send(f'Custom command edited: !{command}')
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3860,6 +3945,9 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has removed {command}")
                 await ctx.send(f'Custom command removed: !{command}')
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3892,6 +3980,9 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has enabled the command: {command}")
                 await ctx.send(f'Custom command enabled: !{command}')
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3924,6 +4015,9 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has disabled the command: {command}")
                 await ctx.send(f'Custom command disabled: !{command}')
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -3966,6 +4060,9 @@ class TwitchBot(commands.Bot):
                         result = [random.choice(slot_icons) for _ in range(3)]
                         message = f"{ctx.author.name}, {''.join(result)} Better luck next time."
                     await ctx.send(message)
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the slots command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
 
@@ -4021,7 +4118,7 @@ class TwitchBot(commands.Bot):
                 await ctx.send(result)
                 chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
         except Exception as e:
-            chat_logger.exception("An error occurred during the execution of the kill command.")
+            chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
@@ -4049,7 +4146,7 @@ class TwitchBot(commands.Bot):
                 result = random.choice(outcomes)
                 await ctx.send(f"{ctx.author.name} pulls the trigger... {result}")
         except Exception as e:
-            chat_logger.exception("An error occurred during the execution of the roulette command.")
+            chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
@@ -4087,7 +4184,7 @@ class TwitchBot(commands.Bot):
                     result = f"You lose! You chose {user_choice} and I chose {bot_choice}."
                 await ctx.send(result)
         except Exception as e:
-            chat_logger.exception("An error occurred during the execution of the RPS command.")
+            chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
@@ -4117,7 +4214,7 @@ class TwitchBot(commands.Bot):
                 response = await self.handle_ai_response(story, ctx.author.id, ctx.author.name)
                 await ctx.send(response)
         except Exception as e:
-            chat_logger.exception("An error occurred during the execution of the story command.")
+            chat_logger.error(f"An error occurred during the execution of the story command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
@@ -4166,7 +4263,7 @@ class TwitchBot(commands.Bot):
                     sanitized_error = str(e).replace(EXCHANGE_RATE_API_KEY, '[API_KEY]')
                     api_logger.error(f"An error occurred in convert command: {sanitized_error}")
         except Exception as e:
-            chat_logger.exception("An unexpected error occurred during the execution of the convert command.")
+            chat_logger.error(f"An unexpected error occurred during the execution of the convert command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
@@ -4214,29 +4311,33 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
     @commands.command(name="subathon")
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
-        user = ctx.author
-        # Check permissions for valid actions
-        if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
-            if not await command_permissions("mod", user):
-                await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
-                return
-        if action == "start":
-            await start_subathon(ctx)
-        elif action == "stop":
-            await stop_subathon(ctx)
-        elif action == "pause":
-            await pause_subathon(ctx)
-        elif action == "resume":
-            await resume_subathon(ctx)
-        elif action == "addtime":
-            if minutes is not None:
-                await addtime_subathon(ctx, minutes)
+        try:
+            user = ctx.author
+            # Check permissions for valid actions
+            if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
+                if not await command_permissions("mod", user):
+                    await ctx.send(f"{user.name}, you do not have the required permissions for this action.")
+                    return
+            if action == "start":
+                await start_subathon(ctx)
+            elif action == "stop":
+                await stop_subathon(ctx)
+            elif action == "pause":
+                await pause_subathon(ctx)
+            elif action == "resume":
+                await resume_subathon(ctx)
+            elif action == "addtime":
+                if minutes is not None:
+                    await addtime_subathon(ctx, minutes)
+                else:
+                    await ctx.send(f"{user.name}, please provide the number of minutes to add. Usage: !subathon addtime <minutes>")
+            elif action == "status":
+                await subathon_status(ctx)
             else:
-                await ctx.send(f"{user.name}, please provide the number of minutes to add. Usage: !subathon addtime <minutes>")
-        elif action == "status":
-            await subathon_status(ctx)
-        else:
-            await ctx.send(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+                await ctx.send(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='heartrate')
@@ -4261,7 +4362,7 @@ class TwitchBot(commands.Bot):
                     else:
                         await ctx.send(f"The current Heart Rate is: {HEARTRATE}")
         except Exception as e:
-            chat_logger.exception("An unexpected error occurred during the execution of the convert command.")
+            chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
@@ -5639,7 +5740,7 @@ async def ban_user(username, user_id):
         bot_id = "971436498"
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
         result = await cursor.fetchone()
-        bot_auth = result.get('twitch_access_token')
+        bot_auth = result('twitch_access_token')
     # Construct the ban URL using the bot's user ID
     ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={bot_id}"
     headers = {
@@ -5704,13 +5805,13 @@ async def send_to_discord_mod(message, title, image):
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT discord_mod FROM profile")
             result = await cursor.fetchone()
-            if not result or not result.get("discord_mod"):
+            if not result or not result("discord_mod"):
                 bot_logger.error("Discord URL for mod notifications not found or is None.")
                 return
             discord_url = result["discord_mod"]
             await cursor.execute("SELECT timezone FROM profile")
             timezone_result = await cursor.fetchone()
-            timezone = timezone_result.get("timezone", 'UTC')
+            timezone = timezone_result("timezone", 'UTC')
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz)
             time_format_date = current_time.strftime("%B %d, %Y")
@@ -5833,8 +5934,8 @@ async def websocket_notice(event, user=None, death=None, game=None, weather=None
                         await cursor.execute(query, (user,))
                         result = await cursor.fetchone()
                         if result:
-                            params['voice'] = result.get('voice', 'default')
-                            params['language'] = result.get('language', 'en')
+                            params['voice'] = result('voice', 'default')
+                            params['language'] = result('language', 'en')
                         else:
                             params['voice'] = 'default'
                             params['language'] = 'en'
@@ -6038,9 +6139,9 @@ async def process_channel_point_rewards(event_data, event_type):
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
-            reward_data = event_data.get("reward", {})
-            reward_id = reward_data.get("id")
-            reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
+            reward_data = event_data("reward", {})
+            reward_id = reward_data("id")
+            reward_title = reward_data("title" if event_type.endswith(".add") else "type")
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
@@ -6066,14 +6167,14 @@ async def process_channel_point_rewards(event_data, event_type):
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
-            if sound_result and sound_result.get("sound_mapping"):
+            if sound_result and sound_result("sound_mapping"):
                 sound_file = sound_result["sound_mapping"]
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
                 await websocket_notice(event="SOUND_ALERT", sound=sound_file)
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             result = await cursor.fetchone()
-            if result and result.get("custom_message"):
+            if result and result("custom_message"):
                 custom_message = result["custom_message"]
                 if '(user)' in custom_message:
                     custom_message = custom_message.replace('(user)', user_name)
@@ -6641,20 +6742,19 @@ async def get_mysql_connection():
 # Connect to database to get Spam Patterns
 async def get_spam_patterns():
     # Connect to your MySQL database
-    conn = await aiomysql.connect(
+    pattern_db = await aiomysql.connect(
         host=SQL_HOST,
         user=SQL_USER,
         password=SQL_PASSWORD,
         db="spam_pattern",
     )
-    async with conn.cursor() as cursor:
+    async with pattern_db.cursor(aiomysql.DictCursor) as cursor:
         await cursor.execute("SELECT spam_pattern FROM spam_patterns")
         results = await cursor.fetchall()
-        # Close the connection
-        await cursor.close()
-        conn.close()
-        # Compile the regular expressions
-        compiled_patterns = [re.compile(row[0], re.IGNORECASE) for row in results]
+    # Close the connection
+    pattern_db.close()
+    # Compile the regular expressions
+    compiled_patterns = [re.compile(row["spam_pattern"], re.IGNORECASE) for row in results if row["spam_pattern"]]
     return compiled_patterns
 
 # Connect to database to get settings from the website
