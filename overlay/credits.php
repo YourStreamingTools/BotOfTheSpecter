@@ -88,7 +88,6 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 $credits_list .= "</ul>";
                 $credits_list .= "</div>";
                 $credits_list .= "</section>";
-
                 $credits_list .= "<section class='scrolling-credits'>";
                 $credits_list .= build_event_section($user_db, 'raid', 'Raiders');
                 $credits_list .= build_event_section($user_db, 'bits', 'Cheers');
@@ -97,7 +96,6 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 $credits_list .= build_chatters_section($user_db);
                 $credits_list .= "</section>";
                 $status = $credits_list;
-
                 $user_db->close();
             } else {
                 $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>I'm sorry, there was a problem accessing your data. Please try again later.</h2></div></section>";
