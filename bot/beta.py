@@ -6141,9 +6141,9 @@ async def process_channel_point_rewards(event_data, event_type):
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
-            reward_data = event_data("reward", {})
-            reward_id = reward_data("id")
-            reward_title = reward_data("title" if event_type.endswith(".add") else "type")
+            reward_data = event_data.get("reward", {})
+            reward_id = reward_data.get("id")
+            reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
