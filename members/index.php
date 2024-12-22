@@ -25,6 +25,7 @@ $timedMessagesData = [];
 $channelPointRewards = [];
 $profileData = [];
 $todos = [];
+$todoCategories = [];
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -147,6 +148,7 @@ if (isset($_GET['user'])) {
         const userCounts = <?php echo json_encode($userCounts); ?>;
         const watchTimeData = <?php echo json_encode($watchTimeData); ?>;
         const todos = <?php echo json_encode($todos); ?>;
+        const todoCategories = <?php echo json_encode($todoCategories); ?>;
     </script>
 </head>
 <body>
@@ -359,7 +361,8 @@ function loadData(type) {
             } else if (type === 'watchTime') { 
                 output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
             } else if (type === 'todos') {
-                output += `<td>${item.id}</td><td>${item.objective}</td><td>${item.category}</td><td>${item.completed}</td><td>${item.created_at}</td><td>${item.updated_at}</td>`;
+                const categoryName = todoCategories[item.category] || item.category;
+                output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${item.created_at}</td><td>${item.updated_at}</td>`;
             }
             output += `</tr>`;
         });
