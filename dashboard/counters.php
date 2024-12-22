@@ -114,7 +114,9 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 
 <div class="container">
   <br>
-  <div class="buttons">
+  <h1 class="title is-2">System Counters and Information</h1>
+  <br>
+  <div class="buttons is-centered">
     <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
     <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
     <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
@@ -122,7 +124,8 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
     <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
     <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
-    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button> 
+    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
+    <button class="button is-info" onclick="loadData('quotes')">Quotes</button>
   </div>
   <div class="content">
     <div class="box">
@@ -144,6 +147,10 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadData('lurkers');
+});
+
 function formatWatchTime(seconds) {
   if (seconds === 0) {
     return "<span class='has-text-danger'>Not Recorded</span>";
@@ -165,8 +172,7 @@ function formatWatchTime(seconds) {
   }
   return `<span class='has-text-success'>${parts.join(', ')}</span>`;
 }
-</script>
-<script>
+
 function loadData(type) {
   let data;
   let title;
@@ -227,6 +233,12 @@ function loadData(type) {
       countColumnVisible = true;
       data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
       break;
+    case 'quotes':
+      data = <?php echo json_encode($quoteData); ?>;
+      title = 'Quotes';
+      infoColumn = 'ID';
+      dataColumn = 'What was said';
+      break;
   }
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
@@ -254,6 +266,8 @@ function loadData(type) {
       output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`; 
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+    } else if (type === 'quotes') {
+      output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`; 
     }
     output += `</tr>`;
   });
