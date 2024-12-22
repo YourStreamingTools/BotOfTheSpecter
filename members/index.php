@@ -360,7 +360,7 @@ async function loadData(type) {
                     output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
                 } else if (type === 'todos') {
                     const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
-                    output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${item.created_at}</td><td>${item.updated_at}</td>`;
+                    output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${formatDateTime(item.created_at)}</td><td>${formatDateTime(item.updated_at)}</td>`;
                 }
                 output += `</tr>`;
             });
@@ -438,6 +438,13 @@ function formatWatchTime(seconds) {
         }
     }
     return `<span class='has-text-success'>${parts.join(', ')}</span>`;
+}
+
+// Function to format date and time
+function formatDateTime(dateTime) {
+    const date = new Date(dateTime);
+    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
+    return date.toLocaleDateString(undefined, options);
 }
 </script>
 </body>
