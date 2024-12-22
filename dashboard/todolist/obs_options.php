@@ -50,6 +50,9 @@ $result = $stmt->get_result()->fetch_assoc();
 
 $font = isset($result['font']) && $result['font'] !== '' ? $result['font'] : 'Not set';
 $color = isset($result['color']) && $result['color'] !== '' ? $result['color'] : 'Not set';
+if ($color !== 'Black' && $color !== 'White' && $color !== 'Red' && $color !== 'Blue' && $color !== 'Not set') {
+    $color = 'Other';
+}
 $list = isset($result['list']) && $result['list'] !== '' ? $result['list'] : 'Bullet';
 $shadow = isset($result['shadow']) && $result['shadow'] == 1 ? true : false;
 $bold = isset($result['bold']) && $result['bold'] == 1 ? true : false;
@@ -163,10 +166,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                     </div>
                                 </div>
                             </div>
-                            <div class="field" id="custom-color-group"<?php if ($color !== 'Other' && !preg_match('/^#/', $color)) echo ' style="display: none;"'; ?>>
+                            <div class="field" id="custom-color-group"<?php if ($color !== 'Other') echo ' style="display: none;"'; ?>>
                                 <label for="custom_color">Custom Color:</label>
                                 <div class="control">
-                                    <input type="text" name="custom_color" id="custom-color-input" class="input" value="<?php echo htmlspecialchars($color); ?>">
+                                    <input type="text" name="custom_color" id="custom-color-input" class="input" value="<?php echo htmlspecialchars($result['color']); ?>">
                                 </div>
                             </div>
                             <div class="field">
@@ -208,7 +211,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </tr>
                 <tr>
                     <td>Color</td>
-                    <td><?php echo htmlspecialchars($color); ?></td>
+                    <td>
+                        <span style="display:inline-block;width:18px;height:18px;background-color:<?php echo htmlspecialchars($result['color']); ?>;margin-right:3px; solid #000;vertical-align:middle;"></span>
+                        <span style="vertical-align:middle;"><?php echo htmlspecialchars($result['color']); ?></span>
+                    </td>
                 </tr>
                 <tr>
                     <td>List Type</td>
