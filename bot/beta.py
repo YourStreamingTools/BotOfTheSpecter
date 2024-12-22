@@ -2173,7 +2173,9 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the song is in the tracked list and if a user is associated
                     song_id = song_name + artist_name
-                    requested_by = song_requests.get(song_id, {}).get("user")
+                    requested_by = None
+                    if song_id in song_requests:
+                        requested_by = song_requests[song_id].get("user")
                     if requested_by:
                         await ctx.send(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
@@ -2287,7 +2289,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.member)
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN
+        global SPOTIFY_ACCESS_TOKEN, song_requests
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -5223,7 +5225,7 @@ async def send_timed_message(message_id, message, delay):
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
-    global SPOTIFY_ACCESS_TOKEN
+    global SPOTIFY_ACCESS_TOKEN, song_requests
     headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
     async with aiohttp.ClientSession() as session:
         async with session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers) as response:
