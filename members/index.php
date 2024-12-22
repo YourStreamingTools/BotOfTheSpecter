@@ -55,8 +55,6 @@ function getTwitchUsernames($userIds) {
 // PAGE TITLE
 $title = "Members";
 
-require_once "db_connect.php";
-
 // Database credentials
 $dbHost = 'sql.botofthespecter.com';
 $dbUsername = 'USERNAME';
@@ -70,19 +68,19 @@ $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
 
 // Ensure $todos is defined before using it
-$todos = isset($todos) ? $todos : [];
-$customCommands = isset($customCommands) ? $customCommands : [];
-$lurkers = isset($lurkers) ? $lurkers : [];
-$typos = isset($typos) ? $typos : [];
-$totalDeaths = isset($totalDeaths) ? $totalDeaths : [];
-$gameDeaths = isset($gameDeaths) ? $gameDeaths : [];
-$hugCounts = isset($hugCounts) ? $hugCounts : [];
-$kissCounts = isset($kissCounts) ? $kissCounts : [];
-$watchTimeData = isset($watchTimeData) ? $watchTimeData : [];
+$todos = isset($todos);
+$customCommands = isset($customCommands);
+$lurkers = isset($lurkers);
+$typos = isset($typos);
+$totalDeaths = isset($totalDeaths);
+$gameDeaths = isset($gameDeaths);
+$hugCounts = isset($hugCounts);
+$kissCounts = isset($kissCounts);
+$watchTimeData = isset($watchTimeData);
+$customCounts = isset($customCounts);
+$userCounts = isset($userCounts);
 $totalHugs = isset($totalHugs) ? $totalHugs : 0;
 $totalKisses = isset($totalKisses) ? $totalKisses : 0;
-$customCounts = isset($customCounts) ? $customCounts : [];
-$userCounts = isset($userCounts) ? $userCounts : [];
 
 if ($username) {
     try {
