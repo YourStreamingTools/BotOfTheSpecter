@@ -85,6 +85,9 @@ $totalKisses = isset($totalKisses) ? $totalKisses : 0;
 if ($username) {
     try {
         $checkDb = new mysqli($dbHost, $dbUsername, $dbPassword);
+        if ($checkDb->connect_error) {
+            throw new Exception("Connection failed: " . $checkDb->connect_error);
+        }
         $escapedUsername = $checkDb->real_escape_string($username);
         $stmt = $checkDb->prepare("SHOW DATABASES LIKE ?");
         $stmt->bind_param('s', $escapedUsername);
@@ -351,7 +354,7 @@ function loadData(type) {
         } else if (type === 'custom') {
             output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
         } else if (type === 'userCounts') {
-            output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`; 
+            output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
         } else if (type === 'watchTime') { 
             output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
         }
