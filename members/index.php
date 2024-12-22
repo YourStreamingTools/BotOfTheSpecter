@@ -53,23 +53,6 @@ function getTwitchUsernames($userIds) {
 
 // PAGE TITLE
 $title = "Members";
-// Initialize all variables as empty arrays or values
-$commands = [];
-$typos = [];
-$lurkers = [];
-$watchTimeData = [];
-$totalDeaths = [];
-$gameDeaths = [];
-$hugCounts = [];
-$kissCounts = [];
-$customCounts = [];
-$userCounts = [];
-$seenUsersData = [];
-$timedMessagesData = [];
-$channelPointRewards = [];
-$profileData = [];
-$totalHugs = 0;
-$totalKisses = 0;
 
 require_once "db_connect.php";
 
@@ -185,6 +168,14 @@ if ($username) {
 
 // Ensure $todos is defined before using it
 $todos = isset($todos) ? $todos : [];
+$customCommands = isset($customCommands) ? $customCommands : [];
+$lurkers = isset($lurkers) ? $lurkers : [];
+$typos = isset($typos) ? $typos : [];
+$totalDeaths = isset($totalDeaths) ? $totalDeaths : [];
+$gameDeaths = isset($gameDeaths) ? $gameDeaths : [];
+$hugCounts = isset($hugCounts) ? $hugCounts : [];
+$kissCounts = isset($kissCounts) ? $kissCounts : [];
+$watchTimeData = isset($watchTimeData) ? $watchTimeData : [];
 
 function getTimeDifference($start_time) {
     $startDateTime = new DateTime($start_time);
