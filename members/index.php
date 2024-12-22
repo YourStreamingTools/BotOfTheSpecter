@@ -104,8 +104,8 @@ if ($username) {
         $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
 
         // Fetch all custom commands
-        $getCommands = $db->query("SELECT * FROM custom_commands");
-        $commands = $getCommands->fetch_all(MYSQLI_ASSOC);
+        $getCustomCommands = $db->query("SELECT * FROM custom_commands");
+        $customCommands = $getCustomCommands->fetch_all(MYSQLI_ASSOC);
         // Fetch lurkers
         $getLurkers = $db->query("SELECT * FROM lurk_times");
         $lurkers = $getLurkers->fetch_all(MYSQLI_ASSOC);
@@ -292,8 +292,8 @@ function getTimeDifference($start_time) {
 
 <script>
 const data = {
-    customCommands: <?php echo json_encode($customCounts); ?>,
-    lurkers: <?php echo json_encode(getTwitchUsernames(array_column($lurkers, 'user_id'))); ?>,
+    customCommands: <?php echo json_encode($customCommands); ?>,
+    lurkers: <?php echo json_encode($lurkers); ?>,
     typos: <?php echo json_encode($typos); ?>,
     deaths: {
         total: <?php echo json_encode($totalDeaths); ?>,
