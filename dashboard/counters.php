@@ -145,6 +145,9 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 
 <script>
 function formatWatchTime(seconds) {
+  if (seconds === 0) {
+    return "<span class='has-text-danger'>Not Recorded</span>";
+  }
   const units = {
       year: 31536000,
       month: 2592000,
@@ -160,7 +163,7 @@ function formatWatchTime(seconds) {
           seconds -= quotient * divisor;
       }
   }
-  return parts.join(', ');
+  return `<span class='has-text-success'>${parts.join(', ')}</span>`;
 }
 </script>
 <script>
@@ -235,19 +238,19 @@ function loadData(type) {
   data.forEach(item => {
     output += `<tr>`;
     if (type === 'lurkers') {
-      output += `<td>${item.username}</td><td>${item.lurk_duration}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`; 
     } else if (type === 'typos') {
-      output += `<td>${item.username}</td><td>${item.typo_count}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
     } else if (type === 'deaths') {
-      output += `<td>${item.game_name}</td><td>${item.death_count}</td>`; 
+      output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
     } else if (type === 'hugs') {
-      output += `<td>${item.username}</td><td>${item.hug_count}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
     } else if (type === 'kisses') {
-      output += `<td>${item.username}</td><td>${item.kiss_count}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
     } else if (type === 'custom') {
-      output += `<td>${item.command}</td><td>${item.count}</td>`; 
+      output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
     } else if (type === 'userCounts') {
-      output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`; 
+      output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`; 
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     }
