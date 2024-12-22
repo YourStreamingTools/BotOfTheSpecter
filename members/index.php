@@ -316,9 +316,9 @@ function updateTable(type) {
     tableHeader.innerHTML = ''; // Clear existing headers
     tableBody.innerHTML = ''; // Clear existing rows
     if (type === 'customCommands') {
-        tableHeader.innerHTML = '<th>Custom Command</th><th>Count</th>';
+        tableHeader.innerHTML = '<th>Custom Command</th>';
         data.customCommands.forEach(item => {
-            tableBody.innerHTML += `<tr><td>${item.command}</td><td>${item.count}</td></tr>`;
+            tableBody.innerHTML += `<tr><td>${item.command}</td></tr>`;
         });
     } else if (type === 'lurkers') {
         tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
@@ -327,25 +327,25 @@ function updateTable(type) {
             tableBody.innerHTML += `<tr><td>${item.username}</td><td>${duration}</td></tr>`;
         });
     } else if (type === 'typos') {
-        tableHeader.innerHTML = '<th>Username</th><th>Typo Count</th>';
+        tableHeader.innerHTML = '<th>Username</th><th>Count</th>';
         data.typos.forEach(item => {
             tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.typo_count}</td></tr>`;
         });
     } else if (type === 'deaths') {
         tableHeader.innerHTML = '<th>Game</th><th>Death Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total}</td></tr>`;
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total.length > 0 ? data.deaths.total[0].death_count : 0}</td></tr>`;
         data.deaths.games.forEach(item => {
             tableBody.innerHTML += `<tr><td>${item.game_name}</td><td>${item.death_count}</td></tr>`;
         });
     } else if (type === 'hugs') {
         tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total.length > 0 ? data.hugs.total[0].total_hug_count : 0}</td></tr>`;
         data.hugs.users.forEach(item => {
             tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
         });
     } else if (type === 'kisses') {
         tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total.length > 0 ? data.kisses.total[0].total_kiss_count : 0}</td></tr>`;
         data.kisses.users.forEach(item => {
             tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
         });
