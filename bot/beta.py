@@ -1896,10 +1896,12 @@ class TwitchBot(commands.Bot):
     async def joke_command(self, ctx):
         # Map alias categories to their resolved names
         alias_to_resolved = {
-            "Miscellaneous": "Misc",
-            "Coding": "Programming",
-            "Development": "Programming",
-            "Halloween": "Spooky"
+            "Misc": "Miscellaneous",
+            "Programming": "Coding",
+            "Programming": "Development",
+            "Spooky": "Halloween",
+            "Dark": "Dark",
+            "Pun": "Pun"
         }
         sqldb = await get_mysql_connection()
         try:
@@ -2181,9 +2183,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the song is in the tracked list and if a user is associated
                     song_id = song_name + artist_name
-                    requested_by = None
-                    if song_id in song_requests:
-                        requested_by = song_requests[song_id].get("user")
+                    requested_by = song_requests.get(song_id, {}).get("user")
                     if requested_by:
                         await ctx.send(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
