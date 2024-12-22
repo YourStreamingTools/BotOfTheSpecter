@@ -45,15 +45,12 @@ function getTwitchUsernames($userIds) {
 $title = "Members";
 // Initialize all variables as empty arrays or values
 $commands = [];
-$builtinCommands = [];
 $typos = [];
 $lurkers = [];
 $watchTimeData = [];
 $totalDeaths = [];
 $gameDeaths = [];
-$totalHugs = 0;
 $hugCounts = [];
-$totalKisses = 0;
 $kissCounts = [];
 $customCounts = [];
 $userCounts = [];
@@ -61,6 +58,8 @@ $seenUsersData = [];
 $timedMessagesData = [];
 $channelPointRewards = [];
 $profileData = [];
+$totalHugs = 0;
+$totalKisses = 0;
 
 require_once "db_connect.php";
 
@@ -104,11 +103,8 @@ if ($username) {
         // Fetch all custom commands
         $getCommands = $db->query("SELECT * FROM custom_commands");
         $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
-        // Fetch all built-in commands
-        $getBuiltinCommands = $db->query("SELECT * FROM builtin_commands");
-        $builtinCommands = $getBuiltinCommands->fetchAll(PDO::FETCH_ASSOC);
         // Fetch lurkers
-        $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
+        $getLurkers = $db->query("SELECT * FROM lurk_times");
         $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
         // Fetch watch time from the database
         $getWatchTime = $db->query("SELECT * FROM watch_time");
