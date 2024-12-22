@@ -236,7 +236,11 @@ function redirectToUser(event) {
     }
 }
 
-function loadData(type) {
+document.addEventListener('DOMContentLoaded', function() {
+    loadData('customCommands');
+});
+
+async function loadData(type) {
     let data;
     let title;
     let dataColumn;
@@ -264,6 +268,7 @@ function loadData(type) {
             title = 'Currently Lurking Users';
             infoColumn = 'Username';
             dataColumn = 'Time';
+            await updateLurkers(data);
             break;
         case 'typos':
             data = typos;
@@ -343,9 +348,9 @@ function loadData(type) {
         data.forEach(item => {
             output += `<tr>`;
             if (type === 'customCommands') {
-                output += `<td>${item.command}</td>`; 
+                output += `<td>!${item.command}</td>`; 
             } else if (type === 'lurkers') {
-                output += `<td>${item.user_id}</td><td><span class='has-text-success'>${item.start_time}</span></td>`; 
+                output += `<td>${item.username || item.user_id}</td><td><span class='has-text-success'>${item.start_time}</span></td>`;
             } else if (type === 'typos') {
                 output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
             } else if (type === 'deaths') {
@@ -371,6 +376,46 @@ function loadData(type) {
     document.getElementById('table-body').innerHTML = output;
 }
 
+async function updateLurkers(lurkers) {
+    for (let item of lurkers) {
+        item.username = await getUsername(item.user_id);
+        item.lurk_duration = calculateLurkDuration(item.start_time);
+    }
+}
+
+async function getUsername(userId) {
+    const clientId = "mrjucsmsnri89ifucl66jj1n35jkj8";
+    const authToken = "<?php echo $_SESSION['access_token']; ?>";
+    const url = `https://api.twitch.tv/helix/users?id=${userId}`;
+    const response = await fetch(url, {
+        headers: {
+            'Client-ID': clientId,
+            'Authorization': `Bearer ${authToken}`,
+        },
+    });
+
+    const data = await response.json();
+    return data.data && data.data[0] ? data.data[0].display_name : 'Unknown';
+}
+
+function calculateLurkDuration(startTime) {
+    const start = new Date(startTime);
+    const now = new Date();
+    const diff = now - start;
+    const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
+    const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
+    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    let duration = '';
+    if (years > 0) duration += `${years} year(s) `;
+    if (months > 0) duration += `${months} month(s) `;
+    if (days > 0) duration += `${days} day(s) `;
+    if (hours > 0) duration += `${hours} hour(s) `;
+    if (minutes > 0) duration += `${minutes} minute(s)`;
+    return duration || 'Just started';
+}
+
 function formatWatchTime(seconds) {
     if (seconds === 0) {
         return "<span class='has-text-danger'>Not Recorded</span>";
@@ -392,10 +437,6 @@ function formatWatchTime(seconds) {
     }
     return `<span class='has-text-success'>${parts.join(', ')}</span>`;
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-        loadData('customCommands');
-    });
 </script>
 </body>
 </html>
