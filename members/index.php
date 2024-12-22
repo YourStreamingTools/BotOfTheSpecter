@@ -102,7 +102,7 @@ if ($username) {
         }
 
         // Lurkers
-        $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
+        $getLurkers = $db->query("SELECT * FROM lurk_times");
         $lurkerData = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
         if (!empty($lurkerData)) {
             $lurkerUserIds = array_column($lurkerData, 'user_id');
@@ -172,6 +172,10 @@ if ($username) {
             $notFound = true;
         } else {
             $buildResults = "Error: " . $e->getMessage();
+        }
+        // Close database connection if it was opened
+        if (isset($db)) {
+            $db = null;
         }
     }
 }
@@ -355,6 +359,12 @@ function updateTable(type) {
                 <td>${item.updated_at}</td>
                 <td>${item.completed}</td>
             </tr>`;
+        });
+    } else if (type === 'watchTime') {
+        tableHeader.innerHTML = '<th>Username</th><th>Online Watch Time</th><th>Offline Watch Time</th>';
+        data.watchTime.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+        data.watchTime.forEach(item => {
+            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td></tr>`;
         });
     }
 }
