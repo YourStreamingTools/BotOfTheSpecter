@@ -6216,8 +6216,8 @@ async def process_channel_point_rewards(event_data, event_type):
                     if '(user)' in custom_message:
                         custom_message = custom_message.replace('(user)', user_name)
                 await channel.send(custom_message)
-        #except Exception as e:
-        #    event_logger.error(f"An error occurred while processing the reward: {str(e)}")
+        except Exception as e:
+            event_logger.error(f"An error occurred while processing the reward: {str(e)}")
         finally:
             await sqldb.ensure_closed()
 
