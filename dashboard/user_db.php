@@ -102,6 +102,10 @@ try {
     $getTodoCategories = $db->query("SELECT * FROM categories");
     $todoCategories = $getTodoCategories->fetchAll(PDO::FETCH_ASSOC);
 
+    // Fetch quotes data
+    $getQuotes = $db->query("SELECT * FROM quotes ORDER BY id DESC");
+    $quotesData = $getQuotes->fetchAll(PDO::FETCH_ASSOC);
+
     // Fetch profile data
     $getProfileSettings = $db->query("SELECT * FROM profile");
     $profileData = $getProfileSettings->fetchAll(PDO::FETCH_ASSOC);
