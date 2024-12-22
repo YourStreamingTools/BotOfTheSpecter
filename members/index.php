@@ -93,7 +93,7 @@ if ($username) {
         $stmt = $checkDb->prepare("SHOW DATABASES LIKE :username");
         $stmt->bindParam(':username', $escapedUsername, PDO::PARAM_STR);
         $stmt->execute();
-        $result = $stmt->fetch();
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if (!$result) {
             $notFound = true;
@@ -109,52 +109,57 @@ if ($username) {
             $commands[] = $row;
         }
 
-        // Lurkers
-        $getLurkers = $db->query("SELECT * FROM lurk_times");
-        $lurkerData = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
-        if (!empty($lurkerData)) {
-            $lurkerUserIds = array_column($lurkerData, 'user_id');
-            $twitchUsers = getTwitchUsernames($lurkerUserIds);
-            $currentTime = time(); // Current timestamp
-            foreach ($twitchUsers as $user) {
-                foreach ($lurkerData as $lurker) {
-                    if ($lurker['user_id'] == $user['id']) {
-                        $lurkers[] = [
-                            'user_id' => $user['id'],
-                            'username' => $user['display_name'],
-                            'start_time' => $lurker['start_time'],
-                            'duration' => $currentTime - strtotime($lurker['start_time'])
-                        ];
-                        break;
-                    }
-                }
-            }
-            // Sort the array by 'duration' in descending order (longest lurking time first)
-            usort($lurkers, function ($a, $b) {
-                return $b['duration'] <=> $a['duration'];
-            });
-        }
-        // Typos
+        // Fetch all custom commands
+        $getCommands = $db->query("SELECT * FROM custom_commands");
+        $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch all built-in commands
+        $getBuiltinCommands = $db->query("SELECT * FROM builtin_commands");
+        $builtinCommands = $getBuiltinCommands->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch lurkers
+        $getLurkers = $db->query("SELECT user_id, start_time FROM lurk_times");
+        $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch watch time from the database
+        $getWatchTime = $db->query("SELECT * FROM watch_time");
+        $watchTimeData = $getWatchTime->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch typo counts
         $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
         $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
-        // Hugs
-        $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
-        $totalHugs = $getTotalHugs->fetch(PDO::FETCH_ASSOC)['total_hug_count'];
-        $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
-        $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
-        // Kisses
-        $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
-        $totalKisses = $getTotalKisses->fetch(PDO::FETCH_ASSOC)['total_kiss_count'];
-        $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
-        $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
-        // Custom Command Counts
-        $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
-        $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
-        // Fetch total deaths & game-specific deaths
+        // Fetch total deaths
         $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
-        $totalDeaths = $getTotalDeaths->fetch(PDO::FETCH_ASSOC);
+        $totalDeaths = $getTotalDeaths->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch game-specific deaths
         $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
         $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch total hug counts
+        $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
+        $totalHugs = $getTotalHugs->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch hug username-specific counts
+        $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
+        $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch total kiss counts
+        $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
+        $totalKisses = $getTotalKisses->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch kiss counts
+        $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
+        $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch custom counts
+        $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
+        $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
+        // Fetah Custom User Counts
+        $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
+        $userCounts = $getUserCounts->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch seen users data
+        $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
+        $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch timed messages
+        $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
+        $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch channel point rewards sorted by cost (low to high)
+        $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
+        $channelPointRewards = $getChannelPointRewards->fetchAll(PDO::FETCH_ASSOC);
+        // Fetch profile data
+        $getProfileSettings = $db->query("SELECT * FROM profile");
+        $profileData = $getProfileSettings->fetchAll(PDO::FETCH_ASSOC);
         // Fetch todo items
         $getTodos = $db->query("
             SELECT 
@@ -269,6 +274,7 @@ function getTimeDifference($start_time) {
                     <button class="button is-link" onclick="updateTable('hugs')">Hugs</button>
                     <button class="button is-link" onclick="updateTable('kisses')">Kisses</button>
                     <button class="button is-link" onclick="updateTable('todos')">To-Do Items</button> 
+                    <button class="button is-link" onclick="updateTable('watchTime')">Watch Time</button>
                 </div>
                 <table class="table is-fullwidth is-striped">
                     <thead>
@@ -309,7 +315,8 @@ const data = {
         total: "<?php echo htmlspecialchars($totalKisses); ?>",
         users: <?php echo json_encode($kissCounts); ?>
     },
-    todos: <?php echo json_encode($todos); ?> 
+    todos: <?php echo json_encode($todos); ?>,
+    watchTime: <?php echo json_encode($watchTimeData); ?>
 };
 
 function updateTable(type) {
@@ -394,6 +401,12 @@ function calculateDuration(startTime) {
     if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
     if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
     return parts.length > 0 ? parts.join(', ') : 'Just now';
+}
+
+function formatWatchTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
 }
 
 function redirectToUser() {
