@@ -241,7 +241,7 @@ function redirectToUser(event) {
     event.preventDefault();
     const username = document.getElementById('user_search').value.trim();
     if (username) {
-        window.location.href = `/${encodeURIComponent(username)}/`;
+        window.location.href = '/' + encodeURIComponent(username) + '/';
     }
 }
 </script>
