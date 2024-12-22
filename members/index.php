@@ -270,6 +270,11 @@ async function loadData(type) {
             title = 'Currently Lurking Users';
             infoColumn = 'Username';
             dataColumn = 'Time';
+            const userIds = data.map(item => item.user_id);
+            const usernames = await getTwitchUsernames(userIds);
+            data.forEach((item, index) => {
+                output += `<tr><td>${usernames[index]}</td><td><span class='has-text-success'>${calculateLurkDuration(item.start_time)}</span></td></tr>`;
+            });
             break;
         case 'typos':
             data = typos;
@@ -333,6 +338,34 @@ async function loadData(type) {
             additionalColumnName4 = 'Updated At';
             break;
     }
+    if (type !== 'lurkers') {
+        if (Array.isArray(data)) {
+            data.forEach(item => {
+                output += `<tr>`;
+                if (type === 'customCommands') {
+                    output += `<td>!${item.command}</td>`; 
+                } else if (type === 'typos') {
+                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
+                } else if (type === 'deaths') {
+                    output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
+                } else if (type === 'hugs') {
+                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
+                } else if (type === 'kisses') {
+                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
+                } else if (type === 'custom') {
+                    output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+                } else if (type === 'userCounts') {
+                    output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+                } else if (type === 'watchTime') { 
+                    output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+                } else if (type === 'todos') {
+                    const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
+                    output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${item.created_at}</td><td>${item.updated_at}</td>`;
+                }
+                output += `</tr>`;
+            });
+        }
+    }
     document.getElementById('data-column-info').innerText = dataColumn;
     document.getElementById('info-column-data').innerText = infoColumn;
     document.getElementById('additional-column1').innerText = additionalColumnName;
@@ -345,44 +378,15 @@ async function loadData(type) {
     document.getElementById('additional-column4').style.display = additionalColumnVisible4 ? '' : 'none';
     document.getElementById('data-column-info').style.display = dataColumnVisible ? '' : 'none';
     document.getElementById('info-column-data').style.display = infoColumnVisible ? '' : 'none';
-    
-    if (Array.isArray(data)) {
-        data.forEach(item => {
-            output += `<tr>`;
-            if (type === 'customCommands') {
-                output += `<td>!${item.command}</td>`; 
-            } else if (type === 'lurkers') {
-                output += `<td>${getUsername(item.user_id)}</td><td><span class='has-text-success'>${calculateLurkDuration(item.start_time)}</span></td>`;
-            } else if (type === 'typos') {
-                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
-            } else if (type === 'deaths') {
-                output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
-            } else if (type === 'hugs') {
-                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
-            } else if (type === 'kisses') {
-                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
-            } else if (type === 'custom') {
-                output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
-            } else if (type === 'userCounts') {
-                output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
-            } else if (type === 'watchTime') { 
-                output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
-            } else if (type === 'todos') {
-                const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
-                output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${item.created_at}</td><td>${item.updated_at}</td>`;
-            }
-            output += `</tr>`;
-        });
-    }
     document.getElementById('table-title').innerText = title;
     document.getElementById('table-body').innerHTML = output;
 }
 
 // Fetch the username from Twitch API based on userId
-async function getUsername(userId) {
+async function getTwitchUsernames(userIds) {
     const clientId = "mrjucsmsnri89ifucl66jj1n35jkj8";
     const authToken = "<?php echo $_SESSION['access_token']; ?>";
-    const url = `https://api.twitch.tv/helix/users?id=${userId}`;
+    const url = `https://api.twitch.tv/helix/users?id=${userIds.join('&id=')}`;
     const response = await fetch(url, {
         headers: {
             'Client-ID': clientId,
@@ -390,8 +394,7 @@ async function getUsername(userId) {
         },
     });
     const data = await response.json();
-    const username = data.data[0].display_name;
-    return username;
+    return data.data.map(user => user.display_name);
 }
 
 // Function to calculate the duration of the lurk based on the start time
