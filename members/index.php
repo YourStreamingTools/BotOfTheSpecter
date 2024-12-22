@@ -268,23 +268,25 @@ function getTimeDifference($start_time) {
                 <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username; ?> </div>
                 <div class="buttons">
                     <button class="button is-link" onclick="loadData('customCommands')">Custom Commands</button>
-                    <button class="button is-link" onclick="loadData('lurkers')">Lurkers</button>
-                    <button class="button is-link" onclick="loadData('typos')">Typos</button>
-                    <button class="button is-link" onclick="loadData('deaths')">Deaths</button>
-                    <button class="button is-link" onclick="loadData('hugs')">Hugs</button>
-                    <button class="button is-link" onclick="loadData('kisses')">Kisses</button>
-                    <button class="button is-link" onclick="loadData('watchTime')">Watch Time</button>
+                    <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
+                    <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
+                    <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
+                    <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
+                    <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
+                    <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
+                    <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
+                    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
                     <button class="button is-link" onclick="loadData('todos')">To-Do Items</button>
                 </div>
                 <div class="content">
                     <div class="box">
-                        <h3 id="table-title" class="title" style="color: white;">Custom Commands</h3>
+                        <h3 id="table-title" class="title" style="color: white;"></h3>
                         <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
                             <thead>
                                 <tr>
-                                    <th id="info-column-data" style="color: white; width: 33%;">Command</th>
-                                    <th id="data-column-info" style="color: white; width: 33%;">Count</th>
-                                    <th id="count-column" style="color: white; width: 33%; display: none;">Additional Info</th>
+                                    <th id="info-column-data" style="color: white; width: 33%;"></th>
+                                    <th id="data-column-info" style="color: white; width: 33%;"></th>
+                                    <th id="count-column" style="color: white; width: 33%; display: none;"></th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
