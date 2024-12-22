@@ -186,16 +186,16 @@ if (isset($_GET['user'])) {
             <?php else: ?> 
                 <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username']; ?> </div>
                 <div class="buttons">
-                    <button class="button is-link" onclick="loadData('customCommands')">Custom Commands</button>
-                    <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
-                    <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
-                    <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
-                    <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
-                    <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
-                    <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
-                    <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
-                    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
-                    <button class="button is-link" onclick="loadData('todos')">To-Do Items</button>
+                    <button class="button is-link is-fullwidth" onclick="loadData('customCommands')">Custom Commands</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('lurkers')">Lurkers</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('typos')">Typo Counts</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('deaths')">Deaths Overview</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('hugs')">Hug Counts</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('kisses')">Kiss Counts</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('custom')">Custom Counts</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('userCounts')">User Counts</button>
+                    <button class="button is-info is-fullwidth" onclick="loadData('watchTime')">Watch Time</button>
+                    <button class="button is-link is-fullwidth" onclick="loadData('todos')">To-Do Items</button>
                 </div>
                 <div class="content">
                     <div class="box">
