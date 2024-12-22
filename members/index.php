@@ -184,6 +184,9 @@ if ($username) {
     }
 }
 
+// Ensure $todos is defined before using it
+$todos = isset($todos) ? $todos : [];
+
 function getTimeDifference($start_time) {
     $startDateTime = new DateTime($start_time);
     $currentDateTime = new DateTime();
@@ -293,7 +296,7 @@ function getTimeDifference($start_time) {
 const data = {
     commands: <?php echo json_encode($commands); ?>,
     customCommands: <?php echo json_encode($customCounts); ?>,
-    lurkers: <?php echo json_encode($lurkers); ?>,
+    lurkers: <?php echo json_encode(getTwitchUsernames(array_column($lurkers, 'user_id'))); ?>,
     typos: <?php echo json_encode($typos); ?>,
     deaths: {
         total: <?php echo json_encode($totalDeaths); ?>,
