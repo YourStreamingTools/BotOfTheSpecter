@@ -225,6 +225,7 @@ function loadData(type) {
       dataColumn = 'Online Watch Time';
       additionalColumnName = 'Offline Watch Time';
       countColumnVisible = true;
+      data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
       break;
   }
   document.getElementById('data-column-info').innerText = dataColumn;
