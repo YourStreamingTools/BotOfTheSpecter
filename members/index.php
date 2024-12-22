@@ -304,7 +304,19 @@ const data = {
     watchTime: <?php echo json_encode($watchTimeData); ?>
 };
 
-console.log('Data passed to JavaScript:', data); // Debugging statement
+ // Debugging statement
+console.log('Custom Commands:', data.customCommands);
+console.log('Lurkers:', data.lurkers);
+console.log('Typos:', data.typos);
+console.log('Total Deaths:', data.deaths.total);
+console.log('Game Deaths:', data.deaths.games);
+console.log('Total Hugs:', data.hugs.total);
+console.log('Hug Counts:', data.hugs.users);
+console.log('Total Kisses:', data.kisses.total);
+console.log('Kiss Counts:', data.kisses.users);
+console.log('Todos:', data.todos);
+console.log('Watch Time Data:', data.watchTime);
+console.log('Data passed to JavaScript:', data);
 function updateTable(type) {
     const tableHeader = document.getElementById('table-header');
     const tableBody = document.getElementById('table-body');
