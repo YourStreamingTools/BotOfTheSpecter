@@ -2172,10 +2172,9 @@ class TwitchBot(commands.Bot):
                         await ctx.send(f"{CHANNEL_NAME} is currently listening to \"{song_name} by {artist_name}\" while being offline.")
                         return
                     # Check if the song is in the tracked list and if a user is associated
-                    song_id = song_name + artist_name
                     requested_by = None
-                    if song_id in song_requests:
-                        requested_by = song_requests[song_id].get("user")
+                    if song_name in song_requests:
+                        requested_by = song_requests[song_name].get("user")
                     if requested_by:
                         await ctx.send(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
@@ -2321,9 +2320,8 @@ class TwitchBot(commands.Bot):
                             song_name, artist_name = await get_spotify_current_song()
                             # Check if the current song was requested by someone
                             current_song_requester = None
-                            song_id = song_name + artist_name
-                            if song_id in song_requests:
-                                current_song_requester = song_requests[song_id].get("user")
+                            if song_name in song_requests:
+                                current_song_requester = song_requests[song_name].get("user")
                             # Send message for the current song
                             if song_name and artist_name:
                                 if current_song_requester:
