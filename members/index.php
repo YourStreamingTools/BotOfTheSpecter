@@ -204,6 +204,9 @@ if (isset($_GET['user'])) {
                                     <th id="info-column-data" style="color: white; width: 33%;"></th>
                                     <th id="data-column-info" style="color: white; width: 33%;"></th>
                                     <th id="additional-column1" style="color: white; width: 33%; display: none;"></th>
+                                    <th id="additional-column2" style="color: white; width: 33%; display: none;"></th>
+                                    <th id="additional-column3" style="color: white; width: 33%; display: none;"></th>
+                                    <th id="additional-column4" style="color: white; width: 33%; display: none;"></th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
@@ -237,9 +240,15 @@ function loadData(type) {
     let dataColumn;
     let infoColumn;
     let additionalColumnName;
+    let additionalColumnName2;
+    let additionalColumnName3;
+    let additionalColumnName4;
     let dataColumnVisible = true;
     let infoColumnVisible = true;
     let additionalColumnVisible = false;
+    let additionalColumnVisible2 = false;
+    let additionalColumnVisible3 = false;
+    let additionalColumnVisible4 = false;
     let output = '';
     switch(type) {
         case 'customCommands':
@@ -304,14 +313,28 @@ function loadData(type) {
         case 'todos':
             data = todos;
             title = 'To-Do Items';
-            infoColumn = 'Task';
-            dataColumn = 'Status';
+            infoColumn = 'ID';
+            dataColumn = 'Task';
+            additionalColumnVisible = true;
+            additionalColumnVisible2 = true;
+            additionalColumnVisible3 = true;
+            additionalColumnVisible4 = true;
+            additionalColumnName = 'Category';
+            additionalColumnName2 = 'Completed';
+            additionalColumnName3 = 'Created At';
+            additionalColumnName4 = 'Updated At';
             break;
     }
     document.getElementById('data-column-info').innerText = dataColumn;
     document.getElementById('info-column-data').innerText = infoColumn;
     document.getElementById('additional-column1').innerText = additionalColumnName;
+    document.getElementById('additional-column2').innerText = additionalColumnName2;
+    document.getElementById('additional-column3').innerText = additionalColumnName3;
+    document.getElementById('additional-column4').innerText = additionalColumnName4;
     document.getElementById('additional-column1').style.display = additionalColumnVisible ? '' : 'none';
+    document.getElementById('additional-column2').style.display = additionalColumnVisible2 ? '' : 'none';
+    document.getElementById('additional-column3').style.display = additionalColumnVisible3 ? '' : 'none';
+    document.getElementById('additional-column4').style.display = additionalColumnVisible4 ? '' : 'none';
     document.getElementById('data-column-info').style.display = dataColumnVisible ? '' : 'none';
     document.getElementById('info-column-data').style.display = infoColumnVisible ? '' : 'none';
     if (Array.isArray(data)) {
