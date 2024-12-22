@@ -129,13 +129,13 @@ if (isset($userData['data']) && is_array($userData['data'])) {
   </div>
   <div class="content">
     <div class="box">
-      <h3 id="table-title" class="title" style="color: white;">User Counts for Commands</h3>
+      <h3 id="table-title" class="title" style="color: white;"></h3>
       <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            <th id="info-column-data" style="color: white; width: 33%;">User</th>
-            <th id="data-column-info" style="color: white; width: 33%;">Command</th>
-            <th id="count-column" style="color: white; width: 33%; display: none;">Count</th>
+            <th id="info-column-data" style="color: white; width: 33%;"></th>
+            <th id="data-column-info" style="color: white; width: 33%;"></th>
+            <th id="count-column" style="color: white; width: 33%; display: none;"></th>
           </tr>
         </thead>
         <tbody id="table-body">
