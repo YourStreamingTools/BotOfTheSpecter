@@ -237,9 +237,37 @@ function redirectToUser(event) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Load any other default data (like custom commands) immediately
     loadData('customCommands');
+    
+    // Fetch lurker data in the background asynchronously
+    loadLurkerDataInBackground();
 });
 
+// Function to load lurker data in the background without blocking the page
+function loadLurkerDataInBackground() {
+    // Fetch lurker data and update in the background
+    setTimeout(async () => {
+        await loadLurkerData();
+        // Once lurker data is fetched, update the display
+        updateLurkerDisplay();
+    }, 0); // Run immediately, but in the background
+}
+
+// Function to load lurker data
+async function loadLurkerData() {
+    if (lurkers && lurkers.length > 0) {
+        await updateLurkers(lurkers); // Fetch usernames and calculate the durations
+    }
+}
+
+// Function to update the lurker display after the data is ready
+function updateLurkerDisplay() {
+    // Trigger an update of the display once lurker data is available
+    loadData('lurkers');
+}
+
+// Function to load the data based on type
 async function loadData(type) {
     let data;
     let title;
@@ -268,7 +296,6 @@ async function loadData(type) {
             title = 'Currently Lurking Users';
             infoColumn = 'Username';
             dataColumn = 'Time';
-            await updateLurkers(data);
             break;
         case 'typos':
             data = typos;
@@ -344,6 +371,7 @@ async function loadData(type) {
     document.getElementById('additional-column4').style.display = additionalColumnVisible4 ? '' : 'none';
     document.getElementById('data-column-info').style.display = dataColumnVisible ? '' : 'none';
     document.getElementById('info-column-data').style.display = infoColumnVisible ? '' : 'none';
+    
     if (Array.isArray(data)) {
         data.forEach(item => {
             output += `<tr>`;
@@ -376,6 +404,7 @@ async function loadData(type) {
     document.getElementById('table-body').innerHTML = output;
 }
 
+// Function to update lurker data by fetching usernames and durations
 async function updateLurkers(lurkers) {
     for (let item of lurkers) {
         item.username = await getUsername(item.user_id);
@@ -383,6 +412,7 @@ async function updateLurkers(lurkers) {
     }
 }
 
+// Fetch the username from Twitch API based on userId
 async function getUsername(userId) {
     const clientId = "mrjucsmsnri89ifucl66jj1n35jkj8";
     const authToken = "<?php echo $_SESSION['access_token']; ?>";
@@ -393,11 +423,11 @@ async function getUsername(userId) {
             'Authorization': `Bearer ${authToken}`,
         },
     });
-
     const data = await response.json();
     return data.data && data.data[0] ? data.data[0].display_name : 'Unknown';
 }
 
+// Function to calculate the duration of the lurk based on the start time
 function calculateLurkDuration(startTime) {
     const start = new Date(startTime);
     const now = new Date();
@@ -413,9 +443,10 @@ function calculateLurkDuration(startTime) {
     if (days > 0) duration += `${days} day(s) `;
     if (hours > 0) duration += `${hours} hour(s) `;
     if (minutes > 0) duration += `${minutes} minute(s)`;
-    return duration || 'Just started';
+    return duration.trim();
 }
 
+// Formatting the watch time
 function formatWatchTime(seconds) {
     if (seconds === 0) {
         return "<span class='has-text-danger'>Not Recorded</span>";
