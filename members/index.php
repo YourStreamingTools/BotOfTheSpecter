@@ -1,5 +1,6 @@
 <?php
 ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 // Initialize the session
@@ -89,51 +90,83 @@ if ($username) {
         // Fetch all custom commands
         $getCustomCommands = $db->query("SELECT * FROM custom_commands");
         $customCommands = $getCustomCommands ? $getCustomCommands->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Custom Commands: ' . json_encode($customCommands)); // Debugging statement
+
         // Fetch lurkers
         $getLurkers = $db->query("SELECT * FROM lurk_times");
         $lurkers = $getLurkers ? $getLurkers->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Lurkers: ' . json_encode($lurkers)); // Debugging statement
+
         // Fetch watch time from the database
         $getWatchTime = $db->query("SELECT * FROM watch_time");
         $watchTimeData = $getWatchTime ? $getWatchTime->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Watch Time Data: ' . json_encode($watchTimeData)); // Debugging statement
+
         // Fetch typo counts
         $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
         $typos = $getTypos ? $getTypos->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Typos: ' . json_encode($typos)); // Debugging statement
+
         // Fetch total deaths
         $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
         $totalDeaths = $getTotalDeaths ? $getTotalDeaths->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Total Deaths: ' . json_encode($totalDeaths)); // Debugging statement
+
         // Fetch game-specific deaths
         $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
         $gameDeaths = $getGameDeaths ? $getGameDeaths->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Game Deaths: ' . json_encode($gameDeaths)); // Debugging statement
+
         // Fetch total hug counts
         $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
-        $totalHugs = $getTotalHugs ? $getTotalHugs->fetch_all(MYSQLI_ASSOC) : 0;
+        $totalHugs = $getTotalHugs ? $getTotalHugs->fetch_assoc()['total_hug_count'] : 0;
+        error_log('Total Hugs: ' . json_encode($totalHugs)); // Debugging statement
+
         // Fetch hug username-specific counts
         $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
         $hugCounts = $getHugCounts ? $getHugCounts->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Hug Counts: ' . json_encode($hugCounts)); // Debugging statement
+
         // Fetch total kiss counts
         $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
-        $totalKisses = $getTotalKisses ? $getTotalKisses->fetch_all(MYSQLI_ASSOC) : 0;
+        $totalKisses = $getTotalKisses ? $getTotalKisses->fetch_assoc()['total_kiss_count'] : 0;
+        error_log('Total Kisses: ' . json_encode($totalKisses)); // Debugging statement
+
         // Fetch kiss counts
         $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
         $kissCounts = $getKissCounts ? $getKissCounts->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Kiss Counts: ' . json_encode($kissCounts)); // Debugging statement
+
         // Fetch custom counts
         $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
         $customCounts = $getCustomCounts ? $getCustomCounts->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Custom Counts: ' . json_encode($customCounts)); // Debugging statement
+
         // Fetch custom user counts
         $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
         $userCounts = $getUserCounts ? $getUserCounts->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('User Counts: ' . json_encode($userCounts)); // Debugging statement
+
         // Fetch seen users data
         $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
         $seenUsersData = $getSeenUsersData ? $getSeenUsersData->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Seen Users Data: ' . json_encode($seenUsersData)); // Debugging statement
+
         // Fetch timed messages
         $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
         $timedMessagesData = $getTimedMessages ? $getTimedMessages->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Timed Messages Data: ' . json_encode($timedMessagesData)); // Debugging statement
+
         // Fetch channel point rewards sorted by cost (low to high)
         $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
         $channelPointRewards = $getChannelPointRewards ? $getChannelPointRewards->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Channel Point Rewards: ' . json_encode($channelPointRewards)); // Debugging statement
+
         // Fetch profile data
         $getProfileSettings = $db->query("SELECT * FROM profile");
         $profileData = $getProfileSettings ? $getProfileSettings->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Profile Data: ' . json_encode($profileData)); // Debugging statement
+
         // Fetch todo items
         $getTodos = $db->query("
             SELECT 
@@ -151,6 +184,8 @@ if ($username) {
                 t.id ASC
         ");
         $todos = $getTodos ? $getTodos->fetch_all(MYSQLI_ASSOC) : [];
+        error_log('Todos: ' . json_encode($todos)); // Debugging statement
+
         // Close database connection
         $db->close();
     } catch (Exception $e) {
@@ -284,137 +319,140 @@ function getTimeDifference($start_time) {
 </footer>
 
 <script>
-const data = {
-    customCommands: <?php echo json_encode($customCommands); ?>,
-    lurkers: <?php echo json_encode($lurkers); ?>,
-    typos: <?php echo json_encode($typos); ?>,
-    deaths: {
-        total: <?php echo json_encode($totalDeaths); ?>,
-        games: <?php echo json_encode($gameDeaths); ?>
-    },
-    hugs: {
-        total: <?php echo json_encode($totalHugs); ?>,
-        users: <?php echo json_encode($hugCounts); ?>
-    },
-    kisses: {
-        total: <?php echo json_encode($totalKisses); ?>,
-        users: <?php echo json_encode($kissCounts); ?>
-    },
-    todos: <?php echo json_encode($todos); ?>,
-    watchTime: <?php echo json_encode($watchTimeData); ?>
-};
-
- // Debugging statement
-console.log('Custom Commands:', data.customCommands);
-console.log('Lurkers:', data.lurkers);
-console.log('Typos:', data.typos);
-console.log('Total Deaths:', data.deaths.total);
-console.log('Game Deaths:', data.deaths.games);
-console.log('Total Hugs:', data.hugs.total);
-console.log('Hug Counts:', data.hugs.users);
-console.log('Total Kisses:', data.kisses.total);
-console.log('Kiss Counts:', data.kisses.users);
-console.log('Todos:', data.todos);
-console.log('Watch Time Data:', data.watchTime);
-console.log('Data passed to JavaScript:', data);
-function updateTable(type) {
-    const tableHeader = document.getElementById('table-header');
-    const tableBody = document.getElementById('table-body');
-    if (!tableHeader || !tableBody) {
-        return;
-    }
-    tableHeader.innerHTML = ''; // Clear existing headers
-    tableBody.innerHTML = ''; // Clear existing rows
-    if (type === 'customCommands') {
-        tableHeader.innerHTML = '<th>Custom Command</th>';
-        data.customCommands.forEach(item => {
-            tableBody.innerHTML += `<tr><td>${item.command}</td></tr>`;
-        });
-    } else if (type === 'lurkers') {
-        tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
-        data.lurkers.forEach(item => {
-            const duration = calculateDuration(item.start_time);
-            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${duration}</td></tr>`;
-        });
-    } else if (type === 'typos') {
-        tableHeader.innerHTML = '<th>Username</th><th>Count</th>';
-        data.typos.forEach(item => {
-            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.typo_count}</td></tr>`;
-        });
-    } else if (type === 'deaths') {
-        tableHeader.innerHTML = '<th>Game</th><th>Death Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total.length > 0 ? data.deaths.total[0].death_count : 0}</td></tr>`;
-        data.deaths.games.forEach(item => {
-            tableBody.innerHTML += `<tr><td>${item.game_name}</td><td>${item.death_count}</td></tr>`;
-        });
-    } else if (type === 'hugs') {
-        tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
-        data.hugs.users.forEach(item => {
-            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
-        });
-    } else if (type === 'kisses') {
-        tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
-        data.kisses.users.forEach(item => {
-            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
-        });
-    } else if (type === 'todos') { 
-        tableHeader.innerHTML = '<th>Objective</th><th>Category</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
-        data.todos.forEach(item => {
-            tableBody.innerHTML += `<tr>
-                <td>${item.completed == 'Yes' ? '<s>' + item.objective + '</s>' : item.objective}</td>
-                <td>${item.category_name}</td>
-                <td>${item.created_at}</td>
-                <td>${item.updated_at}</td>
-                <td>${item.completed}</td>
-            </tr>`;
-        });
-    } else if (type === 'watchTime') {
-        tableHeader.innerHTML = '<th>Username</th><th>Online Watch Time</th><th>Offline Watch Time</th>';
-        data.watchTime.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
-        data.watchTime.forEach(item => {
-            tableBody.innerHTML += `<tr><td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td></tr>`;
-        });
-    }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Document loaded, updating table with customCommands');
-    updateTable('customCommands');
-}); 
+    const data = {
+        customCommands: <?php echo json_encode($customCommands); ?>,
+        lurkers: <?php echo json_encode($lurkers); ?>,
+        typos: <?php echo json_encode($typos); ?>,
+        deaths: {
+            total: <?php echo json_encode($totalDeaths); ?>,
+            games: <?php echo json_encode($gameDeaths); ?>
+        },
+        hugs: {
+            total: <?php echo json_encode($totalHugs); ?>,
+            users: <?php echo json_encode($hugCounts); ?>
+        },
+        kisses: {
+            total: <?php echo json_encode($totalKisses); ?>,
+            users: <?php echo json_encode($kissCounts); ?>
+        },
+        todos: <?php echo json_encode($todos); ?>,
+        watchTime: <?php echo json_encode($watchTimeData); ?>
+    };
 
-function calculateDuration(startTime) {
-    const start = new Date(startTime);
-    const now = new Date();
-    const diff = now - start; // Difference in milliseconds
-    const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
-    const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
-    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const parts = [];
-    if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
-    if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
-    if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
-    if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-    if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-    return parts.length > 0 ? parts.join(', ') : 'Just now';
-}
+     // Debugging statements
+    console.log('Custom Commands:', data.customCommands);
+    console.log('Lurkers:', data.lurkers);
+    console.log('Typos:', data.typos);
+    console.log('Total Deaths:', data.deaths.total);
+    console.log('Game Deaths:', data.deaths.games);
+    console.log('Total Hugs:', data.hugs.total);
+    console.log('Hug Counts:', data.hugs.users);
+    console.log('Total Kisses:', data.kisses.total);
+    console.log('Kiss Counts:', data.kisses.users);
+    console.log('Todos:', data.todos);
+    console.log('Watch Time Data:', data.watchTime);
+    console.log('Data passed to JavaScript:', data);
 
-function formatWatchTime(minutes) {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
-}
-
-function redirectToUser(event) {
-    event.preventDefault();
-    const username = document.getElementById('user_search').value.trim();
-    if (username) {
-        window.location.href = `/${encodeURIComponent(username)}/`;
+    function updateTable(type) {
+        const tableHeader = document.getElementById('table-header');
+        const tableBody = document.getElementById('table-body');
+        if (!tableHeader || !tableBody) {
+            return;
+        }
+        tableHeader.innerHTML = ''; // Clear existing headers
+        tableBody.innerHTML = ''; // Clear existing rows
+        if (type === 'customCommands') {
+            tableHeader.innerHTML = '<th>Custom Command</th>';
+            data.customCommands.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.command}</td></tr>`;
+            });
+        } else if (type === 'lurkers') {
+            tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
+            data.lurkers.forEach(item => {
+                const duration = calculateDuration(item.start_time);
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${duration}</td></tr>`;
+            });
+        } else if (type === 'typos') {
+            tableHeader.innerHTML = '<th>Username</th><th>Count</th>';
+            data.typos.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.typo_count}</td></tr>`;
+            });
+        } else if (type === 'deaths') {
+            tableHeader.innerHTML = '<th>Game</th><th>Death Count</th>';
+            tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total.length > 0 ? data.deaths.total[0].death_count : 0}</td></tr>`;
+            data.deaths.games.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.game_name}</td><td>${item.death_count}</td></tr>`;
+            });
+        } else if (type === 'hugs') {
+            tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
+            tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
+            data.hugs.users.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
+            });
+        } else if (type === 'kisses') {
+            tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
+            tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
+            data.kisses.users.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
+            });
+        } else if (type === 'todos') { 
+            tableHeader.innerHTML = '<th>Objective</th><th>Category</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
+            data.todos.forEach(item => {
+                tableBody.innerHTML += `<tr>
+                    <td>${item.completed == 'Yes' ? '<s>' + item.objective + '</s>' : item.objective}</td>
+                    <td>${item.category_name}</td>
+                    <td>${item.created_at}</td>
+                    <td>${item.updated_at}</td>
+                    <td>${item.completed}</td>
+                </tr>`;
+            });
+        } else if (type === 'watchTime') {
+            tableHeader.innerHTML = '<th>Username</th><th>Online Watch Time</th><th>Offline Watch Time</th>';
+            data.watchTime.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+            data.watchTime.forEach(item => {
+                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td></tr>`;
+            });
+        }
     }
-}
+
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('Document loaded, updating table with customCommands');
+        updateTable('customCommands');
+    }); 
+
+    function calculateDuration(startTime) {
+        const start = new Date(startTime);
+        const now = new Date();
+        const diff = now - start; // Difference in milliseconds
+        const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
+        const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
+        const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const parts = [];
+        if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
+        if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
+        if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+        if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+        if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+        return parts.length > 0 ? parts.join(', ') : 'Just now';
+    }
+
+    function formatWatchTime(minutes) {
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return `${hours}h ${remainingMinutes}m`;
+    }
+
+    function redirectToUser(event) {
+        event.preventDefault();
+        const username = document.getElementById('user_search').value.trim();
+        if (username) {
+            window.location.href = `/${encodeURIComponent(username)}/`;
+        }
+    }
+});
 </script>
 </body>
 </html>
