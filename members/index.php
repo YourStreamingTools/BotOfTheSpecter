@@ -69,6 +69,21 @@ $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
 
+// Ensure $todos is defined before using it
+$todos = isset($todos) ? $todos : [];
+$customCommands = isset($customCommands) ? $customCommands : [];
+$lurkers = isset($lurkers) ? $lurkers : [];
+$typos = isset($typos) ? $typos : [];
+$totalDeaths = isset($totalDeaths) ? $totalDeaths : [];
+$gameDeaths = isset($gameDeaths) ? $gameDeaths : [];
+$hugCounts = isset($hugCounts) ? $hugCounts : [];
+$kissCounts = isset($kissCounts) ? $kissCounts : [];
+$watchTimeData = isset($watchTimeData) ? $watchTimeData : [];
+$totalHugs = isset($totalHugs) ? $totalHugs : 0;
+$totalKisses = isset($totalKisses) ? $totalKisses : 0;
+$customCounts = isset($customCounts) ? $customCounts : [];
+$userCounts = isset($userCounts) ? $userCounts : [];
+
 if ($username) {
     try {
         $checkDb = new mysqli($dbHost, $dbUsername, $dbPassword);
@@ -92,19 +107,6 @@ if ($username) {
         }
     }
 }
-
-// Ensure $todos is defined before using it
-$todos = isset($todos) ? $todos : [];
-$customCommands = isset($customCommands) ? $customCommands : [];
-$lurkers = isset($lurkers) ? $lurkers : [];
-$typos = isset($typos) ? $typos : [];
-$totalDeaths = isset($totalDeaths) ? $totalDeaths : [];
-$gameDeaths = isset($gameDeaths) ? $gameDeaths : [];
-$hugCounts = isset($hugCounts) ? $hugCounts : [];
-$kissCounts = isset($kissCounts) ? $kissCounts : [];
-$watchTimeData = isset($watchTimeData) ? $watchTimeData : [];
-$totalHugs = isset($totalHugs) ? $totalHugs : 0;
-$totalKisses = isset($totalKisses) ? $totalKisses : 0;
 
 function getTimeDifference($start_time) {
     $startDateTime = new DateTime($start_time);
