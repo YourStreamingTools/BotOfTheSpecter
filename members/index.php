@@ -327,31 +327,33 @@ function loadData(type) {
     } else {
         document.getElementById('count-column').style.display = 'none';
     }
-    data.forEach(item => {
-        output += `<tr>`;
-        if (type === 'customCommands') {
-            output += `<td>${item.command}</td><td>${item.response}</td>`; 
-        } else if (type === 'todos') {
-            output += `<td>${item.task}</td><td>${item.status}</td>`; 
-        } else if (type === 'lurkers') {
-            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`; 
-        } else if (type === 'typos') {
-            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
-        } else if (type === 'deaths') {
-            output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
-        } else if (type === 'hugs') {
-            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
-        } else if (type === 'kisses') {
-            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
-        } else if (type === 'custom') {
-            output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
-        } else if (type === 'userCounts') {
-            output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
-        } else if (type === 'watchTime') { 
-            output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
-        }
-        output += `</tr>`;
-    });
+    if (Array.isArray(data)) {
+        data.forEach(item => {
+            output += `<tr>`;
+            if (type === 'customCommands') {
+                output += `<td>${item.command}</td><td>${item.response}</td>`; 
+            } else if (type === 'todos') {
+                output += `<td>${item.task}</td><td>${item.status}</td>`; 
+            } else if (type === 'lurkers') {
+                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`; 
+            } else if (type === 'typos') {
+                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
+            } else if (type === 'deaths') {
+                output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
+            } else if (type === 'hugs') {
+                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
+            } else if (type === 'kisses') {
+                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
+            } else if (type === 'custom') {
+                output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+            } else if (type === 'userCounts') {
+                output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+            } else if (type === 'watchTime') { 
+                output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+            }
+            output += `</tr>`;
+        });
+    }
     document.getElementById('table-title').innerText = title;
     document.getElementById('table-body').innerHTML = output;
 }
