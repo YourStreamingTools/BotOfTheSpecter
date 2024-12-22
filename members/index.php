@@ -151,7 +151,6 @@ function getTimeDifference($start_time) {
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script type="text/javascript">
-    <?php if (isset($_SESSION['username'])) { ?>
         // Pass PHP data to JavaScript
         const customCommands = <?php echo json_encode($customCommands); ?>;
         const lurkers = <?php echo json_encode($lurkers); ?>;
@@ -163,7 +162,6 @@ function getTimeDifference($start_time) {
         const userCounts = <?php echo json_encode($userCounts); ?>;
         const watchTimeData = <?php echo json_encode($watchTimeData); ?>;
         const todos = <?php echo json_encode($todos); ?>;
-    <?php } ?>
     </script>
 </head>
 <body>
@@ -247,11 +245,6 @@ function redirectToUser(event) {
         window.location.href = '/' + encodeURIComponent(username) + '/';
     }
 }
-
-<?php if (isset($_SESSION['username'])) { ?>
-document.addEventListener('DOMContentLoaded', function() {
-        loadData('customCommands');
-    });
 
 function loadData(type) {
     let data;
@@ -384,7 +377,10 @@ function formatWatchTime(seconds) {
     }
     return `<span class='has-text-success'>${parts.join(', ')}</span>`;
 }
-<?php } ?>
+
+document.addEventListener('DOMContentLoaded', function() {
+        loadData('customCommands');
+    });
 </script>
 </body>
 </html>
