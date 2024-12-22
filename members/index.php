@@ -176,6 +176,8 @@ $gameDeaths = isset($gameDeaths) ? $gameDeaths : [];
 $hugCounts = isset($hugCounts) ? $hugCounts : [];
 $kissCounts = isset($kissCounts) ? $kissCounts : [];
 $watchTimeData = isset($watchTimeData) ? $watchTimeData : [];
+$totalHugs = isset($totalHugs) ? $totalHugs : 0;
+$totalKisses = isset($totalKisses) ? $totalKisses : 0;
 
 function getTimeDifference($start_time) {
     $startDateTime = new DateTime($start_time);
@@ -302,6 +304,7 @@ const data = {
     watchTime: <?php echo json_encode($watchTimeData); ?>
 };
 
+console.log('Data passed to JavaScript:', data); // Debugging statement
 function updateTable(type) {
     const tableHeader = document.getElementById('table-header');
     const tableBody = document.getElementById('table-body');
@@ -334,13 +337,13 @@ function updateTable(type) {
         });
     } else if (type === 'hugs') {
         tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total.length > 0 ? data.hugs.total[0].total_hug_count : 0}</td></tr>`;
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
         data.hugs.users.forEach(item => {
             tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
         });
     } else if (type === 'kisses') {
         tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
-        tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total.length > 0 ? data.kisses.total[0].total_kiss_count : 0}</td></tr>`;
+        tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
         data.kisses.users.forEach(item => {
             tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
         });
@@ -364,7 +367,10 @@ function updateTable(type) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => updateTable('customCommands')); 
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Document loaded, updating table with customCommands');
+    updateTable('customCommands');
+}); 
 
 function calculateDuration(startTime) {
     const start = new Date(startTime);
