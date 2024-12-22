@@ -8,7 +8,7 @@ session_start();
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
+    header('Location: logout.php');
     exit();
 }
 
@@ -44,7 +44,11 @@ function getTwitchUsernames($userIds) {
         error_log('Twitch API Error: ' . $decodedResponse['message']);
         return [];
     }
-    return $decodedResponse;
+    $usernames = [];
+    foreach ($decodedResponse['data'] as $user) {
+        $usernames[] = $user['display_name'];
+    }
+    return $usernames;
 }
 
 // PAGE TITLE
