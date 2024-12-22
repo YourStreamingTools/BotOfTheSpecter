@@ -273,7 +273,12 @@ async function loadData(type) {
             const userIds = data.map(item => item.user_id);
             const usernames = await getTwitchUsernames(userIds);
             data.forEach((item, index) => {
-                output += `<tr><td>${usernames[index]}</td><td><span class='has-text-success'>${calculateLurkDuration(item.start_time)}</span></td></tr>`;
+                item.username = usernames[index];
+                item.lurkDuration = calculateLurkDuration(item.start_time);
+            });
+            data.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+            data.forEach(item => {
+                output += `<tr><td>${item.username}</td><td><span class='has-text-success'>${item.lurkDuration}</span></td></tr>`;
             });
             break;
         case 'typos':
