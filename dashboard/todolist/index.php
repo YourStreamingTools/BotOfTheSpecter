@@ -122,38 +122,40 @@ $num_rows = count($result);
     </div>
   <?php else: ?>
     <h4>Number of total tasks in the category: <?php echo $num_rows; ?></h4> 
-    <table class="table is-striped is-fullwidth sortable" id="commandsTable">
-      <thead>
-        <tr>
-          <th width="700">Objective</th>
-          <th width="300">Category</th>
-          <th width="300">Created</th>
-          <th width="300">Last Updated</th>
-          <th width="150">Completed</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($result as $row): ?>
+    <div class="table-container">
+      <table class="table is-fullwidth is-narrow sortable" id="commandsTable">
+        <thead>
           <tr>
-            <td><?php echo ($row['completed'] == 'Yes') ? '<s>' . htmlspecialchars($row['objective']) . '</s>' : htmlspecialchars($row['objective']); ?></td>
-            <td>
-              <?php
-                $category_id = $row['category'];
-                $category_sql = "SELECT category FROM categories WHERE id = ?";
-                $category_stmt = $db->prepare($category_sql);
-                $category_stmt->bind_param("i", $category_id);
-                $category_stmt->execute();
-                $category_row = $category_stmt->get_result()->fetch_assoc();
-                echo htmlspecialchars($category_row['category']);
-              ?>
-            </td>
-            <td><?php echo htmlspecialchars($row['created_at']); ?></td>
-            <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
-            <td><?php echo htmlspecialchars($row['completed']); ?></td>
+            <th>Objective</th>
+            <th>Category</th>
+            <th>Created</th>
+            <th>Last Updated</th>
+            <th>Completed</th>
           </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <?php foreach ($result as $row): ?>
+            <tr>
+              <td><?php echo ($row['completed'] == 'Yes') ? '<s>' . htmlspecialchars($row['objective']) . '</s>' : htmlspecialchars($row['objective']); ?></td>
+              <td>
+                <?php
+                  $category_id = $row['category'];
+                  $category_sql = "SELECT category FROM categories WHERE id = ?";
+                  $category_stmt = $db->prepare($category_sql);
+                  $category_stmt->bind_param("i", $category_id);
+                  $category_stmt->execute();
+                  $category_row = $category_stmt->get_result()->fetch_assoc();
+                  echo htmlspecialchars($category_row['category']);
+                ?>
+              </td>
+              <td><?php echo htmlspecialchars($row['created_at']); ?></td>
+              <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
+              <td><?php echo htmlspecialchars($row['completed']); ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
   <?php endif; ?> 
 </div>
 
