@@ -5993,6 +5993,8 @@ async def websocket_notice(event, user=None, death=None, game=None, weather=None
                         bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
                     else:
                         bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+    except Exception as e:
+        bot_logger.error(f"Error while processing websocket notice: {e}")
     finally:
         await sqldb.close()
 
@@ -6174,8 +6176,11 @@ async def process_channel_point_rewards(event_data, event_type):
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
-                await websocket_notice(event="TTS", text=tts_message)
-                event_logger.info(f"TTS message sent: {tts_message}")
+                result = await websocket_notice(event="TTS", text=tts_message)
+                if result is None:
+                    event_logger.error(f"websocket_notice returned None for event 'TTS' with message '{tts_message}'")
+                else:
+                    event_logger.info(f"TTS message sent: {tts_message}")
                 return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
@@ -6199,18 +6204,20 @@ async def process_channel_point_rewards(event_data, event_type):
             if sound_result and sound_result["sound_mapping"]:
                 sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                await websocket_notice(event="SOUND_ALERT", sound=sound_file)
+                result = await websocket_notice(event="SOUND_ALERT", sound=sound_file)
+                if result is None:
+                    event_logger.error(f"websocket_notice returned None for event 'SOUND_ALERT' with sound '{sound_file}'")
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
-            if custom_message_result:
+            if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
                     if '(user)' in custom_message:
                         custom_message = custom_message.replace('(user)', user_name)
-                    await channel.send(custom_message)
+                await channel.send(custom_message)
         except Exception as e:
-            event_logger.info(f"An error occurred while processing the reward: {e}")
+            event_logger.error(f"An error occurred while processing the reward: {e}")
         finally:
             await sqldb.ensure_closed()
 
