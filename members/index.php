@@ -256,7 +256,6 @@ function getTimeDifference($start_time) {
             <?php else: ?> 
                 <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username; ?> </div>
                 <div class="buttons">
-                    <button class="button is-link" onclick="updateTable('commands')">Commands</button>
                     <button class="button is-link" onclick="updateTable('customCommands')">Custom Commands</button>
                     <button class="button is-link" onclick="updateTable('lurkers')">Lurkers</button>
                     <button class="button is-link" onclick="updateTable('typos')">Typos</button>
@@ -289,7 +288,6 @@ function getTimeDifference($start_time) {
 
 <script>
 const data = {
-    commands: <?php echo json_encode($commands); ?>,
     customCommands: <?php echo json_encode($customCounts); ?>,
     lurkers: <?php echo json_encode(getTwitchUsernames(array_column($lurkers, 'user_id'))); ?>,
     typos: <?php echo json_encode($typos); ?>,
@@ -314,12 +312,7 @@ function updateTable(type) {
     const tableBody = document.getElementById('table-body');
     tableHeader.innerHTML = ''; // Clear existing headers
     tableBody.innerHTML = ''; // Clear existing rows
-    if (type === 'commands') {
-        tableHeader.innerHTML = '<th>Command</th>';
-        data.commands.forEach(item => {
-            tableBody.innerHTML += `<tr><td>!${item.command}</td></tr>`;
-        });
-    } else if (type === 'customCommands') {
+    if (type === 'customCommands') {
         tableHeader.innerHTML = '<th>Custom Command</th><th>Count</th>';
         data.customCommands.forEach(item => {
             tableBody.innerHTML += `<tr><td>${item.command}</td><td>${item.count}</td></tr>`;
@@ -373,7 +366,7 @@ function updateTable(type) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => updateTable('commands')); 
+document.addEventListener('DOMContentLoaded', () => updateTable('customCommands')); 
 
 function calculateDuration(startTime) {
     const start = new Date(startTime);
