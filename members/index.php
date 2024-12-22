@@ -90,82 +90,62 @@ if ($username) {
         // Fetch all custom commands
         $getCustomCommands = $db->query("SELECT * FROM custom_commands");
         $customCommands = $getCustomCommands ? $getCustomCommands->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Custom Commands: ' . json_encode($customCommands)); // Debugging statement
 
         // Fetch lurkers
         $getLurkers = $db->query("SELECT * FROM lurk_times");
         $lurkers = $getLurkers ? $getLurkers->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Lurkers: ' . json_encode($lurkers)); // Debugging statement
 
         // Fetch watch time from the database
         $getWatchTime = $db->query("SELECT * FROM watch_time");
         $watchTimeData = $getWatchTime ? $getWatchTime->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Watch Time Data: ' . json_encode($watchTimeData)); // Debugging statement
 
         // Fetch typo counts
         $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
         $typos = $getTypos ? $getTypos->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Typos: ' . json_encode($typos)); // Debugging statement
 
         // Fetch total deaths
         $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
         $totalDeaths = $getTotalDeaths ? $getTotalDeaths->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Total Deaths: ' . json_encode($totalDeaths)); // Debugging statement
 
         // Fetch game-specific deaths
         $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
         $gameDeaths = $getGameDeaths ? $getGameDeaths->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Game Deaths: ' . json_encode($gameDeaths)); // Debugging statement
 
         // Fetch total hug counts
         $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
         $totalHugs = $getTotalHugs ? $getTotalHugs->fetch_assoc()['total_hug_count'] : 0;
-        error_log('Total Hugs: ' . json_encode($totalHugs)); // Debugging statement
 
         // Fetch hug username-specific counts
         $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
         $hugCounts = $getHugCounts ? $getHugCounts->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Hug Counts: ' . json_encode($hugCounts)); // Debugging statement
 
         // Fetch total kiss counts
         $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
         $totalKisses = $getTotalKisses ? $getTotalKisses->fetch_assoc()['total_kiss_count'] : 0;
-        error_log('Total Kisses: ' . json_encode($totalKisses)); // Debugging statement
 
         // Fetch kiss counts
         $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
         $kissCounts = $getKissCounts ? $getKissCounts->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Kiss Counts: ' . json_encode($kissCounts)); // Debugging statement
 
         // Fetch custom counts
         $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
         $customCounts = $getCustomCounts ? $getCustomCounts->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Custom Counts: ' . json_encode($customCounts)); // Debugging statement
 
         // Fetch custom user counts
         $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
         $userCounts = $getUserCounts ? $getUserCounts->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('User Counts: ' . json_encode($userCounts)); // Debugging statement
 
         // Fetch seen users data
         $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
         $seenUsersData = $getSeenUsersData ? $getSeenUsersData->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Seen Users Data: ' . json_encode($seenUsersData)); // Debugging statement
 
         // Fetch timed messages
         $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
         $timedMessagesData = $getTimedMessages ? $getTimedMessages->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Timed Messages Data: ' . json_encode($timedMessagesData)); // Debugging statement
 
         // Fetch channel point rewards sorted by cost (low to high)
         $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
         $channelPointRewards = $getChannelPointRewards ? $getChannelPointRewards->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Channel Point Rewards: ' . json_encode($channelPointRewards)); // Debugging statement
-
-        // Fetch profile data
-        $getProfileSettings = $db->query("SELECT * FROM profile");
-        $profileData = $getProfileSettings ? $getProfileSettings->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Profile Data: ' . json_encode($profileData)); // Debugging statement
 
         // Fetch todo items
         $getTodos = $db->query("
@@ -184,7 +164,6 @@ if ($username) {
                 t.id ASC
         ");
         $todos = $getTodos ? $getTodos->fetch_all(MYSQLI_ASSOC) : [];
-        error_log('Todos: ' . json_encode($todos)); // Debugging statement
 
         // Close database connection
         $db->close();
