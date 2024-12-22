@@ -399,10 +399,26 @@ function loadData(type) {
     document.getElementById('table-body').innerHTML = output;
 }
 
-function formatWatchTime(minutes) {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
+function formatWatchTime(seconds) {
+    if (seconds === 0) {
+        return "<span class='has-text-danger'>Not Recorded</span>";
+    }
+    const units = {
+        year: 31536000,
+        month: 2592000,
+        day: 86400,
+        hour: 3600,
+        minute: 60
+    };
+    const parts = [];
+    for (const [name, divisor] of Object.entries(units)) {
+        const quotient = Math.floor(seconds / divisor);
+        if (quotient > 0) {
+            parts.push(`${quotient} ${name}${quotient > 1 ? 's' : ''}`);
+            seconds -= quotient * divisor;
+        }
+    }
+    return `<span class='has-text-success'>${parts.join(', ')}</span>`;
 }
 
 function redirectToUser(event) {
