@@ -23,6 +23,7 @@ $seenUsersData = [];
 $timedMessagesData = [];
 $channelPointRewards = [];
 $profileData = [];
+$todos = [];
 
 try {
     // Connect to MySQL database
@@ -92,6 +93,10 @@ try {
     // Fetch channel point rewards sorted by cost (low to high)
     $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
     $channelPointRewards = $getChannelPointRewards->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch todos
+    $getTodos = $db->query("SELECT * FROM todos ORDER BY id DESC");
+    $todos = $getTodos->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch profile data
     $getProfileSettings = $db->query("SELECT * FROM profile");
