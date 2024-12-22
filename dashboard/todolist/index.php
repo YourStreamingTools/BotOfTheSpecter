@@ -148,8 +148,8 @@ $num_rows = count($result);
                   echo htmlspecialchars($category_row['category']);
                 ?>
               </td>
-              <td><?php echo htmlspecialchars($row['created_at']); ?></td>
-              <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
+              <td><span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['created_at']); ?>"><?php echo htmlspecialchars($row['created_at']); ?></span></td>
+              <td><span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['updated_at']); ?>"><?php echo htmlspecialchars($row['updated_at']); ?></span></td>
               <td><?php echo htmlspecialchars($row['completed']); ?></td>
             </tr>
           <?php endforeach; ?>
@@ -165,6 +165,32 @@ $num_rows = count($result);
 <script src="../js/search.js"></script>
 <script src="https://yourlistonline.yourcdnonline.com/js/sorttable.js"></script>
 <script>
+  function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    const months = Math.floor(days / 30);
+    const years = Math.floor(months / 12);
+    if (years > 0) return `${years} year${years > 1 ? 's' : ''} ago`;
+    if (months > 0) return `${months} month${months > 1 ? 's' : ''} ago`;
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    return `${seconds} second${seconds > 1 ? 's' : ''} ago`;
+  }
+  function updateTimestamps() {
+    const elements = document.querySelectorAll('.timestamp');
+    elements.forEach(el => {
+      const timestamp = el.getAttribute('data-timestamp');
+      el.textContent = formatTimestamp(timestamp);
+    });
+  }
+  setInterval(updateTimestamps, 1000);
+  document.addEventListener('DOMContentLoaded', updateTimestamps);
   // JavaScript function to handle the category filter change
   function applyCategoryFilter() {
     var selectedCategoryId = document.getElementById("categoryFilter").value;
