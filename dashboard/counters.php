@@ -9,7 +9,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page title
-$title = "Bot Counters";
+$title = "Counters and Information";
 
 // Include all the information
 require_once "/var/www/config/db_connect.php";
