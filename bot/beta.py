@@ -2236,7 +2236,11 @@ class TwitchBot(commands.Bot):
                     return
             headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
             message = ctx.message.content
-            message_content = message.split(" ", 1)[1]
+            parts = message.split(" ", 1)
+            if len(parts) < 2 or not parts[1].strip():
+                await ctx.send("Please provide a song title and optionally the artist. Example: !songrequest [song title] by [artist]")
+                return
+            message_content = parts[1].strip()
             search = message_content.replace(" ", "%20")
             search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
             async with aiohttp.ClientSession() as search_session:
@@ -3465,11 +3469,14 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT death_count FROM total_deaths')
                 total_death_count_result = await cursor.fetchone()
                 total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
-                chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
-                await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
+                await cursor.execute('SELECT death_count FROM per_stream_deaths WHERE game_name = %s', (current_game,))
+                stream_death_count_result = await cursor.fetchone()
+                stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
+                chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}. Stream deaths are: {stream_death_count}")
+                await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times.")
                 if await command_permissions("mod", ctx.author):
-                    chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {game_death_count}")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, game=current_game))
+                    chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await ctx.send(f"An error occurred while executing the command. {e}")
@@ -3508,6 +3515,10 @@ class TwitchBot(commands.Bot):
                         'INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
                         (current_game,))
                     await cursor.execute('UPDATE total_deaths SET death_count = death_count + 1')
+                    # Update per_stream_deaths
+                    await cursor.execute(
+                        'INSERT INTO per_stream_deaths (game_name, death_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE death_count = death_count + 1',
+                        (current_game,))
                     await sqldb.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
@@ -3515,10 +3526,14 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
                     total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
+                    await cursor.execute('SELECT death_count FROM per_stream_deaths WHERE game_name = %s', (current_game,))
+                    stream_death_count_result = await cursor.fetchone()
+                    stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                     chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
-                    await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, game=current_game))
+                    chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
+                    await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, stream_death=stream_death_count, game=current_game))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
@@ -3553,9 +3568,10 @@ class TwitchBot(commands.Bot):
                     await cursor.execute(
                         'UPDATE game_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s',
                         (current_game,))
+                    await cursor.execute('UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END')
                     await cursor.execute(
-                        'UPDATE total_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END'
-                    )
+                        'UPDATE per_stream_deaths SET death_count = CASE WHEN death_count > 0 THEN death_count - 1 ELSE 0 END WHERE game_name = %s',
+                        (current_game,))
                     await sqldb.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
@@ -3563,10 +3579,13 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
                     total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
+                    await cursor.execute('SELECT death_count FROM per_stream_deaths WHERE game_name = %s', (current_game,))
+                    stream_death_count_result = await cursor.fetchone()
+                    stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
                     await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, game=current_game))
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
@@ -5088,6 +5107,7 @@ async def delayed_clear_tables():
     if not stream_online:  # If the stream is still offline, clear the tables
         await clear_seen_today()
         await clear_credits_data()
+        await clear_per_stream_deaths()
     else:
         bot_logger.info("Stream is back online. Skipping table clear.")
 
@@ -5114,6 +5134,19 @@ async def clear_credits_data():
             bot_logger.info('Stream credits table cleared successfully.')
     except aiomysql.Error as err:
         bot_logger.error(f'Failed to clear stream credits table: {err}')
+    finally:
+        await sqldb.ensure_closed()
+
+# Function to clear the death count per stream
+async def clear_per_stream_deaths():
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute('TRUNCATE TABLE per_stream_deaths')
+            await sqldb.commit()
+            bot_logger.info('Per Stream Death Count cleared successfully.')
+    except aiomysql.Error as err:
+        bot_logger.error(f'Failed to clear Per Stream Death Count: {err}')
     finally:
         await sqldb.ensure_closed()
 
