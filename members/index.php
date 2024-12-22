@@ -20,33 +20,25 @@ function sanitize_input($input) {
 // Function to fetch usernames from Twitch API using user_id
 function getTwitchUsernames($userIds) {
     $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
-    $accessToken = $_SESSION['access_token'];
-    $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . implode('&id=', $userIds);
-
+    $accessToken = sanitize_input($_SESSION['access_token']);
+    $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . implode('&id=', array_map('sanitize_input', $userIds));
     $headers = [
         "Client-ID: $clientID",
         "Authorization: Bearer $accessToken",
     ];
-
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $twitchApiUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
     $response = curl_exec($ch);
     if ($response === false) {
         // Handle cURL error
         error_log('cURL Error: ' . curl_error($ch));
         curl_close($ch);
-        return [];
+        return false;
     }
     curl_close($ch);
-
-    $data = json_decode($response, true);
-    if (isset($data['data'])) {
-        return $data['data'];
-    }
-    return [];
+    return json_decode($response, true);
 }
 
 // PAGE TITLE
