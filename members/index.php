@@ -102,7 +102,6 @@ if ($username) {
             $notFound = true;
             throw new Exception("Database does not exist", 1049);
         }
-        $_SESSION['username'] = $username;
     } catch (Exception $e) {
         if ($e->getCode() == 1049) {
             $notFound = true;
@@ -112,42 +111,12 @@ if ($username) {
     }
 }
 
-function getTimeDifference($start_time) {
-    $startDateTime = new DateTime($start_time);
-    $currentDateTime = new DateTime();
-    $interval = $startDateTime->diff($currentDateTime);
-    $timeString = "";
-    if ($interval->y > 0) {
-        $timeString .= $interval->y . " year" . ($interval->y > 1 ? "s" : "") . ", ";
-    }
-    if ($interval->m > 0) {
-        $timeString .= $interval->m . " month" . ($interval->m > 1 ? "s" : "") . ", ";
-    }
-    if ($interval->d > 0) {
-        $timeString .= $interval->d . " day" . ($interval->d > 1 ? "s" : "") . ", ";
-    }
-    if ($interval->h > 0) {
-        $timeString .= $interval->h . " hour" . ($interval->h > 1 ? "s" : "") . ", ";
-    }
-    $timeString .= $interval->i . " minute" . ($interval->i > 1 ? "s" : "");
-    return rtrim($timeString, ', ');
+if (isset($_GET['user'])) {
+    $username = $_GET['user'];
+    $_SESSION['username'] = $username;
+    $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . (isset($_SESSION['username']) ? $_SESSION['username'] : 'unknown user');
+    include "/var/www/dashboard/user_db.php";
 }
-
-$buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username'];
-include "/var/www/dashboard/user_db.php";
-// Debugging statements to check if variables are set
-echo '<pre>';
-var_dump($commands);
-var_dump($lurkers);
-var_dump($typos);
-var_dump($gameDeaths);
-var_dump($hugCounts);
-var_dump($kissCounts);
-var_dump($customCounts);
-var_dump($userCounts);
-var_dump($watchTimeData);
-var_dump($todos);
-echo '</pre>';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -213,7 +182,7 @@ echo '</pre>';
                     </form>
                 </div>
             <?php else: ?> 
-                <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username; ?> </div>
+                <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username']; ?> </div>
                 <div class="buttons">
                     <button class="button is-link" onclick="loadData('customCommands')">Custom Commands</button>
                     <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
@@ -234,7 +203,7 @@ echo '</pre>';
                                 <tr>
                                     <th id="info-column-data" style="color: white; width: 33%;"></th>
                                     <th id="data-column-info" style="color: white; width: 33%;"></th>
-                                    <th id="count-column" style="color: white; width: 33%; display: none;"></th>
+                                    <th id="additional-column1" style="color: white; width: 33%; display: none;"></th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
@@ -267,68 +236,70 @@ function loadData(type) {
     let title;
     let dataColumn;
     let infoColumn;
-    let countColumnVisible = false;
     let additionalColumnName;
+    let dataColumnVisible = true;
+    let infoColumnVisible = true;
+    let additionalColumnVisible = false;
     let output = '';
     switch(type) {
         case 'customCommands':
             data = customCommands;
+            dataColumnVisible = false;
             title = 'Custom Commands';
-            dataColumn = '';
             infoColumn = 'Command';
             break;
         case 'lurkers':
             data = lurkers;
             title = 'Currently Lurking Users';
+            infoColumn = 'Username';
             dataColumn = 'Time';
-            infoColumn = 'Username'; 
             break;
         case 'typos':
             data = typos;
             title = 'Typo Counts';
-            dataColumn = 'Typo Count';
             infoColumn = 'Username';
+            dataColumn = 'Typo Count';
             break;
         case 'deaths':
             data = gameDeaths;
             title = 'Deaths Overview';
-            dataColumn = 'Death Count';
             infoColumn = 'Game'; 
+            dataColumn = 'Death Count';
             break;
         case 'hugs':
             data = hugCounts;
             title = 'Hug Counts';
+            infoColumn = 'Username';
             dataColumn = 'Hug Count';
-            infoColumn = 'Username'; 
             break;
         case 'kisses':
             data = kissCounts;
             title = 'Kiss Counts';
+            infoColumn = 'Username';
             dataColumn = 'Kiss Count';
-            infoColumn = 'Username'; 
             break;
         case 'custom':
             data = customCounts;
             title = 'Custom Counts';
+            infoColumn = 'Command';
             dataColumn = 'Used';
-            infoColumn = 'Command'; 
             break;
         case 'userCounts':
             data = userCounts;
+            additionalColumnVisible = true;
             title = 'User Counts for Commands';
-            infoColumn = 'Command';
-            dataColumn = 'Count';
+            additionalColumnName = 'Count';
+            infoColumn = 'User';
+            dataColumn = 'Command';
             break;
         case 'watchTime': 
             data = watchTimeData;
+            additionalColumnVisible = true;
             title = 'Watch Time';
             infoColumn = 'Username';
             dataColumn = 'Online Watch Time';
             additionalColumnName = 'Offline Watch Time';
-            countColumnVisible = true;
-            if (Array.isArray(data)) {
-                data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
-            }
+            data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
             break;
         case 'todos':
             data = todos;
@@ -339,21 +310,17 @@ function loadData(type) {
     }
     document.getElementById('data-column-info').innerText = dataColumn;
     document.getElementById('info-column-data').innerText = infoColumn;
-    if (countColumnVisible) {
-        document.getElementById('count-column').style.display = '';
-        document.getElementById('count-column').innerText = additionalColumnName;
-    } else {
-        document.getElementById('count-column').style.display = 'none';
-    }
+    document.getElementById('additional-column1').innerText = additionalColumnName;
+    document.getElementById('additional-column1').style.display = additionalColumnVisible ? '' : 'none';
+    document.getElementById('data-column-info').style.display = dataColumnVisible ? '' : 'none';
+    document.getElementById('info-column-data').style.display = infoColumnVisible ? '' : 'none';
     if (Array.isArray(data)) {
         data.forEach(item => {
             output += `<tr>`;
             if (type === 'customCommands') {
-                output += `<td>${item.command}</td><td>${item.response}</td>`; 
-            } else if (type === 'todos') {
-                output += `<td>${item.task}</td><td>${item.status}</td>`; 
+                output += `<td>${item.command}</td>`; 
             } else if (type === 'lurkers') {
-                output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`; 
+                output += `<td>${item.user_id}</td><td><span class='has-text-success'>${item.start_time}</span></td>`; 
             } else if (type === 'typos') {
                 output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
             } else if (type === 'deaths') {
@@ -368,6 +335,8 @@ function loadData(type) {
                 output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
             } else if (type === 'watchTime') { 
                 output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+            } else if (type === 'todos') {
+                output += `<td>${item.id}</td><td>${item.objective}</td><td>${item.category}</td><td>${item.completed}</td><td>${item.created_at}</td><td>${item.updated_at}</td>`;
             }
             output += `</tr>`;
         });
