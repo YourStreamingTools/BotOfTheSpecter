@@ -1922,7 +1922,7 @@ class TwitchBot(commands.Bot):
                             # Parse the blacklist and resolve aliases
                             blacklist = json.loads(blacklist_result.get("blacklist"))
                             resolved_blacklist = {alias_to_resolved.get(cat, cat) for cat in blacklist}
-                            joke = Jokes()
+                            joke = await Jokes()
                             while True:
                                 # Fetch a joke from the JokeAPI
                                 get_joke = await joke.get_joke()
