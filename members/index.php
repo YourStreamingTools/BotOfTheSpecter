@@ -95,8 +95,6 @@ if ($username) {
             throw new Exception("Database does not exist", 1049);
         }
         $_SESSION['username'] = $username;
-        include "/var/www/dashboard/user_db.php";
-        $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
     } catch (Exception $e) {
         if ($e->getCode() == 1049) {
             $notFound = true;
@@ -104,6 +102,11 @@ if ($username) {
             $buildResults = "Error: " . $e->getMessage();
         }
     }
+}
+
+if (isset($_SESSION['username'])) {
+    include "/var/www/dashboard/user_db.php";
+    $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username'];
 }
 
 function getTimeDifference($start_time) {
@@ -144,6 +147,25 @@ function getTimeDifference($start_time) {
     <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <?php if (isset($_SESSION['username'])) { ?>
+        <script type="text/javascript">
+        // Pass PHP data to JavaScript
+        const customCommands = <?php echo json_encode($customCommands); ?>;
+        const lurkers = <?php echo json_encode($lurkers); ?>;
+        const typos = <?php echo json_encode($typos); ?>;
+        const gameDeaths = <?php echo json_encode($gameDeaths); ?>;
+        const hugCounts = <?php echo json_encode($hugCounts); ?>;
+        const kissCounts = <?php echo json_encode($kissCounts); ?>;
+        const customCounts = <?php echo json_encode($customCounts); ?>;
+        const userCounts = <?php echo json_encode($userCounts); ?>;
+        const watchTimeData = <?php echo json_encode($watchTimeData); ?>;
+        const todos = <?php echo json_encode($todos); ?>;
+        // Load custom commands on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData('customCommands');
+        });
+    </script>
+    <?php } ?>
 </head>
 <body>
 <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
@@ -218,7 +240,7 @@ function getTimeDifference($start_time) {
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </div>
 </footer>
-
+<?php if (isset($_SESSION['username'])) { ?>
 <script>
 function loadData(type) {
     let data;
@@ -360,5 +382,6 @@ function redirectToUser(event) {
     }
 }
 </script>
+<?php } ?>
 </body>
 </html>
