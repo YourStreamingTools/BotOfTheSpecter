@@ -234,7 +234,7 @@ function loadData(type) {
       data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
       break;
     case 'quotes':
-      data = <?php echo json_encode($quoteData); ?>;
+      data = <?php echo json_encode($quotesData); ?>;
       title = 'Quotes';
       infoColumn = 'ID';
       dataColumn = 'What was said';
