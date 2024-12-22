@@ -432,6 +432,7 @@ function calculateLurkDuration(startTime) {
     const start = new Date(startTime);
     const now = new Date();
     const diff = now - start;
+    if (isNaN(diff)) { return 'Invalid Date'; }
     const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
     const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
     const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
@@ -443,7 +444,7 @@ function calculateLurkDuration(startTime) {
     if (days > 0) duration += `${days} day(s) `;
     if (hours > 0) duration += `${hours} hour(s) `;
     if (minutes > 0) duration += `${minutes} minute(s)`;
-    return duration.trim();
+    return duration.trim() || 'Less than a minute';
 }
 
 // Formatting the watch time
