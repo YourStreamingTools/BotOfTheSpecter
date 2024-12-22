@@ -6,6 +6,26 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 
+// Initialize all variables as empty arrays or values
+$commands = [];
+$builtinCommands = [];
+$typos = [];
+$lurkers = [];
+$watchTimeData = [];
+$totalDeaths = [];
+$gameDeaths = [];
+$totalHugs = 0;
+$hugCounts = [];
+$totalKisses = 0;
+$kissCounts = [];
+$customCounts = [];
+$userCounts = [];
+$seenUsersData = [];
+$timedMessagesData = [];
+$channelPointRewards = [];
+$profileData = [];
+$todos = [];
+
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
@@ -67,21 +87,6 @@ $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
 
-// Ensure $todos is defined before using it
-$todos = isset($todos);
-$customCommands = isset($customCommands);
-$lurkers = isset($lurkers);
-$typos = isset($typos);
-$totalDeaths = isset($totalDeaths);
-$gameDeaths = isset($gameDeaths);
-$hugCounts = isset($hugCounts);
-$kissCounts = isset($kissCounts);
-$watchTimeData = isset($watchTimeData);
-$customCounts = isset($customCounts);
-$userCounts = isset($userCounts);
-$totalHugs = isset($totalHugs) ? $totalHugs : 0;
-$totalKisses = isset($totalKisses) ? $totalKisses : 0;
-
 if ($username) {
     try {
         $checkDb = new mysqli($dbHost, $dbUsername, $dbPassword);
@@ -107,11 +112,6 @@ if ($username) {
     }
 }
 
-if (isset($_SESSION['username'])) {
-    include "/var/www/dashboard/user_db.php";
-    $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username'];
-}
-
 function getTimeDifference($start_time) {
     $startDateTime = new DateTime($start_time);
     $currentDateTime = new DateTime();
@@ -132,6 +132,22 @@ function getTimeDifference($start_time) {
     $timeString .= $interval->i . " minute" . ($interval->i > 1 ? "s" : "");
     return rtrim($timeString, ', ');
 }
+
+$buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username'];
+include "/var/www/dashboard/user_db.php";
+// Debugging statements to check if variables are set
+echo '<pre>';
+var_dump($commands);
+var_dump($lurkers);
+var_dump($typos);
+var_dump($gameDeaths);
+var_dump($hugCounts);
+var_dump($kissCounts);
+var_dump($customCounts);
+var_dump($userCounts);
+var_dump($watchTimeData);
+var_dump($todos);
+echo '</pre>';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -152,7 +168,7 @@ function getTimeDifference($start_time) {
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script type="text/javascript">
         // Pass PHP data to JavaScript
-        const customCommands = <?php echo json_encode($customCommands); ?>;
+        const customCommands = <?php echo json_encode($commands); ?>;
         const lurkers = <?php echo json_encode($lurkers); ?>;
         const typos = <?php echo json_encode($typos); ?>;
         const gameDeaths = <?php echo json_encode($gameDeaths); ?>;
@@ -310,7 +326,9 @@ function loadData(type) {
             dataColumn = 'Online Watch Time';
             additionalColumnName = 'Offline Watch Time';
             countColumnVisible = true;
-            data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+            if (Array.isArray(data)) {
+                data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+            }
             break;
         case 'todos':
             data = todos;
