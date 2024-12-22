@@ -42,7 +42,7 @@ try {
     $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch watch time from the database
-    $getWatchTime = $db->query("SELECT user_id, username, total_watch_time_live, total_watch_time_offline FROM watch_time");
+    $getWatchTime = $db->query("SELECT * FROM watch_time");
     $watchTimeData = $getWatchTime->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch typo counts
