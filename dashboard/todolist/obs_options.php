@@ -163,10 +163,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                     </div>
                                 </div>
                             </div>
-                            <div class="field" id="custom-color-group"<?php if ($color !== 'Other') echo ' style="display: none;"'; ?>>
+                            <div class="field" id="custom-color-group"<?php if ($color !== 'Other' && !preg_match('/^#/', $color)) echo ' style="display: none;"'; ?>>
                                 <label for="custom_color">Custom Color:</label>
                                 <div class="control">
-                                    <input type="text" name="custom_color" id="custom-color-input" class="input">
+                                    <input type="text" name="custom_color" id="custom-color-input" class="input" value="<?php echo htmlspecialchars($color); ?>">
                                 </div>
                             </div>
                             <div class="field">
@@ -257,6 +257,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             customColorGroup.style.display = "none";
         }
     });
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var customColorInput = document.getElementById('custom-color-input');
+    var colorGroup = document.getElementById('custom-color-group');
+
+    customColorInput.addEventListener('input', function() {
+        if (customColorInput.value && !customColorInput.value.startsWith('#')) {
+            customColorInput.value = '#' + customColorInput.value;
+        }
+    });
+
+    // Show custom color input if a custom color is selected
+    if (customColorInput.value && customColorInput.value.startsWith('#')) {
+        colorGroup.style.display = 'block';
+    }
+});
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
