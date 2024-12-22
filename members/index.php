@@ -231,6 +231,12 @@ function loadData(type) {
     let additionalColumnName;
     let output = '';
     switch(type) {
+        case 'customCommands':
+            data = <?php echo json_encode($customCommands); ?>;
+            title = 'Custom Commands';
+            dataColumn = '';
+            infoColumn = 'Command';
+            break;
         case 'lurkers':
             data = <?php echo json_encode($lurkers); ?>;
             title = 'Currently Lurking Users';
@@ -281,6 +287,12 @@ function loadData(type) {
             additionalColumnName = 'Offline Watch Time';
             countColumnVisible = true;
             data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+            break;
+        case 'todos':
+            data = <?php echo json_encode($todos); ?>;
+            title = 'To-Do Items';
+            infoColumn = 'Task';
+            dataColumn = 'Status';
             break;
     }
     document.getElementById('data-column-info').innerText = dataColumn;
