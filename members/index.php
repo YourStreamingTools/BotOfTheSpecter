@@ -288,25 +288,32 @@ function getTimeDifference($start_time) {
             <?php else: ?> 
                 <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username; ?> </div>
                 <div class="buttons">
-                    <button class="button is-link" onclick="updateTable('customCommands')">Custom Commands</button>
-                    <button class="button is-link" onclick="updateTable('lurkers')">Lurkers</button>
-                    <button class="button is-link" onclick="updateTable('typos')">Typos</button>
-                    <button class="button is-link" onclick="updateTable('deaths')">Deaths</button>
-                    <button class="button is-link" onclick="updateTable('hugs')">Hugs</button>
-                    <button class="button is-link" onclick="updateTable('kisses')">Kisses</button>
-                    <button class="button is-link" onclick="updateTable('watchTime')">Watch Time</button>
-                    <button class="button is-link" onclick="updateTable('todos')">To-Do Items</button>
+                    <button class="button is-link" onclick="loadData('customCommands')">Custom Commands</button>
+                    <button class="button is-link" onclick="loadData('lurkers')">Lurkers</button>
+                    <button class="button is-link" onclick="loadData('typos')">Typos</button>
+                    <button class="button is-link" onclick="loadData('deaths')">Deaths</button>
+                    <button class="button is-link" onclick="loadData('hugs')">Hugs</button>
+                    <button class="button is-link" onclick="loadData('kisses')">Kisses</button>
+                    <button class="button is-link" onclick="loadData('watchTime')">Watch Time</button>
+                    <button class="button is-link" onclick="loadData('todos')">To-Do Items</button>
                 </div>
-                <table class="table is-fullwidth is-striped">
-                    <thead>
-                        <tr id="table-header">
-                            <!-- Default table header -->
-                        </tr>
-                    </thead>
-                    <tbody id="table-body">
-                        <!-- Dynamic table content goes here -->
-                    </tbody>
-                </table>
+                <div class="content">
+                    <div class="box">
+                        <h3 id="table-title" class="title" style="color: white;">Custom Commands</h3>
+                        <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th id="info-column-data" style="color: white; width: 33%;">Command</th>
+                                    <th id="data-column-info" style="color: white; width: 33%;">Count</th>
+                                    <th id="count-column" style="color: white; width: 33%; display: none;">Additional Info</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body">
+                                <!-- Content will be dynamically injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             <?php endif; ?> 
         </div>
     </div>
@@ -319,140 +326,113 @@ function getTimeDifference($start_time) {
 </footer>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const data = {
-        customCommands: <?php echo json_encode($customCommands); ?>,
-        lurkers: <?php echo json_encode($lurkers); ?>,
-        typos: <?php echo json_encode($typos); ?>,
-        deaths: {
-            total: <?php echo json_encode($totalDeaths); ?>,
-            games: <?php echo json_encode($gameDeaths); ?>
-        },
-        hugs: {
-            total: <?php echo json_encode($totalHugs); ?>,
-            users: <?php echo json_encode($hugCounts); ?>
-        },
-        kisses: {
-            total: <?php echo json_encode($totalKisses); ?>,
-            users: <?php echo json_encode($kissCounts); ?>
-        },
-        todos: <?php echo json_encode($todos); ?>,
-        watchTime: <?php echo json_encode($watchTimeData); ?>
-    };
-
-     // Debugging statements
-    console.log('Custom Commands:', data.customCommands);
-    console.log('Lurkers:', data.lurkers);
-    console.log('Typos:', data.typos);
-    console.log('Total Deaths:', data.deaths.total);
-    console.log('Game Deaths:', data.deaths.games);
-    console.log('Total Hugs:', data.hugs.total);
-    console.log('Hug Counts:', data.hugs.users);
-    console.log('Total Kisses:', data.kisses.total);
-    console.log('Kiss Counts:', data.kisses.users);
-    console.log('Todos:', data.todos);
-    console.log('Watch Time Data:', data.watchTime);
-    console.log('Data passed to JavaScript:', data);
-
-    function updateTable(type) {
-        const tableHeader = document.getElementById('table-header');
-        const tableBody = document.getElementById('table-body');
-        if (!tableHeader || !tableBody) {
-            return;
-        }
-        tableHeader.innerHTML = ''; // Clear existing headers
-        tableBody.innerHTML = ''; // Clear existing rows
-        if (type === 'customCommands') {
-            tableHeader.innerHTML = '<th>Custom Command</th>';
-            data.customCommands.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.command}</td></tr>`;
-            });
-        } else if (type === 'lurkers') {
-            tableHeader.innerHTML = '<th>Username</th><th>Duration</th>';
-            data.lurkers.forEach(item => {
-                const duration = calculateDuration(item.start_time);
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${duration}</td></tr>`;
-            });
+function loadData(type) {
+    let data;
+    let title;
+    let dataColumn;
+    let infoColumn;
+    let countColumnVisible = false;
+    let additionalColumnName;
+    let output = '';
+    switch(type) {
+        case 'lurkers':
+            data = <?php echo json_encode($lurkers); ?>;
+            title = 'Currently Lurking Users';
+            dataColumn = 'Time';
+            infoColumn = 'Username'; 
+            break;
+        case 'typos':
+            data = <?php echo json_encode($typos); ?>;
+            title = 'Typo Counts';
+            dataColumn = 'Typo Count';
+            infoColumn = 'Username';
+            break;
+        case 'deaths':
+            data = <?php echo json_encode($gameDeaths); ?>;
+            title = 'Deaths Overview';
+            dataColumn = 'Death Count';
+            infoColumn = 'Game'; 
+            break;
+        case 'hugs':
+            data = <?php echo json_encode($hugCounts); ?>;
+            title = 'Hug Counts';
+            dataColumn = 'Hug Count';
+            infoColumn = 'Username'; 
+            break;
+        case 'kisses':
+            data = <?php echo json_encode($kissCounts); ?>;
+            title = 'Kiss Counts';
+            dataColumn = 'Kiss Count';
+            infoColumn = 'Username'; 
+            break;
+        case 'custom':
+            data = <?php echo json_encode($customCounts); ?>;
+            title = 'Custom Counts';
+            dataColumn = 'Used';
+            infoColumn = 'Command'; 
+            break;
+        case 'userCounts':
+            data = <?php echo json_encode($userCounts); ?>;
+            title = 'User Counts for Commands';
+            infoColumn = 'Command';
+            dataColumn = 'Count';
+            break;
+        case 'watchTime': 
+            data = <?php echo json_encode($watchTimeData); ?>;
+            title = 'Watch Time';
+            infoColumn = 'Username';
+            dataColumn = 'Online Watch Time';
+            additionalColumnName = 'Offline Watch Time';
+            countColumnVisible = true;
+            data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+            break;
+    }
+    document.getElementById('data-column-info').innerText = dataColumn;
+    document.getElementById('info-column-data').innerText = infoColumn;
+    if (countColumnVisible) {
+        document.getElementById('count-column').style.display = '';
+        document.getElementById('count-column').innerText = additionalColumnName;
+    } else {
+        document.getElementById('count-column').style.display = 'none';
+    }
+    data.forEach(item => {
+        output += `<tr>`;
+        if (type === 'lurkers') {
+            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`; 
         } else if (type === 'typos') {
-            tableHeader.innerHTML = '<th>Username</th><th>Count</th>';
-            data.typos.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.typo_count}</td></tr>`;
-            });
+            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
         } else if (type === 'deaths') {
-            tableHeader.innerHTML = '<th>Game</th><th>Death Count</th>';
-            tableBody.innerHTML = `<tr><td>Total</td><td>${data.deaths.total.length > 0 ? data.deaths.total[0].death_count : 0}</td></tr>`;
-            data.deaths.games.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.game_name}</td><td>${item.death_count}</td></tr>`;
-            });
+            output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
         } else if (type === 'hugs') {
-            tableHeader.innerHTML = '<th>Username</th><th>Hug Count</th>';
-            tableBody.innerHTML = `<tr><td>Total</td><td>${data.hugs.total}</td></tr>`;
-            data.hugs.users.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.hug_count}</td></tr>`;
-            });
+            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
         } else if (type === 'kisses') {
-            tableHeader.innerHTML = '<th>Username</th><th>Kiss Count</th>';
-            tableBody.innerHTML = `<tr><td>Total</td><td>${data.kisses.total}</td></tr>`;
-            data.kisses.users.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${item.kiss_count}</td></tr>`;
-            });
-        } else if (type === 'todos') { 
-            tableHeader.innerHTML = '<th>Objective</th><th>Category</th><th>Created</th><th>Last Updated</th><th>Completed</th>';
-            data.todos.forEach(item => {
-                tableBody.innerHTML += `<tr>
-                    <td>${item.completed == 'Yes' ? '<s>' + item.objective + '</s>' : item.objective}</td>
-                    <td>${item.category_name}</td>
-                    <td>${item.created_at}</td>
-                    <td>${item.updated_at}</td>
-                    <td>${item.completed}</td>
-                </tr>`;
-            });
-        } else if (type === 'watchTime') {
-            tableHeader.innerHTML = '<th>Username</th><th>Online Watch Time</th><th>Offline Watch Time</th>';
-            data.watchTime.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
-            data.watchTime.forEach(item => {
-                tableBody.innerHTML += `<tr><td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td></tr>`;
-            });
+            output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
+        } else if (type === 'custom') {
+            output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+        } else if (type === 'userCounts') {
+            output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`; 
+        } else if (type === 'watchTime') { 
+            output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
         }
-    }
+        output += `</tr>`;
+    });
+    document.getElementById('table-title').innerText = title;
+    document.getElementById('table-body').innerHTML = output;
+}
 
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log('Document loaded, updating table with customCommands');
-        updateTable('customCommands');
-    }); 
+function formatWatchTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+}
 
-    function calculateDuration(startTime) {
-        const start = new Date(startTime);
-        const now = new Date();
-        const diff = now - start; // Difference in milliseconds
-        const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
-        const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
-        const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const parts = [];
-        if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
-        if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
-        if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
-        if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-        if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-        return parts.length > 0 ? parts.join(', ') : 'Just now';
+function redirectToUser(event) {
+    event.preventDefault();
+    const username = document.getElementById('user_search').value.trim();
+    if (username) {
+        window.location.href = `/${encodeURIComponent(username)}/`;
     }
-
-    function formatWatchTime(minutes) {
-        const hours = Math.floor(minutes / 60);
-        const remainingMinutes = minutes % 60;
-        return `${hours}h ${remainingMinutes}m`;
-    }
-
-    function redirectToUser(event) {
-        event.preventDefault();
-        const username = document.getElementById('user_search').value.trim();
-        if (username) {
-            window.location.href = `/${encodeURIComponent(username)}/`;
-        }
-    }
-});
+}
 </script>
 </body>
 </html>
