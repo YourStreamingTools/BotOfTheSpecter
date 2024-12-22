@@ -2053,7 +2053,7 @@ class TwitchBot(commands.Bot):
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='permit')
-    async def permit_command(ctx, permit_user: str = None):
+    async def permit_command(self, ctx, permit_user: str = None):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2850,7 +2850,7 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
         finally:
-            await sqldb.close()
+            await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='lurking')
