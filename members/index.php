@@ -361,7 +361,7 @@ function loadData(type) {
             } else if (type === 'watchTime') { 
                 output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
             } else if (type === 'todos') {
-                const categoryName = todoCategories[item.category] || item.category;
+                const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
                 output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${item.created_at}</td><td>${item.updated_at}</td>`;
             }
             output += `</tr>`;
