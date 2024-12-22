@@ -150,8 +150,8 @@ function getTimeDifference($start_time) {
     <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script type="text/javascript">
     <?php if (isset($_SESSION['username'])) { ?>
-        <script type="text/javascript">
         // Pass PHP data to JavaScript
         const customCommands = <?php echo json_encode($customCommands); ?>;
         const lurkers = <?php echo json_encode($lurkers); ?>;
@@ -163,8 +163,8 @@ function getTimeDifference($start_time) {
         const userCounts = <?php echo json_encode($userCounts); ?>;
         const watchTimeData = <?php echo json_encode($watchTimeData); ?>;
         const todos = <?php echo json_encode($todos); ?>;
-    </script>
     <?php } ?>
+    </script>
 </head>
 <body>
 <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
@@ -247,12 +247,11 @@ function redirectToUser(event) {
         window.location.href = '/' + encodeURIComponent(username) + '/';
     }
 }
-</script>
+
 <?php if (isset($_SESSION['username'])) { ?>
-<script>
 document.addEventListener('DOMContentLoaded', function() {
         loadData('customCommands');
-    })
+    });
 
 function loadData(type) {
     let data;
@@ -264,55 +263,55 @@ function loadData(type) {
     let output = '';
     switch(type) {
         case 'customCommands':
-            data = <?php echo json_encode($customCommands); ?>;
+            data = customCommands;
             title = 'Custom Commands';
             dataColumn = '';
             infoColumn = 'Command';
             break;
         case 'lurkers':
-            data = <?php echo json_encode($lurkers); ?>;
+            data = lurkers;
             title = 'Currently Lurking Users';
             dataColumn = 'Time';
             infoColumn = 'Username'; 
             break;
         case 'typos':
-            data = <?php echo json_encode($typos); ?>;
+            data = typos;
             title = 'Typo Counts';
             dataColumn = 'Typo Count';
             infoColumn = 'Username';
             break;
         case 'deaths':
-            data = <?php echo json_encode($gameDeaths); ?>;
+            data = gameDeaths;
             title = 'Deaths Overview';
             dataColumn = 'Death Count';
             infoColumn = 'Game'; 
             break;
         case 'hugs':
-            data = <?php echo json_encode($hugCounts); ?>;
+            data = hugCounts;
             title = 'Hug Counts';
             dataColumn = 'Hug Count';
             infoColumn = 'Username'; 
             break;
         case 'kisses':
-            data = <?php echo json_encode($kissCounts); ?>;
+            data = kissCounts;
             title = 'Kiss Counts';
             dataColumn = 'Kiss Count';
             infoColumn = 'Username'; 
             break;
         case 'custom':
-            data = <?php echo json_encode($customCounts); ?>;
+            data = customCounts;
             title = 'Custom Counts';
             dataColumn = 'Used';
             infoColumn = 'Command'; 
             break;
         case 'userCounts':
-            data = <?php echo json_encode($userCounts); ?>;
+            data = userCounts;
             title = 'User Counts for Commands';
             infoColumn = 'Command';
             dataColumn = 'Count';
             break;
         case 'watchTime': 
-            data = <?php echo json_encode($watchTimeData); ?>;
+            data = watchTimeData;
             title = 'Watch Time';
             infoColumn = 'Username';
             dataColumn = 'Online Watch Time';
@@ -321,7 +320,7 @@ function loadData(type) {
             data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
             break;
         case 'todos':
-            data = <?php echo json_encode($todos); ?>;
+            data = todos;
             title = 'To-Do Items';
             infoColumn = 'Task';
             dataColumn = 'Status';
@@ -385,7 +384,7 @@ function formatWatchTime(seconds) {
     }
     return `<span class='has-text-success'>${parts.join(', ')}</span>`;
 }
-</script>
 <?php } ?>
+</script>
 </body>
 </html>
