@@ -310,6 +310,9 @@ const data = {
 function updateTable(type) {
     const tableHeader = document.getElementById('table-header');
     const tableBody = document.getElementById('table-body');
+    if (!tableHeader || !tableBody) {
+        return;
+    }
     tableHeader.innerHTML = ''; // Clear existing headers
     tableBody.innerHTML = ''; // Clear existing rows
     if (type === 'customCommands') {
