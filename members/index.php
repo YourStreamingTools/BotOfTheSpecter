@@ -81,101 +81,14 @@ if ($username) {
             $notFound = true;
             throw new Exception("Database does not exist", 1049);
         }
-        $db = new mysqli($dbHost, $dbUsername, $dbPassword, $username);
-        if ($db->connect_error) {
-            throw new Exception("Connection failed: " . $db->connect_error);
-        }
+        $_SESSION['username'] = $username;
+        include "/var/www/dashboard/user_db.php";
         $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
-
-        // Fetch all custom commands
-        $getCustomCommands = $db->query("SELECT * FROM custom_commands");
-        $customCommands = $getCustomCommands ? $getCustomCommands->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch lurkers
-        $getLurkers = $db->query("SELECT * FROM lurk_times");
-        $lurkers = $getLurkers ? $getLurkers->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch watch time from the database
-        $getWatchTime = $db->query("SELECT * FROM watch_time");
-        $watchTimeData = $getWatchTime ? $getWatchTime->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch typo counts
-        $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
-        $typos = $getTypos ? $getTypos->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch total deaths
-        $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
-        $totalDeaths = $getTotalDeaths ? $getTotalDeaths->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch game-specific deaths
-        $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
-        $gameDeaths = $getGameDeaths ? $getGameDeaths->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch total hug counts
-        $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
-        $totalHugs = $getTotalHugs ? $getTotalHugs->fetch_assoc()['total_hug_count'] : 0;
-
-        // Fetch hug username-specific counts
-        $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
-        $hugCounts = $getHugCounts ? $getHugCounts->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch total kiss counts
-        $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
-        $totalKisses = $getTotalKisses ? $getTotalKisses->fetch_assoc()['total_kiss_count'] : 0;
-
-        // Fetch kiss counts
-        $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
-        $kissCounts = $getKissCounts ? $getKissCounts->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch custom counts
-        $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
-        $customCounts = $getCustomCounts ? $getCustomCounts->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch custom user counts
-        $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
-        $userCounts = $getUserCounts ? $getUserCounts->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch seen users data
-        $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
-        $seenUsersData = $getSeenUsersData ? $getSeenUsersData->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch timed messages
-        $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
-        $timedMessagesData = $getTimedMessages ? $getTimedMessages->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch channel point rewards sorted by cost (low to high)
-        $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
-        $channelPointRewards = $getChannelPointRewards ? $getChannelPointRewards->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Fetch todo items
-        $getTodos = $db->query("
-            SELECT 
-                t.id, 
-                t.objective, 
-                t.completed, 
-                t.created_at, 
-                t.updated_at,
-                c.category AS category_name  
-            FROM 
-                todos t
-            JOIN 
-                categories c ON t.category = c.id 
-            ORDER BY 
-                t.id ASC
-        ");
-        $todos = $getTodos ? $getTodos->fetch_all(MYSQLI_ASSOC) : [];
-
-        // Close database connection
-        $db->close();
     } catch (Exception $e) {
         if ($e->getCode() == 1049) {
             $notFound = true;
         } else {
             $buildResults = "Error: " . $e->getMessage();
-        }
-        // Close database connection if it was opened
-        if (isset($db)) {
-            $db->close();
         }
     }
 }
