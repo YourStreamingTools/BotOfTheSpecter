@@ -77,7 +77,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($result) {
         // Update the font, color, list, shadow, bold, and font_size data in the database
         $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? LIMIT 1");
-        $stmt->bind_param("sssisss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
+        $stmt->bind_param("sssiss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
         if ($stmt->execute()) {
             // Update successful
             header("Location: obs_options.php");
@@ -88,7 +88,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         // Insert new settings for the user
         $stmt = $db->prepare("INSERT INTO showobs (font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssisss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
+        $stmt->bind_param("sssiss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
         if ($stmt->execute()) {
             // Insertion successful
             header("Location: obs_options.php");
