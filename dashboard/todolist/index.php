@@ -44,7 +44,7 @@ $greeting = 'Hello';
 include 'database.php';
 
 // Get the selected category filter, default to "all" if not provided
-$categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
+$categoryFilter = isset($_GET['category']) ? htmlspecialchars($_GET['category']) : 'all';
 
 // Build the SQL query based on the category filter
 if ($categoryFilter === 'all') {
@@ -53,7 +53,7 @@ if ($categoryFilter === 'all') {
 } else {
   $sql = "SELECT * FROM todos WHERE category = ? ORDER BY id ASC";
   $stmt = $db->prepare($sql);
-  $stmt->bind_param("i", $categoryFilter);
+  $stmt->bind_param("s", $categoryFilter);
 }
 
 $stmt->execute();
@@ -93,10 +93,11 @@ $num_rows = count($result);
           <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
           <?php
             $categories_sql = "SELECT * FROM categories";
-            $categories_stmt = $db->query($categories_sql);
-            $categories_result = $categories_stmt->fetch_all(MYSQLI_ASSOC);
+            $categories_stmt = $db->prepare($categories_sql);
+            $categories_stmt->execute();
+            $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             foreach ($categories_result as $category_row) {
-              $categoryId = $category_row['id'];
+              $categoryId = htmlspecialchars($category_row['id']);
               $categoryName = htmlspecialchars($category_row['category']);
               $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
               echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
@@ -169,18 +170,21 @@ $num_rows = count($result);
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now - date;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    const months = Math.floor(days / 30);
-    const years = Math.floor(months / 12);
-    if (years > 0) return `${years} year${years > 1 ? 's' : ''} ago`;
-    if (months > 0) return `${months} month${months > 1 ? 's' : ''} ago`;
-    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
-    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    return `${seconds} second${seconds > 1 ? 's' : ''} ago`;
+
+    const seconds = Math.floor(diff / 1000) % 60;
+    const minutes = Math.floor(diff / (1000 * 60)) % 60;
+    const hours = Math.floor(diff / (1000 * 60 * 60)) % 24;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24)) % 30;
+    const months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30)) % 12;
+    const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
+    let result = '';
+    if (years > 0) result += `${years} year${years > 1 ? 's' : ''}, `;
+    if (months > 0) result += `${months} month${months > 1 ? 's' : ''}, `;
+    if (days > 0) result += `${days} day${days > 1 ? 's' : ''}, `;
+    if (hours > 0) result += `${hours} hour${hours > 1 ? 's' : ''}, `;
+    if (minutes > 0) result += `${minutes} minute${minutes > 1 ? 's' : ''}, `;
+    result += `${seconds} second${seconds > 1 ? 's' : ''} ago`;
+    return result;
   }
   function updateTimestamps() {
     const elements = document.querySelectorAll('.timestamp');
