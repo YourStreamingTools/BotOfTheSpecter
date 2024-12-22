@@ -5232,7 +5232,7 @@ async def get_spotify_current_song():
                 # Extract song name, artist if Spotify is currently playing
                 is_playing = data["is_playing"]
                 if is_playing:
-                    song_id = data["tracks"]["items"][0]["uri"]
+                    song_id = data["item"]["uri"]
                     song_name = data["item"]["name"]
                     artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
                     api_logger.info(f"The current song from Spotify is: {song_name} by {artist_name}")
