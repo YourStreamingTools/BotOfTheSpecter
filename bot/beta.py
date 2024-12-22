@@ -4788,25 +4788,32 @@ async def shoutout_worker():
 
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, user_id):
-    url = 'https://api.twitch.tv/helix/chat/shoutouts'
-    headers = {
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Client-ID": CLIENT_ID,
-    }
-    payload = {
-        "from_broadcaster_id": CHANNEL_ID,
-        "to_broadcaster_id": user_id,
-        "moderator_id": CHANNEL_ID
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=payload) as response:
-                if response.status in (200, 204):
-                    twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
-                else:
-                    twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-    except aiohttp.ClientError as e:
-        twitch_logger.error(f"Error triggering shoutout: {e}")
+    sqldb = await access_website_database()
+    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+        bot_id = "971436498"
+        await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
+        result = await cursor.fetchone()
+        bot_auth = result.get('twitch_access_token')
+        await sqldb.ensure_closed()
+        url = 'https://api.twitch.tv/helix/chat/shoutouts'
+        headers = {
+            "Authorization": f"Bearer {bot_auth}",
+            "Client-ID": CLIENT_ID,
+        }
+        payload = {
+            "from_broadcaster_id": CHANNEL_ID,
+            "to_broadcaster_id": user_id,
+            "moderator_id": bot_id
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status in (200, 204):
+                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                    else:
+                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+        except aiohttp.ClientError as e:
+            twitch_logger.error(f"Error triggering shoutout: {e}")
 
 # Function to get the last stream category for a user to shoutout
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
@@ -5775,6 +5782,7 @@ async def ban_user(username, user_id):
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
         result = await cursor.fetchone()
         bot_auth = result.get('twitch_access_token')
+        await sqldb.ensure_closed()
     # Construct the ban URL using the bot's user ID
     ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={bot_id}"
     headers = {
