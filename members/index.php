@@ -77,77 +77,70 @@ $notFound = false;
 
 if ($username) {
     try {
-        $checkDb = new PDO("mysql:host=$dbHost", $dbUsername, $dbPassword);
-        $checkDb->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        $escapedUsername = str_replace('_', '\\_', $username);
-        $stmt = $checkDb->prepare("SHOW DATABASES LIKE :username");
-        $stmt->bindParam(':username', $escapedUsername, PDO::PARAM_STR);
+        $checkDb = new mysqli($dbHost, $dbUsername, $dbPassword);
+        $escapedUsername = $checkDb->real_escape_string($username);
+        $stmt = $checkDb->prepare("SHOW DATABASES LIKE ?");
+        $stmt->bind_param('s', $escapedUsername);
         $stmt->execute();
-        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         if (!$result) {
             $notFound = true;
-            throw new PDOException("Database does not exist", 1049);
+            throw new Exception("Database does not exist", 1049);
         }
-
-        $db = new PDO("mysql:host=$dbHost;dbname={$username}", $dbUsername, $dbPassword);
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $db = new mysqli($dbHost, $dbUsername, $dbPassword, $username);
+        if ($db->connect_error) {
+            throw new Exception("Connection failed: " . $db->connect_error);
+        }
         $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
-        $query = "SELECT command FROM custom_commands";
-        $result = $db->query($query);
-        while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
-            $commands[] = $row;
-        }
 
         // Fetch all custom commands
         $getCommands = $db->query("SELECT * FROM custom_commands");
-        $commands = $getCommands->fetchAll(PDO::FETCH_ASSOC);
+        $commands = $getCommands->fetch_all(MYSQLI_ASSOC);
         // Fetch lurkers
         $getLurkers = $db->query("SELECT * FROM lurk_times");
-        $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
+        $lurkers = $getLurkers->fetch_all(MYSQLI_ASSOC);
         // Fetch watch time from the database
         $getWatchTime = $db->query("SELECT * FROM watch_time");
-        $watchTimeData = $getWatchTime->fetchAll(PDO::FETCH_ASSOC);
+        $watchTimeData = $getWatchTime->fetch_all(MYSQLI_ASSOC);
         // Fetch typo counts
         $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
-        $typos = $getTypos->fetchAll(PDO::FETCH_ASSOC);
+        $typos = $getTypos->fetch_all(MYSQLI_ASSOC);
         // Fetch total deaths
         $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
-        $totalDeaths = $getTotalDeaths->fetchAll(PDO::FETCH_ASSOC);
+        $totalDeaths = $getTotalDeaths->fetch_all(MYSQLI_ASSOC);
         // Fetch game-specific deaths
         $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
-        $gameDeaths = $getGameDeaths->fetchAll(PDO::FETCH_ASSOC);
+        $gameDeaths = $getGameDeaths->fetch_all(MYSQLI_ASSOC);
         // Fetch total hug counts
         $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
-        $totalHugs = $getTotalHugs->fetchAll(PDO::FETCH_ASSOC);
+        $totalHugs = $getTotalHugs->fetch_all(MYSQLI_ASSOC);
         // Fetch hug username-specific counts
         $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
-        $hugCounts = $getHugCounts->fetchAll(PDO::FETCH_ASSOC);
+        $hugCounts = $getHugCounts->fetch_all(MYSQLI_ASSOC);
         // Fetch total kiss counts
         $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
-        $totalKisses = $getTotalKisses->fetchAll(PDO::FETCH_ASSOC);
+        $totalKisses = $getTotalKisses->fetch_all(MYSQLI_ASSOC);
         // Fetch kiss counts
         $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
-        $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
+        $kissCounts = $getKissCounts->fetch_all(MYSQLI_ASSOC);
         // Fetch custom counts
         $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
-        $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
-        // Fetah Custom User Counts
+        $customCounts = $getCustomCounts->fetch_all(MYSQLI_ASSOC);
+        // Fetch custom user counts
         $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
-        $userCounts = $getUserCounts->fetchAll(PDO::FETCH_ASSOC);
+        $userCounts = $getUserCounts->fetch_all(MYSQLI_ASSOC);
         // Fetch seen users data
         $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
-        $seenUsersData = $getSeenUsersData->fetchAll(PDO::FETCH_ASSOC);
+        $seenUsersData = $getSeenUsersData->fetch_all(MYSQLI_ASSOC);
         // Fetch timed messages
         $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
-        $timedMessagesData = $getTimedMessages->fetchAll(PDO::FETCH_ASSOC);
+        $timedMessagesData = $getTimedMessages->fetch_all(MYSQLI_ASSOC);
         // Fetch channel point rewards sorted by cost (low to high)
         $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
-        $channelPointRewards = $getChannelPointRewards->fetchAll(PDO::FETCH_ASSOC);
+        $channelPointRewards = $getChannelPointRewards->fetch_all(MYSQLI_ASSOC);
         // Fetch profile data
         $getProfileSettings = $db->query("SELECT * FROM profile");
-        $profileData = $getProfileSettings->fetchAll(PDO::FETCH_ASSOC);
+        $profileData = $getProfileSettings->fetch_all(MYSQLI_ASSOC);
         // Fetch todo items
         $getTodos = $db->query("
             SELECT 
@@ -164,10 +157,10 @@ if ($username) {
             ORDER BY 
                 t.id ASC
         ");
-        $todos = $getTodos->fetchAll(PDO::FETCH_ASSOC);
+        $todos = $getTodos->fetch_all(MYSQLI_ASSOC);
         // Close database connection
-        $db = null;
-    } catch (PDOException $e) {
+        $db->close();
+    } catch (Exception $e) {
         if ($e->getCode() == 1049) {
             $notFound = true;
         } else {
@@ -175,7 +168,7 @@ if ($username) {
         }
         // Close database connection if it was opened
         if (isset($db)) {
-            $db = null;
+            $db->close();
         }
     }
 }
