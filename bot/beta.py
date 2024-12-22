@@ -2243,7 +2243,7 @@ class TwitchBot(commands.Bot):
                 async with search_session.get(search_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        if data:
+                        if data and data["tracks"]["items"]:
                             song_id = data["tracks"]["items"][0]["uri"]
                             song_name = data["tracks"]["items"][0]["name"]
                             artist_name = data["tracks"]["items"][0]["artists"][0]["name"]
