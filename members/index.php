@@ -166,9 +166,8 @@ if ($username) {
         $todos = $getTodos->fetchAll(PDO::FETCH_ASSOC);
         // Close database connection
         $db = null;
-        $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $username;
     } catch (PDOException $e) {
-        if ($e->getCode() === '1049') {
+        if ($e->getCode() == 1049) {
             $notFound = true;
         } else {
             $buildResults = "Error: " . $e->getMessage();
