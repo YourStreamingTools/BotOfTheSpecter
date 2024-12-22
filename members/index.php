@@ -296,15 +296,15 @@ const data = {
     lurkers: <?php echo json_encode($lurkers); ?>,
     typos: <?php echo json_encode($typos); ?>,
     deaths: {
-        total: "<?php echo htmlspecialchars($totalDeaths['death_count']); ?>",
+        total: <?php echo json_encode($totalDeaths); ?>,
         games: <?php echo json_encode($gameDeaths); ?>
     },
     hugs: {
-        total: "<?php echo htmlspecialchars($totalHugs); ?>",
+        total: <?php echo json_encode($totalHugs); ?>,
         users: <?php echo json_encode($hugCounts); ?>
     },
     kisses: {
-        total: "<?php echo htmlspecialchars($totalKisses); ?>",
+        total: <?php echo json_encode($totalKisses); ?>,
         users: <?php echo json_encode($kissCounts); ?>
     },
     todos: <?php echo json_encode($todos); ?>,
@@ -401,7 +401,8 @@ function formatWatchTime(minutes) {
     return `${hours}h ${remainingMinutes}m`;
 }
 
-function redirectToUser() {
+function redirectToUser(event) {
+    event.preventDefault();
     const username = document.getElementById('user_search').value.trim();
     if (username) {
         window.location.href = `/${encodeURIComponent(username)}/`;
