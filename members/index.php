@@ -160,10 +160,6 @@ function getTimeDifference($start_time) {
         const userCounts = <?php echo json_encode($userCounts); ?>;
         const watchTimeData = <?php echo json_encode($watchTimeData); ?>;
         const todos = <?php echo json_encode($todos); ?>;
-        // Load custom commands on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            loadData('customCommands');
-        });
     </script>
     <?php } ?>
 </head>
@@ -240,8 +236,21 @@ function getTimeDifference($start_time) {
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </div>
 </footer>
+<script>
+function redirectToUser(event) {
+    event.preventDefault();
+    const username = document.getElementById('user_search').value.trim();
+    if (username) {
+        window.location.href = `/${encodeURIComponent(username)}/`;
+    }
+}
+</script>
 <?php if (isset($_SESSION['username'])) { ?>
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+        loadData('customCommands');
+    })
+
 function loadData(type) {
     let data;
     let title;
@@ -372,14 +381,6 @@ function formatWatchTime(seconds) {
         }
     }
     return `<span class='has-text-success'>${parts.join(', ')}</span>`;
-}
-
-function redirectToUser(event) {
-    event.preventDefault();
-    const username = document.getElementById('user_search').value.trim();
-    if (username) {
-        window.location.href = `/${encodeURIComponent(username)}/`;
-    }
 }
 </script>
 <?php } ?>
