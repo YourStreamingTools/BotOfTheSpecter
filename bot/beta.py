@@ -6202,12 +6202,13 @@ async def process_channel_point_rewards(event_data, event_type):
                 await websocket_notice(event="SOUND_ALERT", sound=sound_file)
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-            result = await cursor.fetchone()
-            if result and result["custom_message"]:
-                custom_message = result.get("custom_message")
-                if '(user)' in custom_message:
-                    custom_message = custom_message.replace('(user)', user_name)
-                await channel.send(custom_message)
+            custom_message_result = await cursor.fetchone()
+            if custom_message_result:
+                custom_message = custom_message_result.get("custom_message")
+                if custom_message:
+                    if '(user)' in custom_message:
+                        custom_message = custom_message.replace('(user)', user_name)
+                    await channel.send(custom_message)
         except Exception as e:
             event_logger.info(f"An error occurred while processing the reward: {e}")
         finally:
