@@ -1894,15 +1894,6 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='joke')
     async def joke_command(self, ctx):
-        # Map alias categories to their resolved names
-        alias_to_resolved = {
-            "Misc": "Miscellaneous",
-            "Programming": "Coding",
-            "Programming": "Development",
-            "Spooky": "Halloween",
-            "Dark": "Dark",
-            "Pun": "Pun"
-        }
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1921,23 +1912,22 @@ class TwitchBot(commands.Bot):
                         await cursor.execute("SELECT blacklist FROM joke_settings WHERE id = 1")
                         blacklist_result = await cursor.fetchone()
                         if blacklist_result:
-                            # Parse the blacklist and resolve aliases
+                            # Parse the blacklist
                             blacklist = json.loads(blacklist_result.get("blacklist"))
-                            resolved_blacklist = {alias_to_resolved.get(cat, cat) for cat in blacklist}
+                            blacklist_lower = {cat.lower() for cat in blacklist}
                             joke = await Jokes()
                             while True:
                                 # Fetch a joke from the JokeAPI
                                 get_joke = await joke.get_joke()
-                                category = get_joke["category"]
                                 # Resolve the category and check against the blacklist
-                                resolved_category = alias_to_resolved.get(category, category)
-                                if resolved_category not in resolved_blacklist:
+                                category = get_joke["category"].lower()
+                                if category not in blacklist_lower:
                                     break
                             # Send the joke based on its type
                             if get_joke["type"] == "single":
-                                await ctx.send(f"Here's a joke from {resolved_category}: {get_joke['joke']}")
+                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
                             else:
-                                await ctx.send(f"Here's a joke from {resolved_category}: {get_joke['setup']} | {get_joke['delivery']}")
+                                await ctx.send(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
                         else:
                             await ctx.send("Error: Could not fetch the blacklist settings.")
                     else:
