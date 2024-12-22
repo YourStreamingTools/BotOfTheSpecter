@@ -2342,9 +2342,9 @@ class TwitchBot(commands.Bot):
                                     requester = song_requests[song_id].get("user")
                                 # Format the song entry with the requester
                                 if requester:
-                                    song_list.append(f"{idx}. {song_name} by {artist_name} (requested by {requester})")
+                                    song_list.append(f"{idx}. {song_name} by {artist_name} (requested by {requester}) ")
                                 else:
-                                    song_list.append(f"{idx}. {song_name} by {artist_name}")
+                                    song_list.append(f"{idx}. {song_name} by {artist_name} ")
                                 if idx >= 3:  # Limit the display to the first 3 songs
                                     break
                             # Add a note if there are more songs in the queue
@@ -6919,7 +6919,7 @@ async def track_watch_time(active_users):
 
 # Function to periodically check the queue
 async def check_song_requests():
-    global song_requests
+    global SPOTIFY_ACCESS_TOKEN, song_requests
     while True:
         await asyncio.sleep(180)
         if song_requests:
@@ -6934,8 +6934,9 @@ async def check_song_requests():
                             queue_ids = [song['uri'] for song in queue]
                             for song_id in list(song_requests):
                                 if song_id not in queue_ids:
+                                    song_info = song_requests[song_id]
                                     del song_requests[song_id]
-                                    api_logger.info(f"Song {song_requests[song_id]['song_name']} by {song_requests[song_id]['artist_name']} removed from tracking list.")
+                                    api_logger.info(f"Song {song_info['song_name']} by {song_info['artist_name']} removed from tracking list.")
                     else:
                         api_logger.error(f"Failed to fetch queue from Spotify, status code: {response.status}")
 
