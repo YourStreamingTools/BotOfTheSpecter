@@ -150,6 +150,7 @@ function loadData(type) {
   let dataColumn;
   let infoColumn;
   let countColumnVisible = false;
+  let additionalColumnName;
   let output = '';
   switch(type) {
     case 'lurkers':
@@ -191,21 +192,23 @@ function loadData(type) {
     case 'userCounts':
       data = <?php echo json_encode($userCounts); ?>;
       title = 'User Counts for Commands';
+      infoColumn = 'Command';
       dataColumn = 'Count';
-      infoColumn = 'Command'; 
-      countColumnVisible = true;
       break;
     case 'watchTime': 
       data = <?php echo json_encode($watchTimeData); ?>;
       title = 'Watch Time';
-      dataColumn = 'Total Watch Time';
       infoColumn = 'Username';
+      dataColumn = 'Online Watch Time';
+      additionalColumnName = 'Offline Watch Time';
+      countColumnVisible = true;
       break;
   }
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
   if (countColumnVisible) {
     document.getElementById('count-column').style.display = '';
+    document.getElementById('count-column').innerText = additionalColumnName;
   } else {
     document.getElementById('count-column').style.display = 'none';
   }
@@ -226,7 +229,7 @@ function loadData(type) {
     } else if (type === 'userCounts') {
       output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`; 
     } else if (type === 'watchTime') { 
-      output += `<td>${item.username}</td><td>${item.watch_time}</td>`; 
+      output += `<td>${item.username}</td><td>${item.total_watch_time_live}</td><td>${item.total_watch_time_offline}</td>`; 
     }
     output += `</tr>`;
   });
