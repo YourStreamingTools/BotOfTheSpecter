@@ -237,35 +237,8 @@ function redirectToUser(event) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Load any other default data (like custom commands) immediately
     loadData('customCommands');
-    
-    // Fetch lurker data in the background asynchronously
-    loadLurkerDataInBackground();
 });
-
-// Function to load lurker data in the background without blocking the page
-function loadLurkerDataInBackground() {
-    // Fetch lurker data and update in the background
-    setTimeout(async () => {
-        await loadLurkerData();
-        // Once lurker data is fetched, update the display
-        updateLurkerDisplay();
-    }, 0); // Run immediately, but in the background
-}
-
-// Function to load lurker data
-async function loadLurkerData() {
-    if (lurkers && lurkers.length > 0) {
-        await updateLurkers(lurkers); // Fetch usernames and calculate the durations
-    }
-}
-
-// Function to update the lurker display after the data is ready
-function updateLurkerDisplay() {
-    // Trigger an update of the display once lurker data is available
-    loadData('lurkers');
-}
 
 // Function to load the data based on type
 async function loadData(type) {
@@ -378,7 +351,7 @@ async function loadData(type) {
             if (type === 'customCommands') {
                 output += `<td>!${item.command}</td>`; 
             } else if (type === 'lurkers') {
-                output += `<td>${item.username || item.user_id}</td><td><span class='has-text-success'>${item.start_time}</span></td>`;
+                output += `<td>${getUsername(item.user_id)}</td><td><span class='has-text-success'>${calculateLurkDuration(item.start_time)}</span></td>`;
             } else if (type === 'typos') {
                 output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
             } else if (type === 'deaths') {
@@ -402,14 +375,6 @@ async function loadData(type) {
     }
     document.getElementById('table-title').innerText = title;
     document.getElementById('table-body').innerHTML = output;
-}
-
-// Function to update lurker data by fetching usernames and durations
-async function updateLurkers(lurkers) {
-    for (let item of lurkers) {
-        item.username = await getUsername(item.user_id);
-        item.lurk_duration = calculateLurkDuration(item.start_time);
-    }
 }
 
 // Fetch the username from Twitch API based on userId
