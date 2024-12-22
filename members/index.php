@@ -51,9 +51,12 @@ function getTwitchUsernames($userIds) {
 
 // PAGE TITLE
 $title = "Members";
+// Initialize all variables as empty arrays or values
 $commands = [];
+$builtinCommands = [];
 $typos = [];
 $lurkers = [];
+$watchTimeData = [];
 $totalDeaths = [];
 $gameDeaths = [];
 $totalHugs = 0;
@@ -61,6 +64,11 @@ $hugCounts = [];
 $totalKisses = 0;
 $kissCounts = [];
 $customCounts = [];
+$userCounts = [];
+$seenUsersData = [];
+$timedMessagesData = [];
+$channelPointRewards = [];
+$profileData = [];
 
 require_once "db_connect.php";
 
