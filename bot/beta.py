@@ -232,16 +232,21 @@ async def spotify_token_refresh():
             # Fetch the user ID for the specified CHANNEL_NAME
             await cursor.execute("SELECT id FROM users WHERE username = %s", (CHANNEL_NAME,))
             user_row = await cursor.fetchone()
-            user_id = user_row["id"]
-            # Fetch the Spotify tokens associated with the user_id
-            await cursor.execute("SELECT access_token, refresh_token FROM spotify_tokens WHERE user_id = %s", (user_id,))
-            tokens_row = await cursor.fetchone()
-            if not tokens_row:
-                bot_logger.info(f"No Spotify tokens found for user {CHANNEL_NAME}.")
+            if user_row:
+                user_id = user_row["id"]
+                # Fetch the Spotify tokens associated with the user_id
+                await cursor.execute("SELECT access_token, refresh_token FROM spotify_tokens WHERE user_id = %s", (user_id,))
+                tokens_row = await cursor.fetchone()
+                if not tokens_row:
+                    bot_logger.info(f"No Spotify tokens found for user {CHANNEL_NAME}.")
+                    await sqldb.ensure_closed()
+                    return
+                SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
+                SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
+            else:
+                bot_logger.error(f"No user found with username {CHANNEL_NAME}.")
                 await sqldb.ensure_closed()
                 return
-            SPOTIFY_ACCESS_TOKEN = tokens_row["access_token"]
-            SPOTIFY_REFRESH_TOKEN = tokens_row["refresh_token"]
         await sqldb.ensure_closed()
         await asyncio.sleep(300)  # 5 minutes initial sleep
         SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time = await refresh_spotify_token(SPOTIFY_REFRESH_TOKEN, user_id)
@@ -292,8 +297,10 @@ async def refresh_spotify_token(current_refresh_token, user_id):
                 else:
                     error_response = await response.json()
                     bot_logger.error(f"Spotify token refresh failed: HTTP {response.status} - {error_response}")
+                    return SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
     except Exception as e:
         bot_logger.error(f"Spotify token refresh error: {e}")
+        return SPOTIFY_ACCESS_TOKEN, SPOTIFY_REFRESH_TOKEN, next_spotify_refresh_time
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -473,7 +480,7 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
         except asyncio.TimeoutError:
             event_logger.error("Keepalive timeout exceeded, reconnecting...")
             await twitch_websocket.close()
-            break  # Exit the loop to allow reconnection logic
+            continue  # Continue the loop to allow reconnection logic
         except websockets.ConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {str(e)}")
             break  # Exit the loop for reconnection
@@ -488,17 +495,20 @@ async def connect_to_tipping_services():
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT StreamElements, StreamLabs FROM tipping_settings LIMIT 1")
             result = await cursor.fetchone()
-            streamelements_token = result['StreamElements']
-            streamlabs_token = result['StreamLabs']
-            tasks = []
-            if streamelements_token:
-                tasks.append(connect_to_streamelements())
-            if streamlabs_token:
-                tasks.append(connect_to_streamlabs())
-            if tasks:
-                await asyncio.gather(*tasks)
+            if result:
+                streamelements_token = result.get('StreamElements')
+                streamlabs_token = result.get('StreamLabs')
+                tasks = []
+                if streamelements_token:
+                    tasks.append(connect_to_streamelements())
+                if streamlabs_token:
+                    tasks.append(connect_to_streamlabs())
+                if tasks:
+                    await asyncio.gather(*tasks)
+                else:
+                    event_logger.error("No valid token found for either StreamElements or StreamLabs.")
             else:
-                event_logger.error("No valid token found for either StreamElements or StreamLabs.")
+                event_logger.error("No tipping settings found in the database.")
     except aiomysql.MySQLError as err:
         event_logger.error(f"Database error: {err}")
     finally:
@@ -565,7 +575,10 @@ async def process_message(message, source):
                 sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
                 event_logger.info(f"StreamElements subscription success: {sanitized_message}")
         else:
-            sanitized_message = json.dumps(data).replace(streamelements_token, "[REDACTED]") if source == "StreamElements" else message
+            if source == "StreamElements":
+                sanitized_message = json.dumps(data).replace(streamelements_token, "[REDACTED]")
+            else:
+                sanitized_message = message
             await process_tipping_message(json.loads(sanitized_message), source)
     except Exception as e:
         event_logger.error(f"Error processing message from {source}: {e}")
@@ -674,7 +687,7 @@ async def process_eventsub_message(message):
                         tier_name,
                         event_data["total"],
                         event_data.get("is_anonymous", False),
-                        event_data.get["cumulative_total"]
+                        event_data.get("cumulative_total")
                     ))
                 elif event_type == "channel.cheer":
                     asyncio.create_task(process_cheer_event(
@@ -926,31 +939,31 @@ async def WEATHER_DATA(data):
     websocket_logger.info(f"Received WEATHER_DATA event: {data}")
     await process_weather_websocket(data)
 
-# Connect and mange reconnection for HypeRate Heart Rate
+# Connect and manage reconnection for HypeRate Heart Rate
 async def hyperate_websocket():
     while True:
         try:
             bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
             hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
-            try:
-                # Use websockets.connect() to establish the WebSocket connection
-                async with websockets.connect(hyperate_websocket_uri) as hyperate_websocket:
-                    bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
-                    # Send 'phx_join' message to join the appropriate channel
-                    await join_channel(hyperate_websocket)
-                    # Send the heartbeat every 10 seconds
-                    asyncio.create_task(send_heartbeat(hyperate_websocket))
-                    while True:
+            async with websockets.connect(hyperate_websocket_uri) as hyperate_websocket:
+                bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
+                # Send 'phx_join' message to join the appropriate channel
+                await join_channel(hyperate_websocket)
+                # Send the heartbeat every 10 seconds
+                asyncio.create_task(send_heartbeat(hyperate_websocket))
+                while True:
+                    try:
                         # Continuously wait for incoming messages
                         global HEARTRATE
                         data = await hyperate_websocket.recv()
                         data = json.loads(data)
                         HEARTRATE = data['payload'].get('hr', None)
-            except Exception as e:
-                bot_logger.error(f"HypeRate error: WebSocket Connection Error: {e}")
-                await asyncio.sleep(10)  # Retry connection after a brief wait
+                    except websockets.ConnectionClosed:
+                        bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
+                        break
         except Exception as e:
             bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
+            await asyncio.sleep(10)  # Retry connection after a brief wait
 
 async def send_heartbeat(hyperate_websocket):
     while True:
@@ -961,7 +974,11 @@ async def send_heartbeat(hyperate_websocket):
             "payload": {},
             "ref": 0
         }
-        await hyperate_websocket.send(json.dumps(heartbeat_payload))
+        try:
+            await hyperate_websocket.send(json.dumps(heartbeat_payload))
+        except Exception as e:
+            bot_logger.error(f"Error sending heartbeat: {e}")
+            break
 
 async def join_channel(hyperate_websocket):
     try:
@@ -984,8 +1001,16 @@ async def join_channel(hyperate_websocket):
             await hyperate_websocket.send(json.dumps(phx_join))
     except Exception as e:
         bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
+    finally:
+        await sqldb.ensure_closed()
 
-# Bot class
+# Bot classes
+class GameNotFoundException(Exception):
+    pass
+
+class GameUpdateFailedException(Exception):
+    pass
+
 class TwitchBot(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
@@ -1025,7 +1050,7 @@ class TwitchBot(commands.Bot):
             bot_logger.info(f"[COOLDOWN] Command: '{command}' is on cooldown for {round(error.retry_after)} seconds.")
             retry_after = round(error.retry_after)
             message = f"Command '{command}' is on cooldown. Try again in {retry_after} seconds."
-            channel = self.get_channel(CHANNEL_NAME)
+            channel = self.get_channel(self.channel_name)
             if channel:
                 await self.target_channel.send(message)
             else:
@@ -1087,9 +1112,9 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
                     result = await cursor.fetchone()
                     if result:
-                        response = result["response"]
-                        status = result["status"]
-                        cooldown = result["cooldown"]
+                        response = result.get("response")
+                        status = result.get("status")
+                        cooldown = result.get("cooldown")
                         if status == 'Enabled':
                             cooldown = int(cooldown)
                             # Checking if the command is on cooldown
@@ -1126,7 +1151,7 @@ class TwitchBot(commands.Bot):
                                         await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
                                         result = await cursor.fetchone()
                                         if result:
-                                            user_count = result["count"]
+                                            user_count = result.get("count")
                                         else:
                                             # If no entry found, initialize it to 0
                                             user_count = 0
@@ -1140,7 +1165,7 @@ class TwitchBot(commands.Bot):
                                         await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user_name))
                                         updated_result = await cursor.fetchone()
                                         if updated_result:
-                                            updated_user_count = updated_result["count"]
+                                            updated_user_count = updated_result.get("count")
                                         else:
                                             updated_user_count = 0
                                         # Replace the (usercount) placeholder with the updated user count
@@ -1244,7 +1269,7 @@ class TwitchBot(commands.Bot):
                     # Fetch url_blocking option from the protection table in the user's database
                     await cursor.execute('SELECT url_blocking FROM protection')
                     result = await cursor.fetchone()
-                    url_blocking = bool(result["url_blocking"]) if result else False
+                    url_blocking = bool(result.get("url_blocking")) if result else False
                     # Proceed if URL blocking is enabled
                     if url_blocking:
                         # Check if user has permission to post links
@@ -1290,9 +1315,9 @@ class TwitchBot(commands.Bot):
             finally:
                 await cursor.close()
                 await sqldb.ensure_closed()
-                await self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, message)
+                await self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser)
 
-    async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, message):
+    async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser):
         if messageAuthor in [bannedUser, None, ""]:
             return
         sqldb = await get_mysql_connection()
@@ -1389,6 +1414,9 @@ class TwitchBot(commands.Bot):
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 settings = await get_point_settings()
+                if not settings or 'chat_points' not in settings or 'excluded_users' not in settings:
+                    chat_logger.error("Error: Point settings are missing or incomplete.")
+                    return
                 chat_points = settings['chat_points']
                 excluded_users = settings['excluded_users'].split(',')
                 #bot_logger.info(f"Excluded users: {excluded_users}")
@@ -1396,7 +1424,7 @@ class TwitchBot(commands.Bot):
                 if author_lower not in excluded_users:
                     await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (messageAuthorID,))
                     result = await cursor.fetchone()
-                    current_points = result['points'] if result else 0
+                    current_points = result.get('points') if result else 0
                     new_points = current_points + chat_points
                     if result:
                         await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, messageAuthorID))
@@ -1420,7 +1448,7 @@ class TwitchBot(commands.Bot):
         try:
             group_names = []
             # Check if the user is the broadcaster
-            if messageAuthor == CHANNEL_NAME:
+            if messageAuthor == self.channel_name:
                 return
             # Check if there was a user passed
             if messageAuthor == "None":
@@ -1521,8 +1549,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("commands",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1558,8 +1586,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("bot",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1583,11 +1611,11 @@ class TwitchBot(commands.Bot):
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("forceonline",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1613,11 +1641,11 @@ class TwitchBot(commands.Bot):
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("forceoffline",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]  # Unpack the status and permissions
+                    status = result.get("status")
+                    permissions = result.get("permission")  # Unpack the status and permissions
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1648,8 +1676,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("version",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1694,8 +1722,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roadmap",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1721,8 +1749,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("weather",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1762,8 +1790,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("points",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1773,7 +1801,7 @@ class TwitchBot(commands.Bot):
                         await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                         result = await cursor.fetchone()
                         if result:
-                            points = result["points"]
+                            points = result.get("points")
                             chat_logger.info(f"{user_name} has {points} points")
                         else:
                             points = 0
@@ -1803,8 +1831,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("time",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1841,8 +1869,8 @@ class TwitchBot(commands.Bot):
                         else:
                             await cursor.execute("SELECT timezone FROM profile")
                             result = await cursor.fetchone()
-                            if result and result["timezone"]:
-                                timezone = result["timezone"]
+                            if result and result.get("timezone"):
+                                timezone = result.get("timezone")
                                 tz = pytz.timezone(timezone)
                                 chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
                                 current_time = datetime.now(tz)
@@ -1880,8 +1908,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("joke",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1892,9 +1920,9 @@ class TwitchBot(commands.Bot):
                         blacklist_result = await cursor.fetchone()
                         if blacklist_result:
                             # Parse the blacklist and resolve aliases
-                            blacklist = json.loads(blacklist_result["blacklist"])
+                            blacklist = json.loads(blacklist_result.get("blacklist"))
                             resolved_blacklist = {alias_to_resolved.get(cat, cat) for cat in blacklist}
-                            joke = await Jokes()
+                            joke = Jokes()
                             while True:
                                 # Fetch a joke from the JokeAPI
                                 get_joke = await joke.get_joke()
@@ -1929,8 +1957,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quote",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1969,8 +1997,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("quoteadd",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -1998,8 +2026,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removequote",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2033,8 +2061,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("permit",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2065,8 +2093,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("settitle",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2097,8 +2125,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("setgame",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2135,8 +2163,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("song",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2196,8 +2224,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songrequest",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         await ctx.send(f"Requesting songs is currently disabled.")
@@ -2273,8 +2301,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("songqueue",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         await ctx.send(f"Sorry, checking the song queue is currently disabled.")
@@ -2359,8 +2387,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("timer",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2406,8 +2434,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("stoptimer",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2439,8 +2467,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checktimer",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2474,8 +2502,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("hug",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2506,7 +2534,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (mentioned_username,))
                 hug_count_result = await cursor.fetchone()
                 if hug_count_result:
-                    hug_count = hug_count_result["hug_count"]
+                    hug_count = hug_count_result.get("hug_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
                     await ctx.send(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
@@ -2529,8 +2557,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kiss",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2561,7 +2589,7 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (mentioned_username,))
                 kiss_count_result = await cursor.fetchone()
                 if kiss_count_result:
-                    kiss_count = kiss_count_result["kiss_count"]
+                    kiss_count = kiss_count_result.get("kiss_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
                     await ctx.send(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
@@ -2584,8 +2612,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("ping",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2623,8 +2651,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("translate",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2668,8 +2696,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("cheerleader",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2715,8 +2743,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("mybits",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     # If the command is disabled, stop execution
                     if status == 'Disabled':
                         return
@@ -2783,8 +2811,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurk",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -2822,7 +2850,7 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in lurk_command: {e}")
             await ctx.send(f"Oops, something went wrong while trying to lurk.")
         finally:
-            await sqldb.ensure_closed()
+            await sqldb.close()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='lurking')
@@ -2833,8 +2861,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurking",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -2881,8 +2909,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("lurklead",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -2935,8 +2963,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("unlurk",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -2986,8 +3014,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("clip",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3039,8 +3067,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("marker",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not stream_online:
@@ -3069,8 +3097,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("subscription",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if await command_permissions(permissions, ctx.author):
@@ -3127,8 +3155,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("uptime",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not stream_online:
@@ -3182,8 +3210,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typo",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if await command_permissions(permissions, ctx.author):
@@ -3200,7 +3228,7 @@ class TwitchBot(commands.Bot):
                         # Retrieve the updated count
                         await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                         result = await cursor.fetchone()
-                        typo_count = result["typo_count"] if result else 0
+                        typo_count = result.get("typo_count") if result else 0
                         # Send the message
                         chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
                         await ctx.send(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
@@ -3221,8 +3249,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("typos",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3237,7 +3265,7 @@ class TwitchBot(commands.Bot):
                     target_user = mentioned_username_lower.lstrip('@')
                     await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                     result = await cursor.fetchone()
-                    typo_count = result["typo_count"] if result else 0
+                    typo_count = result.get("typo_count") if result else 0
                     chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
                     await ctx.send(f"{target_user} has made {typo_count} typos in chat.")
         except Exception as e:
@@ -3255,8 +3283,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("edittypos",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3316,8 +3344,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removetypos",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3337,7 +3365,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                     result = await cursor.fetchone()
                     if result:
-                        current_count = result["typo_count"]
+                        current_count = result.get("typo_count")
                         new_count = max(0, current_count - decrease_amount)
                         await cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
                         await sqldb.commit()
@@ -3360,8 +3388,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("steam",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3420,8 +3448,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deaths",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3433,10 +3461,10 @@ class TwitchBot(commands.Bot):
                 chat_logger.info("Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
-                game_death_count = game_death_count_result["death_count"] if game_death_count_result else 0
+                game_death_count = game_death_count_result.get("death_count") if game_death_count_result else 0
                 await cursor.execute('SELECT death_count FROM total_deaths')
                 total_death_count_result = await cursor.fetchone()
-                total_death_count = total_death_count_result["death_count"] if total_death_count_result else 0
+                total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
                 chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}")
                 await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
                 if await command_permissions("mod", ctx.author):
@@ -3458,8 +3486,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathadd",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3472,7 +3500,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info("Death Add Command ran by a mod or broadcaster.")
                     await cursor.execute("SELECT COUNT(*) FROM total_deaths")
                     count_result = await cursor.fetchone()
-                    if count_result is not None and count_result["count"] == 0:
+                    if count_result is not None and count_result.get("count") == 0:
                         await cursor.execute("INSERT INTO total_deaths (death_count) VALUES (0)")
                         await sqldb.commit()
                         chat_logger.info("Initialized total_deaths table.")
@@ -3483,10 +3511,10 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
-                    game_death_count = game_death_count_result["death_count"] if game_death_count_result else 0
+                    game_death_count = game_death_count_result.get("death_count") if game_death_count_result else 0
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
-                    total_death_count = total_death_count_result["death_count"] if total_death_count_result else 0
+                    total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
                     chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
@@ -3510,8 +3538,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("deathremove",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3531,10 +3559,10 @@ class TwitchBot(commands.Bot):
                     await sqldb.commit()
                     await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                     game_death_count_result = await cursor.fetchone()
-                    game_death_count = game_death_count_result["death_count"] if game_death_count_result else 0
+                    game_death_count = game_death_count_result.get("death_count") if game_death_count_result else 0
                     await cursor.execute('SELECT death_count FROM total_deaths')
                     total_death_count_result = await cursor.fetchone()
-                    total_death_count = total_death_count_result["death_count"] if total_death_count_result else 0
+                    total_death_count = total_death_count_result.get("death_count") if total_death_count_result else 0
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
                     await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
@@ -3558,8 +3586,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("game",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3584,8 +3612,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("followage",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3665,8 +3693,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("schedule",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3757,8 +3785,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("checkupdate",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3802,8 +3830,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("shoutout",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -3862,8 +3890,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("addcommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     # Check if the user has the required permissions for this command
@@ -3897,8 +3925,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("editcommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     # Check if the user has the required permissions for this command
@@ -3932,8 +3960,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removecommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     # Check if the user has the required permissions for this command
@@ -3967,8 +3995,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("enablecommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Enabled':
                         return
                     # Check if the user has the required permissions for this command
@@ -4002,8 +4030,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("disablecommand",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     # Check if the user has the required permissions for this command
@@ -4037,8 +4065,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("slots",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -4082,8 +4110,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("kill",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -4139,8 +4167,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("roulette",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -4167,8 +4195,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("rps",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -4205,8 +4233,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("story",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -4236,8 +4264,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("convert",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -4358,8 +4386,8 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("heartrate",))
                 result = await cursor.fetchone()
                 if result:
-                    status = result["status"]
-                    permissions = result["permission"]
+                    status = result.get("status")
+                    permissions = result.get("permission")
                     if status == 'Disabled':
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -4524,7 +4552,7 @@ async def is_user_mod(username):
             # Query the database to check if the user is a moderator
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
-            if result and result['group_name'] == 'MOD':
+            if result and result.get('group_name') == 'MOD':
                 #twitch_logger.info(f"User {username} is a Moderator")
                 return True
             else:
@@ -4544,7 +4572,7 @@ async def is_user_vip(username):
             # Query the database to check if the user is a VIP
             await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
             result = await cursor.fetchone()
-            if result and result['group_name'] == 'VIP':
+            if result and result.get('group_name') == 'VIP':
                 #twitch_logger.info(f"User ID {username} is a VIP Member")
                 return True
             else:
@@ -4615,7 +4643,7 @@ async def update_custom_count(command):
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
             result = await cursor.fetchone()
             if result:
-                current_count = result["count"]
+                current_count = result.get("count")
                 new_count = current_count + 1
                 await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
                 chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
@@ -4636,7 +4664,7 @@ async def get_custom_count(command):
             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
             result = await cursor.fetchone()
             if result:
-                count = result["count"]
+                count = result.get("count")
                 chat_logger.info(f"Retrieved count for command '{command}': {count}")
                 return count
             else:
@@ -4663,12 +4691,6 @@ async def get_streamer_weather():
                 return None
     finally:
         await sqldb.ensure_closed()
-
-# Function to trigger updating stream title or game
-class GameNotFoundException(Exception):
-    pass
-class GameUpdateFailedException(Exception):
-    pass
 
 # Function to udpate the stream title
 async def trigger_twitch_title_update(new_title):
@@ -5404,7 +5426,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             # Fetch current points for the raider
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (from_broadcaster_id,))
             result = await cursor.fetchone()
-            current_points = result["points"] if result else 0
+            current_points = result.get("points") if result else 0
             # Update the raider's points
             new_points = current_points + total_awarded_points
             if result:
@@ -5464,7 +5486,7 @@ async def process_cheer_event(user_id, user_name, bits):
             # Fetch current points for the user
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result["points"] if result else 0
+            current_points = result.get("points") if result else 0
             # Award points based on the cheer event
             new_points = current_points + cheer_points
             if result:
@@ -5526,7 +5548,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             # Fetch and update user points
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result["points"] if result else 0
+            current_points = result.get("points") if result else 0
             new_points = current_points + subscriber_points
             if result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
@@ -5610,7 +5632,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             # Fetch and update user points
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result["points"] if result else 0
+            current_points = result.get("points") if result else 0
             new_points = current_points + subscriber_points
             if result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
@@ -5714,7 +5736,7 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
             # Fetch current points for the user
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
             result = await cursor.fetchone()
-            current_points = result["points"] if result else 0
+            current_points = result.get("points") if result else 0
             # Update the user's points based on the follow event
             new_points = current_points + follower_points
             if result:
@@ -5748,7 +5770,7 @@ async def ban_user(username, user_id):
         bot_id = "971436498"
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
         result = await cursor.fetchone()
-        bot_auth = result('twitch_access_token')
+        bot_auth = result.get('twitch_access_token')
     # Construct the ban URL using the bot's user ID
     ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={bot_id}"
     headers = {
@@ -5777,11 +5799,11 @@ async def send_to_discord(message, title, image):
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT discord_alert, timezone FROM profile")
             result = await cursor.fetchone()
-            if not result or not result["discord_alert"]:
+            if not result or not result.get("discord_alert"):
                 bot_logger.error("Discord URL not found or is None.")
                 return
-            discord_url = result["discord_alert"]
-            timezone = result["timezone"] if result["timezone"] else 'UTC'
+            discord_url = result.get("discord_alert")
+            timezone = result.get("timezone") if result.get("timezone") else 'UTC'
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz)
             time_format_date = current_time.strftime("%B %d, %Y")
@@ -5813,13 +5835,13 @@ async def send_to_discord_mod(message, title, image):
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT discord_mod FROM profile")
             result = await cursor.fetchone()
-            if not result or not result("discord_mod"):
+            if not result or not result.get("discord_mod"):
                 bot_logger.error("Discord URL for mod notifications not found or is None.")
                 return
-            discord_url = result["discord_mod"]
+            discord_url = result.get("discord_mod")
             await cursor.execute("SELECT timezone FROM profile")
             timezone_result = await cursor.fetchone()
-            timezone = timezone_result("timezone", 'UTC')
+            timezone = timezone_result.get("timezone", 'UTC')
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz)
             time_format_date = current_time.strftime("%B %d, %Y")
@@ -5854,10 +5876,9 @@ async def send_to_discord_stream_online(message, image):
             if not result:
                 bot_logger.error("Required profile information not found.")
                 return
-            timezone = result["timezone"] if result["timezone"] else 'UTC'
-            discord_url = result["discord_alert_online"]
+            timezone = result.get("timezone") if result.get("timezone") else 'UTC'
+            discord_url = result.get("discord_alert_online")
             if not discord_url:
-                bot_logger.error("Discord URL not found.")
                 return
             # Generate the current time based on the fetched timezone
             tz = pytz.timezone(timezone)
@@ -5942,8 +5963,8 @@ async def websocket_notice(event, user=None, death=None, game=None, weather=None
                         await cursor.execute(query, (user,))
                         result = await cursor.fetchone()
                         if result:
-                            params['voice'] = result('voice', 'default')
-                            params['language'] = result('language', 'en')
+                            params['voice'] = result.get('voice', 'default')
+                            params['language'] = result.get('language', 'en')
                         else:
                             params['voice'] = 'default'
                             params['language'] = 'en'
@@ -6175,20 +6196,20 @@ async def process_channel_point_rewards(event_data, event_type):
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
-            if sound_result and sound_result("sound_mapping"):
-                sound_file = sound_result["sound_mapping"]
+            if sound_result and sound_result["sound_mapping"]:
+                sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
                 await websocket_notice(event="SOUND_ALERT", sound=sound_file)
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             result = await cursor.fetchone()
             if result and result("custom_message"):
-                custom_message = result["custom_message"]
+                custom_message = result.get("custom_message")
                 if '(user)' in custom_message:
                     custom_message = custom_message.replace('(user)', user_name)
                 await channel.send(custom_message)
         except Exception as e:
-            event_logger.error(f"An error occurred while processing the reward: {e}")
+            event_logger.info(f"An error occurred while processing the reward: {e}")
         finally:
             await sqldb.ensure_closed()
 
@@ -6394,9 +6415,9 @@ async def view_task(ctx, params, user_id, sqldb):
                 await cursor.execute("SELECT objective, category, completed FROM todos WHERE id = %s", (todo_id,))
                 result = await cursor.fetchone()
                 if result:
-                    objective = result["objective"]
-                    category_id = result["category"]
-                    completed = result["completed"]
+                    objective = result.get("objective")
+                    category_id = result.get("category")
+                    completed = result.get("completed")
                     category_name = await fetch_category_name(cursor, category_id)
                     await ctx.send(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}")
                     chat_logger.info(f"{user.name} viewed task ID {todo_id}.")
@@ -6414,7 +6435,7 @@ async def view_task(ctx, params, user_id, sqldb):
 async def fetch_category_name(cursor, category_id):
     await cursor.execute("SELECT category FROM categories WHERE id = %s", (category_id,))
     result = await cursor.fetchone()
-    return result["category"] if result else None
+    return result.get("category") if result else None
 
 # Function to start subathon timer
 async def start_subathon(ctx):
@@ -6574,8 +6595,8 @@ async def midnight():
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         await cursor.execute("SELECT timezone FROM profile")
         result = await cursor.fetchone()
-        if result and result["timezone"]:
-            timezone = result["timezone"]
+        if result and result.get("timezone"):
+            timezone = result.get("timezone")
             tz = pytz.timezone(timezone)
         else:
             # Default to UTC if no timezone is set
