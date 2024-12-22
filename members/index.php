@@ -262,8 +262,8 @@ function getTimeDifference($start_time) {
                     <button class="button is-link" onclick="updateTable('deaths')">Deaths</button>
                     <button class="button is-link" onclick="updateTable('hugs')">Hugs</button>
                     <button class="button is-link" onclick="updateTable('kisses')">Kisses</button>
-                    <button class="button is-link" onclick="updateTable('todos')">To-Do Items</button> 
                     <button class="button is-link" onclick="updateTable('watchTime')">Watch Time</button>
+                    <button class="button is-link" onclick="updateTable('todos')">To-Do Items</button>
                 </div>
                 <table class="table is-fullwidth is-striped">
                     <thead>
