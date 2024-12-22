@@ -768,7 +768,7 @@ async def process_eventsub_message(message):
                     # Check if the necessary data is available
                     if discord_message and discord_title and discord_image:
                         # Send to Discord if all checks pass
-                        await send_to_discord_mod(discord_message, discord_title, discord_image)
+                        asyncio.create_task(send_to_discord_mod(discord_message, discord_title, discord_image))
                     else:
                         # Log the incomplete event for later analysis
                         twitch_logger.info(f"Incomplete mod event: {event_data}")
@@ -776,7 +776,7 @@ async def process_eventsub_message(message):
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
-                    await process_channel_point_rewards(event_data, event_type)
+                    asyncio.create_task(process_channel_point_rewards(event_data, event_type))
                 elif event_type in ["channel.poll.begin", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
@@ -831,10 +831,10 @@ async def process_eventsub_message(message):
                 elif event_type in ["stream.online", "stream.offline"]:
                     if event_type == "stream.online":
                         bot_logger.info(f"Stream is now online!")
-                        await websocket_notice(event="STREAM_ONLINE")
+                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE"))
                     else:
                         bot_logger.info(f"Stream is now offline.")
-                        await websocket_notice(event="STREAM_OFFLINE")
+                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE"))
                 elif event_type == "automod.message.hold":
                     event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
                     messageContent = event_data["event"]["message"]
@@ -1624,7 +1624,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now online!")
                         await ctx.send("Stream status has been forcibly set to online.")
-                        await websocket_notice(event="STREAM_ONLINE")
+                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE"))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -1654,7 +1654,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now offline.")
                         await ctx.send("Stream status has been forcibly set to offline.")
-                        await websocket_notice(event="STREAM_OFFLINE")
+                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE"))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3469,7 +3469,7 @@ class TwitchBot(commands.Bot):
                 await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {game_death_count}")
-                    await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, game=current_game))
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await ctx.send(f"An error occurred while executing the command. {e}")
@@ -3518,7 +3518,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games.")
-                    await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, game=current_game))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
@@ -3566,7 +3566,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
                     await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
-                    await websocket_notice(event="DEATHS", death=game_death_count, game=current_game)
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, game=current_game))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
@@ -5444,7 +5444,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             # Send raid notification to Discord Logs, Twitch Chat, and Websocket
             discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
             await send_to_discord(discord_message, "New Raid!", "raid.png")
-            await websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count)
+            asyncio.create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
             await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
@@ -5509,7 +5509,7 @@ async def process_cheer_event(user_id, user_name, bits):
             # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
             await send_to_discord(discord_message, "New Cheer!", image)
             await channel.send(f"Thank you {user_name} for {bits} bits!")
-            await websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits)
+            asyncio.create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -5583,7 +5583,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             except Exception as e:
                 event_logger.error(f"Failed to send message to Discord: {e}")
             try:
-                await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
+                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -5667,7 +5667,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             except Exception as e:
                 event_logger.error(f"Failed to send message to Discord: {e}")
             try:
-                await websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months)
+                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -5755,7 +5755,7 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         message = f"Thank you {user_name} for following! Welcome to the channel!"
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
-        await websocket_notice("TWITCH_FOLLOW", user=user_name)
+        asyncio.create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
         await channel.send(message)
         marker_description = f"New Twitch Follower: {user_name}"
         if await make_stream_marker(marker_description):
@@ -5922,9 +5922,11 @@ async def send_to_discord_stream_online(message, image):
         await sqldb.ensure_closed()
 
 # Unified function to connect to the websocket server and push notices
-async def websocket_notice(event, user=None, death=None, game=None, weather=None, cheer_amount=None,
-                           sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
-                           additional_data=None):
+async def websocket_notice(
+    event, user=None, death=None, game=None, weather=None, cheer_amount=None,
+    sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
+    additional_data=None
+):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -6000,7 +6002,7 @@ async def websocket_notice(event, user=None, death=None, game=None, weather=None
     except Exception as e:
         bot_logger.error(f"Error while processing websocket notice: {e}")
     finally:
-        await sqldb.close()
+        await sqldb.ensure_closed()
 
 # Function to create a new group if it doesn't exist
 async def group_creation():
@@ -6180,11 +6182,7 @@ async def process_channel_point_rewards(event_data, event_type):
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
-                result = await websocket_notice(event="TTS", text=tts_message)
-                if result is None:
-                    event_logger.error(f"websocket_notice returned None for event 'TTS' with message '{tts_message}'")
-                else:
-                    event_logger.info(f"TTS message sent: {tts_message}")
+                asyncio.create_task(websocket_notice(event="TTS", text=tts_message))
                 return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
@@ -6205,23 +6203,21 @@ async def process_channel_point_rewards(event_data, event_type):
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
-            if sound_result and sound_result["sound_mapping"]:
+            if (sound_result and sound_result["sound_mapping"]):
                 sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                result = await websocket_notice(event="SOUND_ALERT", sound=sound_file)
-                if result is None:
-                    event_logger.error(f"websocket_notice returned None for event 'SOUND_ALERT' with sound '{sound_file}'")
+                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
-            if custom_message_result and custom_message_result["custom_message"]:
+            if (custom_message_result and custom_message_result["custom_message"]):
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
                     if '(user)' in custom_message:
                         custom_message = custom_message.replace('(user)', user_name)
                 await channel.send(custom_message)
-        except Exception as e:
-            event_logger.error(f"An error occurred while processing the reward: {e}")
+        #except Exception as e:
+        #    event_logger.error(f"An error occurred while processing the reward: {str(e)}")
         finally:
             await sqldb.ensure_closed()
 
@@ -6473,7 +6469,7 @@ async def start_subathon(ctx):
                     asyncio.create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
-                    await websocket_notice("SUBATHON_START", additional_data)
+                    asyncio.create_task(websocket_notice("SUBATHON_START", additional_data))
                 else:
                     await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -6491,7 +6487,7 @@ async def stop_subathon(ctx):
                 await sqldb.commit()
                 await ctx.send(f"Subathon ended!")
                 # Send websocket notice
-                await websocket_notice("SUBATHON_STOP")
+                asyncio.create_task(websocket_notice("SUBATHON_STOP"))
             else:
                 await ctx.send(f"No subathon active.")
     finally:
@@ -6511,7 +6507,7 @@ async def pause_subathon(ctx):
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
-                await websocket_notice("SUBATHON_PAUSE", additional_data)
+                asyncio.create_task(websocket_notice("SUBATHON_PAUSE", additional_data))
             else:
                 await ctx.send("No subathon is active or it's already paused!")
     finally:
@@ -6532,7 +6528,7 @@ async def resume_subathon(ctx):
                 asyncio.create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
-                await websocket_notice("SUBATHON_RESUME", additional_data)
+                asyncio.create_task(websocket_notice("SUBATHON_RESUME", additional_data))
     finally:
         await cursor.close()
         await sqldb.ensure_closed()
@@ -6550,7 +6546,7 @@ async def addtime_subathon(ctx, minutes):
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
-                await websocket_notice("SUBATHON_ADD_TIME", additional_data)
+                asyncio.create_task(websocket_notice("SUBATHON_ADD_TIME", additional_data))
             else:
                 await ctx.send("No subathon is active or it's paused!")
     finally:
