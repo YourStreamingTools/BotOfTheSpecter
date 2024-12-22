@@ -2165,7 +2165,7 @@ class TwitchBot(commands.Bot):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
                 # Get the current song and artist from Spotify
-                song_name, artist_name = await get_spotify_current_song()
+                song_name, artist_name, song_id = await get_spotify_current_song()
                 if song_name and artist_name:
                     # If the stream is offline, notify that the user that the streamer is listening to music while offline
                     if not stream_online:
@@ -2173,8 +2173,8 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the song is in the tracked list and if a user is associated
                     requested_by = None
-                    if song_name in song_requests:
-                        requested_by = song_requests[song_name].get("user")
+                    if song_id in song_requests:
+                        requested_by = song_requests[song_id].get("user")
                     if requested_by:
                         await ctx.send(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
@@ -2317,11 +2317,11 @@ class TwitchBot(commands.Bot):
                             queue = data['queue']
                             queue_length = len(queue)
                             # Get the currently playing song
-                            song_name, artist_name = await get_spotify_current_song()
+                            song_name, artist_name, song_id = await get_spotify_current_song()
                             # Check if the current song was requested by someone
                             current_song_requester = None
-                            if song_name in song_requests:
-                                current_song_requester = song_requests[song_name].get("user")
+                            if song_id in song_requests:
+                                current_song_requester = song_requests[song_id].get("user")
                             # Send message for the current song
                             if song_name and artist_name:
                                 if current_song_requester:
@@ -5232,10 +5232,11 @@ async def get_spotify_current_song():
                 # Extract song name, artist if Spotify is currently playing
                 is_playing = data["is_playing"]
                 if is_playing:
+                    song_id = data["tracks"]["items"][0]["uri"]
                     song_name = data["item"]["name"]
                     artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
                     api_logger.info(f"The current song from Spotify is: {song_name} by {artist_name}")
-                    return song_name, artist_name  # Return song name and artist name as tuple
+                    return song_name, artist_name, song_id  # Return song name, artist name and song id as tuple
                 else:
                     return None, None  # No song playing
             elif response.status == 204:
