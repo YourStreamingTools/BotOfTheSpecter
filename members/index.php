@@ -227,6 +227,7 @@ if (isset($_GET['user'])) {
         &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
     </div>
 </footer>
+
 <script>
 function redirectToUser(event) {
     event.preventDefault();
@@ -389,7 +390,8 @@ async function getUsername(userId) {
         },
     });
     const data = await response.json();
-    return data.data && data.data[0] ? data.data[0].display_name : 'Unknown';
+    const username = data.data[0].display_name;
+    return username;
 }
 
 // Function to calculate the duration of the lurk based on the start time
