@@ -6203,7 +6203,7 @@ async def process_channel_point_rewards(event_data, event_type):
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             result = await cursor.fetchone()
-            if result and result("custom_message"):
+            if result and result["custom_message"]:
                 custom_message = result.get("custom_message")
                 if '(user)' in custom_message:
                     custom_message = custom_message.replace('(user)', user_name)
