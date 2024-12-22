@@ -305,7 +305,11 @@ function loadData(type) {
     }
     data.forEach(item => {
         output += `<tr>`;
-        if (type === 'lurkers') {
+        if (type === 'customCommands') {
+            output += `<td>${item.command}</td><td>${item.response}</td>`; 
+        } else if (type === 'todos') {
+            output += `<td>${item.task}</td><td>${item.status}</td>`; 
+        } else if (type === 'lurkers') {
             output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`; 
         } else if (type === 'typos') {
             output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
