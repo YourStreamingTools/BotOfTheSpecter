@@ -144,6 +144,26 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 </div>
 
 <script>
+function formatWatchTime(seconds) {
+  const units = {
+      year: 31536000,
+      month: 2592000,
+      day: 86400,
+      hour: 3600,
+      minute: 60
+  };
+  const parts = [];
+  for (const [name, divisor] of Object.entries(units)) {
+      const quotient = Math.floor(seconds / divisor);
+      if (quotient > 0) {
+          parts.push(`${quotient} ${name}${quotient > 1 ? 's' : ''}`);
+          seconds -= quotient * divisor;
+      }
+  }
+  return parts.join(', ');
+}
+</script>
+<script>
 function loadData(type) {
   let data;
   let title;
@@ -229,7 +249,7 @@ function loadData(type) {
     } else if (type === 'userCounts') {
       output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`; 
     } else if (type === 'watchTime') { 
-      output += `<td>${item.username}</td><td>${item.total_watch_time_live}</td><td>${item.total_watch_time_offline}</td>`; 
+      output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     }
     output += `</tr>`;
   });
