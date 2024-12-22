@@ -1,9 +1,8 @@
 RewriteEngine On
 
-# Check if the request is not pointing to a real file or directory
+# Skip rewriting for existing files and directories
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 
-# Rewrite URLs like /username/page to index.php?user=username&page=page
-RewriteRule ^([^/]+)/?$ index.php?user=$1 [L]
-RewriteRule ^([^/]+)/([^/]+)/?$ index.php?user=$1&page=$2 [L]
+# Rewrite clean URLs to index.php
+RewriteRule ^([^/]+)/?$ index.php?user=$1 [QSA,L]
