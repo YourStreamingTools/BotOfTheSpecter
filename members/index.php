@@ -88,52 +88,52 @@ if ($username) {
 
         // Fetch all custom commands
         $getCustomCommands = $db->query("SELECT * FROM custom_commands");
-        $customCommands = $getCustomCommands->fetch_all(MYSQLI_ASSOC);
+        $customCommands = $getCustomCommands ? $getCustomCommands->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch lurkers
         $getLurkers = $db->query("SELECT * FROM lurk_times");
-        $lurkers = $getLurkers->fetch_all(MYSQLI_ASSOC);
+        $lurkers = $getLurkers ? $getLurkers->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch watch time from the database
         $getWatchTime = $db->query("SELECT * FROM watch_time");
-        $watchTimeData = $getWatchTime->fetch_all(MYSQLI_ASSOC);
+        $watchTimeData = $getWatchTime ? $getWatchTime->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch typo counts
         $getTypos = $db->query("SELECT * FROM user_typos ORDER BY typo_count DESC");
-        $typos = $getTypos->fetch_all(MYSQLI_ASSOC);
+        $typos = $getTypos ? $getTypos->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch total deaths
         $getTotalDeaths = $db->query("SELECT death_count FROM total_deaths");
-        $totalDeaths = $getTotalDeaths->fetch_all(MYSQLI_ASSOC);
+        $totalDeaths = $getTotalDeaths ? $getTotalDeaths->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch game-specific deaths
         $getGameDeaths = $db->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC");
-        $gameDeaths = $getGameDeaths->fetch_all(MYSQLI_ASSOC);
+        $gameDeaths = $getGameDeaths ? $getGameDeaths->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch total hug counts
         $getTotalHugs = $db->query("SELECT SUM(hug_count) AS total_hug_count FROM hug_counts");
-        $totalHugs = $getTotalHugs->fetch_all(MYSQLI_ASSOC);
+        $totalHugs = $getTotalHugs ? $getTotalHugs->fetch_all(MYSQLI_ASSOC) : 0;
         // Fetch hug username-specific counts
         $getHugCounts = $db->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC");
-        $hugCounts = $getHugCounts->fetch_all(MYSQLI_ASSOC);
+        $hugCounts = $getHugCounts ? $getHugCounts->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch total kiss counts
         $getTotalKisses = $db->query("SELECT SUM(kiss_count) AS total_kiss_count FROM kiss_counts");
-        $totalKisses = $getTotalKisses->fetch_all(MYSQLI_ASSOC);
+        $totalKisses = $getTotalKisses ? $getTotalKisses->fetch_all(MYSQLI_ASSOC) : 0;
         // Fetch kiss counts
         $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
-        $kissCounts = $getKissCounts->fetch_all(MYSQLI_ASSOC);
+        $kissCounts = $getKissCounts ? $getKissCounts->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch custom counts
         $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
-        $customCounts = $getCustomCounts->fetch_all(MYSQLI_ASSOC);
+        $customCounts = $getCustomCounts ? $getCustomCounts->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch custom user counts
         $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
-        $userCounts = $getUserCounts->fetch_all(MYSQLI_ASSOC);
+        $userCounts = $getUserCounts ? $getUserCounts->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch seen users data
         $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
-        $seenUsersData = $getSeenUsersData->fetch_all(MYSQLI_ASSOC);
+        $seenUsersData = $getSeenUsersData ? $getSeenUsersData->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch timed messages
         $getTimedMessages = $db->query("SELECT * FROM timed_messages ORDER BY id DESC");
-        $timedMessagesData = $getTimedMessages->fetch_all(MYSQLI_ASSOC);
+        $timedMessagesData = $getTimedMessages ? $getTimedMessages->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch channel point rewards sorted by cost (low to high)
         $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
-        $channelPointRewards = $getChannelPointRewards->fetch_all(MYSQLI_ASSOC);
+        $channelPointRewards = $getChannelPointRewards ? $getChannelPointRewards->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch profile data
         $getProfileSettings = $db->query("SELECT * FROM profile");
-        $profileData = $getProfileSettings->fetch_all(MYSQLI_ASSOC);
+        $profileData = $getProfileSettings ? $getProfileSettings->fetch_all(MYSQLI_ASSOC) : [];
         // Fetch todo items
         $getTodos = $db->query("
             SELECT 
@@ -150,7 +150,7 @@ if ($username) {
             ORDER BY 
                 t.id ASC
         ");
-        $todos = $getTodos->fetch_all(MYSQLI_ASSOC);
+        $todos = $getTodos ? $getTodos->fetch_all(MYSQLI_ASSOC) : [];
         // Close database connection
         $db->close();
     } catch (Exception $e) {
