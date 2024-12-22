@@ -38,7 +38,13 @@ function getTwitchUsernames($userIds) {
         return false;
     }
     curl_close($ch);
-    return json_decode($response, true);
+    $decodedResponse = json_decode($response, true);
+    if (isset($decodedResponse['error'])) {
+        // Handle API error
+        error_log('Twitch API Error: ' . $decodedResponse['message']);
+        return [];
+    }
+    return $decodedResponse;
 }
 
 // PAGE TITLE
