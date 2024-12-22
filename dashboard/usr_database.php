@@ -85,6 +85,12 @@ try {
             CREATE TABLE IF NOT EXISTS total_deaths (
                 death_count INT DEFAULT 0
             ) ENGINE=InnoDB",
+        'per_stream_deaths' => "
+            CREATE TABLE IF NOT EXISTS per_stream_deaths (
+                game_name VARCHAR(255),
+                death_count INT DEFAULT 0,
+                PRIMARY KEY (game_name)
+            ) ENGINE=InnoDB",
         'game_deaths' => "
             CREATE TABLE IF NOT EXISTS game_deaths (
                 game_name VARCHAR(255),
