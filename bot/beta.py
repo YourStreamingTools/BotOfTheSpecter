@@ -127,6 +127,7 @@ global HEARTRATE
 global TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
 global TWITCH_SHOUTOUT_USER_COOLDOWN
 global last_shoutout_time
+global bot_owner
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()                         # Translator instance 
@@ -157,6 +158,7 @@ HEARTRATE = None                                        # Current heart rate val
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
+bot_owner = "gfaundead"                                 # Bot owner's username
 
 # Setup Token Refresh
 async def twitch_token_refresh():
@@ -1542,6 +1544,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1579,6 +1582,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='bot')
     async def bot_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1594,7 +1598,7 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
-                        await ctx.send(f"This amazing bot is built by the one and the only gfaUnDead. Check me out on my website: https://botofthespecter.com")
+                        await ctx.send(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the bot command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -1607,6 +1611,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceonline')
     async def forceonline_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1637,6 +1642,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='forceoffline')
     async def forceoffline_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1669,6 +1675,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='version')
     async def version_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1715,6 +1722,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='roadmap')
     async def roadmap_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1742,6 +1750,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='weather')
     async def weather_command(self, ctx, *, location: str = None) -> None:
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1781,6 +1790,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='points')
     async def points_command(self, ctx):
+        global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
         sqldb = await get_mysql_connection()
@@ -1824,6 +1834,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='time')
     async def time_command(self, ctx, *, timezone: str = None) -> None:
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1894,6 +1905,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='joke')
     async def joke_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1942,6 +1954,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='quote')
     async def quote_command(self, ctx, number: int = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -1982,6 +1995,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='quoteadd')
     async def quoteadd_command(self, ctx, *, quote):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2011,6 +2025,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removequote')
     async def quoteremove_command(self, ctx, number: int = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2046,6 +2061,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='permit')
     async def permit_command(self, ctx, permit_user: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2078,6 +2094,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='settitle')
     async def settitle_command(self, ctx, *, title: str = None) -> None:
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2110,6 +2127,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='setgame')
     async def setgame_command(self, ctx, *, game: str = None) -> None:
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2147,7 +2165,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.default)
     @commands.command(name='song')
     async def song_command(self, ctx):
-        global stream_online, song_requests
+        global stream_online, song_requests, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2207,7 +2225,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN, song_requests
+        global SPOTIFY_ACCESS_TOKEN, song_requests, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2288,7 +2306,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.member)
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN, song_requests
+        global SPOTIFY_ACCESS_TOKEN, song_requests, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2374,6 +2392,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='timer')
     async def timer_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2421,6 +2440,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='stoptimer')
     async def stoptimer_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2454,6 +2474,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='checktimer')
     async def checktimer_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2489,6 +2510,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='hug')
     async def hug_command(self, ctx, *, mentioned_username: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2544,6 +2566,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='kiss')
     async def kiss_command(self, ctx, *, mentioned_username: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2599,6 +2622,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='ping')
     async def ping_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2638,6 +2662,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='translate')
     async def translate_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2683,6 +2708,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='cheerleader', aliases=['bitsleader'])
     async def cheerleader_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2730,6 +2756,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='mybits')
     async def mybits_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2799,6 +2826,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='lurk')
     async def lurk_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2849,6 +2877,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='lurking')
     async def lurking_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2897,6 +2926,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='lurklead')
     async def lurklead_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2951,6 +2981,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3001,7 +3032,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='clip')
     async def clip_command(self, ctx):
-        global stream_online
+        global stream_online, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3054,7 +3085,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='marker')
     async def marker_command(self, ctx, *, description: str):
-        global stream_online
+        global stream_online, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3085,6 +3116,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3142,7 +3174,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
-        global stream_online
+        global stream_online, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3198,6 +3230,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
     @commands.command(name='typo')
     async def typo_command(self, ctx, *, mentioned_username: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3237,6 +3270,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(self, ctx, *, mentioned_username: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3271,6 +3305,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3332,6 +3367,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3375,7 +3411,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='steam')
     async def steam_command(self, ctx):
-        global current_game
+        global current_game, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3435,7 +3471,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
-        global current_game
+        global current_game, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3476,7 +3512,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(self, ctx):
-        global current_game
+        global current_game, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3536,7 +3572,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(self, ctx):
-        global current_game
+        global current_game, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3588,7 +3624,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='game')
     async def game_command(self, ctx):
-        global current_game
+        global current_game, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3615,6 +3651,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3696,6 +3733,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3788,6 +3826,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='checkupdate')
     async def checkupdate_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3833,6 +3872,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3893,6 +3933,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='addcommand')
     async def addcommand_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3928,6 +3969,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='editcommand')
     async def editcommand_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3963,6 +4005,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='removecommand')
     async def removecommand_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3998,6 +4041,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='enablecommand')
     async def enablecommand_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4033,6 +4077,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='disablecommand')
     async def disablecommand_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4068,6 +4113,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='slots')
     async def slots_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4113,6 +4159,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='kill')
     async def kill_command(self, ctx, mention: str = None):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4170,6 +4217,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.member)
     @commands.command(name="roulette")
     async def roulette_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4198,6 +4246,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name="rps")
     async def rps_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4236,6 +4285,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name="story")
     async def story_command(self, ctx):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4266,6 +4316,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name="convert")
     async def convert_command(self, ctx, *args):
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4316,6 +4367,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
     @commands.command(name='todo')
     async def todo_command(self, ctx: commands.Context):
+        global bot_owner
         message_content = ctx.message.content.strip()
         user = ctx.author
         user_id = user.id
@@ -4356,6 +4408,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=5, bucket=commands.Bucket.default)
     @commands.command(name="subathon")
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
+        global bot_owner
         try:
             user = ctx.author
             # Check permissions for valid actions
@@ -4387,7 +4440,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='heartrate')
     async def heartrate_command(self, ctx):
-        global HEARTRATE
+        global HEARTRATE, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4415,6 +4468,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.user)
     @commands.command(name='watchtime')
     async def watchtime(self, ctx):
+        global bot_owner
         user_id = ctx.author.id
         username = ctx.author.name
         sqldb = await get_mysql_connection()
@@ -4503,12 +4557,13 @@ async def get_display_name(user_id):
 
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
 async def command_permissions(setting, user):
+    global bot_owner
     # Check if the setting allows everyone
     if setting == "everyone":
         chat_logger.info(f"Command Permission granted to {user.name}. (Everyone allowed)")
         return True
     # Check if the user is the bot owner
-    if user.name == 'gfaundead':
+    if user.name == bot_owner:
         chat_logger.info(f"Command Permission checked, {user.name}. (Bot owner)")
         return True
     # Check if the user is the broadcaster
