@@ -1555,7 +1555,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1593,7 +1593,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1622,7 +1622,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1653,7 +1653,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")  # Unpack the status and permissions
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1686,7 +1686,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1733,7 +1733,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1761,7 +1761,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1803,7 +1803,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1845,7 +1845,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1916,7 +1916,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -1965,7 +1965,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2006,7 +2006,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2036,7 +2036,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2072,7 +2072,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2105,7 +2105,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2138,7 +2138,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Verify user permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2176,7 +2176,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
@@ -2236,7 +2236,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         await ctx.send(f"Requesting songs is currently disabled.")
                         return
                 # Verify user permissions
@@ -2317,7 +2317,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         await ctx.send(f"Sorry, checking the song queue is currently disabled.")
                         return
                 # Verify user permissions
@@ -2403,7 +2403,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
@@ -2451,7 +2451,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
@@ -2485,7 +2485,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
@@ -2521,7 +2521,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
@@ -2577,7 +2577,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 # Verify user permissions
                 if not await command_permissions(permissions, ctx.author):
@@ -2633,7 +2633,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2673,7 +2673,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2719,7 +2719,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2767,7 +2767,7 @@ class TwitchBot(commands.Bot):
                     status = result.get("status")
                     permissions = result.get("permission")
                     # If the command is disabled, stop execution
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
@@ -2835,7 +2835,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurk command but lacked permissions.")
@@ -2886,7 +2886,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurking command but lacked permissions.")
@@ -2935,7 +2935,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the lurklead command but lacked permissions.")
@@ -2990,7 +2990,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3041,7 +3041,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3094,7 +3094,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not stream_online:
                         await ctx.send("Sorry, I can only make a marker while the stream is online.")
@@ -3125,7 +3125,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if await command_permissions(permissions, ctx.author):
                         user_id = ctx.author.id
@@ -3183,7 +3183,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not stream_online:
                         await ctx.send(f"{CHANNEL_NAME} is currently offline.")
@@ -3239,7 +3239,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info("Typo Command ran.")
@@ -3279,7 +3279,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} tried to use the typos command but lacked permissions.")
@@ -3314,7 +3314,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send(f"You do not have the required permissions to use this command.")
@@ -3376,7 +3376,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send(f"You do not have the required permissions to use this command.")
@@ -3420,7 +3420,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3480,7 +3480,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3521,7 +3521,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3581,7 +3581,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3633,7 +3633,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3660,7 +3660,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3742,7 +3742,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3835,7 +3835,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3881,7 +3881,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -3942,7 +3942,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
@@ -3978,7 +3978,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
@@ -4014,7 +4014,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
@@ -4086,7 +4086,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
                     if not await command_permissions(permissions, ctx.author):
@@ -4122,7 +4122,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4168,7 +4168,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4226,7 +4226,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4255,7 +4255,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4294,7 +4294,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4326,7 +4326,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4379,7 +4379,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4428,7 +4428,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4475,7 +4475,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -4505,7 +4505,7 @@ class TwitchBot(commands.Bot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    if status == 'Disabled':
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
