@@ -192,10 +192,10 @@ if (file_exists($restartLog)) {
             <button class="button is-danger bot-button button-size" type="submit" name="killBetaBot">Stop Beta Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-success bot-button button-size" type="submit" name="runBetaBot"<?php if (!$is_admin) echo ' disabled' ?>>Run Beta Bot</button>
+            <button class="button is-success bot-button button-size" type="submit" name="runBetaBot">Run Beta Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-warning bot-button button-size" type="submit" name="restartBetaBot"<?php if (!$is_admin) echo ' disabled' ?>>Restart Beta Bot</button>
+            <button class="button is-warning bot-button button-size" type="submit" name="restartBetaBot">Restart Beta Bot</button>
           </form>
         </div>
       </div>
