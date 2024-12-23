@@ -186,7 +186,6 @@ if (file_exists($restartLog)) {
         <div id="betaStatus"><?php echo $betaStatusOutput; ?></div>
         <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
         <br>
-        <span class="has-text-danger">Undergoing a complete rewrite, DO NOT USE!</span>
         <div class="buttons">
           <form action="" method="post">
             <button class="button is-danger bot-button button-size" type="submit" name="killBetaBot">Stop Beta Bot</button>
