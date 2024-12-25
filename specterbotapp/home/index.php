@@ -62,15 +62,18 @@ if (isset($_GET['code'])) {
     $userInfo = json_decode($userInfoResponse, true);
     if (isset($userInfo['data']) && count($userInfo['data']) > 0) {
         $twitchUsername = $userInfo['data'][0]['login'];
+        $_SESSION['twitch_username'] = $twitchUsername;
         $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
         if (!is_dir($userFolder)) {
             mkdir($userFolder, 0775, true);
         }
+        header('Location: ' . strtok($redirectUri, '?'));
+        exit;
     } else {
         $twitchUsername = 'guest_user';
     }
 } else {
-    $twitchUsername = 'guest_user';
+    $twitchUsername = isset($_SESSION['twitch_username']) ? $_SESSION['twitch_username'] : 'guest_user';
 }
 
 $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=user:read:email';
@@ -109,6 +112,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                 <h3 class="title is-4">Key Features</h3>
                 <ul>
                     <li>Custom subdomains for users</li>
+                    <li>Direct Access to your own database that Specter uses.</li>
                 </ul>
             </div>
             <?php if (!isset($_SESSION['access_token'])): ?>
