@@ -88,14 +88,31 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Tools4Streaming" />
+    <meta name="twitter:title" content="BotOfTheSpecter" />
+    <meta name="twitter:description" content="BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics." />
+    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
     <link rel="stylesheet" href="css/custom.css">
 </head>
 <body class="dark-mode">
     <section class="hero is-dark">
         <div class="hero-body">
             <div class="container">
-                <h1 class="title">Welcome to SpecterBot Custom API</h1>
-                <h2 class="subtitle">Your gateway to building custom integrations with SpecterBot.</h2>
+                <div class="columns is-vcentered">
+                    <div class="column">
+                        <h1 class="title">Welcome to SpecterBot Custom API</h1>
+                        <h2 class="subtitle">Your gateway to building custom integrations with SpecterBot.</h2>
+                    </div>
+                    <div class="column has-text-right">
+                        <?php if (!isset($_SESSION['access_token'])): ?>
+                            <a href="<?php echo filter_var($loginURL, FILTER_SANITIZE_URL); ?>" class="button is-primary">Login with Twitch</a>
+                        <?php endif; ?>
+                        <?php if (isset($_SESSION['access_token'])): ?>
+                            <a href="logout.php" class="button is-danger">Logout</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -112,15 +129,9 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                 <h3 class="title is-4">Key Features</h3>
                 <ul>
                     <li>Custom subdomains for users</li>
-                    <li>Direct Access to your own database that Specter uses.</li>
+                    <li>Direct Access to your own database that Specter uses. You can access it via <code>https://specterbot.app/database.php</code>.</li>
                 </ul>
             </div>
-            <?php if (!isset($_SESSION['access_token'])): ?>
-                <a href="<?php echo filter_var($loginURL, FILTER_SANITIZE_URL); ?>" class="button is-primary">Login with Twitch</a>
-            <?php endif; ?>
-            <?php if (isset($_SESSION['access_token'])): ?>
-                <a href="logout.php" class="button is-danger">Logout</a>
-            <?php endif; ?>
         </div>
     </section>
     <footer class="footer">
