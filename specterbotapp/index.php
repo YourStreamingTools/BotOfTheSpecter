@@ -4,7 +4,7 @@ session_start();
 $host = $_SERVER['HTTP_HOST'];
 $clientId = '';
 $clientSecret = '';
-$redirectUri = 'https://' . $host . '/index.php';
+$redirectUri = 'https://specterbot.app/index.php';
 
 // Twitch OAuth API URLs
 $oauthTokenUrl = 'https://id.twitch.tv/oauth2/token';
@@ -29,7 +29,7 @@ if (isset($_GET['code'])) {
     $tokenData = json_decode($response, true);
     if (isset($tokenData['access_token'])) {
         $_SESSION['access_token'] = $tokenData['access_token'];
-        header('Location: /');
+        header('Location: index.php');
         exit();
     }
 }
