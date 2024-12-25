@@ -10,57 +10,39 @@ $redirectUri = 'https://specterbot.app/index.php';
 $oauthTokenUrl = 'https://id.twitch.tv/oauth2/token';
 $authUrl = 'https://id.twitch.tv/oauth2/authorize';
 
-// Handle Twitch OAuth Code
-if (isset($_GET['code'])) {
-    $code = $_GET['code'];
+// Function to handle cURL requests
+function makeApiRequest($url, $headers = []) {
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $oauthTokenUrl);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, [
-        'client_id' => $clientId,
-        'client_secret' => $clientSecret,
-        'code' => $code,
-        'grant_type' => 'authorization_code',
-        'redirect_uri' => $redirectUri,
-    ]);
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $response = curl_exec($ch);
-    curl_close($ch);
-    $tokenData = json_decode($response, true);
-    if (isset($tokenData['access_token'])) {
-        $_SESSION['access_token'] = $tokenData['access_token'];
-        header('Location: index.php');
-        exit();
+    if (curl_errno($ch)) {
+        error_log("API cURL error: " . curl_error($ch));
+        return null;
     }
+    curl_close($ch);
+    return json_decode($response, true);
 }
 
 // Check if the user has an access token in the session
 if (isset($_SESSION['access_token'])) {
     $accessToken = $_SESSION['access_token'];
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, 'https://api.twitch.tv/helix/users');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    $headers = [
         'Client-ID: ' . $clientId,
         'Authorization: Bearer ' . $accessToken,
-    ]);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $response = curl_exec($ch);
-    curl_close($ch);
-    $userData = json_decode($response, true);
+    ];
+    $userData = makeApiRequest('https://api.twitch.tv/helix/users', $headers);
     if (isset($userData['data'][0])) {
         $username = $userData['data'][0]['username'];
     } else {
-        $username = 'username';
+        $username = 'guest_user';
     }
 } else {
-    $username = 'username';
+    $username = 'guest_user';
 }
 
 $authUrl = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=user:read:email';
-if (!isset($_SESSION['access_token'])) {
-    header('Location: ' . $authUrl);
-    exit();
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -98,6 +80,12 @@ if (!isset($_SESSION['access_token'])) {
                     <li>Custom subdomains for users</li>
                 </ul>
             </div>
+            <?php if (!isset($_SESSION['access_token'])): ?>
+                <a href="<?php echo filter_var($authUrl, FILTER_SANITIZE_URL); ?>" class="button is-primary">Login with Twitch</a>
+            <?php endif; ?>
+            <?php if (isset($_SESSION['access_token'])): ?>
+                <a href="logout.php" class="button is-danger">Logout</a>
+            <?php endif; ?>
         </div>
     </section>
     <footer class="footer">
