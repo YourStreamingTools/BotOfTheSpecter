@@ -289,7 +289,7 @@ function killBot($pid) {
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
-    $command = "kill $pid > /dev/null 2>&1 &";
+    $command = "kill $pid";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     stream_set_blocking($stream, true);
