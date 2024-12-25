@@ -172,9 +172,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
                     </div>
                     <div class="field">
-                        <label for="cooldown">Cooldown:</label>
+                        <label for="cooldown_response">Cooldown:</label>
                         <div class="control has-icons-left">
-                            <input class="input" type="number" name="cooldown" id="cooldown" value="" required>
+                            <input class="input" type="number" name="cooldown_response" id="cooldown_response" value="" required>
                             <div class="icon is-small is-left"><i class="fas fa-clock"></i></div>
                         </div>
                     </div>
@@ -284,11 +284,11 @@ function showResponse() {
     var command = document.getElementById('command_to_edit').value;
     var commands = <?php echo json_encode($commands); ?>;
     var responseInput = document.getElementById('command_response');
-    var cooldownInput = document.getElementById('cooldown');
+    var cooldownInput = document.getElementById('cooldown_response');
     // Find the response for the selected command and display it in the text box
     var commandData = commands.find(c => c.command === command);
     responseInput.value = commandData ? commandData.response : '';
-    cooldownInput.value = commandData && commandData.cooldown != null ? commandData.cooldown : '15';
+    cooldownInput.value = commandData ? commandData.cooldown : 15;
 }
 </script>
 </body>
