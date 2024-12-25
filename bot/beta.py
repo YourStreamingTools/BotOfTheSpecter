@@ -846,7 +846,7 @@ async def process_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            await ban_user(messageAuthor, messageAuthorID)
+                            asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
                 elif event_type == "channel.chat.user_message_hold":
                     event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
                     messageContent = event_data["event"]["message"]["text"]
@@ -856,7 +856,7 @@ async def process_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            await ban_user(messageAuthor, messageAuthorID)
+                            asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
                 elif event_type == "channel.suspicious_user.message":
                     event_logger.info(f"Got a Suspicious User Message: {event_data}")
                     messageContent = event_data["event"]["message"]["text"]
@@ -868,7 +868,7 @@ async def process_eventsub_message(message):
                         twitch_logger.info(f"Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
                     if lowTrustStatus == "active_monitoring":
                         bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
-                        await ban_user(messageAuthor, messageAuthorID)
+                        asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -1101,7 +1101,7 @@ class TwitchBot(commands.Bot):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            await ban_user(messageAuthor, messageAuthorID)
+                            asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
                             bannedUser = messageAuthor
                             return
                 if messageContent.startswith('!'):
@@ -1111,12 +1111,21 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
                         return  # It's a built-in command or alias, do nothing more
                     # Check if the command exists in the database and respond
+                    await cursor.execute("SELECT timezone FROM profile")
+                    tz_result = await cursor.fetchone()
+                    if tz_result and tz_result.get("timezone"):
+                        timezone = tz_result.get("timezone")
+                        tz = pytz.timezone(timezone)
+                        chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                    else:
+                        tz = pytz.UTC
+                        chat_logger.info("Timezone not set, defaulting to UTC")
                     await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
-                    result = await cursor.fetchone()
-                    if result:
-                        response = result.get("response")
-                        status = result.get("status")
-                        cooldown = result.get("cooldown")
+                    cc_result = await cursor.fetchone()
+                    if cc_result:
+                        response = cc_result.get("response")
+                        status = cc_result.get("status")
+                        cooldown = cc_result.get("cooldown")
                         if status == 'Enabled':
                             cooldown = int(cooldown)
                             # Checking if the command is on cooldown
@@ -1132,7 +1141,7 @@ class TwitchBot(commands.Bot):
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
                                 '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
-                                '(random.pick.', '(math.', '(call.', '(usercount)'
+                                '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
                             ]
                             responses_to_send = []
                             while any(switch in response for switch in switches):
@@ -1181,9 +1190,36 @@ class TwitchBot(commands.Bot):
                                     if get_date:
                                         date_str = get_date.group(1)
                                         event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                                        current_date = datetime.now().date()
+                                        current_date = datetime.now(tz).date()
                                         days_left = (event_date - current_date).days
+                                        # If days_left is negative, try next year
+                                        if days_left < 0:
+                                            next_year_date = event_date.replace(year=event_date.year + 1)
+                                            days_left = (next_year_date - current_date).days
                                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                                # Handle (timeuntil.)
+                                if '(timeuntil.' in response:
+                                    # Try first for full date-time format
+                                    get_datetime = re.search(r'\(timeuntil\.(\d{4}-\d{2}-\d{2}(?:-\d{1,2}-\d{2})?)\)', response)
+                                    if get_datetime:
+                                        datetime_str = get_datetime.group(1)
+                                        # Check if time components are included
+                                        if '-' in datetime_str[10:]:  # Full date-time format
+                                            event_datetime = datetime.strptime(datetime_str, "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
+                                        else:  # Date only format, default to midnight
+                                            event_datetime = datetime.strptime(datetime_str + "-00-00", "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
+                                        current_datetime = datetime.now(tz)
+                                        time_left = event_datetime - current_datetime
+                                        # If time_left is negative, try next year
+                                        if time_left.days < 0:
+                                            event_datetime = event_datetime.replace(year=event_datetime.year + 1)
+                                            time_left = event_datetime - current_datetime
+                                        days_left = time_left.days
+                                        hours_left, remainder = divmod(time_left.seconds, 3600)
+                                        minutes_left, _ = divmod(remainder, 60)
+                                        time_left_str = f"{days_left} days, {hours_left} hours, and {minutes_left} minutes"
+                                        # Replace the original placeholder with the calculated time
+                                        response = response.replace(f"(timeuntil.{datetime_str})", time_left_str)
                                 # Handle (user) and (author)
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
