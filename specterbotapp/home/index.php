@@ -9,21 +9,6 @@ $redirectUri = 'https://specterbot.app/index.php';
 $oauthTokenUrl = 'https://id.twitch.tv/oauth2/token';
 $authUrl = 'https://id.twitch.tv/oauth2/authorize';
 
-// Function to handle cURL requests
-function makeApiRequest($url, $headers = []) {
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        error_log("API cURL error: " . curl_error($ch));
-        return null;
-    }
-    curl_close($ch);
-    return json_decode($response, true);
-}
-
 if (isset($_GET['code'])) {
     $code = $_GET['code'];
     // Exchange the authorization code for an access token and refresh token
@@ -55,19 +40,31 @@ if (isset($_GET['code'])) {
     // Extract the access token and refresh token from the response
     $responseData = json_decode($response, true);
     $accessToken = $responseData['access_token'];
-    // Store the access token and refresh token in the session
     $_SESSION['access_token'] = $accessToken;
-}
-
-// Check if the user has an access token in the session
-if (isset($_SESSION['access_token'])) {
-    $accessToken = $_SESSION['access_token'];
-    $headers = [
-        'Client-ID: ' . $clientId,
-        'Authorization: Bearer ' . $accessToken,
-    ];
-    $userData = makeApiRequest('https://api.twitch.tv/helix/users', $headers);
-    if (isset($userData['data'][0])) {
+    // Fetch the user's Twitch username, profile image URL, and email address
+    $userInfoURL = 'https://api.twitch.tv/helix/users';
+    $curl = curl_init($userInfoURL);
+    curl_setopt($curl, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $_SESSION['access_token'],
+        'Client-ID: ' . $clientID
+    ]);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    $userInfoResponse = curl_exec($curl);
+    if ($userInfoResponse === false) {
+        // Handle cURL error
+        echo 'cURL error: ' . curl_error($curl);
+        exit;
+    }
+    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    if ($httpCode !== 200) {
+        // Handle non-successful HTTP response
+        echo 'HTTP error: ' . $httpCode;
+        exit;
+    }
+    curl_close($curl);
+    $userInfo = json_decode($userInfoResponse, true);
+    if (isset($userInfo['data']) && count($userInfo['data']) > 0) {
+        $twitchUsername = $userInfo['data'][0]['login'];
         $username = $userData['data'][0]['username'];
         $userFolder = '/var/www/specterbotapp/' . $username;
         if (!is_dir($userFolder)) {
