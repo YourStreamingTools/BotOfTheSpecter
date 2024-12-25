@@ -157,8 +157,10 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
             } else {
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
+                sleep(2);
                 $statusOutput = ssh2_exec($connection, "python $discordStatusScriptPath -channel $username");
                 if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
+                stream_set_blocking($statusOutput, true);
                 $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
                 fclose($statusOutput);
                 if ($pid > 0) {
@@ -297,7 +299,11 @@ function killBot($pid) {
     fclose($stream);
     ssh2_disconnect($connection);
     sleep(1);
-    return (empty($output) || strpos($output, 'error') === false);
+    if (empty($output) || strpos($output, 'error') === false) {
+        return true;
+    } else {
+        throw new Exception('Failed to kill the bot process. Output: ' . $output);
+    }
 }
 
 function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
@@ -314,14 +320,14 @@ function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refresh
     return true;
 }
 
-function startDiscordBot($botScriptPath, $discordToken, $logPath) {
+function startDiscordBot($botScriptPath, $username, $logPath) {
     global $ssh_host, $ssh_username, $ssh_password;
     $connection = ssh2_connect($ssh_host, 22);
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         error_log('SSH authentication failed for Discord bot');
         throw new Exception('SSH authentication failed'); }
-    $command = "python $botScriptPath -token $discordToken > $logPath 2>&1 &";
+    $command = "python $botScriptPath -channel $username > $logPath 2>&1 &";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     fclose($stream);
