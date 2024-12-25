@@ -34,6 +34,10 @@ if (isset($_SESSION['access_token'])) {
     $userData = makeApiRequest('https://api.twitch.tv/helix/users', $headers);
     if (isset($userData['data'][0])) {
         $username = $userData['data'][0]['username'];
+        $userFolder = '/var/www/specterbotapp/' . $username;
+        if (!is_dir($userFolder)) {
+            mkdir($userFolder, 0775, true);
+        }
     } else {
         $username = 'guest_user';
     }
