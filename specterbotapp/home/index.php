@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-$host = $_SERVER['HTTP_HOST'];
 $clientId = '';
 $clientSecret = '';
 $redirectUri = 'https://specterbot.app/index.php';
