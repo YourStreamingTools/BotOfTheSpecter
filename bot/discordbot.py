@@ -172,6 +172,10 @@ class LoggingClientSession(aiohttp.ClientSession):
         if rate_limit_limit or rate_limit_remaining:
             self.logger.info(f"Rate limit - Limit: {rate_limit_limit}, Remaining: {rate_limit_remaining}")
 
+    async def close(self):
+        await super().close()
+        self.logger.info("Client session closed")
+
 class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, channel_name, discord_logger, **kwargs):
         intents = discord.Intents.default()
@@ -293,6 +297,11 @@ class BotOfTheSpecter(commands.Bot):
             except discord.HTTPException as e:
                 self.logger.error(f'Error setting channel name: {e}')
 
+    async def close(self):
+        await super().close()
+        await self.http._HTTPClient__session.close()
+        self.logger.info("Bot closed")
+
 class WebSocketCog(commands.Cog, name='WebSocket'):
     def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
         global VERSION
@@ -305,7 +314,7 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.connected = False
 
         @self.sio.event
-        async def connect():
+        async def connect(data):
             self.logger.info("Connected to WebSocket server")
             await self.sio.emit('REGISTER', {'code': self.api_token, 'name': f'DiscordBot V{VERSION}'})
             self.reconnect_attempts = 0
