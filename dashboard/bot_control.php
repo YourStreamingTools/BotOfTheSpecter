@@ -209,6 +209,76 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
     return $message;
 }
 
+function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    // Get PID of the running bot
+    $command = "python $statusScriptPath -channel $username";
+    $statusOutput = ssh2_exec($connection, $command);
+    if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
+    stream_set_blocking($statusOutput, true);
+    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+    fclose($statusOutput);
+    $message = '';
+    try {
+        switch ($action) {
+            case 'run':
+                if ($pid > 0) {
+                    $message = "<div class='status-message'>Bot is already running. PID $pid.</div>";
+                } else {
+                    startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
+                    sleep(2);
+                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -channel $username");
+                    if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
+                    stream_set_blocking($statusOutput, true);
+                    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                    fclose($statusOutput);
+                    if ($pid > 0) {
+                        $message = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
+                    } else {
+                        $message = "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>";
+                    }
+                }
+                break;
+            case 'kill':
+                if ($pid > 0) {
+                    killBot($pid);
+                    $message = "<div class='status-message'>Bot stopped successfully.</div>";
+                } else {
+                    $message = "<div class='status-message error'>Bot is not running.</div>";
+                }
+                break;
+            case 'restart':
+                if ($pid > 0) {
+                    killBot($pid);
+                    startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
+                    sleep(2);
+                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -channel $username");
+                    if (!$statusOutput) { throw new Exception('Failed to check bot status after restart'); }
+                    stream_set_blocking($statusOutput, true);
+                    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                    fclose($statusOutput);
+                    if ($pid > 0) {
+                        $message = "<div class='status-message'>Bot restarted successfully. PID $pid.</div>";
+                    } else {
+                        $message = "<div class='status-message error'>Failed to restart the bot.</div>";
+                    }
+                } else {
+                    $message = "<div class='status-message error'>Bot is not running.</div>";
+                }
+                break;
+        }
+    } catch (Exception $e) {
+        error_log('Error handling bot action: ' . $e->getMessage());
+        $message = "<div class='status-message error'>An error occurred: " . $e->getMessage() . "</div>";
+    }
+    ssh2_disconnect($connection);
+    return $message;
+}
+
 function getBotsStatus($statusScriptPath, $username) {
     global $ssh_host, $ssh_username, $ssh_password;
     $connection = ssh2_connect($ssh_host, 22);
@@ -299,7 +369,7 @@ function killBot($pid) {
     fclose($stream);
     ssh2_disconnect($connection);
     sleep(1);
-    if (empty($output) || strpos($output, 'error') === false) {
+    if (empty($output) || strpos($output, 'No such process') === false) {
         return true;
     } else {
         throw new Exception('Failed to kill the bot process. Output: ' . $output);
