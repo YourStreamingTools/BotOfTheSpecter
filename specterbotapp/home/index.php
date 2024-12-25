@@ -24,6 +24,41 @@ function makeApiRequest($url, $headers = []) {
     return json_decode($response, true);
 }
 
+if (isset($_GET['code'])) {
+    $code = $_GET['code'];
+    // Exchange the authorization code for an access token and refresh token
+    $tokenURL = 'https://id.twitch.tv/oauth2/token';
+    $postData = array(
+        'client_id' => $clientId,
+        'client_secret' => $clientSecret,
+        'code' => $code,
+        'grant_type' => 'authorization_code',
+        'redirect_uri' => $redirectUri
+    );
+    $curl = curl_init($tokenURL);
+    curl_setopt($curl, CURLOPT_POST, true);
+    curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($postData));
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($curl);
+    if ($response === false) {
+        // Handle cURL error
+        echo 'cURL error: ' . curl_error($curl);
+        exit;
+    }
+    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    if ($httpCode !== 200) {
+        // Handle non-successful HTTP response
+        echo 'HTTP error: ' . $httpCode;
+        exit;
+    }
+    curl_close($curl);
+    // Extract the access token and refresh token from the response
+    $responseData = json_decode($response, true);
+    $accessToken = $responseData['access_token'];
+    // Store the access token and refresh token in the session
+    $_SESSION['access_token'] = $accessToken;
+}
+
 // Check if the user has an access token in the session
 if (isset($_SESSION['access_token'])) {
     $accessToken = $_SESSION['access_token'];
