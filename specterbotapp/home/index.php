@@ -36,27 +36,25 @@ if (isset($_GET['code'])) {
         exit;
     }
     curl_close($curl);
-    // Extract the access token and refresh token from the response
+    // Extract the access token from the response
     $responseData = json_decode($response, true);
     $accessToken = $responseData['access_token'];
     $_SESSION['access_token'] = $accessToken;
-    // Fetch the user's Twitch username, profile image URL, and email address
+    // Fetch the user's Twitch username
     $userInfoURL = 'https://api.twitch.tv/helix/users';
     $curl = curl_init($userInfoURL);
     curl_setopt($curl, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $_SESSION['access_token'],
-        'Client-ID: ' . $clientID
+        'Authorization: Bearer ' . $accessToken,
+        'Client-ID: ' . $clientId
     ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     $userInfoResponse = curl_exec($curl);
     if ($userInfoResponse === false) {
-        // Handle cURL error
         echo 'cURL error: ' . curl_error($curl);
         exit;
     }
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     if ($httpCode !== 200) {
-        // Handle non-successful HTTP response
         echo 'HTTP error: ' . $httpCode;
         exit;
     }
@@ -64,16 +62,15 @@ if (isset($_GET['code'])) {
     $userInfo = json_decode($userInfoResponse, true);
     if (isset($userInfo['data']) && count($userInfo['data']) > 0) {
         $twitchUsername = $userInfo['data'][0]['login'];
-        $username = $userData['data'][0]['username'];
-        $userFolder = '/var/www/specterbotapp/' . $username;
+        $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
         if (!is_dir($userFolder)) {
             mkdir($userFolder, 0775, true);
         }
     } else {
-        $username = 'guest_user';
+        $twitchUsername = 'guest_user';
     }
 } else {
-    $username = 'guest_user';
+    $twitchUsername = 'guest_user';
 }
 
 $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=user:read:email';
@@ -105,7 +102,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
             <p>
                 Welcome to the SpecterBot Custom API!<br>
                 This platform allows developers to integrate seamlessly with our service.<br>
-                Use your personalized subdomain at <code><?php echo $username; ?>.specterbot.app</code> to interact with your custom endpoints.
+                Use your personalized subdomain at <code><?php echo $twitchUsername; ?>.specterbot.app</code> to interact with your custom endpoints.
             </p>
             <br>
             <div class="box">
