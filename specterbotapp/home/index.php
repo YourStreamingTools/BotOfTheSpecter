@@ -6,13 +6,12 @@ $clientSecret = '';
 $redirectUri = 'https://specterbot.app/index.php';
 
 // Twitch OAuth API URLs
-$oauthTokenUrl = 'https://id.twitch.tv/oauth2/token';
+$tokenURL = 'https://id.twitch.tv/oauth2/token';
 $authUrl = 'https://id.twitch.tv/oauth2/authorize';
 
 if (isset($_GET['code'])) {
     $code = $_GET['code'];
     // Exchange the authorization code for an access token and refresh token
-    $tokenURL = 'https://id.twitch.tv/oauth2/token';
     $postData = array(
         'client_id' => $clientId,
         'client_secret' => $clientSecret,
@@ -77,7 +76,7 @@ if (isset($_GET['code'])) {
     $username = 'guest_user';
 }
 
-$authUrl = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=user:read:email';
+$loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=user:read:email';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -116,7 +115,7 @@ $authUrl = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($
                 </ul>
             </div>
             <?php if (!isset($_SESSION['access_token'])): ?>
-                <a href="<?php echo filter_var($authUrl, FILTER_SANITIZE_URL); ?>" class="button is-primary">Login with Twitch</a>
+                <a href="<?php echo filter_var($loginURL, FILTER_SANITIZE_URL); ?>" class="button is-primary">Login with Twitch</a>
             <?php endif; ?>
             <?php if (isset($_SESSION['access_token'])): ?>
                 <a href="logout.php" class="button is-danger">Logout</a>
