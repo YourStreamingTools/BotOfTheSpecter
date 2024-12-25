@@ -54,7 +54,7 @@ soundalerts/*/*.mp3
 *.DS_Store
 
 # Ignoring the next update changelog file
-bot/changelog/5.2.md
+bot/changelog/5.3.md
 
 # Ignoring entire directories
 /app
