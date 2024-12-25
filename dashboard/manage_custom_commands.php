@@ -27,11 +27,11 @@ $notification_status = "";
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Editing a Custom Command
-    if ((isset($_POST['command_to_edit'])) && ($_POST['command_response']) && (isset($_POST['cooldown']))) {
+    if ((isset($_POST['command_to_edit'])) && ($_POST['command_response']) && (isset($_POST['cooldown_response']))) {
         // Update the response for the selected command
         $command_to_edit = $_POST['command_to_edit'];
         $command_response = $_POST['command_response'];
-        $cooldown = $_POST['cooldown'];
+        $cooldown = $_POST['cooldown_response'];
         try {
             $updateSTMT = $db->prepare("UPDATE custom_commands SET response = ?, cooldown = ? WHERE command = ?");
             $updateSTMT->bindParam(1, $command_response);
