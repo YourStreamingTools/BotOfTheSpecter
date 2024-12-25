@@ -147,6 +147,7 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
     $command = "python $discordStatusScriptPath -channel $username";
     $statusOutput = ssh2_exec($connection, $command);
     if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
+    stream_set_blocking($statusOutput, true);
     $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
     fclose($statusOutput);
     $message = '';
@@ -190,6 +191,7 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 if (!$statusOutput) {
                     throw new Exception('Failed to check bot status after restart');
                 }
+                stream_set_blocking($statusOutput, true);
                 $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
                 fclose($statusOutput);
                 if ($pid > 0) {
