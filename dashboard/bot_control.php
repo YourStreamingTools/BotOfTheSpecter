@@ -1,4 +1,7 @@
 <?php
+// SSH Connection parameters
+include "/var/www/config/ssh.php";
+
 // Display running versions if bots are running
 $versionRunning = '';
 $betaVersionRunning = '';
@@ -134,56 +137,18 @@ if (isset($_POST['restartDiscordBot'])) {
 }
 
 // Function to handle bot actions
-function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
-    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
-    $pid = intval(preg_replace('/\D/', '', $statusOutput));
-    $message = '';
-    switch ($action) {
-        case 'run':
-            if ($pid > 0) {
-                $message = "<div class='status-message'>Bot is already running. PID $pid.</div>";
-            } else {
-                startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
-                $statusOutput = shell_exec("python $statusScriptPath -channel $username");
-                $pid = intval(preg_replace('/\D/', '', $statusOutput));
-                if ($pid > 0) {
-                    $message = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
-                } else {
-                    $message = "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>";
-                }
-            }
-            break;
-        case 'kill':
-            if ($pid > 0) {
-                killBot($pid);
-                $message = "<div class='status-message'>Bot stopped successfully.</div>";
-            } else {
-                $message = "<div class='status-message error'>Bot is not running.</div>";
-            }
-            break;
-        case 'restart':
-            if ($pid > 0) {
-                killBot($pid);
-                startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
-                $statusOutput = shell_exec("python $statusScriptPath -channel $username");
-                $pid = intval(preg_replace('/\D/', '', $statusOutput));
-                if ($pid > 0) {
-                    $message = "<div class='status-message'>Bot restarted. PID $pid.</div>";
-                } else {
-                    $message = "<div class='status-message error'>Failed to restart the bot.</div>";
-                }
-            } else {
-                $message = "<div class='status-message error'>Bot is not running.</div>";
-            }
-            break;
-    }
-    return $message;
-}
-
-// Function to handle Discord Bot Actions
 function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath) {
-    $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
-    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    // Get PID of the running bot
+    $command = "python $discordStatusScriptPath -channel $username";
+    $statusOutput = ssh2_exec($connection, $command);
+    if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
+    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+    fclose($statusOutput);
     $message = '';
     switch ($action) {
         case 'run':
@@ -192,8 +157,10 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
             } else {
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
-                $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
-                $pid = intval(preg_replace('/\D/', '', $statusOutput));
+                $statusOutput = ssh2_exec($connection, "python $discordStatusScriptPath -channel $username");
+                if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
+                $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                fclose($statusOutput);
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Discord bot started successfully. PID $pid.</div>";
                     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
@@ -217,8 +184,12 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
             if ($pid > 0) {
                 killBot($pid);
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
-                $statusOutput = shell_exec("python $discordStatusScriptPath -channel $username");
-                $pid = intval(preg_replace('/\D/', '', $statusOutput));
+                $statusOutput = ssh2_exec($connection, "python $discordStatusScriptPath -channel $username");
+                if (!$statusOutput) {
+                    throw new Exception('Failed to check bot status after restart');
+                }
+                $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                fclose($statusOutput);
                 if ($pid > 0) {
                     $message = "<div class='status-message'>Discord bot restarted. PID $pid.</div>";
                     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
@@ -232,21 +203,27 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
             }
             break;
     }
+    ssh2_disconnect($connection);
     return $message;
 }
 
-function isBotRunning($statusScriptPath, $username, $logPath) {
-    $pid = getBotPID($statusScriptPath, $username, $logPath);
-    return ($pid > 0);
-}
-
-function getBotPID($statusScriptPath, $username, $logPath) {
-    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
-    return intval(preg_replace('/\D/', '', $statusOutput));
-}
-
-function getBotsStatus($statusScriptPath, $username, $logPath) {
-    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+function getBotsStatus($statusScriptPath, $username) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    // Authenticate using username and password
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    // Run the command to get the bot's status
+    $command = "python $statusScriptPath -channel $username";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    // Set stream to blocking mode to read the output
+    stream_set_blocking($stream, true);
+    $statusOutput = stream_get_contents($stream);
+    fclose($stream);
+    ssh2_disconnect($connection);
+    // Process the output to extract PID
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     if ($pid > 0) {
         return "<div class='status-message'>Status: PID $pid.</div>";
@@ -255,30 +232,101 @@ function getBotsStatus($statusScriptPath, $username, $logPath) {
     }
 }
 
-function checkBotsRunning($statusScriptPath, $username, $logPath) {
-    $statusOutput = shell_exec("python $statusScriptPath -channel $username");
+function isBotRunning($statusScriptPath, $username) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    $command = "python $statusScriptPath -channel $username";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    stream_set_blocking($stream, true);
+    $statusOutput = stream_get_contents($stream);
+    fclose($stream);
+    ssh2_disconnect($connection);
     $pid = intval(preg_replace('/\D/', '', $statusOutput));
     return ($pid > 0);
 }
 
-function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
-    $command = "nohup python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key >> $logPath 2>&1 &";
-    $output = shell_exec($command);
-    sleep(1);
-    return !(empty($output) || strpos($output, 'error') !== false);
+function getBotPID($statusScriptPath, $username) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    $command = "python $statusScriptPath -channel $username";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    stream_set_blocking($stream, true);
+    $statusOutput = stream_get_contents($stream);
+    fclose($stream);
+    ssh2_disconnect($connection);
+    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    return $pid;
 }
 
-function startDiscordBot($discordBotScriptPath, $username, $discordLogPath) {
-    $command = "nohup python $discordBotScriptPath -channel $username >> $discordLogPath 2>&1 &";
-    $output = shell_exec($command);
-    sleep(1);
-    return !(empty($output) || strpos($output, 'error') !== false);
+function checkBotsRunning($statusScriptPath, $username, $logPath) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    $command = "python $statusScriptPath -channel $username";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    stream_set_blocking($stream, true);
+    $statusOutput = stream_get_contents($stream);
+    fclose($stream);
+    ssh2_disconnect($connection);
+    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    return ($pid > 0);
 }
 
 function killBot($pid) {
-    $output = shell_exec("kill $pid > /dev/null 2>&1 &");
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    $command = "kill $pid > /dev/null 2>&1 &";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    stream_set_blocking($stream, true);
+    $output = stream_get_contents($stream);
+    fclose($stream);
+    ssh2_disconnect($connection);
     sleep(1);
     return (empty($output) || strpos($output, 'error') === false);
+}
+
+function startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    $command = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $api_key > $logPath 2>&1 &";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    fclose($stream);
+    ssh2_disconnect($connection);
+    return true;
+}
+
+function startDiscordBot($botScriptPath, $discordToken, $logPath) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        error_log('SSH authentication failed for Discord bot');
+        throw new Exception('SSH authentication failed'); }
+    $command = "python $botScriptPath -token $discordToken > $logPath 2>&1 &";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    fclose($stream);
+    ssh2_disconnect($connection);
+    return true;
 }
 
 if ($botSystemStatus) {
