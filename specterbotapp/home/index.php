@@ -158,6 +158,38 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                     <li>Direct Access to your own database that Specter uses. You can access it via <code>https://specterbot.app/database.php</code>.</li>
                 </ul>
             </div>
+            <?php if (isset($_SESSION['access_token'])): ?>
+            <div class="box" id="specterbot-upload" style="position: relative;">
+                <h1 class="title is-4">Upload Your Custom API Files:</h1>
+                <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <label for="filesToUpload" class="drag-area" id="drag-area">
+                        <span>Drag & Drop files here or</span>
+                        <span>Browse Files</span>
+                        <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
+                    </label>
+                    <br>
+                    <div id="file-list"></div>
+                    <br>
+                    <input type="submit" value="Upload Files" name="submit" class="button is-primary">
+                </form>
+                <?php
+                if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
+                    $uploadedFiles = $_FILES['filesToUpload'];
+                    foreach ($uploadedFiles['name'] as $key => $name) {
+                        if (!empty($name)) {
+                            $targetDir = $userFolder . '/';
+                            $targetFile = $targetDir . basename($name);
+                            if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
+                                echo '<p class="has-text-success">File uploaded successfully: ' . htmlspecialchars($name) . '</p>';
+                            } else {
+                                echo '<p class="has-text-danger">Error uploading file: ' . htmlspecialchars($name) . '</p>';
+                            }
+                        }
+                    }
+                }
+                ?>
+            </div>
+            <?php endif; ?>
         </div>
     </section>
     <footer class="footer">
@@ -166,6 +198,48 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
         </div>
     </footer>
 
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    let dropArea = document.getElementById('drag-area');
+    let fileInput = document.getElementById('filesToUpload');
+    let fileList = document.getElementById('file-list');
+    dropArea.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.classList.add('dragging');
+    });
+    dropArea.addEventListener('dragleave', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.classList.remove('dragging');
+    });
+    dropArea.addEventListener('drop', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.classList.remove('dragging');
+        let files = e.dataTransfer.files;
+        fileInput.files = files;
+        fileList.innerHTML = '';
+        Array.from(files).forEach(file => {
+            let div = document.createElement('div');
+            div.textContent = file.name;
+            fileList.appendChild(div);
+        });
+    });
+    dropArea.addEventListener('click', function () {
+        fileInput.click();
+    });
+    fileInput.addEventListener('change', function () {
+        let files = fileInput.files;
+        fileList.innerHTML = '';
+        Array.from(files).forEach(file => {
+            let div = document.createElement('div');
+            div.textContent = file.name;
+            fileList.appendChild(div);
+        });
+    });
+});
+</script>
 <script>
     const userDatabaseStatus = "<?php echo $userDatabaseExists; ?>";
     if (userDatabaseStatus === "User database does not exist. Please use the bot to create your database first.") {
