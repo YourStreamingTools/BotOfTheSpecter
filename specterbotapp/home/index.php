@@ -1,6 +1,11 @@
 <?php
+// Start the session
 session_start();
 
+// Database connection
+require 'database.php';
+
+// Twitch OAuth API credentials
 $clientId = '';
 $clientSecret = '';
 $redirectUri = 'https://specterbot.app/index.php';
@@ -8,6 +13,21 @@ $redirectUri = 'https://specterbot.app/index.php';
 // Twitch OAuth API URLs
 $tokenURL = 'https://id.twitch.tv/oauth2/token';
 $authUrl = 'https://id.twitch.tv/oauth2/authorize';
+
+$userDatabaseExists = "";
+function userDatabaseExists($username) {
+    global $conn;
+    $stmt = $conn->prepare('SELECT COUNT(*) FROM users WHERE username = ?');
+    if (!$stmt) {
+        die('Prepare failed: ' . $conn->error);
+    }
+    $stmt->bind_param('s', $username);
+    $stmt->execute();
+    $stmt->bind_result($count);
+    $stmt->fetch();
+    $stmt->close();
+    return $count > 0;
+}
 
 if (isset($_GET['code'])) {
     $code = $_GET['code'];
@@ -64,6 +84,9 @@ if (isset($_GET['code'])) {
         $twitchUsername = $userInfo['data'][0]['login'];
         $_SESSION['twitch_username'] = $twitchUsername;
         $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
+        if (!userDatabaseExists($twitchUsername)) {
+            $userDatabaseExists = "User database does not exist. Please use the bot to create your database first.";
+        }
         if (!is_dir($userFolder)) {
             mkdir($userFolder, 0775, true);
         }
@@ -71,9 +94,11 @@ if (isset($_GET['code'])) {
         exit;
     } else {
         $twitchUsername = 'guest_user';
+        $userDatabaseExists = "User is not signed in";
     }
 } else {
     $twitchUsername = isset($_SESSION['twitch_username']) ? $_SESSION['twitch_username'] : 'guest_user';
+    $userDatabaseExists = userDatabaseExists($twitchUsername) ? "User database exists" : "User database does not exist";
 }
 
 $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=user:read:email';
@@ -122,7 +147,8 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
             <p>
                 Welcome to the SpecterBot Custom API!<br>
                 This platform allows developers to integrate seamlessly with our service.<br>
-                Use your personalized subdomain at <code><?php echo $twitchUsername; ?>.specterbot.app</code> to interact with your custom endpoints.
+                Use your personalized subdomain at <code><?php echo $twitchUsername; ?>.specterbot.app</code> to interact with your custom endpoints.<br>
+                Please note that you need to sign in to verify your database connection with SpecterBot.
             </p>
             <br>
             <div class="box">
@@ -139,5 +165,10 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
             <p>&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.</p>
         </div>
     </footer>
+
+<script>console.log('Welcome to SpecterBot Custom API!');</script>
+<script>console.log('Connection status: <?php echo $connection; ?>');</script>
+<script>console.log('Your Twitch username is: <?php echo $twitchUsername; ?>');</script>
+<script>console.log('User database status: <?php echo $userDatabaseExists; ?>');</script>
 </body>
 </html>
