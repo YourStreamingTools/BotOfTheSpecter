@@ -166,6 +166,12 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
         </div>
     </footer>
 
+<script>
+    const userDatabaseStatus = "<?php echo $userDatabaseExists; ?>";
+    if (userDatabaseStatus === "User database does not exist. Please use the bot to create your database first.") {
+        alert("User database does not exist. Please use the bot to create your database first.");
+    }
+</script>
 <script>console.log('Welcome to SpecterBot Custom API!');</script>
 <script>console.log('Connection status: <?php echo $connection; ?>');</script>
 <script>console.log('Your Twitch username is: <?php echo $twitchUsername; ?>');</script>
