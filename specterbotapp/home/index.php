@@ -177,6 +177,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                     $uploadedFiles = $_FILES['filesToUpload'];
                     foreach ($uploadedFiles['name'] as $key => $name) {
                         if (!empty($name)) {
+                            $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
                             $targetDir = $userFolder . '/';
                             $targetFile = $targetDir . basename($name);
                             if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
@@ -184,6 +185,8 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                             } else {
                                 echo '<p class="has-text-danger">Error uploading file: ' . htmlspecialchars($name) . '</p>';
                             }
+                        } else {
+                            echo '<p class="has-text-warning">No file selected for upload.</p>';
                         }
                     }
                 }
