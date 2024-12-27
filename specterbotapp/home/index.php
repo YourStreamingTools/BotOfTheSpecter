@@ -144,13 +144,12 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
     <section class="section">
         <div class="container">
             <h2 class="title">Getting Started</h2>
-            <p>
+            <p class="subtitle">
                 Welcome to the SpecterBot Custom API!<br>
                 This platform allows developers to integrate seamlessly with our service.<br>
                 Use your personalized subdomain at <code><?php echo $twitchUsername; ?>.specterbot.app</code> to interact with your custom endpoints.<br>
                 Please note that you need to sign in to verify your database connection with SpecterBot.
             </p>
-            <br>
             <div class="box">
                 <h3 class="title is-4">Key Features</h3>
                 <ul>
@@ -159,63 +158,68 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                 </ul>
             </div>
             <?php if (isset($_SESSION['access_token'])): ?>
-            <div class="box" id="specterbot-upload" style="position: relative;">
-                <h1 class="title is-4">Upload Your Custom API Files:</h1>
-                <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
-                    <label for="filesToUpload" class="drag-area" id="drag-area">
-                        <span>Drag & Drop files here or</span>
-                        <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
-                    </label>
-                    <br>
-                    <div id="file-list"></div>
-                    <br>
-                    <input type="submit" value="Upload Files" name="submit" class="button is-primary">
-                </form>
-                <?php
-                $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
-                if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
-                    $uploadedFiles = $_FILES['filesToUpload'];
-                    foreach ($uploadedFiles['name'] as $key => $name) {
-                        if (!empty($name)) {
-                            $targetDir = $userFolder . '/';
-                            $targetFile = $targetDir . basename($name);
-                            if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
-                                echo '<p class="has-text-success">File uploaded successfully: ' . htmlspecialchars($name) . '</p>';
+            <div class="box columns is-desktop is-multiline">
+                <div class="column is-3">
+                    <div id="specterbot-upload" style="position: relative;">
+                        <h1 class="title is-4">Upload Your Files:</h1>
+                            <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                                <label for="filesToUpload" class="drag-area" id="drag-area">
+                                    <span>Drag & Drop files here</span>
+                                    <input class="is-hidden" type="file" name="filesToUpload[]" id="filesToUpload" multiple>
+                                </label>
+                                <br>
+                                <div id="file-list"></div>
+                                <input type="submit" value="Upload Files" name="submit" class="button is-primary">
+                            </form>
+                        <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    </div>
+                    <?php
+                    $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
+                    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
+                        $uploadedFiles = $_FILES['filesToUpload'];
+                        foreach ($uploadedFiles['name'] as $key => $name) {
+                            if (!empty($name)) {
+                                $targetDir = $userFolder . '/';
+                                $targetFile = $targetDir . basename($name);
+                                if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
+                                    echo '<p class="has-text-success">File uploaded successfully: ' . htmlspecialchars($name) . '</p>';
+                                } else {
+                                    echo '<p class="has-text-danger">Error uploading file: ' . htmlspecialchars($name) . '</p>';
+                                }
                             } else {
-                                echo '<p class="has-text-danger">Error uploading file: ' . htmlspecialchars($name) . '</p>';
+                                echo '<p class="has-text-warning">No file selected for upload.</p>';
                             }
-                        } else {
-                            echo '<p class="has-text-warning">No file selected for upload.</p>';
                         }
                     }
-                }
-                ?>
-            </div>
-            <div class="box">
-                <?php
-                $userFiles = array_diff(scandir($userFolder), array('.', '..'));
-                function formatFileName($fileName) { return basename($fileName, '.php'); }
-                if (!empty($userFiles)) : ?>
-                <h1 class="title is-4">Your custom API Files:</h1>
-                <form action="" method="POST" id="deleteForm">
-                    <table class="table is-striped" style="width: 100%; text-align: center;">
-                        <thead>
-                            <tr>
-                                <th>File Name</th>
-                                <th style="width: 100px;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($walkon_files as $file): ?>
-                            <tr>
-                                <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
-                                <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </form>
-                <?php endif; ?>
+                    ?>
+                </div>
+                <div class="column is-7">
+                    <?php
+                    $userFiles = array_diff(scandir($userFolder), array('.', '..'));
+                    function formatFileName($fileName) { return basename($fileName, '.php'); }
+                    if (!empty($userFiles)) : ?>
+                    <h1 class="title is-4">Your custom API Files:</h1>
+                    <form action="" method="POST" id="deleteForm">
+                        <table class="table is-striped" style="width: 100%; text-align: center;">
+                            <thead>
+                                <tr>
+                                    <th>File Name</th>
+                                    <th style="width: 100px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($walkon_files as $file): ?>
+                                <tr>
+                                    <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                                    <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </form>
+                    <?php endif; ?>
+                    <h1 class="title is-4">A list of files will appear here.</h1>
+                </div>
             </div>
             <?php endif; ?>
         </div>
