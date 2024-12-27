@@ -164,7 +164,6 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                 <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
                     <label for="filesToUpload" class="drag-area" id="drag-area">
                         <span>Drag & Drop files here or</span>
-                        <span>Browse Files</span>
                         <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
                     </label>
                     <br>
@@ -173,11 +172,11 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                     <input type="submit" value="Upload Files" name="submit" class="button is-primary">
                 </form>
                 <?php
+                $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
                 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
                     $uploadedFiles = $_FILES['filesToUpload'];
                     foreach ($uploadedFiles['name'] as $key => $name) {
                         if (!empty($name)) {
-                            $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
                             $targetDir = $userFolder . '/';
                             $targetFile = $targetDir . basename($name);
                             if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
@@ -191,6 +190,32 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                     }
                 }
                 ?>
+            </div>
+            <div class="box">
+                <?php
+                $userFiles = array_diff(scandir($userFolder), array('.', '..'));
+                function formatFileName($fileName) { return basename($fileName, '.php'); }
+                if (!empty($userFiles)) : ?>
+                <h1 class="title is-4">Your custom API Files:</h1>
+                <form action="" method="POST" id="deleteForm">
+                    <table class="table is-striped" style="width: 100%; text-align: center;">
+                        <thead>
+                            <tr>
+                                <th>File Name</th>
+                                <th style="width: 100px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($walkon_files as $file): ?>
+                            <tr>
+                                <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                                <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </form>
+                <?php endif; ?>
             </div>
             <?php endif; ?>
         </div>
