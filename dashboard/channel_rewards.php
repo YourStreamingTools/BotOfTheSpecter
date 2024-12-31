@@ -82,6 +82,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
       <button class="button is-primary" name="syncRewards" type="submit">Sync Rewards</button>
     </form>
   </div>
+  <div class="notification is-info mt-4">
+    <p class="has-text-weight-bold">Built-in Tags Information:</p>
+    <p>Users can set up specific channel point rewards in Twitch to access Specter's built-in tags:</p>
+    <ul>
+      <li><span class="has-text-weight-bold">Fortunes:</span> Any channel point reward name containing "fortune" will enable this feature.</li>
+      <li><span class="has-text-weight-bold">Lotto Numbers:</span> Any channel point reward name containing "lotto" will enable this feature.</li>
+      <li><span class="has-text-weight-bold">Text-to-Speech (TTS):</span> Any channel point reward name containing "tts" will enable this feature. TTS is then used via the sound overlays on the <a href="overlays.php">Overlays</a> page.</li>
+    </ul>
+  </div>
   <table class="table is-striped is-fullwidth">
     <thead>
       <tr>
