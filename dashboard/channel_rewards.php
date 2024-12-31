@@ -73,8 +73,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
 <div class="container">
   <br>
   <h1 class="title is-4">Channel Point Rewards:</h1>
-  <form method="POST"><button class="button is-primary" name="syncRewards" type="submit">Sync Rewards</button></form>
-  <?php echo $syncMessage; ?>
+  <div class="notification is-info">
+    <form method="POST" class="is-flex is-align-items-center is-justify-content-space-between">
+      <div>
+        Pressing the sync button will sync your Twitch channel point rewards to the Specter System.
+        This process can take up to 30 seconds to complete.
+      </div>
+      <button class="button is-primary" name="syncRewards" type="submit">Sync Rewards</button>
+    </form>
+  </div>
   <table class="table is-striped is-fullwidth">
     <thead>
       <tr>
