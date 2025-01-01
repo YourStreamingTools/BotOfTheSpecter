@@ -1375,7 +1375,6 @@ class TwitchBot(commands.Bot):
                 await sqldb.commit()
                 # Has the user been seen during this stream
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
-                # Check if the user is in the list of already seen users
                 if await cursor.fetchone():
                     return
                 # Check if the user is the broadcaster
@@ -1390,6 +1389,7 @@ class TwitchBot(commands.Bot):
                     user_status_enabled = user_data.get("status", 'True') == 'True'
                 else:
                     # The user is new
+                    user_data = None
                     has_welcome_message = None
                     user_status_enabled = True
                 # Query the streamer preferences for the welcome message settings
