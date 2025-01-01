@@ -1406,11 +1406,11 @@ class TwitchBot(commands.Bot):
                 else:
                     send_welcome_messages = 1
                     new_default_welcome_message = "(user) is new to the community, let's give them a warm welcome!"
-                    default_welcome_message = new_default_welcome_message
+                    default_welcome_message = "Welcome back, (user)! It's great to see you again!"
                     new_default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
-                    default_vip_welcome_message = new_default_vip_welcome_message
+                    default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome back (user)"
                     new_default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
-                    default_mod_welcome_message = new_default_mod_welcome_message
+                    default_mod_welcome_message = "MOD ON DUTY! Welcome back (user), the power of the sword has increased!"
                 # Replace (user) in the welcome messages with the actual username
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
