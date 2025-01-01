@@ -24,7 +24,7 @@ $plans = [
         'name' => 'Twitch Tier 1',
         'price' => '$5.99 USD',
         'features' => [
-            ['text' => '!song & !weather Commands', 'tip' => 'Use commands to request songs or get weather updates in chat.'],
+            ['text' => '!song Command', 'tip' => 'Use this command to view what song is playing in chat. (NOT REQUIRED FOR SPOTIFY)'],
             ['text' => 'Full Support', 'tip' => 'Get priority assistance and support for any bot-related issues.'],
             ['text' => 'Exclusive Beta Features', 'tip' => 'Early access to new and experimental bot features.'],
             ['text' => '5MB of total storage', 'tip' => 'Store your own sound effects and music files for alerts and walk-on sounds.'],
