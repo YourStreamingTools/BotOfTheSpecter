@@ -24,7 +24,7 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-top: 70px; /* Adjust for fixed navbar */
+    padding-top: 70px;
 }
 
 .footer {
@@ -52,6 +52,9 @@ body.dark-mode {
     background-color: #1f1f1f;
     border: 1px solid #333;
     color: #e0e0e0;
+    width: 100%;
+    max-width: 1200px;
+    margin: 20px auto;
 }
 
 a.button.is-primary {
