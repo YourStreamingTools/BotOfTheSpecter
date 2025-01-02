@@ -4150,6 +4150,8 @@ class TwitchBot(commands.Bot):
     @commands.command(name='slots')
     async def slots_command(self, ctx):
         global bot_owner
+        user_id = str(ctx.author.id)
+        user_name = ctx.author.name
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4163,6 +4165,18 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
+                    # Fetch user's points from the database
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                    user_data = await cursor.fetchone()
+                    if not user_data:
+                        await cursor.execute(
+                            "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                            (user_id, user_name, 0)
+                        )
+                        await sqldb.commit()
+                        user_points = 0
+                    else:
+                        user_points = user_data.get("points")
                     # Define the payouts for each icon
                     slot_payouts = {
                         "🍒": 10,
@@ -4178,13 +4192,18 @@ class TwitchBot(commands.Bot):
                     if random.random() < 0.7:  # 70% win chance
                         # Generate a winning result (all symbols the same)
                         winning_icon = random.choice(slot_icons)
-                        result = [winning_icon] * 3  
+                        result = [winning_icon] * 3
                         winnings = slot_payouts[winning_icon]
+                        user_points += winnings
                         message = f"{ctx.author.name}, {''.join(result)} You Win {winnings} points!"
                     else:
-                        # Generate a losing result (different symbols)
                         result = [random.choice(slot_icons) for _ in range(3)]
-                        message = f"{ctx.author.name}, {''.join(result)} Better luck next time."
+                        loss_penalty = 5
+                        user_points = max(0, user_points - loss_penalty)
+                        message = f"{ctx.author.name}, {''.join(result)} Better luck next time. You lost {loss_penalty} points."
+                    # Update user's points in the database
+                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                    await sqldb.commit()
                     await ctx.send(message)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the slots command: {e}")
