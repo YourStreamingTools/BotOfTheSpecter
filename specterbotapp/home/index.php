@@ -165,7 +165,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
                                 <label for="filesToUpload" class="drag-area" id="drag-area">
                                     <span>Drag & Drop files here</span>
-                                    <input class="is-hidden" type="file" name="filesToUpload[]" id="filesToUpload" multiple>
+                                    <input class="is-hidden" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".php">
                                 </label>
                                 <br>
                                 <div id="file-list"></div>
@@ -178,7 +178,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
                         $uploadedFiles = $_FILES['filesToUpload'];
                         foreach ($uploadedFiles['name'] as $key => $name) {
-                            if (!empty($name)) {
+                            if (!empty($name) && pathinfo($name, PATHINFO_EXTENSION) === 'php') {
                                 $targetDir = $userFolder . '/';
                                 $targetFile = $targetDir . basename($name);
                                 if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
@@ -187,7 +187,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                                     echo '<p class="has-text-danger">Error uploading file: ' . htmlspecialchars($name) . '</p>';
                                 }
                             } else {
-                                echo '<p class="has-text-warning">No file selected for upload.</p>';
+                                echo '<p class="has-text-warning">Only .php files are allowed.</p>';
                             }
                         }
                     }
