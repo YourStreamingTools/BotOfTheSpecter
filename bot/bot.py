@@ -5337,16 +5337,18 @@ async def handle_chat_message(messageAuthor):
 
 async def send_timed_message(message_id, message, delay):
     global stream_online
-    try:
-        await asyncio.sleep(delay)
-        if stream_online:
-            chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
-            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-            await channel.send(message)
-        else:
-            chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
-    except asyncio.CancelledError:
-        bot_logger.info(f"Task cancelled for Message ID: {message_id} - {message}")
+    while stream_online:
+        try:
+            await asyncio.sleep(delay)
+            if stream_online:
+                chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
+                channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+                await channel.send(message)
+            else:
+                chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
+        except asyncio.CancelledError:
+            bot_logger.info(f"Task cancelled for Message ID: {message_id} - {message}")
+            break
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
