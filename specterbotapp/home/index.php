@@ -287,6 +287,11 @@ document.addEventListener("DOMContentLoaded", function () {
     fileInput.addEventListener('click', function (e) {
         e.stopPropagation();
     });
+    document.addEventListener('click', function (e) {
+        if (e.target !== fileInput && e.target !== dropArea) {
+            fileInput.blur();
+        }
+    });
 });
 </script>
 <script>
