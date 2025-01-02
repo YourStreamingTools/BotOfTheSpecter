@@ -4193,12 +4193,12 @@ class TwitchBot(commands.Bot):
                         # Generate a winning result (all symbols the same)
                         winning_icon = random.choice(slot_icons)
                         result = [winning_icon] * 3
-                        winnings = slot_payouts[winning_icon]
+                        winnings = slot_payouts[winning_icon] * 3
                         user_points += winnings
                         message = f"{ctx.author.name}, {''.join(result)} You Win {winnings} points!"
                     else:
                         result = [random.choice(slot_icons) for _ in range(3)]
-                        loss_penalty = 5
+                        loss_penalty = sum(slot_payouts[icon] for icon in result)
                         user_points = max(0, user_points - loss_penalty)
                         message = f"{ctx.author.name}, {''.join(result)} Better luck next time. You lost {loss_penalty} points."
                     # Update user's points in the database
