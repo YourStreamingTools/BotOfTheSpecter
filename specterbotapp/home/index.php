@@ -168,7 +168,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                 <h3 class="title is-4">Key Features</h3>
                 <ul>
                     <li>Custom subdomains for users</li>
-                    <li>Direct Access to your own database that Specter uses. You can access it via <code>https://specterbot.app/database.php</code>.</li>
+                    <li>Direct Access to your own database that Specter uses. You can access it via <code>https://specterbot.app/database.php</code></li>
                 </ul>
             </div>
             <?php if (isset($_SESSION['access_token'])): ?>
