@@ -284,6 +284,9 @@ document.addEventListener("DOMContentLoaded", function () {
             fileList.appendChild(div);
         });
     });
+    fileInput.addEventListener('click', function (e) {
+        e.stopPropagation();
+    });
 });
 </script>
 <script>
