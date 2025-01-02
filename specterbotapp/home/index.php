@@ -111,8 +111,8 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
     <title>Welcome to SpecterBot Custom API</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="icon" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Tools4Streaming" />
     <meta name="twitter:title" content="BotOfTheSpecter" />
@@ -124,7 +124,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
     <header>
         <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
             <div class="navbar-brand">
-                <!--<a class="navbar-item" href="#"><img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo"></a>-->
+                a class="navbar-item" href="#"><img src="logo.png" alt="BotOfTheSpecter Logo"></a>
                 <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
                     <span aria-hidden="true"></span>
                     <span aria-hidden="true"></span>
