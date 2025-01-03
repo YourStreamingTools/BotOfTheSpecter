@@ -67,7 +67,7 @@ SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths", "heartrate"}
-mod_commands = {"addcommand", "removecommand", "editcommand", "removetypos", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
+mod_commands = {"addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
 # Logs
@@ -1863,6 +1863,82 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the points command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
+    @commands.command(name='addpoints')
+    async def addpoints_command(self, ctx, user: str, points_to_add: int):
+        global bot_owner
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removepoints",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        user = user.lstrip('@')  # Remove @ if present
+                        user_id = str(ctx.author.id)
+                        user_name = user if user else ctx.author.name
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                        result = await cursor.fetchone()
+                        if result:
+                            new_points = result["points"] + points_to_add
+                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                        else:
+                            new_points = points_to_add
+                            await cursor.execute(
+                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                                (user_id, user_name, new_points)
+                            )
+                        await sqldb.commit()
+                        await ctx.send(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
+    @commands.command(name='removepoints')
+    async def removepoints_command(self, ctx, user: str, points_to_remove: int):
+        global bot_owner
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                # Fetch both the status and permissions from the database
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("time",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    # Check if the user has the correct permissions
+                    if await command_permissions(permissions, ctx.author):
+                        user = user.lstrip('@')  # Remove @ if present
+                        user_id = str(ctx.author.id)
+                        user_name = user if user else ctx.author.name
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                        result = await cursor.fetchone()
+                        if result:
+                            new_points = max(0, result["points"] - points_to_remove)
+                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                            await sqldb.commit()
+                            await ctx.send(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
+                        else:
+                            await ctx.send(f"{user_name} does not have any points.")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
