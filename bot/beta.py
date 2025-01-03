@@ -1875,7 +1875,7 @@ class TwitchBot(commands.Bot):
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removepoints",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("addpoints",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
@@ -1915,7 +1915,7 @@ class TwitchBot(commands.Bot):
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
-                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("time",))
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("removepoints",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
