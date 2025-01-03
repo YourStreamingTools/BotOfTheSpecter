@@ -222,7 +222,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($walkon_files as $file): ?>
+                                <?php foreach ($userFiles as $file): ?>
                                 <tr>
                                     <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
                                     <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
