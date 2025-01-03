@@ -231,8 +231,9 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                             </tbody>
                         </table>
                     </form>
-                    <?php endif; ?>
+                    <?php else: ?>
                     <h1 class="title is-4">A list of files will appear here.</h1>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endif; ?>
