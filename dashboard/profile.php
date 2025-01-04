@@ -141,7 +141,7 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 <div class="container">
   <br>
   <h4 class="title is-3">Your Specter Dashboard Profile</h4>
-  <div class="columns is-desktop is-multiline box-container">
+  <div class="columns is-desktop is-multiline is-centered box-container">
     <div class="column bot-box is-5">
       <ol>Your Username: <?php echo $username; ?></ol>
       <ol>Display Name: <?php echo $twitchDisplayName; ?></ol>
