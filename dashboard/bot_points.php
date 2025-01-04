@@ -110,17 +110,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
     <table class="table is-fullwidth is-striped">
         <thead>
             <tr>
-                <th>Username</th>
-                <th>Points</th>
-                <th>Actions</th>
+                <th style="white-space: nowrap;">Username</th>
+                <th style="white-space: nowrap;">Points</th>
+                <th style="white-space: nowrap;">Actions</th>
             </tr>
         </thead>
         <tbody id="pointsTableBody">
             <?php foreach ($pointsData as $row): ?>
                 <tr>
-                    <td><?php echo htmlspecialchars($row['user_name']); ?></td>
-                    <td><?php echo htmlspecialchars($row['points']); ?></td>
-                    <td>
+                    <td style="white-space: nowrap;"><?php echo htmlspecialchars($row['user_name']); ?></td>
+                    <td style="white-space: nowrap;"><?php echo htmlspecialchars($row['points']); ?></td>
+                    <td style="white-space: nowrap;">
                         <form method="POST" action="" style="display:inline;">
                             <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
                             <div class="field has-addons">
