@@ -132,7 +132,7 @@ function fetchFollowers($url, $authToken, $clientID) {
   <div id="followers-content">
     <h1 class="title is-4">Your Followers:</h1>
     <h3 id="live-data">Loading followers...</h3><br>
-    <div id="followers-list" class="columns is-multiline">
+    <div id="followers-list" class="columns is-multiline is-centered">
       <!-- AJAX appended followers -->
     </div>
   </div>
@@ -155,7 +155,7 @@ $(document).ready(function() {
           response.data.forEach(function(follower, index) {
             setTimeout(function() {
               var followerHTML = `
-                <div class="column is-one-third follower-box">
+                <div class="column is-one-quarter follower-box">
                   <div class="box">
                     <span>${follower.user_name}</span><br>
                     ${new Date(follower.followed_at).toLocaleDateString()}<br>
