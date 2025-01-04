@@ -96,7 +96,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php echo $message; ?>
         </div>
     <?php endif; ?>
-    <div class="columns is-desktop is-multiline box-container">
+    <div class="columns is-desktop is-multiline is-centered box-container">
         <!-- URL Blocking Settings -->
         <div class="column is-2 bot-box" style="position: relative;">
             <form action="" method="post">
