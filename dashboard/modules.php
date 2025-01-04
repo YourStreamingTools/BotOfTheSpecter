@@ -125,8 +125,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <div class="container">
     <br>
+    <h1 class="title is-3">Module Settings</h1>
+    <br>
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
-    <div class="columns is-desktop is-multiline box-container">
+    <div class="columns is-desktop is-multiline is-centered box-container">
         <!-- Joke Blacklist Section -->
         <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
             <form method="POST" action="">
