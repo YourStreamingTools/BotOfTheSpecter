@@ -125,7 +125,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
             } else { $subscriptionTier = '<font color="red">Unknown</font>'; }
             // Check if $username is the same as $subscriberDisplayName
             if ($twitchDisplayName == $subscriberDisplayName) {
-                echo "<div class='column is-one-quarter'>
+                echo "<div class='column'>
                         <div class='box' style='width: 228px; height: 136px;'>
                             <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
                             <span>Subscription Tier: $subscriptionTier</span>
@@ -134,7 +134,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
             } else {
                 // Check if it's a gift subscription
                 if ($isGift) {
-                    echo "<div class='column is-one-quarter'>
+                    echo "<div class='column'>
                             <div class='box' style='width: 228px; height: 136px;'>
                                 <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
                                 <span>Subscription Tier: $subscriptionTier</span><br>
@@ -143,7 +143,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
                           </div>";
                 // else show everything else as not gift subscription
                 } else {
-                    echo "<div class='column is-one-quarter'>
+                    echo "<div class='column'>
                             <div class='box' style='width: 228px; height: 136px;'>
                                 <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
                                 <span>Subscription Tier: $subscriptionTier</span>
