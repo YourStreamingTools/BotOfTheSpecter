@@ -215,7 +215,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             </div>
         </div>
     </div>
-    <div class="columns is-desktop is-multiline box-container" style="width: 100%;">
+    <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
             <h1 class="title is-4">Upload MP3 Files:</h1>
             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
