@@ -30,7 +30,7 @@ $totalUsers = $totalUsersResult['total_users'];
 
 // Cache for banned users
 $cacheUsername = $_SESSION['username'];
-$cacheExpiration = 600; // Cache expires after 10 minutes
+$cacheExpiration = 86400; // Cache expires after 24 hours
 $cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
 
@@ -43,6 +43,9 @@ if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration
     if ($cacheContent) {
         $bannedUsersCache = json_decode($cacheContent, true);
     }
+} else {
+    // Clear the cache if it is expired
+    $bannedUsersCache = [];
 }
 
 // Handle POST requests for updates
@@ -167,6 +170,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <script>
 const totalUsers = <?php echo $totalUsers; ?>;
 let loadedUsers = 0;
+const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
   // Initialize the editing functionality
@@ -195,7 +199,24 @@ function fetchBannedStatuses() {
   let remainingRequests = usernames.length;
   usernames.forEach(usernameElement => {
     const username = usernameElement.dataset.username;
-    fetchBannedStatus(username, usernameElement, () => {
+    if (!(username in bannedUsersCache)) {
+      fetchBannedStatus(username, usernameElement, () => {
+        remainingRequests--;
+        loadedUsers++;
+        updateLoadingNotice();
+        if (remainingRequests === 0) {
+          const loadingNoticeBox = document.getElementById('loadingNoticeBox');
+          const loadingNotice = document.getElementById('loadingNotice');
+          loadingNotice.innerText = 'Loading completed, you can start editing';
+          loadingNoticeBox.classList.remove('is-warning');
+          loadingNoticeBox.classList.add('is-success');
+          setTimeout(() => {
+            loadingNoticeBox.style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+          }, 2000); // Show the success message for 2 seconds before hiding it
+        }
+      });
+    } else {
       remainingRequests--;
       loadedUsers++;
       updateLoadingNotice();
@@ -210,7 +231,7 @@ function fetchBannedStatuses() {
           document.getElementById('content').style.display = 'block';
         }, 2000); // Show the success message for 2 seconds before hiding it
       }
-    });
+    }
   });
 }
 
@@ -238,23 +259,19 @@ function fetchBannedStatus(username, usernameElement, callback) {
           console.log(`${username} is not banned`);
         }
         // Update the cache
-        const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
         bannedUsersCache[username] = response.banned;
-        if (Object.keys(bannedUsersCache).length > 0) {
-            fetch('update_banned_users_cache.php', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(bannedUsersCache)
-            }).then(res => res.json()).then(data => {
-              console.log('Cache updated', data);
-            }).catch(error => {
-              console.error('Error updating cache', error);
-            });
-        } else {
-            console.error('Error: Cache update attempt with empty data.');
-        }
+        // Update the cache file with new data
+        fetch('update_banned_users_cache.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bannedUsersCache)
+        }).then(res => res.json()).then(data => {
+          console.log('Cache updated', data);
+        }).catch(error => {
+          console.error('Error updating cache', error);
+        });
       } else {
         console.log(`Error fetching banned status for ${username}: ${xhr.status}`);
       }
