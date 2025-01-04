@@ -261,6 +261,8 @@ if (file_exists($restartLog)) {
       </div>
     </div>
     <?php endif; ?>
+    <!-- Invisible Column to balance the grid -->
+    <div class="column is-5 bot-box is-invisible" style="position: relative;"></div>
   </div>
 </div>
 
