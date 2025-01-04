@@ -123,7 +123,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                     <td>
                         <form method="POST" action="" style="display:inline;">
                             <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
-                            <input type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required>
+                            <input class="input is-small" type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required style="width: 80px;">
                             <button class="button is-small is-info" type="submit" name="update_points">Update</button>
                         </form>
                         <form method="POST" action="" style="display:inline;">
@@ -238,7 +238,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                         <td>
                             <form method="POST" action="" style="display:inline;">
                                 <input type="hidden" name="user_name" value="${row.user_name}">
-                                <input type="number" name="points" value="${row.points}" required>
+                                <input class="input is-small" type="number" name="points" value="${row.points}" required style="width: 80px;">
                                 <button class="button is-small is-info" type="submit" name="update_points">Update</button>
                             </form>
                             <form method="POST" action="" style="display:inline;">
