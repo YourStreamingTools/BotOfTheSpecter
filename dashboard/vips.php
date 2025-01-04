@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php echo $VIPUserStatus; ?>
   </div>
   <h1 class="title is-4">Your VIPs:</h1>
-  <div class="columns is-multiline">
+  <div class="columns is-multiline is-centered">
         <?php foreach ($VIPsForCurrentPage as $vip) : 
             $vipDisplayName = $vip['user_name'];
         ?>
