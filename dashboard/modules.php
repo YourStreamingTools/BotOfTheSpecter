@@ -130,7 +130,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <!-- Joke Blacklist Section -->
-        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
+        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;" onclick="openModal('jokeBlacklistModal')">
+            <h2 class="title is-3">Manage Joke Blacklist:</h2>
+            <h2 class="subtitle is-4 has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h2>
+        </div>
+        <!-- New Welcome Message Settings -->
+        <div class="column is-6 bot-box" id="welcome-message-settings" style="position: relative;" onclick="openModal('welcomeMessageModal')">
+            <span style="position: absolute; top: 10px; right: 10px;" class="has-text-danger">v5.2 Feature</span>
+            <h1 class="title is-3">Custom Welcome Messages</h1>
+            <h1 class="subtitle is-5">Set your default welcome messages for users, VIPs, and Mods.</h1>
+        </div>
+    </div>
+</div>
+
+<!-- Joke Blacklist Modal -->
+<div id="jokeBlacklistModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
             <form method="POST" action="">
                 <h2 class="title is-3">Manage Joke Blacklist:</h2>
                 <h2 class="subtitle is-4 has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h2>
@@ -149,11 +166,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <button class="button is-primary" type="submit">Save Settings</button>
             </form>
         </div>
-        <!-- New Welcome Message Settings -->
-        <div class="column is-6 bot-box" id="welcome-message-settings" style="position: relative;">
-        <span style="position: absolute; top: 10px; right: 10px;" class="has-text-danger">v5.2 Feature</span>
-            <h1 class="title is-3">Custom Welcome Messages</h1>
-            <h1 class="subtitle is-5">Set your default welcome messages for users, VIPs, and Mods.</h1>
+    </div>
+    <button class="modal-close is-large" aria-label="close" onclick="closeModal('jokeBlacklistModal')"></button>
+</div>
+
+<!-- Welcome Message Modal -->
+<div id="welcomeMessageModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content">
+        <div class="box">
             <form method="POST" action="">
                 <div class="notification is-info">
                     <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
@@ -203,8 +224,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </form>
         </div>
     </div>
+    <button class="modal-close is-large" aria-label="close" onclick="closeModal('welcomeMessageModal')"></button>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script>
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('is-active');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('is-active');
+}
+</script>
 </body>
 </html>
