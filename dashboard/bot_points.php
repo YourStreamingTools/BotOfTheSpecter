@@ -111,7 +111,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
         <thead>
             <tr>
                 <th style="white-space: nowrap;">Username</th>
-                <th style="white-space: nowrap;"><?php echo $pointsName; ?> Points</th>
+                <th style="white-space: nowrap;"><?php echo $pointsName !== 'Points' ? $pointsName . ' Points' : 'Points'; ?></th>
                 <th style="white-space: nowrap;">Actions</th>
             </tr>
         </thead>
