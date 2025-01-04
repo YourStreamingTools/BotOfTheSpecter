@@ -156,7 +156,7 @@ if (file_exists($restartLog)) {
   <?php echo $setupMessage; ?>
   <?php if ($betaAccess && $showButtons): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div><?php endif; ?>
   <br>
-  <div class="columns is-desktop is-multiline box-container">
+  <div class="columns is-desktop is-multiline is-centered box-container">
     <!-- Stable Bot Section -->
     <?php if ($showButtons): ?>
       <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
