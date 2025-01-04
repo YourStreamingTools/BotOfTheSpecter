@@ -43,8 +43,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $usage_level = $_POST['usage_level'];
         $dbPermission = $permissionsMap[$usage_level];
         // Update permission in the database
-        $updateQuery = $db->prepare("UPDATE builtin_commands SET permission = ? WHERE command = ?");
-        $updateQuery->bind_param("ss", $dbPermission, $command_name);
+        $updateQuery = $db->prepare("UPDATE builtin_commands SET permission = :permission WHERE command = :command");
+        $updateQuery->bindParam(':permission', $dbPermission);
+        $updateQuery->bindParam(':command', $command_name);
         $updateQuery->execute();
         header("Location: builtin.php");
     }
