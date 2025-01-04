@@ -86,7 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <div class="container">
     <br>
-    <h4 class="title is-4">Manage Custom Commands</h4>
     <div class="notification is-info">
         <div class="columns">
             <div class="column is-narrow">
@@ -117,7 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
         <?php endif; ?>
     <?php endif; ?>
-    <div class="columns is-desktop is-multiline box-container">
+    <h4 class="title is-4">Manage Custom Commands</h4>
+    <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-5 bot-box" style="position: relative;">
             <h4 class="subtitle is-4">Adding a custom command</h4>
             <form method="post" action="">
