@@ -37,7 +37,7 @@ date_default_timezone_set($timezone);
 <div class="container">
   <br>
   <div class="notification is-info">
-    <div class="columns is-vcentered">
+    <div class="columns is-vcentered is-centered">
       <div class="column is-narrow">
         <span class="icon is-large">
           <i class="fas fa-plug fa-2x"></i> 
