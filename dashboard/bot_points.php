@@ -24,37 +24,48 @@ date_default_timezone_set($timezone);
 $status = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $point_name = $_POST['point_name'];
-    $point_amount_chat = $_POST['point_amount_chat'];
-    $point_amount_follower = $_POST['point_amount_follower'];
-    $point_amount_subscriber = $_POST['point_amount_subscriber'];
-    $point_amount_cheer = $_POST['point_amount_cheer'];
-    $point_amount_raid = $_POST['point_amount_raid'];
-    $subscriber_multiplier = $_POST['subscriber_multiplier'];
-    $excluded_users = $_POST['excluded_users'];
-
-    $updateStmt = $db->prepare("UPDATE bot_settings SET 
-        point_name = ?, 
-        point_amount_chat = ?, 
-        point_amount_follower = ?, 
-        point_amount_subscriber = ?, 
-        point_amount_cheer = ?, 
-        point_amount_raid = ?, 
-        subscriber_multiplier = ?, 
-        excluded_users = ?
-    WHERE id = 1");
-
-    $updateStmt->execute([
-        $point_name, 
-        $point_amount_chat, 
-        $point_amount_follower, 
-        $point_amount_subscriber, 
-        $point_amount_cheer, 
-        $point_amount_raid, 
-        $subscriber_multiplier,
-        $excluded_users
-    ]);
-    $status = "Settings updated successfully!";
+    if (isset($_POST['update_points'])) {
+        $user_name = $_POST['user_name'];
+        $points = $_POST['points'];
+        $updatePointsStmt = $db->prepare("UPDATE bot_points SET points = ? WHERE user_name = ?");
+        $updatePointsStmt->execute([$points, $user_name]);
+        $status = "User points updated successfully!";
+    } elseif (isset($_POST['remove_user'])) {
+        $user_name = $_POST['user_name'];
+        $removeUserStmt = $db->prepare("DELETE FROM bot_points WHERE user_name = ?");
+        $removeUserStmt->execute([$user_name]);
+        $status = "User removed successfully!";
+    } else {
+        $point_name = $_POST['point_name'];
+        $point_amount_chat = $_POST['point_amount_chat'];
+        $point_amount_follower = $_POST['point_amount_follower'];
+        $point_amount_subscriber = $_POST['point_amount_subscriber'];
+        $point_amount_cheer = $_POST['point_amount_cheer'];
+        $point_amount_raid = $_POST['point_amount_raid'];
+        $subscriber_multiplier = $_POST['subscriber_multiplier'];
+        $excluded_users = $_POST['excluded_users'];
+        $updateStmt = $db->prepare("UPDATE bot_settings SET 
+            point_name = ?, 
+            point_amount_chat = ?, 
+            point_amount_follower = ?, 
+            point_amount_subscriber = ?, 
+            point_amount_cheer = ?, 
+            point_amount_raid = ?, 
+            subscriber_multiplier = ?, 
+            excluded_users = ?
+        WHERE id = 1");
+        $updateStmt->execute([
+            $point_name, 
+            $point_amount_chat, 
+            $point_amount_follower, 
+            $point_amount_subscriber, 
+            $point_amount_cheer, 
+            $point_amount_raid, 
+            $subscriber_multiplier,
+            $excluded_users
+        ]);
+        $status = "Settings updated successfully!";
+    }
 }
 
 $settingsStmt = $db->prepare("SELECT * FROM bot_settings WHERE id = 1");
@@ -101,6 +112,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
             <tr>
                 <th>Username</th>
                 <th>Points</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody id="pointsTableBody">
@@ -108,6 +120,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                 <tr>
                     <td><?php echo htmlspecialchars($row['user_name']); ?></td>
                     <td><?php echo htmlspecialchars($row['points']); ?></td>
+                    <td>
+                        <form method="POST" action="" style="display:inline;">
+                            <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
+                            <input type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required>
+                            <button class="button is-small is-info" type="submit" name="update_points">Update</button>
+                        </form>
+                        <form method="POST" action="" style="display:inline;">
+                            <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
+                            <button class="button is-small is-danger" type="submit" name="remove_user">Remove</button>
+                        </form>
+                    </td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
@@ -209,7 +232,21 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                 const pointsData = JSON.parse(data);
                 let tableBody = '';
                 pointsData.forEach(function(row) {
-                    tableBody += `<tr><td>${row.user_name}</td><td>${row.points}</td></tr>`;
+                    tableBody += `<tr>
+                        <td>${row.user_name}</td>
+                        <td>${row.points}</td>
+                        <td>
+                            <form method="POST" action="" style="display:inline;">
+                                <input type="hidden" name="user_name" value="${row.user_name}">
+                                <input type="number" name="points" value="${row.points}" required>
+                                <button class="button is-small is-info" type="submit" name="update_points">Update</button>
+                            </form>
+                            <form method="POST" action="" style="display:inline;">
+                                <input type="hidden" name="user_name" value="${row.user_name}">
+                                <button class="button is-small is-danger" type="submit" name="remove_user">Remove</button>
+                            </form>
+                        </td>
+                    </tr>`;
                 });
                 $('#pointsTableBody').html(tableBody);
                 secondsAgo = 0; // Reset the seconds counter after each update
