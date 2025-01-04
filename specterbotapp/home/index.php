@@ -225,7 +225,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                                 <?php foreach ($userFiles as $file): ?>
                                     <?php if (pathinfo($file, PATHINFO_EXTENSION) === 'php'): ?>
                                     <tr>
-                                        <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                                        <td style="text-align: left; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
                                         <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
                                     </tr>
                                     <?php endif; ?>
