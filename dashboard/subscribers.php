@@ -96,7 +96,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
       </div>
     <?php endif; ?>
     <h1 class="title is-4">Your Subscribers:</h1>
-    <div class="columns is-multiline">
+    <div class="columns is-multiline is-centered">
         <?php
         // Define a custom sorting function to sort by subscription tier in descending order
         usort($subscribersForCurrentPage, function ($a, $b) {
@@ -126,7 +126,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
             // Check if $username is the same as $subscriberDisplayName
             if ($twitchDisplayName == $subscriberDisplayName) {
                 echo "<div class='column is-one-quarter'>
-                        <div class='box'>
+                        <div class='box' style='width: 228px; height: 136px;'>
                             <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
                             <span>Subscription Tier: $subscriptionTier</span>
                         </div>
@@ -135,7 +135,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
                 // Check if it's a gift subscription
                 if ($isGift) {
                     echo "<div class='column is-one-quarter'>
-                            <div class='box'>
+                            <div class='box' style='width: 228px; height: 136px;'>
                                 <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
                                 <span>Subscription Tier: $subscriptionTier</span><br>
                                 <span>Gift Sub from $gifterName</span>
@@ -144,7 +144,7 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
                 // else show everything else as not gift subscription
                 } else {
                     echo "<div class='column is-one-quarter'>
-                            <div class='box'>
+                            <div class='box' style='width: 228px; height: 136px;'>
                                 <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
                                 <span>Subscription Tier: $subscriptionTier</span>
                             </div>
