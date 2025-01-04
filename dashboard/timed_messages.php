@@ -133,7 +133,7 @@ if ($displayMessageData) {
 <div class="container">
     <br>
     <div class="notification is-danger">
-        <div class="columns is-vcentered">
+        <div class="columns is-vcentered is-centered">
             <div class="column is-narrow">
                 <span class="icon is-large">
                     <i class="fas fa-tools fa-2x"></i> 
