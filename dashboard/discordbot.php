@@ -151,7 +151,7 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
       <?php } ?>
     <?php } ?>
     <br>
-    <div class="columns is-desktop is-multiline">
+    <div class="columns is-desktop is-multiline is-centered">
       <!-- Webhook URL Form -->
       <div class="column is-two-fifths bot-box">
         <h2 class="title is-4">Add Discord Webhook URLs</h2>
