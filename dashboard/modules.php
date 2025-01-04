@@ -130,15 +130,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <!-- Joke Blacklist Section -->
-        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;" onclick="openModal('jokeBlacklistModal')">
+        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-3">Manage Joke Blacklist:</h2>
             <h2 class="subtitle is-4 has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h2>
+            <button class="button is-primary" onclick="openModal('jokeBlacklistModal')">Open Settings</button>
         </div>
         <!-- New Welcome Message Settings -->
-        <div class="column is-6 bot-box" id="welcome-message-settings" style="position: relative;" onclick="openModal('welcomeMessageModal')">
+        <div class="column is-6 bot-box" id="welcome-message-settings" style="position: relative;">
             <span style="position: absolute; top: 10px; right: 10px;" class="has-text-danger">v5.2 Feature</span>
             <h1 class="title is-3">Custom Welcome Messages</h1>
             <h1 class="subtitle is-5">Set your default welcome messages for users, VIPs, and Mods.</h1>
+            <button class="button is-primary" onclick="openModal('welcomeMessageModal')">Open Settings</button>
         </div>
     </div>
 </div>
