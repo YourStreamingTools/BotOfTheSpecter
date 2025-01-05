@@ -1022,12 +1022,11 @@ class TwitchBot(commands.Bot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.nick}"')
         channel = self.get_channel(self.channel_name)
-        await check_stream_online()
         await update_version_control()
-        await group_creation()
         await builtin_commands_creation()
-        await known_users()
-        await channel_point_rewards()
+        await check_stream_online()
+        asyncio.create_task(known_users())
+        asyncio.create_task(channel_point_rewards())
         asyncio.get_event_loop().create_task(twitch_token_refresh())
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
@@ -6257,35 +6256,6 @@ async def websocket_notice(
                         bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
     except Exception as e:
         bot_logger.error(f"Error while processing websocket notice: {e}")
-    finally:
-        await sqldb.ensure_closed()
-
-# Function to create a new group if it doesn't exist
-async def group_creation():
-    sqldb = await get_mysql_connection()
-    try:
-        group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3", "Normal"]
-        try:
-            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-                # Create placeholders for each group name
-                placeholders = ', '.join(['%s'] * len(group_names))
-                # Construct the query string with the placeholders
-                query = f"SELECT name FROM `groups` WHERE name IN ({placeholders})"
-                # Execute the query with the tuple of group names
-                await cursor.execute(query, tuple(group_names))
-                # Fetch the existing groups from the database
-                existing_groups = [row["name"] for row in await cursor.fetchall()]
-                # Filter out existing groups
-                new_groups = [name for name in group_names if name not in existing_groups]
-                # Insert new groups
-                if new_groups:
-                    for name in new_groups:
-                        await cursor.execute("INSERT INTO `groups` (name) VALUES (%s)", (name,))
-                    await sqldb.commit()  # Commit once after all inserts
-                    for name in new_groups:
-                        bot_logger.info(f"Group '{name}' created successfully.")
-        except aiomysql.Error as err:
-            bot_logger.error(f"Failed to create groups: {err}")
     finally:
         await sqldb.ensure_closed()
 
