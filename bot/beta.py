@@ -3671,7 +3671,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=game_death_count, stream_death=stream_death_count, game=current_game))
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
