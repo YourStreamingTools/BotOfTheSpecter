@@ -114,6 +114,13 @@ if ($spotifyResult->num_rows > 0) {
     $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
     $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
 }
+
+// Fetch the number of linked accounts with access
+$linkedAccountsStmt = $conn->prepare("SELECT COUNT(*) as count FROM spotify_tokens WHERE has_access = 1");
+$linkedAccountsStmt->execute();
+$linkedAccountsResult = $linkedAccountsStmt->get_result();
+$linkedAccountsCount = $linkedAccountsResult->fetch_assoc()['count'];
+$maxAccounts = 25;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -146,6 +153,7 @@ if ($spotifyResult->num_rows > 0) {
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
                         <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
                     </ul>
+                    <p><span class="has-text-weight-bold">Currently, <?php echo $linkedAccountsCount; ?> out of <?php echo $maxAccounts; ?> accounts are linked.</span></p>
                 </div>
             </div>
         </div>
@@ -167,6 +175,7 @@ if ($spotifyResult->num_rows > 0) {
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
                         <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
                     </ul>
+                    <p><span style="color: #000000;" class="has-text-weight-bold">Currently, <?php echo $linkedAccountsCount; ?> out of <?php echo $maxAccounts; ?> accounts are linked.</span></p>
                 </div>
             </div>
         </div>
