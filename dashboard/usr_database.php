@@ -457,6 +457,11 @@ try {
     $usrDBconn->query($jokeInsertQuery);
     // Ensure default options for watch_time
     $usrDBconn->query("INSERT INTO watch_time_excluded_users (excluded_users) SELECT CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM watch_time_excluded_users)");
+    // Ensure default groups exist
+    $group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3", "Normal"];
+    foreach ($group_names as $group_name) {
+        $usrDBconn->query("INSERT INTO `groups` (name) SELECT '$group_name' WHERE NOT EXISTS (SELECT 1 FROM `groups` WHERE name = '$group_name')");
+    }
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
