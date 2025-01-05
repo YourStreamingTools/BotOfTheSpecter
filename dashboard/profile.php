@@ -210,6 +210,27 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
         <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
       </div>
       <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB used</p>
+      <?php if ($is_admin): ?>
+        <br>
+        <h4 class="label is-4">Server Storage Information</h4>
+        <?php
+        $server_storage_info = '';
+        if ($is_admin) {
+          // Get server storage information
+          $total_space = disk_total_space("/");
+          $free_space = disk_free_space("/");
+          $used_space = $total_space - $free_space;
+          $server_storage_info = [
+            'total' => round($total_space / 1024 / 1024 / 1024, 2) . ' GB',
+            'used' => round($used_space / 1024 / 1024 / 1024, 2) . ' GB',
+            'free' => round($free_space / 1024 / 1024 / 1024, 2) . ' GB'
+          ];
+        }
+        ?>
+        <p>Total Space: <?php echo $server_storage_info['total']; ?></p>
+        <p>Used Space: <?php echo $server_storage_info['used']; ?></p>
+        <p>Free Space: <?php echo $server_storage_info['free']; ?></p>
+      <?php endif; ?>
     </div>
   </div>
 </div>
