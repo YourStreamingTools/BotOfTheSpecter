@@ -160,7 +160,8 @@ if ($spotifyResult->num_rows > 0) {
                 <div class="column">
                     <p><span class="has-text-weight-bold">Spotify Connected!</span></p>
                     <p>Your Spotify account is linked and ready to go. Rock on!</p>
-					<p style="color: #000000;" class="has-text-weight-bold">Now you're linked, if this is your first time being linked, please restart the bot so the bot knows about this linking. </p>
+					<p style="color: #000000;" class="has-text-weight-bold">Now you're linked, if this is your first time being linked, please restart the bot so the bot knows about this linking.</p>
+                    <p style="color: #000000;" class="has-text-weight-bold">If for any reason the bot is not responding to the commands to get the song via <code>!song</code> or song requests via <code>!songrequest</code>, please come back to this page and check if you're still linked to Specter. If not, relink your account and restart the bot.</p>
                     <ul>
                         <li>See what's playing with <code>!song</code></li>
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
