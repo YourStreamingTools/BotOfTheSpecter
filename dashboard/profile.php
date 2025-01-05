@@ -231,9 +231,7 @@ $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
         <div class="progress-bar-container">
           <div class="progress-bar has-text-black-bis" style="width: <?php echo $server_storage_percentage; ?>%;"><?php echo round($server_storage_percentage, 2); ?>%</div>
         </div>
-        <p>Total Space: <?php echo $server_storage_info['total']; ?></p>
-        <p>Used Space: <?php echo $server_storage_info['used']; ?></p>
-        <p>Free Space: <?php echo $server_storage_info['free']; ?></p>
+        <p class="label is-6">Total: <?php echo $server_storage_info['total']; ?> | Used: <?php echo $server_storage_info['used']; ?> | Free: <?php echo $server_storage_info['free']; ?></p>
       <?php endif; ?>
     </div>
   </div>
