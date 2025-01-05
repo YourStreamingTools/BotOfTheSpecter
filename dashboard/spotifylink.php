@@ -103,7 +103,7 @@ if ($spotifyResult->num_rows > 0) {
     $profileResponse = file_get_contents($profileUrl, false, stream_context_create($profileOptions));
     $spotifyUserInfo = json_decode($profileResponse, true);
     if (!isset($spotifyUserInfo['id'])) {
-        $message = "Please follow the linking instructions above this erorr panel. (Error: User is not authorized.)";
+        $message = "Please follow the linking instructions above this error panel. (Error: User is not authorized.)";
         $messageType = "is-danger";
         // Set authorization URL to trigger reauthorization if profile data fetch fails
         $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
@@ -160,7 +160,7 @@ if ($spotifyResult->num_rows > 0) {
                 <div class="column">
                     <p><span class="has-text-weight-bold">Spotify Connected!</span></p>
                     <p>Your Spotify account is linked and ready to go. Rock on!</p>
-					<p style="color: #000000;" class="has-text-weight-bold">Now you're linked, if this is your fist time being linked, please restart the bot so the bot knows about this linking. </p>
+					<p style="color: #000000;" class="has-text-weight-bold">Now you're linked, if this is your first time being linked, please restart the bot so the bot knows about this linking. </p>
                     <ul>
                         <li>See what's playing with <code>!song</code></li>
                         <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
@@ -191,12 +191,7 @@ if ($spotifyResult->num_rows > 0) {
         </div>
     <?php endif; ?>
     <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
-        <h2 class="subtitle">Spotify Profile Information:</h2>
-        <p>Spotify Username: <?php echo htmlspecialchars($spotifyUserInfo['display_name']); ?></p>
-        <p>Spotify ID: <?php echo htmlspecialchars($spotifyUserInfo['id']); ?></p>
-        <?php if (!empty($spotifyUserInfo['images'][0]['url'])): ?>
-            <img id='profile-image' class='round-image' src="<?php echo $spotifyUserInfo['images'][0]['url']; ?>" width="100" height="100" alt="<?php echo htmlspecialchars($spotifyUserInfo['id']); ?> spotify profile picture">
-        <?php endif; ?>
+        <h2 class="subtitle">Spotify Account Linked Successfully!</h2>
     <?php else: ?>
         <div class="notification is-info">
             <div class="columns is-vcentered">
