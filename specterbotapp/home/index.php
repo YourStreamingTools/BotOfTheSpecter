@@ -217,7 +217,9 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                         <table class="table is-striped" style="width: 100%; text-align: center;">
                             <thead>
                                 <tr>
+                                    <th></th>
                                     <th>File Name</th>
+                                    <th>Link</th>
                                     <th style="width: 100px;">Action</th>
                                 </tr>
                             </thead>
@@ -225,7 +227,9 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                                 <?php foreach ($userFiles as $file): ?>
                                     <?php if (pathinfo($file, PATHINFO_EXTENSION) === 'php'): ?>
                                     <tr>
+                                        <td><button type="button" class="copy-link button is-info" data-link="https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>">Copy Link</button></td>
                                         <td style="text-align: left; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                                        <td><a href="https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>" target="_blank">https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?></a></td>
                                         <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
                                     </tr>
                                     <?php endif; ?>
@@ -248,6 +252,19 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
     </footer>
 
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.copy-link').forEach(button => {
+        button.addEventListener('click', function () {
+            const link = this.getAttribute('data-link');
+            navigator.clipboard.writeText(link).then(() => {
+                alert('Link copied to clipboard: ' + link);
+            }).catch(err => {
+                console.error('Failed to copy link: ', err);
+            });
+        });
+    });
+});
+
 document.addEventListener("DOMContentLoaded", function () {
     let dropArea = document.getElementById('drag-area');
     let fileInput = document.getElementById('filesToUpload');
