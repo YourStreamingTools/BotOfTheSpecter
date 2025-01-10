@@ -3,7 +3,7 @@
 session_start();
 
 // Database connection
-require 'database.php';
+require '/var/www/specterbotapp/database.php';
 
 // Twitch OAuth API credentials
 $clientId = '';
@@ -170,7 +170,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                     <li>Custom subdomains for users</li>
                     <li>Direct Access to your own database that Specter uses.</li>
                     <li>You can use <code>database.php</code> in your PHP files to auto-connect to your database.
-                        <br>Example:<pre><code>require 'database.php';</code></pre>
+                        <br>Example:<pre><code>require '/var/www/specterbotapp/database.php';</code></pre>
                     </li>
                 </ul>
             </div>
