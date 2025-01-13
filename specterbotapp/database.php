@@ -2,11 +2,11 @@
 $host = $_SERVER['HTTP_HOST'];
 $host_parts = explode('.', $host);
 
-// Check if the host is "specterbot.app" or "www.specterbot.app"
-if (strpos($host, 'specterbot.app') !== false) {
-    $username = 'website';
+// Check if the host is a subdomain of "specterbot.app"
+if (count($host_parts) > 2 && $host_parts[1] . '.' . $host_parts[2] === 'specterbot.app') {
+    $username = $host_parts[0];
 } else {
-    $username = isset($host_parts[0]) ? $host_parts[0] : 'website';
+    $username = 'website';
 }
 
 $servername = "sql.botofthespecter.com";
