@@ -11,3 +11,4 @@ socketio
 aiomysql
 geopy
 pint
+discord
