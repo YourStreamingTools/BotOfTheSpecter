@@ -41,6 +41,7 @@
           <hr class="navbar-divider">
           <a class="navbar-item" href="../walkons.php">Walkon Audio</a>
           <a class="navbar-item" href="../sound-alerts.php">Sound Alerts</a>
+          <a class="navbar-item" href="../video-alerts.php">Video Alerts</a>
         </div>
       </div>
       <div class="navbar-item has-dropdown is-hoverable">
