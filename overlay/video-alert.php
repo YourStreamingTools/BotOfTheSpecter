@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WebSocket Sound Alert Audio Notifications</title>
+    <title>WebSocket Video Alert Notifications</title>
     <link rel="stylesheet" href="index.css">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
@@ -10,8 +10,8 @@
             let socket;
             const retryInterval = 5000;
             let reconnectAttempts = 0;
-            let currentAudio = null;
-            const audioQueue = [];
+            let currentVideo = null;
+            const videoQueue = [];
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
 
@@ -20,43 +20,48 @@
                 return;
             }
 
-            function enqueueAudio(url) {
+            function enqueueVideo(url) {
                 if (!url) return;
-                audioQueue.push(url);
-                if (!currentAudio) {
-                    playNextAudio();
+                videoQueue.push(url);
+                if (!currentVideo) {
+                    playNextVideo();
                 }
             }
 
-            function playNextAudio() {
-                if (audioQueue.length === 0) {
-                    currentAudio = null;
+            function playNextVideo() {
+                if (videoQueue.length === 0) {
+                    currentVideo = null;
                     return;
                 }
 
-                const url = audioQueue.shift();
-                currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
-                currentAudio.volume = 0.8;
+                const url = videoQueue.shift();
+                currentVideo = document.createElement('video');
+                currentVideo.src = `${url}?t=${new Date().getTime()}`;
+                currentVideo.volume = 0.8;
+                currentVideo.controls = true;
+                document.body.appendChild(currentVideo);
 
-                currentAudio.addEventListener('canplaythrough', () => {
-                    console.log('Audio can play through without buffering');
+                currentVideo.addEventListener('canplaythrough', () => {
+                    console.log('Video can play through without buffering');
                 });
 
-                currentAudio.addEventListener('ended', () => {
-                    currentAudio = null;
-                    playNextAudio();
+                currentVideo.addEventListener('ended', () => {
+                    document.body.removeChild(currentVideo);
+                    currentVideo = null;
+                    playNextVideo();
                 });
 
-                currentAudio.addEventListener('error', (e) => {
-                    console.error('Error occurred while loading the audio file:', e);
-                    alert('Failed to load audio file');
-                    currentAudio = null;
-                    playNextAudio();
+                currentVideo.addEventListener('error', (e) => {
+                    console.error('Error occurred while loading the video file:', e);
+                    alert('Failed to load video file');
+                    document.body.removeChild(currentVideo);
+                    currentVideo = null;
+                    playNextVideo();
                 });
 
-                currentAudio.play().catch(error => {
-                    console.error('Error playing audio:', error);
-                    alert('Click to play audio');
+                currentVideo.play().catch(error => {
+                    console.error('Error playing video:', error);
+                    alert('Click to play video');
                 });
             }
 
@@ -68,7 +73,7 @@
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
                     reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, name: 'TTS Overlay' });
+                    socket.emit('REGISTER', { code: code, name: 'Video Overlay' });
                 });
 
                 socket.on('disconnect', () => {
@@ -90,10 +95,10 @@
                     alert(data.message);
                 });
 
-                // Listen for SOUND_ALERT audio events
-                socket.on('SOUND_ALERT', (data) => {
-                    console.log('SOUND_ALERT Audio file path:', data.sound);
-                    enqueueAudio(data.sound);
+                // Listen for VIDEO_ALERT events
+                socket.on('VIDEO_ALERT', (data) => {
+                    console.log('VIDEO_ALERT Video file path:', data.video);
+                    enqueueVideo(data.video);
                 });
             }
 
@@ -106,11 +111,11 @@
                 }, delay);
             }
 
-            // Handle user interaction to allow audio playback if blocked
+            // Handle user interaction to allow video playback if blocked
             document.body.addEventListener('click', () => {
-                if (currentAudio) {
-                    currentAudio.play().catch(error => {
-                        console.error('Error playing audio:', error);
+                if (currentVideo) {
+                    currentVideo.play().catch(error => {
+                        console.error('Error playing video:', error);
                     });
                 }
             }, { once: true });
