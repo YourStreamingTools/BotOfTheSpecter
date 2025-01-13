@@ -126,7 +126,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
 
 <div class="container">
     <br>
-    <?php if (isset($error_message)) { echo "<p style='color: red;'> " . htmlspecialchars($error_message) . "</p>"; } ?>
+    <?php if (isset($error_message)) { ?><div class="notification is-danger"><?php echo htmlspecialchars($error_message); ?></div><?php } ?>
     <br>
     <h1 class="title">Premium Features</h1>
     <div class="card-container">
