@@ -224,13 +224,13 @@ if (isset($_GET['user'])) {
                         <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
                             <thead>
                                 <tr>
-                                    <th id="info-column-data" style="color: white; width: 33%;"></th>
-                                    <th id="data-column-info" style="color: white; width: 33%;"></th>
-                                    <th id="additional-column1" style="color: white; width: 33%; display: none;"></th>
-                                    <th id="additional-column2" style="color: white; width: 33%; display: none;"></th>
-                                    <th id="additional-column3" style="color: white; width: 33%; display: none;"></th>
-                                    <th id="additional-column4" style="color: white; width: 33%; display: none;"></th>
-                                    <th id="additional-column5" style="color: white; width: 33%; display: none;"></th>
+                                    <th id="info-column-data" style="color: white;"></th>
+                                    <th id="data-column-info" style="color: white;"></th>
+                                    <th id="additional-column1" style="color: white; display: none;"></th>
+                                    <th id="additional-column2" style="color: white; display: none;"></th>
+                                    <th id="additional-column3" style="color: white; display: none;"></th>
+                                    <th id="additional-column4" style="color: white; display: none;"></th>
+                                    <th id="additional-column5" style="color: white; display: none;"></th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
