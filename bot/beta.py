@@ -1365,8 +1365,8 @@ class TwitchBot(commands.Bot):
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Check user level
-                is_vip = await is_user_vip(messageAuthor)
-                is_mod = await is_user_mod(messageAuthor)
+                is_vip = await is_user_vip(messageAuthorID)
+                is_mod = await is_user_mod(messageAuthorID)
                 is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
                 user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
                 # Insert into the database the number of chats during the stream
@@ -1496,11 +1496,11 @@ class TwitchBot(commands.Bot):
                 return
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 # Check if the user is a moderator
-                if await is_user_mod(messageAuthor):
+                if await is_user_mod(messageAuthorID):
                     group_names = ["MOD"]  # Override any other groups
                 else:
                     # Check if the user is a VIP
-                    if await is_user_vip(messageAuthor):
+                    if await is_user_vip(messageAuthorID):
                         group_names = ["VIP"]  # Override subscriber groups
                     # Check if the user is a subscriber, only if they are not a VIP or MOD
                     if not group_names:
@@ -4779,44 +4779,49 @@ async def command_permissions(setting, user):
     twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires {setting} permission.")
     return False
 
-async def is_user_mod(username):
-    sqldb = await get_mysql_connection()
-    try:
-        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            # Query the database to check if the user is a moderator
-            await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
-            result = await cursor.fetchone()
-            if result and result.get('group_name') == 'MOD':
-                #twitch_logger.info(f"User {username} is a Moderator")
-                return True
+# Function to check if a user is a mod of the channel using the Twitch API
+async def is_user_mod(user_id):
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    params = {
+        "broadcaster_id": CHANNEL_ID,
+        "user_id": user_id
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get('https://api.twitch.tv/helix/moderation/moderators', headers=headers, params=params) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get('data'):
+                    return True  # User is a moderator
+                else:
+                    return False  # User is not a moderator
             else:
-                #twitch_logger.info(f"User {username} is not a mod")
+                twitch_logger.error(f"Failed to check mod status for user_id {user_id}. Status Code: {response.status}")
                 return False
-    except Exception as e:
-        twitch_logger.error(f"An error occurred in is_user_mod: {e}")
-        return False
-    finally:
-        await sqldb.ensure_closed()
 
 # Function to check if a user is a VIP of the channel using the Twitch API
-async def is_user_vip(username):
-    sqldb = await get_mysql_connection()
-    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-        try:
-            # Query the database to check if the user is a VIP
-            await cursor.execute("SELECT group_name FROM everyone WHERE username = %s", (username,))
-            result = await cursor.fetchone()
-            if result and result.get('group_name') == 'VIP':
-                #twitch_logger.info(f"User ID {username} is a VIP Member")
-                return True
+async def is_user_vip(user_id):
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    params = {
+        "broadcaster_id": CHANNEL_ID,
+        "user_id": user_id
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get('https://api.twitch.tv/helix/channels/vips', headers=headers, params=params) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get('data'):
+                    return True  # User is a VIP
+                else:
+                    return False  # User is not a VIP
             else:
-                #twitch_logger.info(f"User ID {username} is not a VIP Member")
+                twitch_logger.error(f"Failed to check VIP status for user_id {user_id}. Status Code: {response.status}")
                 return False
-        except Exception as e:
-            twitch_logger.error(f"An error occurred in is_user_vip: {e}")
-            return False
-        finally:
-            await sqldb.ensure_closed()
 
 # Function to check if a user is a subscriber of the channel
 async def is_user_subscribed(user_id):
