@@ -399,6 +399,10 @@ async function getTwitchUsernames(userIds) {
         },
     });
     const data = await response.json();
+    if (data.error) {
+        console.error('Twitch API Error:', data.message);
+        return [];
+    }
     return data.data.map(user => user.display_name);
 }
 
