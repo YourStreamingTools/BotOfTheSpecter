@@ -314,6 +314,12 @@ try {
                 sound_mapping TEXT,
                 PRIMARY KEY (reward_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'video_alerts' => "
+            CREATE TABLE IF NOT EXISTS video_alerts (
+                reward_id VARCHAR(255) NOT NULL,
+                video_mapping TEXT,
+                PRIMARY KEY (reward_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'joke_settings' => "
             CREATE TABLE IF NOT EXISTS joke_settings (
                 id INT(11) NOT NULL AUTO_INCREMENT,
