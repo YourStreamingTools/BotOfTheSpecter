@@ -93,3 +93,18 @@ a, a:hover {
 .modal .box {
     padding: 2rem;
 }
+
+table {
+    width: 100%;
+    table-layout: auto;
+}
+
+table td {
+    word-wrap: break-word;
+    white-space: normal;
+}
+
+th, td {
+    max-width: 1px;
+    white-space: nowrap;
+}
