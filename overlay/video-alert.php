@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <title>WebSocket Video Alert Notifications</title>
     <link rel="stylesheet" href="index.css">
+    <style>
+        .centered-video {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 100%;
+            max-height: 100%;
+        }
+    </style>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -39,10 +49,14 @@
                 currentVideo.src = `${url}?t=${new Date().getTime()}`;
                 currentVideo.volume = 0.8;
                 currentVideo.controls = true;
+                currentVideo.className = 'centered-video';
                 document.body.appendChild(currentVideo);
-
                 currentVideo.addEventListener('canplaythrough', () => {
                     console.log('Video can play through without buffering');
+                    currentVideo.play().catch(error => {
+                        console.error('Error playing video:', error);
+                        alert('Click to play video');
+                    });
                 });
 
                 currentVideo.addEventListener('ended', () => {
@@ -57,11 +71,6 @@
                     document.body.removeChild(currentVideo);
                     currentVideo = null;
                     playNextVideo();
-                });
-
-                currentVideo.play().catch(error => {
-                    console.error('Error playing video:', error);
-                    alert('Click to play video');
                 });
             }
 
