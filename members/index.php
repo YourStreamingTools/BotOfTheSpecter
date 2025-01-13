@@ -81,7 +81,9 @@ function sanitize_custom_vars($response) {
         '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
     ];
     foreach ($switches as $switch) {
-        $response = preg_replace('/' . preg_quote($switch, '/') . '[^)]*\)/', $switch . ')', $response);
+        $pattern = '/' . preg_quote($switch, '/') . '[^)]*\)/';
+        $replacement = rtrim($switch, '.') . ')';
+        $response = preg_replace($pattern, $replacement, $response);
     }
     return $response;
 }
@@ -481,20 +483,6 @@ function formatDateTime(dateTime) {
     const date = new Date(dateTime);
     const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
     return date.toLocaleDateString(undefined, options);
-}
-
-// Function to sanitize custom variables in the response
-function sanitizeCustomVars(response) {
-    const switches = [
-        '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
-        '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
-        '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
-    ];
-    switches.forEach(switchVar => {
-        const regex = new RegExp(`${switchVar}[^)]*\\)`, 'g');
-        response = response.replace(regex, `${switchVar})`);
-    });
-    return response;
 }
 </script>
 </body>
