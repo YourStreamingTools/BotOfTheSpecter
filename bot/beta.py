@@ -2966,7 +2966,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        previous_start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
+                        previous_start_time = result["start_time"]
                         lurk_duration = now - previous_start_time
                         days, seconds = divmod(lurk_duration.total_seconds(), 86400)
                         months, days = divmod(days, 30)
