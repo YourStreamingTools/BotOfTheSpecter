@@ -64,8 +64,13 @@ if (isset($_GET['code'])) {
 
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     if ($httpCode !== 200) {
-        // Handle non-successful HTTP response
-        echo 'HTTP error: ' . $httpCode;
+        if ($httpCode === 403) {
+            // Handle HTTP 403 Forbidden error
+            echo 'HTTP error: 403 - Forbidden. Please check your client ID and secret.';
+        } else {
+            // Handle other non-successful HTTP responses
+            echo 'HTTP error: ' . $httpCode;
+        }
         exit;
     }
 
@@ -96,8 +101,13 @@ if (isset($_GET['code'])) {
 
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     if ($httpCode !== 200) {
-        // Handle non-successful HTTP response
-        echo 'HTTP error: ' . $httpCode;
+        if ($httpCode === 403) {
+            // Handle HTTP 403 Forbidden error
+            echo 'HTTP error: 403 - Forbidden. Please check your access token.';
+        } else {
+            // Handle other non-successful HTTP responses
+            echo 'HTTP error: ' . $httpCode;
+        }
         exit;
     }
     curl_close($curl);
