@@ -30,7 +30,7 @@ $todoCategories = [];
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI'];
-    header('Location: logout.php');
+    header('Location: https://members.botofthespecter.com/logout.php');
     exit();
 }
 
