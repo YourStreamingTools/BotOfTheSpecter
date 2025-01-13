@@ -75,11 +75,7 @@ function getTwitchUsernames($userIds) {
 
 // Function to sanitize custom variables in the response
 function sanitize_custom_vars($response) {
-    $switches = [
-        '(customapi.', '(count)', '(daysuntil.', '(user)', '(author)', 
-        '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
-        '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
-    ];
+    $switches = [ '(customapi.' ];
     foreach ($switches as $switch) {
         $pattern = '/' . preg_quote($switch, '/') . '[^)]*\)/';
         $replacement = rtrim($switch, '.') . ')';
