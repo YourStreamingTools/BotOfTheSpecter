@@ -6187,7 +6187,7 @@ async def send_to_discord_stream_online(message, image):
 async def websocket_notice(
     event, user=None, death=None, game=None, weather=None, cheer_amount=None,
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
-    additional_data=None
+    video=None, additional_data=None
 ):
     sqldb = await get_mysql_connection()
     try:
@@ -6249,6 +6249,8 @@ async def websocket_notice(
                         return
                 elif event == "SOUND_ALERT" and sound:
                     params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
+                elif event == "VIDEO_ALERT" and video:
+                    params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
                 else:
                     bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
                     return
