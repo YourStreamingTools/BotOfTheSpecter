@@ -112,6 +112,13 @@ if ($username) {
     }
 }
 
+if (isset($_SESSION['redirect_url'])) {
+    $redirectUrl = $_SESSION['redirect_url'];
+    unset($_SESSION['redirect_url']);
+    header("Location: $redirectUrl");
+    exit();
+}
+
 if (isset($_GET['user'])) {
     $username = $_GET['user'];
     $_SESSION['username'] = $username;
