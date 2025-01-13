@@ -164,9 +164,6 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                 Use your personalized subdomain at <code><?php echo $twitchUsername; ?>.specterbot.app</code> to interact with your custom endpoints.<br>
                 <?php if ($twitchUsername === 'guest_user'): ?>Please note that you need to sign in to verify your database connection with SpecterBot.<?php endif; ?>
             </p>
-            <p class="notification is-warning">
-                The database feature is a work in progress and does not work yet. This page will be updated when the feature is working.
-            </p>
             <div class="box" id="features">
                 <h3 class="title is-4">Key Features</h3>
                 <ul>
