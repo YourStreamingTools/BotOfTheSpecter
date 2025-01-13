@@ -40,7 +40,7 @@ function sanitize_input($input) {
 }
 
 // Function to fetch usernames from Twitch API using user_id
-function getTwitchUsernames($userIds) {
+function getTitchUsernames($userIds) {
     $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
     $accessToken = sanitize_input($_SESSION['access_token']);
     $twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . implode('&id=', array_map('sanitize_input', $userIds));
@@ -284,10 +284,14 @@ async function loadData(type) {
     let output = '';
     switch(type) {
         case 'customCommands':
+            additionalColumnVisible = true;
+            additionalColumnVisible2 = true;
             data = customCommands;
             title = 'Custom Commands';
             infoColumn = 'Command';
             dataColumn = 'Response';
+            additionalColumnName = 'Status';
+            additionalColumnName2 = 'Cooldown';
             break;
         case 'lurkers':
             data = lurkers;
@@ -295,7 +299,7 @@ async function loadData(type) {
             infoColumn = 'Username';
             dataColumn = 'Time';
             const userIds = data.map(item => item.user_id);
-            const usernames = await getTwitchUsernames(userIds);
+            const usernames = await getTitchUsernames(userIds);
             data.forEach((item, index) => {
                 item.username = usernames[index];
                 item.lurkDuration = calculateLurkDuration(item.start_time);
@@ -372,7 +376,7 @@ async function loadData(type) {
             data.forEach(item => {
                 output += `<tr>`;
                 if (type === 'customCommands') {
-                    output += `<td>!${item.command}</td><td>${item.response}</td>`;
+                    output += `<td>!${item.command}</td><td>${item.response}</td><td>${item.status}</td><td>${item.cooldown}</td>`;
                 } else if (type === 'typos') {
                     output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
                 } else if (type === 'deaths') {
@@ -414,7 +418,7 @@ async function loadData(type) {
 }
 
 // Fetch the username from Twitch API based on userId
-async function getTwitchUsernames(userIds) {
+async function getTitchUsernames(userIds) {
     const clientId = "mrjucsmsnri89ifucl66jj1n35jkj8";
     const authToken = "<?php echo $_SESSION['access_token']; ?>";
     const url = `https://api.twitch.tv/helix/users?id=${userIds.join('&id=')}`;
