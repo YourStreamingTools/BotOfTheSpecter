@@ -6440,6 +6440,13 @@ async def process_channel_point_rewards(event_data, event_type):
                 sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
                 asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+            # Video alert logic
+            await cursor.execute("SELECT video_mapping FROM video_alerts WHERE reward_id = %s", (reward_id,))
+            video_result = await cursor.fetchone()
+            if (video_result and video_result["video_mapping"]):
+                video_file = video_result.get("video_mapping")
+                event_logger.info(f"Got {event_type} - Found Video Mapping - {reward_id} - {video_file}")
+                asyncio.create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
