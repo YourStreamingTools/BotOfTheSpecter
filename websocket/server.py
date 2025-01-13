@@ -93,6 +93,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("WALKON", self.walkon),
             ("TTS", self.tts),
             ("SOUND_ALERT", self.sound_alert),
+            ("VIDEO_ALERT", self.video_alert),
             ("STREAM_ONLINE", self.stream_online),
             ("STREAM_OFFLINE", self.stream_offline),
             ("DISCORD_JOIN", self.discord_join),
@@ -535,6 +536,10 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def sound_alert(self, sid, data):
         self.logger.info(f"Sound Alert event from SID [{sid}]: {data}")
+        return
+
+    async def video_alert(self, sid, data):
+        self.logger.info(f"Video Alert event from SID [{sid}]: {data}")
         return
 
     async def send_notification(self, message):
