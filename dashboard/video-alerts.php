@@ -1,6 +1,7 @@
 <?php
 // Initialize the session
 session_start();
+ini_set('max_execution_time', 300);
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -141,6 +142,10 @@ function calculateStorageUsed($directories) {
 
 $current_storage_used = calculateStorageUsed([$walkon_path, $videoalert_path]);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+$remaining_storage = $max_storage_size - $current_storage_used;
+$max_upload_size = $remaining_storage;
+ini_set('upload_max_filesize', $max_upload_size);
+ini_set('post_max_size', $max_upload_size);
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
@@ -161,6 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
         } else {
             $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
+            $status .= "Error: " . $_FILES["filesToUpload"]["error"][$key] . "<br>";
         }
     }
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
