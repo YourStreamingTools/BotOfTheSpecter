@@ -1285,7 +1285,11 @@ class TwitchBot(commands.Bot):
                                     url_match = re.search(r'\(customapi\.(\S+)\)', response)
                                     if url_match:
                                         url = url_match.group(1)
-                                        api_response = await fetch_api_response(url)
+                                        json_flag = False
+                                        if url.startswith('json.'):
+                                            json_flag = True
+                                            url = url[5:]  # Remove 'json.' prefix
+                                        api_response = await fetch_api_response(url, json_flag=json_flag)
                                         response = response.replace(f"(customapi.{url})", api_response)
                             await channel.send(response)
                             for resp in responses_to_send:
@@ -4854,12 +4858,15 @@ async def user_is_seen(username):
         await sqldb.ensure_closed()
 
 # Function to fetch custom API responses
-async def fetch_api_response(url):
+async def fetch_api_response(url, json_flag=False):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
-                    return await response.text()
+                    if json_flag:
+                        return await response.json()
+                    else:
+                        return await response.text()
                 else:
                     return f"Status Error: {response.status}"
     except Exception as e:
