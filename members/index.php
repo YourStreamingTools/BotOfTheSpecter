@@ -73,6 +73,19 @@ function getTwitchUsernames($userIds) {
     return $usernames;
 }
 
+// Function to sanitize custom variables in the response
+function sanitize_custom_vars($response) {
+    $switches = [
+        '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
+        '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
+        '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
+    ];
+    foreach ($switches as $switch) {
+        $response = preg_replace('/' . preg_quote($switch, '/') . '[^)]*\)/', $switch . ')', $response);
+    }
+    return $response;
+}
+
 // PAGE TITLE
 $title = "Members";
 
@@ -216,6 +229,7 @@ if (isset($_GET['user'])) {
                                     <th id="additional-column2" style="color: white; width: 33%; display: none;"></th>
                                     <th id="additional-column3" style="color: white; width: 33%; display: none;"></th>
                                     <th id="additional-column4" style="color: white; width: 33%; display: none;"></th>
+                                    <th id="additional-column5" style="color: white; width: 33%; display: none;"></th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
@@ -258,19 +272,21 @@ async function loadData(type) {
     let additionalColumnName2;
     let additionalColumnName3;
     let additionalColumnName4;
+    let additionalColumnName5;
     let dataColumnVisible = true;
     let infoColumnVisible = true;
     let additionalColumnVisible = false;
     let additionalColumnVisible2 = false;
     let additionalColumnVisible3 = false;
     let additionalColumnVisible4 = false;
+    let additionalColumnVisible5 = false;
     let output = '';
     switch(type) {
         case 'customCommands':
             data = customCommands;
-            dataColumnVisible = false;
             title = 'Custom Commands';
             infoColumn = 'Command';
+            dataColumn = 'Response';
             break;
         case 'lurkers':
             data = lurkers;
@@ -355,7 +371,7 @@ async function loadData(type) {
             data.forEach(item => {
                 output += `<tr>`;
                 if (type === 'customCommands') {
-                    output += `<td>!${item.command}</td>`; 
+                    output += `<td>!${item.command}</td><td>${item.response}</td>`;
                 } else if (type === 'typos') {
                     output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
                 } else if (type === 'deaths') {
@@ -384,10 +400,12 @@ async function loadData(type) {
     document.getElementById('additional-column2').innerText = additionalColumnName2;
     document.getElementById('additional-column3').innerText = additionalColumnName3;
     document.getElementById('additional-column4').innerText = additionalColumnName4;
+    document.getElementById('additional-column5').innerText = additionalColumnName5;
     document.getElementById('additional-column1').style.display = additionalColumnVisible ? '' : 'none';
     document.getElementById('additional-column2').style.display = additionalColumnVisible2 ? '' : 'none';
     document.getElementById('additional-column3').style.display = additionalColumnVisible3 ? '' : 'none';
     document.getElementById('additional-column4').style.display = additionalColumnVisible4 ? '' : 'none';
+    document.getElementById('additional-column5').style.display = additionalColumnVisible5 ? '' : 'none';
     document.getElementById('data-column-info').style.display = dataColumnVisible ? '' : 'none';
     document.getElementById('info-column-data').style.display = infoColumnVisible ? '' : 'none';
     document.getElementById('table-title').innerText = title;
@@ -461,6 +479,20 @@ function formatDateTime(dateTime) {
     const date = new Date(dateTime);
     const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
     return date.toLocaleDateString(undefined, options);
+}
+
+// Function to sanitize custom variables in the response
+function sanitizeCustomVars(response) {
+    const switches = [
+        '(customapi.', '(count)', '(daysuntil.', '(command.', '(user)', '(author)', 
+        '(random.percent)', '(random.number)', '(random.percent.', '(random.number.',
+        '(random.pick.', '(math.', '(call.', '(usercount)', '(timeuntil.'
+    ];
+    switches.forEach(switchVar => {
+        const regex = new RegExp(`${switchVar}[^)]*\\)`, 'g');
+        response = response.replace(regex, `${switchVar})`);
+    });
+    return response;
 }
 </script>
 </body>
