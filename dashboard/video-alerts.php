@@ -9,7 +9,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Sound Alerts";
+$title = "Video Alerts";
 
 // Include all the information
 require_once "/var/www/config/db_connect.php";
@@ -44,15 +44,15 @@ switch ($tier) {
         break;
 }
 
-// Fetch sound alert mappings for the current user
-$getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
-$getSoundAlerts->execute();
-$soundAlerts = $getSoundAlerts->fetchAll(PDO::FETCH_ASSOC);
+// Fetch video alert mappings for the current user
+$getVideoAlerts = $db->prepare("SELECT video_mapping, reward_id FROM video_alerts");
+$getVideoAlerts->execute();
+$videoAlerts = $getVideoAlerts->fetchAll(PDO::FETCH_ASSOC);
 
-// Create an associative array for easy lookup: sound_mapping => reward_id
-$soundAlertMappings = [];
-foreach ($soundAlerts as $alert) {
-    $soundAlertMappings[$alert['sound_mapping']] = $alert['reward_id'];
+// Create an associative array for easy lookup: video_mapping => reward_id
+$videoAlertMappings = [];
+foreach ($videoAlerts as $alert) {
+    $videoAlertMappings[$alert['video_mapping']] = $alert['reward_id'];
 }
 
 // Create an associative array for reward_id => reward_title for easy lookup
@@ -61,53 +61,53 @@ foreach ($channelPointRewards as $reward) {
     $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
 }
 
-// Define sound alert path and storage limits
-$soundalert_path = "/var/www/soundalerts/" . $username;
+// Define video alert path and storage limits
+$videoalert_path = "/var/www/videoalerts/" . $username;
 $walkon_path = "/var/www/walkons/" . $username;
 $status = '';
 
 // Handle channel point reward mapping
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST['reward_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST['reward_id'])) {
     $status = ""; // Initialize $status
-    $soundFile = $_POST['sound_file'];
+    $videoFile = $_POST['video_file'];
     $rewardId = $_POST['reward_id'];
-    $soundFile = htmlspecialchars($soundFile); 
+    $videoFile = htmlspecialchars($videoFile); 
     $db->beginTransaction();  
-    // Check if a mapping already exists for this sound file
-    $checkExisting = $db->prepare("SELECT 1 FROM sound_alerts WHERE sound_mapping = :sound_mapping");
-    $checkExisting->bindParam(':sound_mapping', $soundFile);
+    // Check if a mapping already exists for this video file
+    $checkExisting = $db->prepare("SELECT 1 FROM video_alerts WHERE video_mapping = :video_mapping");
+    $checkExisting->bindParam(':video_mapping', $videoFile);
     $checkExisting->execute();
     if ($checkExisting->rowCount() > 0) {
         // Update existing mapping
         if ($rewardId) {
-            $updateMapping = $db->prepare("UPDATE sound_alerts SET reward_id = :reward_id WHERE sound_mapping = :sound_mapping");
+            $updateMapping = $db->prepare("UPDATE video_alerts SET reward_id = :reward_id WHERE video_mapping = :video_mapping");
             $updateMapping->bindParam(':reward_id', $rewardId);
-            $updateMapping->bindParam(':sound_mapping', $soundFile);
+            $updateMapping->bindParam(':video_mapping', $videoFile);
             if (!$updateMapping->execute()) {
-                $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->errorInfo(), true) . "<br>"; 
+                $status .= "Failed to update mapping for file '" . $videoFile . "'. Database error: " . print_r($updateMapping->errorInfo(), true) . "<br>"; 
             } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
+                $status .= "Mapping for file '" . $videoFile . "' has been updated successfully.<br>";
             }
         } else {
             // Clear the mapping if no reward is selected
-            $clearMapping = $db->prepare("UPDATE sound_alerts SET reward_id = NULL WHERE sound_mapping = :sound_mapping");
-            $clearMapping->bindParam(':sound_mapping', $soundFile);
+            $clearMapping = $db->prepare("UPDATE video_alerts SET reward_id = NULL WHERE video_mapping = :video_mapping");
+            $clearMapping->bindParam(':video_mapping', $videoFile);
             if (!$clearMapping->execute()) {
-                $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
+                $status .= "Failed to clear mapping for file '" . $videoFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
             } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been cleared.<br>";
+                $status .= "Mapping for file '" . $videoFile . "' has been cleared.<br>";
             }
         }
     } else {
         // Create a new mapping if it doesn't exist
         if ($rewardId) {
-            $insertMapping = $db->prepare("INSERT INTO sound_alerts (sound_mapping, reward_id) VALUES (:sound_mapping, :reward_id)");
-            $insertMapping->bindParam(':sound_mapping', $soundFile);
+            $insertMapping = $db->prepare("INSERT INTO video_alerts (video_mapping, reward_id) VALUES (:video_mapping, :reward_id)");
+            $insertMapping->bindParam(':video_mapping', $videoFile);
             $insertMapping->bindParam(':reward_id', $rewardId);
             if (!$insertMapping->execute()) {
-                $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->errorInfo(), true) . "<br>"; 
+                $status .= "Failed to create mapping for file '" . $videoFile . "'. Database error: " . print_r($insertMapping->errorInfo(), true) . "<br>"; 
             } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
+                $status .= "Mapping for file '" . $videoFile . "' has been created successfully.<br>";
             }
         } 
     }
@@ -116,8 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
 }
 
 // Create the user's directory if it doesn't exist
-if (!is_dir($soundalert_path)) {
-    if (!mkdir($soundalert_path, 0755, true)) {
+if (!is_dir($videoalert_path)) {
+    if (!mkdir($videoalert_path, 0755, true)) {
         exit("Failed to create directory.");
     }
 }
@@ -139,7 +139,7 @@ function calculateStorageUsed($directories) {
     return $size;
 }
 
-$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
+$current_storage_used = calculateStorageUsed([$walkon_path, $videoalert_path]);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 
 // Handle file upload
@@ -150,10 +150,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
             continue;
         }
-        $targetFile = $soundalert_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
+        $targetFile = $videoalert_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
-        if ($fileType != "mp3") {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
+        if ($fileType != "mp4") {
+            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP4 files are allowed.<br>";
             continue;
         }
         if (move_uploaded_file($tmp_name, $targetFile)) {
@@ -169,19 +169,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
 // Handle file deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
     foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete = $soundalert_path . '/' . basename($file_to_delete);
+        $file_to_delete = $videoalert_path . '/' . basename($file_to_delete);
         if (is_file($file_to_delete) && unlink($file_to_delete)) {
             $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
         } else {
             $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
         }
     }
-    $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
+    $current_storage_used = calculateStorageUsed([$walkon_path, $videoalert_path]);
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
 
-$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..'));
-function formatFileName($fileName) { return basename($fileName, '.mp3'); }
+$videoalert_files = array_diff(scandir($videoalert_path), array('.', '..'));
+function formatFileName($fileName) { return basename($fileName, '.mp4'); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -197,6 +197,18 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 
 <div class="container">
     <br>
+    <div class="notification is-warning">
+        <div class="columns is-vcentered">
+            <div class="column is-narrow">
+                <span class="icon is-large">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i> 
+                </span>
+            </div>
+            <div class="column">
+                This feature is coming soon to V5.3 for beta users.
+            </div>
+        </div>
+    </div>
     <div class="notification is-danger">
         <div class="columns is-vcentered">
             <div class="column is-narrow">
@@ -205,19 +217,19 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 </span>
             </div>
             <div class="column">
-                <p><strong>Setting up Channel Point Sound Alerts</strong></p>
+                <p><strong>Setting up Channel Point Video Alerts</strong></p>
                 <ul>
-                    <li><span class="icon"><i class="fas fa-upload"></i></span> Upload your audio file.  Click 'Upload MP3 Files' and choose the channel point to trigger it.</li>
+                    <li><span class="icon"><i class="fas fa-upload"></i></span> Upload your video file.  Click 'Upload MP4 Files' and choose the channel point to trigger it.</li>
                     <li><span class="icon"><i class="fab fa-twitch"></i></span> Make sure your rewards are created on Twitch and synced with Specter to see them in the dropdown.</li>
-                    <li><span class="icon"><i class="fas fa-play-circle"></i></span> Sound alerts will play through Specter Overlays when the channel point is redeemed.</li>
-                    <li><span class="icon"><i class="fas fa-headphones"></i></span> Start your streaming software and enable the overlay with audio <span class="has-text-weight-bold">before</span> testing.</li> 
+                    <li><span class="icon"><i class="fas fa-play-circle"></i></span> Video alerts will play through Specter Overlays when the channel point is redeemed.</li>
+                    <li><span class="icon"><i class="fas fa-headphones"></i></span> Start your streaming software and enable the overlay with video <span class="has-text-weight-bold">before</span> testing.</li> 
                 </ul>
             </div>
         </div>
     </div>
     <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
-            <h1 class="title is-4">Upload MP3 Files:</h1>
+            <h1 class="title is-4">Upload MP4 Files:</h1>
             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
                 <label for="filesToUpload" class="drag-area" id="drag-area">
                     <span>Drag & Drop files here or</span>
@@ -227,7 +239,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 <br>
                 <div id="file-list"></div>
                 <br>
-                <input type="submit" value="Upload MP3 Files" name="submit">
+                <input type="submit" value="Upload MP4 Files" name="submit">
             </form>
             <br>
             <div class="progress-bar-container">
@@ -239,8 +251,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             <?php endif; ?>
         </div>
         <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
-            <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
-            <h1 class="title is-4">Your Sound Alerts</h1>
+            <?php $walkon_files = array_diff(scandir($videoalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
+            <h1 class="title is-4">Your Video Alerts</h1>
             <form action="" method="POST" id="deleteForm">
                 <table class="table is-striped" style="width: 100%; text-align: center;">
                     <thead>
@@ -249,7 +261,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                             <th>File Name</th>
                             <th>Channel Point Reward</th>
                             <th style="width: 100px;">Action</th>
-                            <th style="width: 100px;">Test Audio</th>
+                            <th style="width: 100px;">Test Video</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -264,7 +276,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                             <td>
                                 <?php
                                 // Determine the current mapped reward (if any)
-                                $current_reward_id = isset($soundAlertMappings[$file]) ? $soundAlertMappings[$file] : null;
+                                $current_reward_id = isset($videoAlertMappings[$file]) ? $videoAlertMappings[$file] : null;
                                 $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
                                 ?>
                                 <?php if ($current_reward_id): ?>
@@ -274,14 +286,14 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                 <?php endif; ?>
                                 <br>
                                 <form action="" method="POST" class="mapping-form">
-                                    <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
+                                    <input type="hidden" name="video_file" value="<?php echo htmlspecialchars($file); ?>">
                                     <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
                                         <option value="">-- Select Reward --</option>
                                         <?php 
                                         foreach ($channelPointRewards as $reward): 
-                                            $isMapped = in_array($reward['reward_id'], $soundAlertMappings);
+                                            $isMapped = in_array($reward['reward_id'], $videoAlertMappings);
                                             $isCurrent = ($current_reward_id === $reward['reward_id']);
-                                            // Skip rewards that are already mapped to other sounds, unless it's the current mapping
+                                            // Skip rewards that are already mapped to other videos, unless it's the current mapping
                                             if ($isMapped && !$isCurrent) continue; 
                                         ?>
                                             <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
@@ -301,7 +313,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                 <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
                             </td>
                             <td>
-                                <button type="button" class="test-sound button is-primary" data-file="<?php echo htmlspecialchars($file); ?>">Test</button>
+                                <button type="button" class="test-video button is-primary" data-file="<?php echo htmlspecialchars($file); ?>">Test</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -368,10 +380,10 @@ $(document).ready(function() {
 
 document.addEventListener("DOMContentLoaded", function () {
     // Attach click event listeners to all Test buttons
-    document.querySelectorAll(".test-sound").forEach(function (button) {
+    document.querySelectorAll(".test-video").forEach(function (button) {
         button.addEventListener("click", function () {
             const fileName = this.getAttribute("data-file");
-            sendStreamEvent("SOUND_ALERT", fileName);
+            sendStreamEvent("VIDEO_ALERT", fileName);
         });
     });
 });
@@ -380,7 +392,7 @@ document.addEventListener("DOMContentLoaded", function () {
 function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();
     const url = "notify_event.php";
-    const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
+    const params = `event=${eventType}&video=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
     xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
     xhr.onreadystatechange = function () {
