@@ -309,6 +309,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 </table>
                 <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
             </form>
+            <?php else: ?>
+                <h1 class="title is-4">No sound alert files uploaded.</h1>
             <?php endif; ?>
         </div>
     </div>
