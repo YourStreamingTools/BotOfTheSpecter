@@ -116,13 +116,14 @@ if ($user['beta_access'] == 1) {
 // Last Changed Time
 $betaFile = '/var/www/bot/beta.py';
 if (file_exists($betaFile)) {
-    $lastModifiedOutput = 'File not found';
     $betaFileModifiedTime = filemtime($betaFile);
     $timeAgo = time() - $betaFileModifiedTime;
     if ($timeAgo < 60) $lastModifiedOutput = $timeAgo . ' seconds ago';
     elseif ($timeAgo < 3600) $lastModifiedOutput = floor($timeAgo / 60) . ' minutes ago';
     elseif ($timeAgo < 86400) $lastModifiedOutput = floor($timeAgo / 3600) . ' hours ago';
     else $lastModifiedOutput = floor($timeAgo / 86400) . ' days ago';
+} else {
+    $lastModifiedOutput = 'File not found';
 }
 
 // Last Restarted Time
