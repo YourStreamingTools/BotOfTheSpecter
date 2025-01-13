@@ -137,6 +137,8 @@ if (isset($_GET['user'])) {
     $_SESSION['username'] = $username;
     $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . (isset($_SESSION['username']) ? $_SESSION['username'] : 'unknown user');
     include "/var/www/dashboard/user_db.php";
+    // Sanitize custom command responses
+    $commands = array_map('sanitize_custom_vars', $commands);
 }
 ?>
 <!DOCTYPE html>
@@ -158,7 +160,7 @@ if (isset($_GET['user'])) {
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script type="text/javascript">
         // Pass PHP data to JavaScript
-        const customCommands = <?php echo json_encode($commands); ?>;
+        const customCommands = <?php echo json_encode(array_map('sanitize_custom_vars', $commands)); ?>;
         const lurkers = <?php echo json_encode($lurkers); ?>;
         const typos = <?php echo json_encode($typos); ?>;
         const gameDeaths = <?php echo json_encode($gameDeaths); ?>;
