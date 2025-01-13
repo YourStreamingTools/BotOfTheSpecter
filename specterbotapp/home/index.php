@@ -196,6 +196,10 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
                         $uploadedFiles = $_FILES['filesToUpload'];
                         foreach ($uploadedFiles['name'] as $key => $name) {
                             if (!empty($name) && pathinfo($name, PATHINFO_EXTENSION) === 'php') {
+                                if (basename($name, '.php') === 'index') {
+                                    echo '<p class="has-text-danger">Error: "index" cannot be used as a file name.</p>';
+                                    continue;
+                                }
                                 $targetDir = $userFolder . '/';
                                 $targetFile = $targetDir . basename($name);
                                 if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
@@ -248,6 +252,7 @@ $loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode(
             <?php endif; ?>
         </div>
     </section>
+    <br>
     <footer class="footer">
         <div class="content has-text-centered">
             <p>&copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.</p>
