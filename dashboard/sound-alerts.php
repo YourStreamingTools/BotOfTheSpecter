@@ -235,6 +235,10 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 <input type="submit" value="Upload MP3 Files" name="submit">
             </form>
             <br>
+            <div class="upload-progress-bar-container">
+                <div class="upload-progress-bar has-text-black-bis" style="width: 0%;">0%</div>
+            </div>
+            <br>
             <div class="progress-bar-container">
                 <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
             </div>
@@ -327,7 +331,7 @@ $(document).ready(function() {
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
     let fileList = $('#file-list');
-    let progressBar = $('.progress-bar');
+    let uploadProgressBar = $('.upload-progress-bar');
 
     dropArea.on('dragover', function(e) {
         e.preventDefault();
@@ -379,8 +383,8 @@ $(document).ready(function() {
                 xhr.upload.addEventListener('progress', function(e) {
                     if (e.lengthComputable) {
                         let percentComplete = (e.loaded / e.total) * 100;
-                        progressBar.css('width', percentComplete + '%');
-                        progressBar.text(Math.round(percentComplete) + '%');
+                        uploadProgressBar.css('width', percentComplete + '%');
+                        uploadProgressBar.text(Math.round(percentComplete) + '%');
                     }
                 }, false);
                 return xhr;
