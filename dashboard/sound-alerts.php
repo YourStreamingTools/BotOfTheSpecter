@@ -327,6 +327,8 @@ $(document).ready(function() {
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
     let fileList = $('#file-list');
+    let progressBar = $('.progress-bar');
+
     dropArea.on('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -347,7 +349,7 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        $('#uploadForm').submit();
+        uploadFiles(files);
     });
     dropArea.on('click', function() {
         fileInput.click();
@@ -358,8 +360,40 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        $('#uploadForm').submit();
+        uploadFiles(files);
     });
+
+    function uploadFiles(files) {
+        let formData = new FormData();
+        $.each(files, function(index, file) {
+            formData.append('filesToUpload[]', file);
+        });
+        $.ajax({
+            url: '',
+            type: 'POST',
+            data: formData,
+            contentType: false,
+            processData: false,
+            xhr: function() {
+                let xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        let percentComplete = (e.loaded / e.total) * 100;
+                        progressBar.css('width', percentComplete + '%');
+                        progressBar.text(Math.round(percentComplete) + '%');
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                location.reload(); // Reload the page to update the file list and storage usage
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
+            }
+        });
+    }
+
     $('.delete-single').on('click', function() {
         let fileName = $(this).data('file');
         if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
