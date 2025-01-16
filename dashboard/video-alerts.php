@@ -144,8 +144,8 @@ $current_storage_used = calculateStorageUsed([$walkon_path, $videoalert_path]);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 $remaining_storage = $max_storage_size - $current_storage_used;
 $max_upload_size = $remaining_storage;
-ini_set('upload_max_filesize', $max_upload_size);
-ini_set('post_max_size', $max_upload_size);
+// ini_set('upload_max_filesize', $max_upload_size);
+// ini_set('post_max_size', $max_upload_size);
 
 function translateUploadError($code) {
     switch ($code) {
