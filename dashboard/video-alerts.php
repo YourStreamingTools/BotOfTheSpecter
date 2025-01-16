@@ -147,9 +147,39 @@ $max_upload_size = $remaining_storage;
 ini_set('upload_max_filesize', $max_upload_size);
 ini_set('post_max_size', $max_upload_size);
 
+function translateUploadError($code) {
+    switch ($code) {
+        case UPLOAD_ERR_OK:
+            return 'No error';
+        case UPLOAD_ERR_INI_SIZE:
+            return 'The uploaded file exceeds the upload_max_filesize directive in php.ini.';
+        case UPLOAD_ERR_FORM_SIZE:
+            return 'The uploaded file exceeds the MAX_FILE_SIZE directive specified in the HTML form.';
+        case UPLOAD_ERR_PARTIAL:
+            return 'The uploaded file was only partially uploaded.';
+        case UPLOAD_ERR_NO_FILE:
+            return 'No file was uploaded.';
+        case UPLOAD_ERR_NO_TMP_DIR:
+            return 'Missing a temporary folder.';
+        case UPLOAD_ERR_CANT_WRITE:
+            return 'Failed to write file to disk.';
+        case UPLOAD_ERR_EXTENSION:
+            return 'File upload stopped by extension.';
+        default:
+            return 'Unknown upload error.';
+    }
+}
+
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
+        $errorCode = $_FILES["filesToUpload"]["error"][$key];
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            $status .= "Sorry, there was an error uploading " 
+                . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) 
+                . ": " . translateUploadError($errorCode) . "<br>";
+            continue;
+        }
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
@@ -165,8 +195,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $current_storage_used += $fileSize;
             $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
         } else {
-            $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
-            $status .= "Error: " . $_FILES["filesToUpload"]["error"][$key] . "<br>";
+            $status .= "Sorry, there was an error uploading "
+                . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))
+                . ".<br>";
         }
     }
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
