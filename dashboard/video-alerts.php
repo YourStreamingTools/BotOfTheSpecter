@@ -172,6 +172,9 @@ function translateUploadError($code) {
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
+    if (empty($_FILES["filesToUpload"]["tmp_name"]) || !$_FILES["filesToUpload"]["tmp_name"]) {
+        $status .= "No file was received by the server.<br>";
+    }
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $errorCode = $_FILES["filesToUpload"]["error"][$key];
         if ($errorCode !== UPLOAD_ERR_OK) {
