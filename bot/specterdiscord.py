@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import logging
 import os
@@ -39,6 +38,9 @@ class Config:
 
 config = Config()
 
+# Define the bot version
+BOT_VERSION = "1.0"
+
 # Bot class
 class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, discord_logger, **kwargs):
@@ -49,12 +51,14 @@ class BotOfTheSpecter(commands.Bot):
         self.logger = discord_logger
         self.typing_speed = 50
         self.processed_messages_file = f"/var/www/logs/discord/messages.txt"
+        self.version = BOT_VERSION
         # Ensure the log file exists
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
 
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
+        self.logger.info(f'Bot version: {self.version}')
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
 
@@ -231,6 +235,7 @@ class DiscordBotRunner:
 def main():
     bot_log_file = os.path.join(discord_logs, f"discordbot.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
+    discord_logger.info(f"Starting BotOfTheSpecter Discord Bot version {BOT_VERSION}")
     bot_runner = DiscordBotRunner(discord_logger)
     bot_runner.run()
 
