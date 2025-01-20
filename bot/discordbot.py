@@ -314,7 +314,7 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.connected = False
 
         @self.sio.event
-        async def connect(data):
+        async def connect():
             self.logger.info("Connected to WebSocket server")
             await self.sio.emit('REGISTER', {'code': self.api_token, 'name': f'DiscordBot V{VERSION}'})
             self.reconnect_attempts = 0
