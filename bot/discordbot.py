@@ -213,7 +213,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def update_version_control(self):
         global VERSION
-        VERSION = "4.3.1"
+        VERSION = "4.3.2"
         try:
             # Define the directory path for Discord bot version control
             directory = "/var/www/logs/version/"
