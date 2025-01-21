@@ -34,6 +34,7 @@ body {
 
 .navbar-item, .navbar-link {
     color: #ffffff;
+    background-color: #333333;
 }
 
 .box {
