@@ -118,7 +118,7 @@ event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
 
 # Log startup messages
-startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION})"
+startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION}B)"
 for logger in loggers.values():
     logger.info(startup_msg)
 
