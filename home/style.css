@@ -29,12 +29,17 @@ body {
 }
 
 .navbar {
-    background-color: #333333;
+    background-color: #333333 !important;
+    border: none;
+    padding: 0;
+    margin: 0;
 }
 
 .navbar-item, .navbar-link {
     color: #ffffff;
-    background-color: #333333;
+    background-color: #333333 !important;
+    padding: 10px;
+    margin: 0;
 }
 
 .box {
@@ -48,17 +53,24 @@ a.has-text-info {
 }
 
 .navbar-dropdown {
-    background-color: #333333;
-    border-radius: 4px;
+    background-color: #333333 !important;
+    border: none;
+    padding: 0;
 }
 
 .navbar-dropdown .navbar-item {
     color: #ffffff;
-    background-color: #333333;
+    background-color: #333333 !important;
+    padding: 10px;
+    margin: 0;
 }
 
-.navbar-dropdown .navbar-item:hover,
-a.navbar-item:hover {
+.navbar-item.is-active {
+    background-color: #333333 !important;
+}
+
+.navbar-item:hover,
+.navbar-dropdown .navbar-item:hover {
     background-color: #333333 !important;
     color: #ffffff !important;
 }
@@ -71,8 +83,7 @@ a.navbar-item:hover {
 
 .navbar-dropdown .navbar-item.is-disabled {
     color: #888888;
-    background-color: #333333;
-    pointer-events: none;
+    background-color: #333333 !important;
 }
 
 .navbar-dropdown .navbar-item:last-child {
@@ -81,9 +92,4 @@ a.navbar-item:hover {
 
 .navbar-item {
     padding: 10px 15px;
-}
-
-.navbar-dropdown .navbar-item.is-active {
-    background-color: #333333;
-    color: #ffffff;
 }
