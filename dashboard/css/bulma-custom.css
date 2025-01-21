@@ -561,3 +561,7 @@ input[type="submit"]:hover {
         min-height: 2rem;
     }
 }
+
+.navbar-menu {
+    background-color: #333333;
+}
