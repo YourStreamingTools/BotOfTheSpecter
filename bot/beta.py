@@ -566,26 +566,29 @@ async def connect_to_streamlabs():
         event_logger.error(f"StreamLabs WebSocket error: {e}")
 
 async def process_message(message, source):
+    global streamelements_token, streamlabs_token
     try:
         data = json.loads(message)
-        if source == "StreamElements" and data.get('type') == 'response':
-            # Handle the subscription response
-            if 'error' in data:
-                sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
-                handle_streamelements_error(data['error'], sanitized_message)
+        if source == "StreamElements":
+            if data.get('type') == 'response':
+                # Handle the subscription response
+                if 'error' in data:
+                    sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
+                    handle_streamelements_error(data['error'], sanitized_message)
+                else:
+                    sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
+                    event_logger.info(f"StreamElements subscription success: {sanitized_message}")
             else:
-                sanitized_message = data['data']['message'].replace(streamelements_token, "[REDACTED]") if 'message' in data['data'] else None
-                event_logger.info(f"StreamElements subscription success: {sanitized_message}")
-        else:
-            if source == "StreamElements":
                 sanitized_message = json.dumps(data).replace(streamelements_token, "[REDACTED]")
-            else:
-                sanitized_message = message
+                await process_tipping_message(json.loads(sanitized_message), source)
+        elif source == "StreamLabs":
+            sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
             await process_tipping_message(json.loads(sanitized_message), source)
     except Exception as e:
         event_logger.error(f"Error processing message from {source}: {e}")
 
 def handle_streamelements_error(error, message):
+    global streamelements_token
     error_messages = {
         "err_internal_error": "An internal error occurred.",
         "err_bad_request": "The request was malformed or invalid.",
