@@ -7,6 +7,7 @@ import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
 import logging
+from logging.handlers import RotatingFileHandler
 import subprocess
 import json
 import time
@@ -15,6 +16,8 @@ import base64
 import uuid
 from urllib.parse import urlencode
 import ast
+import signal
+import sys
 
 # Third-party imports
 import aiohttp
@@ -163,6 +166,15 @@ TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for sh
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
 bot_owner = "gfaundead"                                 # Bot owner's username
+
+# Function to handle termination signals
+def signal_handler(sig, frame):
+    bot_logger.info("Received termination signal. Shutting down gracefully...")
+    sys.exit(0)  # Exit the program
+
+# Register the signal handler
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
 # Setup Token Refresh
 async def twitch_token_refresh():
