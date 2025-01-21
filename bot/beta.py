@@ -362,7 +362,7 @@ async def subscribe_to_events(session_id):
         "channel.update"
     ]
     responses = []
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession() as v1topic_session:
         for v1topic in v1topics:
             if v1topic == "channel.raid":
                 payload = {
@@ -428,10 +428,10 @@ async def subscribe_to_events(session_id):
                     }
                 }
             # asynchronous POST request
-            async with session.post(url, headers=headers, json=payload) as response:
+            async with v1topic_session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
                     responses.append(await response.json())
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession() as v2topic_session:
         for v2topic in v2topics:
             if v2topic == "channel.follow":
                 payload = {
@@ -459,7 +459,7 @@ async def subscribe_to_events(session_id):
                     }
                 }
             # asynchronous POST request
-            async with session.post(url, headers=headers, json=payload) as response:
+            async with v2topic_session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
                     responses.append(await response.json())
 
