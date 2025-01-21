@@ -8,6 +8,9 @@ html, body {
 
 .navbar {
     background-color: #1b1b1b;
+    padding: 0 1rem;
+    min-height: 3.25rem;
+    position: relative;
 }
 
 .navbar-item, .navbar-link {
@@ -33,12 +36,15 @@ a.navbar-item:hover {
     min-width: 200px;
     max-height: 500px;
     overflow-y: auto;
+    max-width: 300px;
 }
 
 .navbar-item {
-    padding: 10px 15px;
+    padding: 0.5rem 0.75rem;
     color: #ffffff;
-    white-space: nowrap;
+    white-space: normal;
+    display: flex;
+    align-items: center;
 }
 
 .navbar-item:hover {
@@ -512,4 +518,42 @@ input[type="submit"]:hover {
     display: inline-flex;
     justify-content: center;
     align-items: center;
+}
+
+@media screen and (max-width: 1400px) {
+    .navbar-item {
+        padding: 0.5rem 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .navbar-dropdown {
+        min-width: 180px;
+    }
+}
+
+@media screen and (max-width: 1200px) {
+    .navbar-item {
+        padding: 0.5rem 0.4rem;
+        font-size: 0.85rem;
+    }
+}
+
+.navbar-brand {
+    min-width: auto;
+    margin-right: 1rem;
+}
+
+@media screen and (max-width: 768px) {
+    .user-info {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        font-size: 0.8rem;
+    }
+
+    .user-info img {
+        width: 30px;
+        height: 30px;
+        margin-right: 5px;
+    }
 }
