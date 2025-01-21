@@ -78,24 +78,32 @@ log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "webso
 # Ensure directories exist
 for log_type in log_types:
     directory_path = os.path.join(logs_directory, log_type)
-    os.makedirs(directory_path, exist_ok=True)
+    os.makedirs(directory_path, mode=0o755, exist_ok=True)
 
 # Create a function to setup individual loggers for clarity
 def setup_logger(name, log_file, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    handler = logging.FileHandler(log_file)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    # Clear any existing handlers to prevent duplicates
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    # Setup rotating file handler
+    handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=10485760, # 10MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
-    if not logger.hasHandlers():
-        logger.addHandler(handler)
+    logger.addHandler(handler)
     return logger
 
 # Setup loggers
 loggers = {}
 for log_type in log_types:
     log_file = os.path.join(logs_directory, log_type, f"{CHANNEL_NAME}.txt")
-    loggers[log_type] = setup_logger(log_type, log_file)
+    loggers[log_type] = setup_logger(f"bot.{log_type}", log_file)
 
 # Access individual loggers
 bot_logger = loggers['bot']
@@ -106,14 +114,10 @@ chat_history_logger = loggers['chat_history']
 event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
 
-# Log the setup for the loggers
-bot_logger.info("Bot Logger started.")
-chat_logger.info("Chat Logger started.")
-twitch_logger.info("Twitch Logger started.")
-api_logger.info("API Logger started.")
-chat_history_logger.info("Chat History Logger started.")
-event_logger.info("Event Logger started.")
-websocket_logger.info("Websocket Logger started.")
+# Log startup messages
+startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION})"
+for logger in loggers.values():
+    logger.info(startup_msg)
 
 # Setup Globals
 global stream_online
@@ -322,7 +326,7 @@ async def twitch_eventsub():
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
                     # Manage keepalive and listen for messages concurrently
-                    await asyncio.gather(receive_messages(twitch_websocket, keepalive_timeout))
+                    await asyncio.gather(twitch_receive_messages(twitch_websocket, keepalive_timeout))
         except websockets.ConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
             await asyncio.sleep(10)  # Wait before retrying
@@ -463,7 +467,7 @@ async def subscribe_to_events(session_id):
                 if response.status in (200, 202):
                     responses.append(await response.json())
 
-async def receive_messages(twitch_websocket, keepalive_timeout):
+async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
     while True:
         try:
             message = await asyncio.wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
@@ -476,7 +480,7 @@ async def receive_messages(twitch_websocket, keepalive_timeout):
                 else:
                     # event_logger.info(f"Received message type: {message_type}")
                     event_logger.info(f"Info from Twitch EventSub: {message_data}")
-                    await process_eventsub_message(message_data)
+                    await process_twitch_eventsub_message(message_data)
             else:
                 event_logger.error("Received unrecognized message format")
         except asyncio.TimeoutError:
@@ -635,7 +639,7 @@ async def process_tipping_message(data, source):
     except Exception as e:
         event_logger.error(f"Error processing tipping message: {e}")
 
-async def process_eventsub_message(message):
+async def process_twitch_eventsub_message(message):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
@@ -643,18 +647,21 @@ async def process_eventsub_message(message):
             event_type = message.get("payload", {}).get("subscription", {}).get("type")
             event_data = message.get("payload", {}).get("event")
             if event_type:
+                # Tier mapping for all subscription-related events
+                tier_mapping = {
+                    "1000": "Tier 1",
+                    "2000": "Tier 2", 
+                    "3000": "Tier 3"
+                }
+                # Followers Event
                 if event_type == "channel.follow":
                     asyncio.create_task(process_followers_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         event_data["followed_at"]
                     ))
+                # Subscription Event
                 elif event_type == "channel.subscribe":
-                    tier_mapping = {
-                        "1000": "Tier 1",
-                        "2000": "Tier 2",
-                        "3000": "Tier 3"
-                    }
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
                     asyncio.create_task(process_subscription_event(
@@ -663,12 +670,8 @@ async def process_eventsub_message(message):
                         tier_name,
                         event_data.get("cumulative_months", 1)
                     ))
+                # Subscription Message Event
                 elif event_type == "channel.subscription.message":
-                    tier_mapping = {
-                        "1000": "Tier 1",
-                        "2000": "Tier 2",
-                        "3000": "Tier 3"
-                    }
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
                     subscription_message = event_data.get("message", {}).get("text", "")
@@ -679,12 +682,8 @@ async def process_eventsub_message(message):
                         subscription_message,
                         event_data.get("cumulative_months", 1)
                     ))
+                # Subscription Gift Event
                 elif event_type == "channel.subscription.gift":
-                    tier_mapping = {
-                        "1000": "Tier 1",
-                        "2000": "Tier 2",
-                        "3000": "Tier 3"
-                    }
                     tier = event_data["tier"]
                     tier_name = tier_mapping.get(tier, tier)
                     asyncio.create_task(process_giftsub_event(
@@ -694,26 +693,31 @@ async def process_eventsub_message(message):
                         event_data.get("is_anonymous", False),
                         event_data.get("cumulative_total")
                     ))
+                # Cheer Event
                 elif event_type == "channel.cheer":
                     asyncio.create_task(process_cheer_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         event_data["bits"]
                     ))
+                # Raid Event
                 elif event_type == "channel.raid":
                     asyncio.create_task(process_raid_event(
                         event_data["from_broadcaster_user_id"],
                         event_data["from_broadcaster_user_name"],
                         event_data["viewers"]
                     ))
+                # Hype Train Begin Event
                 elif event_type == "channel.hype_train.begin":
                     event_logger.info(f"Hype Train Start Event Data: {event_data}")
                     level = event_data["level"]
                     await channel.send(f"The Hype Train has started! Starting at level: {level}")
+                # Hype Train End Event
                 elif event_type == "channel.hype_train.end":
                     event_logger.info(f"Hype Train End Event Data: {event_data}")
                     level = event_data["level"]
                     await channel.send(f"The Hype Train has ended at level {level}!")
+                # Channel Update Event
                 elif event_type == 'channel.update':
                     global current_game
                     global stream_title
@@ -722,8 +726,10 @@ async def process_eventsub_message(message):
                     stream_title = title
                     current_game = category_name
                     event_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
+                # Ad Break Begin Event
                 elif event_type == 'channel.ad_break.begin':
                     asyncio.create_task(handle_ad_break(event_data["duration_seconds"]))
+                # Charity Campaign Donate Event
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["event"]["user_name"]
                     charity = event_data["event"]["charity_name"]
@@ -732,6 +738,7 @@ async def process_eventsub_message(message):
                     value_formatted = "{:,.2f}".format(value)
                     message = f"Thank you so much {user} for your ${value_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
                     await channel.send(message)
+                # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data["event"].get("moderator_user_name", "Unknown Moderator")
                     # Handle timeout action
@@ -777,11 +784,13 @@ async def process_eventsub_message(message):
                     else:
                         # Log the incomplete event for later analysis
                         twitch_logger.info(f"Incomplete mod event: {event_data}")
+                # Channel Point Rewards Event
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
                     asyncio.create_task(process_channel_point_rewards(event_data, event_type))
+                # Poll Event
                 elif event_type in ["channel.poll.begin", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
@@ -833,6 +842,7 @@ async def process_eventsub_message(message):
                         params = [choice_data["title"] if i < len(sorted_choices) else None for i, choice_data in enumerate(sorted_choices)] + [None, None, None, None, None, poll_id]
                         await cursor.execute(sql_query, params)
                         await sqldb.commit()
+                # Stream Online/Offline Event
                 elif event_type in ["stream.online", "stream.offline"]:
                     if event_type == "stream.online":
                         bot_logger.info(f"Stream is now online!")
@@ -840,6 +850,7 @@ async def process_eventsub_message(message):
                     else:
                         bot_logger.info(f"Stream is now offline.")
                         asyncio.create_task(websocket_notice(event="STREAM_OFFLINE"))
+                # AutoMod Message Hold Event
                 elif event_type == "automod.message.hold":
                     event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
                     messageContent = event_data["event"]["message"]
@@ -850,6 +861,7 @@ async def process_eventsub_message(message):
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
+                # User Message Hold Event
                 elif event_type == "channel.chat.user_message_hold":
                     event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
                     messageContent = event_data["event"]["message"]["text"]
@@ -860,6 +872,7 @@ async def process_eventsub_message(message):
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
+                # Suspicious User Message Event
                 elif event_type == "channel.suspicious_user.message":
                     event_logger.info(f"Got a Suspicious User Message: {event_data}")
                     messageContent = event_data["event"]["message"]["text"]
@@ -898,51 +911,68 @@ async def specter_websocket():
 
 @specterSocket.event
 async def connect():
-    bot_logger.info("Connected to the Internal WebSocket server.")
-    # Prepare the registration data
+    websocket_logger.info("[Socket.IO] Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
         'name': f'Twitch Bot Beta V{VERSION}B'
     }
-    # Emit the 'REGISTER' event
-    await specterSocket.emit('REGISTER', registration_data)
+    try:
+        await specterSocket.emit('REGISTER', registration_data)
+        websocket_logger.info("[Socket.IO] Client registration sent")
+    except Exception as e:
+        websocket_logger.error(f"[Socket.IO] Failed to register client: {e}")
 
 @specterSocket.event
 async def connect_error(data):
-    websocket_logger.error(f"Failed to connect to the SpecterWebsocket Server: {data}")
+    websocket_logger.error(f"[Socket.IO] Connection failed: {data}")
 
 @specterSocket.event
 async def disconnect():
-    websocket_logger.info("Disconnected from SpecterWebsocket Server.")
+    websocket_logger.warning("[Socket.IO] Client disconnected from server")
 
 @specterSocket.event
 async def message(data):
-    websocket_logger.info(f"Received message: {data}")
+    websocket_logger.info(f"[Socket.IO] Message received: {data}")
 
 @specterSocket.event
 async def STREAM_ONLINE(data):
-    websocket_logger.info(f"Received STREAM_ONLINE event: {data}")
-    await process_stream_online_websocket()
+    websocket_logger.info(f"[Socket.IO] Stream online event received: {data}")
+    try:
+        await process_stream_online_websocket()
+    except Exception as e:
+        websocket_logger.error(f"[Socket.IO] Failed to process stream online event: {e}")
 
 @specterSocket.event
 async def STREAM_OFFLINE(data):
-    websocket_logger.info(f"Received STREAM_OFFLINE event: {data}")
-    await process_stream_offline_websocket()
+    websocket_logger.info(f"[Socket.IO] Stream offline event received: {data}")
+    try:
+        await process_stream_offline_websocket()
+    except Exception as e:
+        websocket_logger.error(f"[Socket.IO] Failed to process stream offline event: {e}")
 
 @specterSocket.event
 async def FOURTHWALL(data):
-    websocket_logger.info(f"Received FOURTHWALL event: {data}")
-    await process_fourthwall_event(data)
+    websocket_logger.info(f"[Socket.IO] FourthWall event received: {data}")
+    try:
+        await process_fourthwall_event(data)
+    except Exception as e:
+        websocket_logger.error(f"[Socket.IO] Failed to process FourthWall event: {e}")
 
 @specterSocket.event
 async def KOFI(data):
-    websocket_logger.info(f"Received KOFI event: {data}")
-    await process_kofi_event(data)
+    websocket_logger.info(f"[Socket.IO] Ko-fi event received: {data}")
+    try:
+        await process_kofi_event(data)
+    except Exception as e:
+        websocket_logger.error(f"[Socket.IO] Failed to process Ko-fi event: {e}")
 
 @specterSocket.event
 async def WEATHER_DATA(data):
-    websocket_logger.info(f"Received WEATHER_DATA event: {data}")
-    await process_weather_websocket(data)
+    websocket_logger.info(f"[Socket.IO] Weather data received: {data}")
+    try:
+        await process_weather_websocket(data)
+    except Exception as e:
+        websocket_logger.error(f"[Socket.IO] Failed to process weather data: {e}")
 
 # Connect and manage reconnection for HypeRate Heart Rate
 async def hyperate_websocket():
