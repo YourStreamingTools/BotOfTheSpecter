@@ -8,7 +8,7 @@ html, body {
 
 .navbar {
     background-color: #1b1b1b;
-    padding: 0 1rem;
+    padding: 0.25rem 0.5rem;
     min-height: 3.25rem;
     position: relative;
 }
@@ -40,7 +40,7 @@ a.navbar-item:hover {
 }
 
 .navbar-item {
-    padding: 0.5rem 0.75rem;
+    padding: 0.2rem 0.5rem;
     color: #ffffff;
     white-space: normal;
     display: flex;
@@ -555,5 +555,9 @@ input[type="submit"]:hover {
         width: 30px;
         height: 30px;
         margin-right: 5px;
+    }
+
+    .navbar {
+        min-height: 2rem;
     }
 }
