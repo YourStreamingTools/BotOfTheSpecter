@@ -29,7 +29,7 @@ body {
 }
 
 .navbar {
-    background-color: #1b1b1b;
+    background-color: #333333;
 }
 
 .navbar-item, .navbar-link {
@@ -47,13 +47,13 @@ a.has-text-info {
 }
 
 .navbar-dropdown {
-    background-color: #1b1b1b;
+    background-color: #333333;
     border-radius: 4px;
 }
 
 .navbar-dropdown .navbar-item {
     color: #ffffff;
-    background-color: #1b1b1b;
+    background-color: #333333;
 }
 
 .navbar-dropdown .navbar-item:hover,
@@ -70,7 +70,7 @@ a.navbar-item:hover {
 
 .navbar-dropdown .navbar-item.is-disabled {
     color: #888888;
-    background-color: #1b1b1b;
+    background-color: #333333;
     pointer-events: none;
 }
 
