@@ -923,68 +923,68 @@ async def specter_websocket():
 
 @specterSocket.event
 async def connect():
-    websocket_logger.info("[Socket.IO] Successfully established connection to internal websocket server")
+    websocket_logger.info("Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
         'name': f'Twitch Bot Beta V{VERSION}B'
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
-        websocket_logger.info("[Socket.IO] Client registration sent")
+        websocket_logger.info("Client registration sent")
     except Exception as e:
-        websocket_logger.error(f"[Socket.IO] Failed to register client: {e}")
+        websocket_logger.error(f"Failed to register client: {e}")
 
 @specterSocket.event
 async def connect_error(data):
-    websocket_logger.error(f"[Socket.IO] Connection failed: {data}")
+    websocket_logger.error(f"Connection failed: {data}")
 
 @specterSocket.event
 async def disconnect():
-    websocket_logger.warning("[Socket.IO] Client disconnected from server")
+    websocket_logger.warning("Client disconnected from server")
 
 @specterSocket.event
 async def message(data):
-    websocket_logger.info(f"[Socket.IO] Message received: {data}")
+    websocket_logger.info(f"Message received: {data}")
 
 @specterSocket.event
 async def STREAM_ONLINE(data):
-    websocket_logger.info(f"[Socket.IO] Stream online event received: {data}")
+    websocket_logger.info(f"Stream online event received: {data}")
     try:
         await process_stream_online_websocket()
     except Exception as e:
-        websocket_logger.error(f"[Socket.IO] Failed to process stream online event: {e}")
+        websocket_logger.error(f"Failed to process stream online event: {e}")
 
 @specterSocket.event
 async def STREAM_OFFLINE(data):
-    websocket_logger.info(f"[Socket.IO] Stream offline event received: {data}")
+    websocket_logger.info(f"Stream offline event received: {data}")
     try:
         await process_stream_offline_websocket()
     except Exception as e:
-        websocket_logger.error(f"[Socket.IO] Failed to process stream offline event: {e}")
+        websocket_logger.error(f"Failed to process stream offline event: {e}")
 
 @specterSocket.event
 async def FOURTHWALL(data):
-    websocket_logger.info(f"[Socket.IO] FourthWall event received: {data}")
+    websocket_logger.info(f"FourthWall event received: {data}")
     try:
         await process_fourthwall_event(data)
     except Exception as e:
-        websocket_logger.error(f"[Socket.IO] Failed to process FourthWall event: {e}")
+        websocket_logger.error(f"Failed to process FourthWall event: {e}")
 
 @specterSocket.event
 async def KOFI(data):
-    websocket_logger.info(f"[Socket.IO] Ko-fi event received: {data}")
+    websocket_logger.info(f"Ko-fi event received: {data}")
     try:
         await process_kofi_event(data)
     except Exception as e:
-        websocket_logger.error(f"[Socket.IO] Failed to process Ko-fi event: {e}")
+        websocket_logger.error(f"Failed to process Ko-fi event: {e}")
 
 @specterSocket.event
 async def WEATHER_DATA(data):
-    websocket_logger.info(f"[Socket.IO] Weather data received: {data}")
+    websocket_logger.info(f"Weather data received: {data}")
     try:
         await process_weather_websocket(data)
     except Exception as e:
-        websocket_logger.error(f"[Socket.IO] Failed to process weather data: {e}")
+        websocket_logger.error(f"Failed to process weather data: {e}")
 
 # Connect and manage reconnection for HypeRate Heart Rate
 async def hyperate_websocket():
