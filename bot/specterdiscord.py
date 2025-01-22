@@ -114,20 +114,21 @@ class BotOfTheSpecter(commands.Bot):
         # Process the message if it's in a DM channel
         if isinstance(message.channel, discord.DMChannel):
             try:
-                # Wrap the entire response process within the typing context
-                async with channel.typing():
-                    self.logger.info(f"Processing message from {message.author}: {message.content}")
-                    # Fetch AI responses
-                    ai_responses = await self.get_ai_response(message.content, channel_name)
-                    # Send each chunk of AI response
-                    for ai_response in ai_responses:
-                        if ai_response:  # Ensure we're not sending an empty message
-                            typing_delay = len(ai_response) / self.typing_speed
-                            await asyncio.sleep(typing_delay)  # Simulate typing speed
-                            await message.author.send(ai_response)
-                            self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
-                        else:
-                            self.logger.error("AI response chunk was empty, not sending.")
+                # Fetch AI responses
+                ai_responses = await self.get_ai_response(message.content, channel_name)
+                # Only enter typing context if there are responses to send
+                if ai_responses:
+                    async with channel.typing():
+                        self.logger.info(f"Processing message from {message.author}: {message.content}")
+                        # Send each chunk of AI response
+                        for ai_response in ai_responses:
+                            if ai_response:  # Ensure we're not sending an empty message
+                                typing_delay = len(ai_response) / self.typing_speed
+                                await asyncio.sleep(typing_delay)  # Simulate typing speed
+                                await message.author.send(ai_response)
+                                self.logger.info(f"Sent AI response to {message.author}: {ai_response}")
+                            else:
+                                self.logger.error("AI response chunk was empty, not sending.")
             except discord.HTTPException as e:
                 self.logger.error(f"Failed to send message: {e}")
             except Exception as e:
