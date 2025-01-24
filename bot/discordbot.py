@@ -375,7 +375,7 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
         self.bot.loop.create_task(self.sio.disconnect())
         self.connected = False
 
-class DiscordBotRunner:
+class BOTS_DISCORD_RUNNER:
     def __init__(self, discord_token, channel_name, discord_logger):
         self.logger = discord_logger
         self.discord_token = discord_token
@@ -431,8 +431,8 @@ def main():
     bot_log_file = os.path.join(discord_logs, f"{args.channel_name}.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
     discord_token = os.getenv("DISCORD_TOKEN")
-    bot_runner = DiscordBotRunner(discord_token, args.channel_name, discord_logger)
-    bot_runner.run()
+    BOTS_DISCORD_BOT = BOTS_DISCORD_RUNNER(discord_token, args.channel_name, discord_logger)
+    BOTS_DISCORD_BOT.run()
 
 if __name__ == "__main__":
     main()
