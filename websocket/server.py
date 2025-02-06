@@ -327,7 +327,7 @@ class BotOfTheSpecter_WebsocketServer:
     def generate_speech(self, text, language_code=None, gender=None, voice_name=None):
         voice_params = {
             "language_code": language_code if language_code else "en-US",
-            "ssml_gender": getattr(texttospeech.SsmlVoiceGender,gender.upper(),texttospeech.SsmlVoiceGender.NEUTRAL),
+            "ssml_gender": getattr(texttospeech.SsmlVoiceGender, gender.upper() if gender else "NEUTRAL", texttospeech.SsmlVoiceGender.NEUTRAL),
         }
         if voice_name:
             voice_params["name"] = voice_name
