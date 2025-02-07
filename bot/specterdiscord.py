@@ -636,7 +636,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 title="⚠️ Channel Information",
                 description=(
                     "This channel is for creating support tickets only.\n"
-                    "Please use the commands `!ticket create` to open a ticket.\n"
+                    "Please use the command `!ticket create` to open a ticket.\n"
                     "Regular messages will be automatically deleted."
                 ),
                 color=discord.Color.yellow()
