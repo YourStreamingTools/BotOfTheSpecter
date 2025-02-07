@@ -344,7 +344,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         guild = self.bot.get_guild(guild_id)
         category = guild.get_channel(settings['category_id'])
         user = guild.get_member(user_id)
-        owner = guild.get_member(self.OWNER_ID)
+        support_role = guild.get_role(1337400720403468288)
         # Create the ticket channel
         channel = await guild.create_text_channel(
             name=f"ticket-{ticket_id}",
@@ -354,31 +354,17 @@ class TicketCog(commands.Cog, name='Tickets'):
         # Set permissions
         await channel.set_permissions(guild.default_role, read_messages=False)
         await channel.set_permissions(user, read_messages=True, send_messages=True)
-        await channel.set_permissions(owner, read_messages=True, send_messages=True)
-        # Create welcome message
-        embed = discord.Embed(
-            title=f"Support Ticket #{ticket_id}",
-            description=(
-                "Welcome to your support ticket channel!\n\n"
-                "Please provide the following information:\n"
-                "1. A detailed description of your issue\n"
-                "2. What you've tried so far (if applicable)\n"
-                "3. Any relevant screenshots or files\n\n"
-                "Our support team will assist you as soon as possible.\n"
-                "Please be patient and remain respectful throughout the process."
-            ),
-            color=discord.Color.blue()
-        )
-        embed.add_field(
-            name="Commands",
-            value=(
-                "`!close` - Close this ticket when resolved\n"
-                "`!add @user` - Add another user to this ticket"
-            ),
-            inline=False
-        )
-        embed.set_footer(text="Bot of the Specter Support System")
-        await channel.send(f"{user.mention} Welcome to your support ticket!", embed=embed)
+        await channel.set_permissions(support_role, read_messages=True, send_messages=True)
+        # Create welcome message for the user
+        await channel.send(f"Welcome to your support ticket channel, {user.mention}!\n"
+                           "Please provide the following information:\n"
+                           "1. A detailed description of your issue\n"
+                           "2. What you've tried so far (if applicable)\n"
+                           "3. Any relevant screenshots or files\n\n"
+                           "Our support team will assist you as soon as possible.\n"
+                           "Please be patient and remain respectful throughout the process.")
+        # Notify the support team about the new ticket
+        await channel.send(f"{support_role.mention} A new support ticket has been created!")
         return channel
 
     async def create_ticket(self, guild_id: int, user_id: int, username: str) -> int:
