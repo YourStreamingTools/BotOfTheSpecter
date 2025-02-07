@@ -306,7 +306,56 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 return await cur.fetchone()
 
-    async def create_ticket(self, guild_id: int, user_id: int, username: str, issue: str) -> int:
+    async def create_ticket_channel(self, guild_id: int, user_id: int, ticket_id: int):
+        settings = await self.get_settings(guild_id)
+        if not settings:
+            raise ValueError("Ticket system not set up")
+
+        guild = self.bot.get_guild(guild_id)
+        category = guild.get_channel(settings['category_id'])
+        user = guild.get_member(user_id)
+        owner = guild.get_member(self.OWNER_ID)
+
+        # Create the ticket channel
+        channel = await guild.create_text_channel(
+            name=f"ticket-{ticket_id}",
+            category=category,
+            topic=f"Support Ticket #{ticket_id} | User: {user.name}"
+        )
+
+        # Set permissions
+        await channel.set_permissions(guild.default_role, read_messages=False)
+        await channel.set_permissions(user, read_messages=True, send_messages=True)
+        await channel.set_permissions(owner, read_messages=True, send_messages=True)
+
+        # Create welcome message
+        embed = discord.Embed(
+            title=f"Support Ticket #{ticket_id}",
+            description=(
+                "Welcome to your support ticket channel!\n\n"
+                "Please provide the following information:\n"
+                "1. A detailed description of your issue\n"
+                "2. What you've tried so far (if applicable)\n"
+                "3. Any relevant screenshots or files\n\n"
+                "Our support team will assist you as soon as possible.\n"
+                "Please be patient and remain respectful throughout the process."
+            ),
+            color=discord.Color.blue()
+        )
+        embed.add_field(
+            name="Commands",
+            value=(
+                "`!close` - Close this ticket when resolved\n"
+                "`!add @user` - Add another user to this ticket"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Bot of the Specter Support System")
+
+        await channel.send(f"{user.mention} Welcome to your support ticket!", embed=embed)
+        return channel
+
+    async def create_ticket(self, guild_id: int, user_id: int, username: str) -> int:
         settings = await self.get_settings(guild_id)
         if not settings or not settings['enabled']:
             raise ValueError("Ticket system is not set up in this server")
@@ -317,69 +366,71 @@ class TicketCog(commands.Cog, name='Tickets'):
             async with conn.cursor() as cur:
                 await cur.execute(
                     "INSERT INTO tickets (user_id, username, issue) VALUES (%s, %s, %s)",
-                    (user_id, username, issue)
+                    (user_id, username, "Awaiting user's issue description")
                 )
                 ticket_id = cur.lastrowid
-                # Log the ticket creation in history
                 await cur.execute(
                     "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
-                    (ticket_id, user_id, username, "created", "Ticket created")
+                    (ticket_id, user_id, username, "created", "Ticket channel created")
                 )
                 return ticket_id
 
-    async def get_ticket(self, ticket_id: int):
-        if not self.pool:
-            await self.init_db()
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(
-                    "SELECT * FROM tickets WHERE ticket_id = %s",
-                    (ticket_id,)
-                )
-                return await cur.fetchone()
-
-    async def close_ticket(self, ticket_id: int, user_id: int, username: str):
-        if not self.pool:
-            await self.init_db()
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE ticket_id = %s",
-                    (ticket_id,)
-                )
-                # Log the ticket closure in history
-                await cur.execute(
-                    "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
-                    (ticket_id, user_id, username, "closed", "Ticket closed")
-                )
-
     @commands.command(name="ticket")
-    async def create_ticket_command(self, ctx, *, issue: str):
+    async def create_ticket_command(self, ctx, action: str = "create"):
         """Create a support ticket"""
-        ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author), issue)
-        
-        embed = discord.Embed(
-            title="Support Ticket Created",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Ticket ID", value=f"#{ticket_id}", inline=False)
-        embed.add_field(name="Issue", value=issue, inline=False)
-        embed.set_footer(text=f"Created by {ctx.author}")
-        await ctx.send(embed=embed)
-        self.logger.info(f"Ticket #{ticket_id} created by {ctx.author}")
+        if action.lower() != "create":
+            await ctx.send("Invalid command. Use `!ticket create` to create a new ticket.")
+            return
+
+        try:
+            ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
+            channel = await self.create_ticket_channel(ctx.guild.id, ctx.author.id, ticket_id)
+            
+            await ctx.send(
+                f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
+                delete_after=10
+            )
+            self.logger.info(f"Ticket #{ticket_id} created by {ctx.author} with channel {channel.name}")
+            
+        except ValueError as e:
+            await ctx.send(f"Error: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Error creating ticket: {e}")
+            await ctx.send("An error occurred while creating your ticket. Please try again later.")
 
     @app_commands.command(name="ticket", description="Create a support ticket")
-    async def slash_ticket(self, interaction: discord.Interaction, issue: str):
-        ticket_id = await self.create_ticket(interaction.guild_id, interaction.user.id, str(interaction.user), issue)
-        embed = discord.Embed(
-            title="Support Ticket Created",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Ticket ID", value=f"#{ticket_id}", inline=False)
-        embed.add_field(name="Issue", value=issue, inline=False)
-        embed.set_footer(text=f"Created by {interaction.user}")
-        await interaction.response.send_message(embed=embed)
-        self.logger.info(f"Ticket #{ticket_id} created by {interaction.user}")
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="Create a new ticket", value="create")
+        ]
+    )
+    async def slash_ticket(self, interaction: discord.Interaction, action: str = "create"):
+        if action.lower() != "create":
+            await interaction.response.send_message(
+                "Invalid command. Use `/ticket create` to create a new ticket.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            await interaction.response.defer(ephemeral=True)
+            ticket_id = await self.create_ticket(interaction.guild_id, interaction.user.id, str(interaction.user))
+            channel = await self.create_ticket_channel(interaction.guild_id, interaction.user.id, ticket_id)
+            
+            await interaction.followup.send(
+                f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
+                ephemeral=True
+            )
+            self.logger.info(f"Ticket #{ticket_id} created by {interaction.user} with channel {channel.name}")
+            
+        except ValueError as e:
+            await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+        except Exception as e:
+            self.logger.error(f"Error creating ticket: {e}")
+            await interaction.followup.send(
+                "An error occurred while creating your ticket. Please try again later.",
+                ephemeral=True
+            )
 
     @commands.command(name="viewticket")
     @commands.has_permissions(administrator=True)
