@@ -58,9 +58,18 @@ class BotOfTheSpecter(commands.Bot):
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
 
+    async def init_access_website_database(self):
+        self.pool = await aiomysql.create_pool(
+            host=os.getenv('SQL_HOST'),
+            user=os.getenv('SQL_USER'),
+            password=os.getenv('SQL_PASSWORD'),
+            db="website"
+        )
+        self.logger.info("Database connection pool for website initialized")
+
     async def get_twitch_access_token(self, user_id: str):
         if not self.pool:
-            await self.init_db()
+            await self.init_access_website_database()
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (user_id,))
@@ -106,7 +115,7 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Bot version: {self.version}')
         # Ensure the database pool is initialized
         if not self.pool:
-            await self.init_db()
+            await self.init_access_website_database()
         # Start the periodic stream check in the background
         self.loop.create_task(self.periodic_stream_check())
         # Initial status check
@@ -270,7 +279,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.SUPPORT_GUILD_ID = 1103694163930787880     # YourStreamingTools Server ID
         self.MOD_CHANNEL_ID = 1103695077928345683       # Moderator Channel ID
 
-    async def init_db(self):
+    async def init_ticket_database(self):
         # First create a connection without specifying a database
         temp_pool = await aiomysql.create_pool(
             host=os.getenv('SQL_HOST'),
@@ -294,6 +303,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 db='tickets',
                 autocommit=True
             )
+            self.logger.info("Successfully initialized ticket database connection pool")
             # Create necessary tables
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -364,12 +374,12 @@ class TicketCog(commands.Cog, name='Tickets'):
                     """)
             self.logger.info("Successfully initialized ticket database and tables")
         except Exception as e:
-            self.logger.error(f"Error initializing database: {e}")
+            self.logger.error(f"Error initializing ticket database: {e}")
             raise
 
     async def get_settings(self, guild_id: int):
         if not self.pool:
-            await self.init_db()
+            await self.init_ticket_database()
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
@@ -427,7 +437,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         if not settings or not settings['enabled']:
             raise ValueError("Ticket system is not set up in this server")
         if not self.pool:
-            await self.init_db()
+            await self.init_ticket_database()
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
@@ -443,7 +453,7 @@ class TicketCog(commands.Cog, name='Tickets'):
 
     async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str):
         if not self.pool:
-            await self.init_db()
+            await self.init_ticket_database()
         # Get the channel and ticket information
         channel = self.bot.get_channel(channel_id)
         if not channel:
