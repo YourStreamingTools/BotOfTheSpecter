@@ -658,28 +658,29 @@ class TicketCog(commands.Cog, name='Tickets'):
     async def slash_setup_tickets(self, interaction: discord.Interaction):
         """Set up the ticket system (Bot Owner Only)"""
         # Check if user is the bot owner
-        if ctx.author.id != self.OWNER_ID:
-            await ctx.send("Only the bot owner can set up the ticket system.")
+        if interaction.user.id != self.OWNER_ID:
+            await interaction.response.send_message("Only the bot owner can set up the ticket system.", ephemeral=True)
             return
+        await interaction.response.defer()
         try:
             # Create the category if it doesn't exist
-            category = discord.utils.get(ctx.guild.categories, name="Open Tickets")
+            category = discord.utils.get(interaction.guild.categories, name="Open Tickets")
             if not category:
-                category = await ctx.guild.create_category(
+                category = await interaction.guild.create_category(
                     name="Open Tickets",
                     reason="Ticket System Setup"
                 )
-                self.logger.info(f"Created 'Open Tickets' category in {ctx.guild.name}")
+                self.logger.info(f"Created 'Open Tickets' category in {interaction.guild.name}")
             # Create info channel if it doesn't exist
             info_channel = discord.utils.get(category.channels, name="ticket-info")
             if not info_channel:
-                info_channel = await ctx.guild.create_text_channel(
+                info_channel = await interaction.guild.create_text_channel(
                     name="ticket-info",
                     category=category,
                     topic="How to create support tickets",
                     reason="Ticket System Setup"
                 )
-                self.logger.info(f"Created ticket-info channel in {ctx.guild.name}")
+                self.logger.info(f"Created ticket-info channel in {interaction.guild.name}")
             # Save settings to database
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -692,17 +693,15 @@ class TicketCog(commands.Cog, name='Tickets'):
                         category_id = VALUES(category_id),
                         enabled = TRUE,
                         updated_at = CURRENT_TIMESTAMP
-                    """, (ctx.guild.id, info_channel.id, category.id))
+                    """, (interaction.guild_id, info_channel.id, category.id))
             # Create the info message
             embed = discord.Embed(
                 title="🎫 Support Ticket System",
                 description=(
                     "Welcome to our support ticket system!\n\n"
                     "To create a new support ticket, use one of these commands:\n"
-                    "• `/ticket <issue>` - Create a ticket using slash command\n"
-                    "• `!ticket <issue>` - Create a ticket using text command\n\n"
-                    "**Example:**\n"
-                    "`!ticket I need help with my account`\n\n"
+                    "• `/ticket create` - Create a ticket using slash command\n"
+                    "• `!ticket create` - Create a ticket using text command\n\n"
                     "Your ticket will be created and our support team will assist you as soon as possible."
                 ),
                 color=discord.Color.blue()
@@ -722,13 +721,13 @@ class TicketCog(commands.Cog, name='Tickets'):
             await info_channel.purge()
             await info_channel.send(embed=embed)
             # Set channel permissions
-            await info_channel.set_permissions(ctx.guild.default_role, send_messages=False)
-            await category.set_permissions(ctx.guild.default_role, read_messages=False)
-            await ctx.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
-            self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
+            await info_channel.set_permissions(interaction.guild.default_role, send_messages=False)
+            await category.set_permissions(interaction.guild.default_role, read_messages=False)
+            await interaction.followup.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
+            self.logger.info(f"Ticket system set up completed in {interaction.guild.name}")
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
-            await ctx.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
+            await interaction.followup.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
 
 class DiscordBotRunner:
     def __init__(self, discord_logger):
