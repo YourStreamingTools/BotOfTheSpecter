@@ -447,7 +447,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                             f"{f'Reason for closure: {reason}\n\n' if reason != 'No reason provided' else ''}"
                             f"If you need further assistance or if this ticket was closed by mistake, "
                             f"please return to <#{settings['info_channel_id']}> and create a new ticket "
-                            f"using `/ticket create` or `!ticket create`."
+                            f"using `!ticket create`."
                         ),
                         color=BOT_COLOR
                     )
