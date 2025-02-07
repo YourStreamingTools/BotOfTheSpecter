@@ -665,6 +665,15 @@ class TicketCog(commands.Cog, name='Tickets'):
                 # Check if message is a ticket command
                 is_ticket_command = message.content.startswith('!ticket')
                 if not is_ticket_command:
+                    # Log the message in the logs channel
+                    logs_channel = self.bot.get_channel(1104406191511183380)
+                    if logs_channel:
+                        await logs_channel.send(
+                            f"🗑️ **Message Deleted**\n"
+                            f"**User:** {message.author.mention} ({message.author.id})\n"
+                            f"**Content:** {message.content}\n"
+                            f"**Channel:** {message.channel.mention}"
+                        )
                     # Delete non-ticket messages
                     await message.delete()
                     # Send a temporary warning message
