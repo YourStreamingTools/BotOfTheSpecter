@@ -495,8 +495,11 @@ class TicketCog(commands.Cog, name='Tickets'):
                 raise
 
     @commands.command(name="ticket")
-    async def ticket_command(self, ctx, action: str = "create", *, reason: str = None):
+    async def ticket_command(self, ctx, action: str = None, *, reason: str = None):
         """Ticket system commands"""
+        if action is None:
+            await ctx.send("Please specify an action: `create` to create a ticket or `close` to close your ticket.")
+            return
         if action.lower() == "create":
             try:
                 ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
@@ -533,7 +536,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 self.logger.error(f"Error closing ticket: {e}")
                 await ctx.send("An error occurred while closing the ticket.")
         else:
-            await ctx.send("Invalid command. Use `!ticket create` to create a ticket or `!ticket close` to close your ticket.")
+            await ctx.send("Invalid actions. Use `!ticket create` to create a ticket or `!ticket close` to close your ticket.")
 
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
