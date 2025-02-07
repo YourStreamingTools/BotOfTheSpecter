@@ -73,7 +73,8 @@ class BotOfTheSpecter(commands.Bot):
         access_token = await self.get_twitch_access_token("971436498")  # Replace with your Twitch user ID
         if not access_token:
             self.logger.error("Failed to retrieve Twitch access token from the database.")
-            return False
+            return False, None  # Return None for thumbnail if access token is not available
+
         async with aiohttp.ClientSession() as session:
             # Check if the user is live
             async with session.get(
@@ -81,13 +82,20 @@ class BotOfTheSpecter(commands.Bot):
                 headers={'Client-ID': client_id, 'Authorization': f'Bearer {access_token}'}
             ) as response:
                 stream_data = await response.json()
-                return len(stream_data.get('data', [])) > 0  # Returns True if the stream is live
+                if stream_data.get('data'):
+                    # Stream is live, return the thumbnail URL
+                    thumbnail_url = stream_data['data'][0]['thumbnail_url']
+                    # Replace {width} and {height} with desired dimensions
+                    thumbnail_url = thumbnail_url.replace("{width}", "1280").replace("{height}", "720")
+                    return True, thumbnail_url  # Return True and the thumbnail URL
+                return False, None  # Stream is not live
 
     async def periodic_stream_check(self):
         await self.wait_until_ready()  # Wait until the bot is ready
         while not self.is_closed():
-            if await self.is_streaming():
-                await self.change_presence(activity=discord.Streaming(name="Streaming on Twitch", url="https://www.twitch.tv/botofthespecter"))
+            is_live, thumbnail_url = await self.is_streaming()
+            if is_live:
+                await self.change_presence(activity=discord.Streaming(name="Streaming on Twitch", url="https://www.twitch.tv/botofthespecter", details="Live now!", state="Come join!", image=thumbnail_url))
             else:
                 await self.change_presence(activity=discord.Game(name="Not currently streaming"))
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
@@ -98,8 +106,9 @@ class BotOfTheSpecter(commands.Bot):
         # Start the periodic stream check in the background
         self.bot.loop.create_task(self.periodic_stream_check())
         # Initial status check
-        if await self.is_streaming():
-            await self.change_presence(activity=discord.Streaming(name="Streaming on Twitch", url="https://www.twitch.tv/botofthespecter"))
+        is_live, thumbnail_url = await self.is_streaming()
+        if is_live:
+            await self.change_presence(activity=discord.Streaming(name="Streaming on Twitch", url="https://www.twitch.tv/botofthespecter", details="Live now!", state="Come join!", image=thumbnail_url))
         else:
             await self.change_presence(activity=discord.Game(name="Not currently streaming"))
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
