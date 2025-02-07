@@ -104,7 +104,7 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
         # Start the periodic stream check in the background
-        self.bot.loop.create_task(self.periodic_stream_check())
+        self.loop.create_task(self.periodic_stream_check())
         # Initial status check
         is_live, thumbnail_url = await self.is_streaming()
         if is_live:
