@@ -227,6 +227,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.pool = None
         self.OWNER_ID = 127783626917150720              # gfaUnDead User ID (Owner)
         self.SUPPORT_GUILD_ID = 1103694163930787880     # YourStreamingTools Server ID
+        self.SUPPORT_ROLE = 1337400720403468288         # Support Team Role
         self.MOD_CHANNEL_ID = 1103695077928345683       # Moderator Channel ID
 
     async def init_ticket_database(self):
@@ -345,7 +346,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         guild = self.bot.get_guild(guild_id)
         category = guild.get_channel(settings['category_id'])
         user = guild.get_member(user_id)
-        support_role = guild.get_role(1337400720403468288)
+        support_role = guild.get_role(self.SUPPORT_ROLE)
         # Create the ticket channel
         channel = await guild.create_text_channel(
             name=f"ticket-{ticket_id}",
@@ -550,7 +551,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
                     return
                 # Check if the user has the support role
-                support_role = ctx.guild.get_role(1337400720403468288)
+                support_role = ctx.guild.get_role(self.SUPPORT_ROLE)
                 if support_role not in ctx.author.roles:
                     await ctx.send(
                         "Only the support team can close this ticket.",
