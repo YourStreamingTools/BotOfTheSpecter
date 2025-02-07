@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
+import aiomysql
 
 # Load environment variables from .env file
 load_dotenv()
@@ -60,6 +61,7 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
+        await self.add_cog(TicketCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
 
     async def setup_hook(self):
@@ -189,6 +191,160 @@ class QuoteCog(commands.Cog, name='Quote'):
         except Exception as e:
             self.logger.error(f"Error fetching quote: {e}")
             await ctx.send("An error occurred while fetching the quote.")
+
+class TicketCog(commands.Cog, name='Tickets'):
+    def __init__(self, bot: commands.Bot, logger=None):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.pool = None
+
+    async def init_db(self):
+        self.pool = await aiomysql.create_pool(
+            host=os.getenv('SQL_HOST'),
+            user=os.getenv('SQL_USER'),
+            password=os.getenv('SQL_PASSWORD'),
+            db='botofthespecter',
+            autocommit=True
+        )
+        # Create tickets table if it doesn't exist
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS support_tickets (
+                        ticket_id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id BIGINT NOT NULL,
+                        username VARCHAR(255) NOT NULL,
+                        issue TEXT NOT NULL,
+                        status VARCHAR(20) DEFAULT 'open',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        closed_at TIMESTAMP NULL
+                    )
+                """)
+
+    async def create_ticket(self, user_id: int, username: str, issue: str) -> int:
+        if not self.pool:
+            await self.init_db()
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO support_tickets (user_id, username, issue) VALUES (%s, %s, %s)",
+                    (user_id, username, issue)
+                )
+                return cur.lastrowid
+
+    async def get_ticket(self, ticket_id: int):
+        if not self.pool:
+            await self.init_db()
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT * FROM support_tickets WHERE ticket_id = %s",
+                    (ticket_id,)
+                )
+                return await cur.fetchone()
+
+    async def close_ticket(self, ticket_id: int):
+        if not self.pool:
+            await self.init_db()
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE support_tickets SET status = 'closed', closed_at = NOW() WHERE ticket_id = %s",
+                    (ticket_id,)
+                )
+
+    @commands.command(name="ticket")
+    async def create_ticket_command(self, ctx, *, issue: str):
+        """Create a support ticket"""
+        ticket_id = await self.create_ticket(ctx.author.id, str(ctx.author), issue)
+        
+        embed = discord.Embed(
+            title="Support Ticket Created",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Ticket ID", value=f"#{ticket_id}", inline=False)
+        embed.add_field(name="Issue", value=issue, inline=False)
+        embed.set_footer(text=f"Created by {ctx.author}")
+        
+        await ctx.send(embed=embed)
+        self.logger.info(f"Ticket #{ticket_id} created by {ctx.author}")
+
+    @app_commands.command(name="ticket", description="Create a support ticket")
+    async def slash_ticket(self, interaction: discord.Interaction, issue: str):
+        ticket_id = await self.create_ticket(interaction.user.id, str(interaction.user), issue)
+        
+        embed = discord.Embed(
+            title="Support Ticket Created",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Ticket ID", value=f"#{ticket_id}", inline=False)
+        embed.add_field(name="Issue", value=issue, inline=False)
+        embed.set_footer(text=f"Created by {interaction.user}")
+        
+        await interaction.response.send_message(embed=embed)
+        self.logger.info(f"Ticket #{ticket_id} created by {interaction.user}")
+
+    @commands.command(name="viewticket")
+    @commands.has_permissions(administrator=True)
+    async def view_ticket(self, ctx, ticket_id: int):
+        """View a ticket (Admin only)"""
+        ticket = await self.get_ticket(ticket_id)
+        if ticket:
+            embed = discord.Embed(
+                title=f"Ticket #{ticket_id}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="User", value=ticket['username'], inline=False)
+            embed.add_field(name="Issue", value=ticket['issue'], inline=False)
+            embed.add_field(name="Status", value=ticket['status'], inline=False)
+            embed.add_field(name="Created At", value=ticket['created_at'], inline=False)
+            
+            await ctx.send(embed=embed)
+            self.logger.info(f"Ticket #{ticket_id} viewed by {ctx.author}")
+        else:
+            await ctx.send("Ticket not found!")
+
+    @app_commands.command(name="viewticket", description="View a support ticket (Admin only)")
+    @app_commands.default_permissions(administrator=True)
+    async def slash_view_ticket(self, interaction: discord.Interaction, ticket_id: int):
+        ticket = await self.get_ticket(ticket_id)
+        if ticket:
+            embed = discord.Embed(
+                title=f"Ticket #{ticket_id}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="User", value=ticket['username'], inline=False)
+            embed.add_field(name="Issue", value=ticket['issue'], inline=False)
+            embed.add_field(name="Status", value=ticket['status'], inline=False)
+            embed.add_field(name="Created At", value=ticket['created_at'], inline=False)
+            
+            await interaction.response.send_message(embed=embed)
+            self.logger.info(f"Ticket #{ticket_id} viewed by {interaction.user}")
+        else:
+            await interaction.response.send_message("Ticket not found!")
+
+    @commands.command(name="closeticket")
+    @commands.has_permissions(administrator=True)
+    async def close_ticket_command(self, ctx, ticket_id: int):
+        """Close a ticket (Admin only)"""
+        ticket = await self.get_ticket(ticket_id)
+        if ticket and ticket['status'] == 'open':
+            await self.close_ticket(ticket_id)
+            await ctx.send(f"Ticket #{ticket_id} has been closed.")
+            self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author}")
+        else:
+            await ctx.send("Ticket not found or already closed!")
+
+    @app_commands.command(name="closeticket", description="Close a support ticket (Admin only)")
+    @app_commands.default_permissions(administrator=True)
+    async def slash_close_ticket(self, interaction: discord.Interaction, ticket_id: int):
+        ticket = await self.get_ticket(ticket_id)
+        if ticket and ticket['status'] == 'open':
+            await self.close_ticket(ticket_id)
+            await interaction.response.send_message(f"Ticket #{ticket_id} has been closed.")
+            self.logger.info(f"Ticket #{ticket_id} closed by {interaction.user}")
+        else:
+            await interaction.response.send_message("Ticket not found or already closed!")
 
 class DiscordBotRunner:
     def __init__(self, discord_logger):
