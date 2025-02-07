@@ -53,6 +53,7 @@ class BotOfTheSpecter(commands.Bot):
         self.typing_speed = 50
         self.processed_messages_file = f"/var/www/logs/discord/messages.txt"
         self.version = BOT_VERSION
+        self.pool = None  # Initialize the pool attribute
         # Ensure the log file exists
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
