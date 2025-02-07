@@ -100,16 +100,6 @@ class BotOfTheSpecter(commands.Bot):
                     return True, thumbnail_url  # Return True and the thumbnail URL
                 return False, None  # Stream is not live
 
-    async def periodic_stream_check(self):
-        await self.wait_until_ready()  # Wait until the bot is ready
-        while not self.is_closed():
-            is_live, thumbnail_url = await self.is_streaming()
-            if is_live:
-                await self.change_presence(activity=discord.Streaming(name="Streaming on Twitch", url="https://www.twitch.tv/botofthespecter", details="Live now!", state="Come join!", image=thumbnail_url))
-            else:
-                await self.change_presence(activity=discord.Game(name="Not currently streaming"))
-            await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
-
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
@@ -118,8 +108,6 @@ class BotOfTheSpecter(commands.Bot):
             await self.init_access_website_database()
         # Set the initial presence
         await self.update_presence()
-        # Start the periodic stream check in the background
-        self.loop.create_task(self.periodic_stream_check())
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
