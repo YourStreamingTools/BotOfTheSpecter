@@ -443,8 +443,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                     dm_embed = discord.Embed(
                         title="Support Ticket Closed",
                         description=(
-                            f"Your support ticket (#{ticket_id}) has been closed by the support team.\n\n"
-                            f"{f'Reason for closure: {reason}\n\n' if reason != 'No reason provided' else ''}"
+                            f"Your support ticket (#{ticket_id}) has been closed by the support team. "
+                            f"{f'Reason for closure: {reason}' if reason != 'No reason provided' else ' '}"
                             f"If you need further assistance or if this ticket was closed by mistake, "
                             f"please return to <#{settings['info_channel_id']}> and create a new ticket "
                             f"using `!ticket create`."
