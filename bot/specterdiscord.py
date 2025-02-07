@@ -116,6 +116,16 @@ class BotOfTheSpecter(commands.Bot):
         # Ensure the database pool is initialized
         if not self.pool:
             await self.init_access_website_database()
+        # Set the bot's presence
+        await self.change_presence(
+            activity=discord.Streaming(
+                name="BotOfTheSpecter",
+                url="https://www.twitch.tv/botofthespecter",
+                details="Enhancing Twitch and Discord",
+                state="Live now!",
+                image="https://cdn.botofthespecter.com/BotOfTheSpecter-TwitchBanner.jpg"
+            )
+        )
         # Start the periodic stream check in the background
         self.loop.create_task(self.periodic_stream_check())
         # Initial status check
