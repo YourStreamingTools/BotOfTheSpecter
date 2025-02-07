@@ -395,7 +395,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 return ticket_id
 
-    async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str):
+    async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str, reason: str = "No reason provided"):
         if not self.pool:
             await self.init_ticket_database()
         # Get the channel and ticket information
@@ -418,10 +418,10 @@ class TicketCog(commands.Cog, name='Tickets'):
                        WHERE ticket_id = %s""",
                     (channel_id, ticket_id)
                 )
-                # Log the closure in history
+                # Log the closure in history with the reason
                 await cur.execute(
                     "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
-                    (ticket_id, closer_id, closer_name, "closed", "Ticket closed by user")
+                    (ticket_id, closer_id, closer_name, "closed", reason)
                 )
         if channel:
             # Send closure message in channel
@@ -435,7 +435,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 color=BOT_COLOR
             )
             await channel.send(embed=embed)
-            # Try to send DM to ticket creator
+            # Try to send DM to ticket creator with the reason
             try:
                 ticket_creator = channel.guild.get_member(ticket_data['user_id'])
                 if ticket_creator:
@@ -444,6 +444,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         title="Support Ticket Closed",
                         description=(
                             f"Your support ticket (#{ticket_id}) has been closed by the support team.\n\n"
+                            f"Reason for closure: {reason}\n\n"
                             f"If you need further assistance or if this ticket was closed by mistake, "
                             f"please return to <#{settings['info_channel_id']}> and create a new ticket "
                             f"using `/ticket create` or `!ticket create`."
@@ -451,7 +452,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         color=BOT_COLOR
                     )
                     await ticket_creator.send(embed=dm_embed)
-                    self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id}")
+                    self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id} with reason: {reason}")
             except discord.Forbidden:
                 self.logger.warning(f"Could not send DM to user {ticket_data['user_id']} for ticket #{ticket_id}")
             except Exception as e:
@@ -494,7 +495,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 raise
 
     @commands.command(name="ticket")
-    async def ticket_command(self, ctx, action: str = "create"):
+    async def ticket_command(self, ctx, action: str = "create", *, reason: str = None):
         """Ticket system commands"""
         if action.lower() == "create":
             try:
@@ -526,8 +527,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                 if ctx.author.id != ticket['user_id'] and ctx.author.id != self.OWNER_ID:
                     await ctx.send("Only the ticket creator or support team can close this ticket.")
                     return
-                await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author))
-                self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author}")
+                await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason)
+                self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
             except Exception as e:
                 self.logger.error(f"Error closing ticket: {e}")
                 await ctx.send("An error occurred while closing the ticket.")
