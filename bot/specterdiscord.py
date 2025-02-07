@@ -355,14 +355,22 @@ class TicketCog(commands.Cog, name='Tickets'):
         await channel.set_permissions(guild.default_role, read_messages=False)
         await channel.set_permissions(user, read_messages=True, send_messages=True)
         await channel.set_permissions(support_role, read_messages=True, send_messages=True)
-        # Create welcome message for the user
-        await channel.send(f"Welcome to your support ticket channel, {user.mention}!\n"
-                           "Please provide the following information:\n"
-                           "1. A detailed description of your issue\n"
-                           "2. What you've tried so far (if applicable)\n"
-                           "3. Any relevant screenshots or files\n\n"
-                           "Our support team will assist you as soon as possible.\n"
-                           "Please be patient and remain respectful throughout the process.")
+        # Welcome message for the user
+        await channel.send(f"Welcome to your support ticket channel, {user.mention}!")
+        # Create an embed with instructions
+        embed = discord.Embed(
+            title="Instructions",
+            description=(
+                "Please provide the following information:\n"
+                "1. A detailed description of your issue\n"
+                "2. What you've tried so far (if applicable)\n"
+                "3. Any relevant screenshots or files\n\n"
+                "Our support team will assist you as soon as possible.\n"
+                "Please be patient and remain respectful throughout the process."
+            ),
+            color=discord.Color.blue()
+        )
+        await channel.send(embed=embed)  # Send the embed message to the channel
         # Notify the support team about the new ticket
         await channel.send(f"{support_role.mention} A new support ticket has been created!")
         return channel
