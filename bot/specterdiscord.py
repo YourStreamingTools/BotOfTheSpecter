@@ -375,62 +375,153 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 return ticket_id
 
-    @commands.command(name="ticket")
-    async def create_ticket_command(self, ctx, action: str = "create"):
-        """Create a support ticket"""
-        if action.lower() != "create":
-            await ctx.send("Invalid command. Use `!ticket create` to create a new ticket.")
-            return
-
-        try:
-            ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
-            channel = await self.create_ticket_channel(ctx.guild.id, ctx.author.id, ticket_id)
-            
-            await ctx.send(
-                f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
-                delete_after=10
+    async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str):
+        if not self.pool:
+            await self.init_db()
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # Update ticket status
+                await cur.execute(
+                    "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE ticket_id = %s",
+                    (ticket_id,)
+                )
+                # Log the closure in history
+                await cur.execute(
+                    "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
+                    (ticket_id, closer_id, closer_name, "closed", "Ticket closed by user")
+                )
+                
+        # Get the channel and close it
+        channel = self.bot.get_channel(channel_id)
+        if channel:
+            # Send closure message
+            embed = discord.Embed(
+                title="Ticket Closing",
+                description=(
+                    "The support team has been notified that you no longer require assistance.\n"
+                    "This ticket will be closed and archived.\n\n"
+                    "If you need further assistance in the future, please create a new ticket."
+                ),
+                color=discord.Color.orange()
             )
-            self.logger.info(f"Ticket #{ticket_id} created by {ctx.author} with channel {channel.name}")
+            await channel.send(embed=embed)
             
-        except ValueError as e:
-            await ctx.send(f"Error: {str(e)}")
-        except Exception as e:
-            self.logger.error(f"Error creating ticket: {e}")
-            await ctx.send("An error occurred while creating your ticket. Please try again later.")
+            # Archive and lock the channel
+            await asyncio.sleep(10)  # Wait 10 seconds before closing
+            await channel.edit(archived=True, locked=True)
 
-    @app_commands.command(name="ticket", description="Create a support ticket")
+    @commands.command(name="ticket")
+    async def ticket_command(self, ctx, action: str = "create"):
+        """Ticket system commands"""
+        if action.lower() == "create":
+            try:
+                ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
+                channel = await self.create_ticket_channel(ctx.guild.id, ctx.author.id, ticket_id)
+                
+                await ctx.send(
+                    f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
+                    delete_after=10
+                )
+                self.logger.info(f"Ticket #{ticket_id} created by {ctx.author} with channel {channel.name}")
+                
+            except ValueError as e:
+                await ctx.send(f"Error: {str(e)}")
+            except Exception as e:
+                self.logger.error(f"Error creating ticket: {e}")
+                await ctx.send("An error occurred while creating your ticket. Please try again later.")
+                
+        elif action.lower() == "close":
+            # Check if the command is used in a ticket channel
+            if not ctx.channel.name.startswith("ticket-"):
+                await ctx.send("This command can only be used in a ticket channel.")
+                return
+                
+            try:
+                ticket_id = int(ctx.channel.name.split("-")[1])
+                
+                # Check if user is ticket creator or bot owner
+                ticket = await self.get_ticket(ticket_id)
+                if not ticket:
+                    await ctx.send("Could not find ticket information.")
+                    return
+                    
+                if ctx.author.id != ticket['user_id'] and ctx.author.id != self.OWNER_ID:
+                    await ctx.send("Only the ticket creator or support team can close this ticket.")
+                    return
+                    
+                await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author))
+                self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author}")
+                
+            except Exception as e:
+                self.logger.error(f"Error closing ticket: {e}")
+                await ctx.send("An error occurred while closing the ticket.")
+        else:
+            await ctx.send("Invalid command. Use `!ticket create` to create a ticket or `!ticket close` to close your ticket.")
+
+    @app_commands.command(name="ticket", description="Ticket system commands")
     @app_commands.choices(
         action=[
-            app_commands.Choice(name="Create a new ticket", value="create")
+            app_commands.Choice(name="Create a new ticket", value="create"),
+            app_commands.Choice(name="Close this ticket", value="close")
         ]
     )
-    async def slash_ticket(self, interaction: discord.Interaction, action: str = "create"):
-        if action.lower() != "create":
-            await interaction.response.send_message(
-                "Invalid command. Use `/ticket create` to create a new ticket.",
-                ephemeral=True
-            )
-            return
-
-        try:
-            await interaction.response.defer(ephemeral=True)
-            ticket_id = await self.create_ticket(interaction.guild_id, interaction.user.id, str(interaction.user))
-            channel = await self.create_ticket_channel(interaction.guild_id, interaction.user.id, ticket_id)
-            
-            await interaction.followup.send(
-                f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
-                ephemeral=True
-            )
-            self.logger.info(f"Ticket #{ticket_id} created by {interaction.user} with channel {channel.name}")
-            
-        except ValueError as e:
-            await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
-        except Exception as e:
-            self.logger.error(f"Error creating ticket: {e}")
-            await interaction.followup.send(
-                "An error occurred while creating your ticket. Please try again later.",
-                ephemeral=True
-            )
+    async def slash_ticket(self, interaction: discord.Interaction, action: str):
+        if action == "create":
+            try:
+                await interaction.response.defer(ephemeral=True)
+                ticket_id = await self.create_ticket(interaction.guild_id, interaction.user.id, str(interaction.user))
+                channel = await self.create_ticket_channel(interaction.guild_id, interaction.user.id, ticket_id)
+                
+                await interaction.followup.send(
+                    f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
+                    ephemeral=True
+                )
+                self.logger.info(f"Ticket #{ticket_id} created by {interaction.user} with channel {channel.name}")
+                
+            except ValueError as e:
+                await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+            except Exception as e:
+                self.logger.error(f"Error creating ticket: {e}")
+                await interaction.followup.send(
+                    "An error occurred while creating your ticket. Please try again later.",
+                    ephemeral=True
+                )
+                
+        elif action == "close":
+            # Check if the command is used in a ticket channel
+            if not interaction.channel.name.startswith("ticket-"):
+                await interaction.response.send_message(
+                    "This command can only be used in a ticket channel.",
+                    ephemeral=True
+                )
+                return
+                
+            try:
+                ticket_id = int(interaction.channel.name.split("-")[1])
+                
+                # Check if user is ticket creator or bot owner
+                ticket = await self.get_ticket(ticket_id)
+                if not ticket:
+                    await interaction.response.send_message(
+                        "Could not find ticket information.",
+                        ephemeral=True
+                    )
+                    return
+                    
+                if interaction.user.id != ticket['user_id'] and interaction.user.id != self.OWNER_ID:
+                    await interaction.response.send_message(
+                        "Only the ticket creator or support team can close this ticket.",
+                        ephemeral=True
+                    )
+                    return
+                
+                await interaction.response.defer()
+                await self.close_ticket(ticket_id, interaction.channel.id, interaction.user.id, str(interaction.user))
+                self.logger.info(f"Ticket #{ticket_id} closed by {interaction.user}")
+                
+            except Exception as e:
+                self.logger.error(f"Error closing ticket: {e}")
+                await interaction.followup.send("An error occurred while closing the ticket.")
 
     @commands.command(name="viewticket")
     @commands.has_permissions(administrator=True)
@@ -468,29 +559,6 @@ class TicketCog(commands.Cog, name='Tickets'):
             self.logger.info(f"Ticket #{ticket_id} viewed by {interaction.user}")
         else:
             await interaction.response.send_message("Ticket not found!")
-
-    @commands.command(name="closeticket")
-    @commands.has_permissions(administrator=True)
-    async def close_ticket_command(self, ctx, ticket_id: int):
-        """Close a ticket (Admin only)"""
-        ticket = await self.get_ticket(ticket_id)
-        if ticket and ticket['status'] == 'open':
-            await self.close_ticket(ticket_id, ticket['user_id'], ticket['username'])
-            await ctx.send(f"Ticket #{ticket_id} has been closed.")
-            self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author}")
-        else:
-            await ctx.send("Ticket not found or already closed!")
-
-    @app_commands.command(name="closeticket", description="Close a support ticket (Admin only)")
-    @app_commands.default_permissions(administrator=True)
-    async def slash_close_ticket(self, interaction: discord.Interaction, ticket_id: int):
-        ticket = await self.get_ticket(ticket_id)
-        if ticket and ticket['status'] == 'open':
-            await self.close_ticket(ticket_id, ticket['user_id'], ticket['username'])
-            await interaction.response.send_message(f"Ticket #{ticket_id} has been closed.")
-            self.logger.info(f"Ticket #{ticket_id} closed by {interaction.user}")
-        else:
-            await interaction.response.send_message("Ticket not found or already closed!")
 
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
