@@ -663,19 +663,17 @@ class TicketCog(commands.Cog, name='Tickets'):
                 return
             if message.channel.id == settings['info_channel_id']:
                 # Check if message is a ticket command
-                is_ticket_command = (
-                    message.content.startswith('!ticket') or 
-                    message.content.startswith('/ticket')
-                )
+                is_ticket_command = message.content.startswith('!ticket')
                 if not is_ticket_command:
                     # Delete non-ticket messages
                     await message.delete()
                     # Send a temporary warning message
                     warning = await message.channel.send(
                         f"{message.author.mention} This channel is for ticket commands only. "
-                        "Please use `/ticket create` or `!ticket create` to open a ticket.",
+                        "Please use `!ticket create` to open a ticket.",
                         delete_after=10
                     )
+                    await warning.delete()
                     self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
         except Exception as e:
             self.logger.error(f"Error in ticket-info message watcher: {e}")
