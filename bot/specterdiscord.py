@@ -66,7 +66,12 @@ class BotOfTheSpecter(commands.Bot):
 
     async def setup_hook(self):
         # Sync the slash commands when the bot starts
-        await self.tree.sync()
+        try:
+            await self.tree.sync()
+            self.logger.info("Successfully synced slash commands.")
+        except Exception as e:
+            self.logger.error(f"Error syncing slash commands: {e}")
+        
         # Add error handler for command tree
         self.tree.on_error = self.on_app_command_error
 
