@@ -103,6 +103,9 @@ class BotOfTheSpecter(commands.Bot):
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
+        # Ensure the database pool is initialized
+        if not self.pool:
+            await self.init_db()
         # Start the periodic stream check in the background
         self.loop.create_task(self.periodic_stream_check())
         # Initial status check
