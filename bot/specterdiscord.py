@@ -116,28 +116,10 @@ class BotOfTheSpecter(commands.Bot):
         # Ensure the database pool is initialized
         if not self.pool:
             await self.init_access_website_database()
-        try:
-            # Set the bot's presence
-            await self.change_presence(
-                activity=discord.Streaming(
-                    name="BotOfTheSpecter",
-                    url="https://www.twitch.tv/botofthespecter",
-                    details="Enhancing Twitch and Discord",
-                    state="Live now!",
-                    image="https://cdn.botofthespecter.com/BotOfTheSpecter-TwitchBanner.jpg"
-                )
-            )
-            self.logger.info("Bot presence set to streaming.")
-        except Exception as e:
-            self.logger.error(f"Failed to set bot presence: {e}")
+        # Set the initial presence
+        await self.update_presence()
         # Start the periodic stream check in the background
         self.loop.create_task(self.periodic_stream_check())
-        # Initial status check
-        is_live, thumbnail_url = await self.is_streaming()
-        if is_live:
-            await self.change_presence(activity=discord.Streaming(name="Streaming on Twitch", url="https://www.twitch.tv/botofthespecter", details="Live now!", state="Come join!", image=thumbnail_url))
-        else:
-            await self.change_presence(activity=discord.Game(name="Not currently streaming"))
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
@@ -232,6 +214,17 @@ class BotOfTheSpecter(commands.Bot):
                 file.write(message_id + '\n')
         # If the message is in a server channel, process commands
         await self.process_commands(message)
+
+    async def update_presence(self):
+        server_count = len(self.guilds)  # Get the number of servers the bot is in
+        await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{server_count} servers"))
+        self.logger.info(f"Updated presence to 'Watching {server_count} servers'.")
+
+    async def periodic_presence_update(self):
+        await self.wait_until_ready()  # Wait until the bot is ready
+        while not self.is_closed():
+            await self.update_presence()  # Update the presence
+            await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
 
 class QuoteCog(commands.Cog, name='Quote'):
     def __init__(self, bot: BotOfTheSpecter, api_token: str, logger=None):
