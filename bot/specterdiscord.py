@@ -238,7 +238,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             closed_at TIMESTAMP NULL,
                             priority VARCHAR(20) DEFAULT 'normal',
-                            category VARCHAR(50) DEFAULT 'general'
+                            category VARCHAR(50) DEFAULT 'general',
+                            channel_id BIGINT NULL
                         )
                     """)
                     # Create ticket_comments table
@@ -384,10 +385,14 @@ class TicketCog(commands.Cog, name='Tickets'):
                 ticket_data = await cur.fetchone()
                 if not ticket_data:
                     raise ValueError("Ticket not found in database")
-                # Update ticket status
+                # Update ticket status and store channel_id
                 await cur.execute(
-                    "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE ticket_id = %s",
-                    (ticket_id,)
+                    """UPDATE tickets 
+                       SET status = 'closed', 
+                           closed_at = NOW(), 
+                           channel_id = %s 
+                       WHERE ticket_id = %s""",
+                    (channel_id, ticket_id)
                 )
                 # Log the closure in history
                 await cur.execute(
@@ -395,7 +400,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     (ticket_id, closer_id, closer_name, "closed", "Ticket closed by user")
                 )
         if channel:
-            # Send closure message
+            # Send closure message in channel
             embed = discord.Embed(
                 title="Ticket Closing",
                 description=(
@@ -406,6 +411,30 @@ class TicketCog(commands.Cog, name='Tickets'):
                 color=discord.Color.orange()
             )
             await channel.send(embed=embed)
+            # Try to send DM to ticket creator
+            try:
+                ticket_creator = channel.guild.get_member(ticket_data['user_id'])
+                if ticket_creator:
+                    dm_embed = discord.Embed(
+                        title="Support Ticket Closed",
+                        description=(
+                            f"Your support ticket (#{ticket_id}) has been closed.\n\n"
+                            f"You can view the archive of this conversation at:\n"
+                            f"<https://tickets.botofthespecter.com/{self.SUPPORT_GUILD_ID}/{channel_id}>"
+                        ),
+                        color=discord.Color.blue()
+                    )
+                    dm_embed.add_field(
+                        name="Need More Help?",
+                        value="If you need further assistance, feel free to create a new ticket.",
+                        inline=False
+                    )
+                    await ticket_creator.send(embed=dm_embed)
+                    self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id}")
+            except discord.Forbidden:
+                self.logger.warning(f"Could not send DM to user {ticket_data['user_id']} for ticket #{ticket_id}")
+            except Exception as e:
+                self.logger.error(f"Error sending closure DM: {e}")
             # Wait 10 seconds before proceeding with closure
             await asyncio.sleep(10)
             try:
@@ -424,7 +453,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                         send_messages=True
                     )
                 # Remove ticket creator's access
-                ticket_creator = channel.guild.get_member(ticket_data['user_id'])
                 if ticket_creator:
                     await channel.set_permissions(ticket_creator, overwrite=None)
                 # Move channel to Closed Tickets category
