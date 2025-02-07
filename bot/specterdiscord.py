@@ -665,24 +665,16 @@ class TicketCog(commands.Cog, name='Tickets'):
                 # Check if message is a ticket command
                 is_ticket_command = message.content.startswith('!ticket')
                 if not is_ticket_command:
-                    # Log the message in the logs channel
-                    logs_channel = self.bot.get_channel(1104406191511183380)
-                    if logs_channel:
-                        await logs_channel.send(
-                            f"🗑️ **Message Deleted**\n"
-                            f"**User:** {message.author.mention} ({message.author.id})\n"
-                            f"**Content:** {message.content}\n"
-                            f"**Channel:** {message.channel.mention}"
-                        )
                     # Delete non-ticket messages
                     await message.delete()
                     # Send a temporary warning message
                     warning = await message.channel.send(
                         f"{message.author.mention} This channel is for ticket commands only. "
-                        "Please use `!ticket create` to open a ticket.",
-                        delete_after=10
+                        "Please use `!ticket create` to open a ticket."
                     )
-                    await warning.delete()
+                    # Set a delay before deleting the warning message
+                    await asyncio.sleep(30)  # Wait for 30 seconds
+                    await warning.delete()  # Delete the warning message after the delay
                     self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
         except Exception as e:
             self.logger.error(f"Error in ticket-info message watcher: {e}")
