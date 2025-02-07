@@ -617,16 +617,11 @@ class TicketCog(commands.Cog, name='Tickets'):
             embed = discord.Embed(
                 title="🎫 YourStreamingTools Support System",
                 description=(
-                    "Welcome to our support ticket system!\n\n"
+                    "**Welcome to our support ticket system!**\n\n"
                     "To create a new support ticket: `!ticket create`\n\n"
-                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue in detail and communicate with our support team.\n\n"
-                    "Your ticket will be created and our support team will assist you as soon as possible."
-                ),
-                color=BOT_COLOR
-            )
-            embed.add_field(
-                name="Important Notes",
-                value=(
+                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue in detail and communicate with our support team."
+                    "\n\n"
+                    "Important Notes\n"
                     "• Your ticket will be created in a private channel\n"
                     "• Provide a clear description of your issue in the ticket channel\n"
                     "• One ticket per issue\n"
@@ -634,7 +629,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "• Keep all communication respectful\n"
                     "• Only support team members can close tickets"
                 ),
-                inline=False
+                color=BOT_COLOR
             )
             # Add a warning message about channel usage
             warning_embed = discord.Embed(
