@@ -657,14 +657,14 @@ class TicketCog(commands.Cog, name='Tickets'):
                     """, (ctx.guild.id, info_channel.id, category.id))
             # Create the info message
             embed = discord.Embed(
-                title="🎫 Support Ticket System",
+                title="🎫 YourStreamingTools Support System",
                 description=(
                     "Welcome to our support ticket system!\n\n"
-                    "To create a new support ticket, use one of these commands:\n"
-                    "• `/ticket <issue>` - Create a ticket using slash command\n"
-                    "• `!ticket <issue>` - Create a ticket using text command\n\n"
-                    "**Example:**\n"
-                    "`!ticket I need help with my account`\n\n"
+                    "To create a new support ticket, use either:\n"
+                    "• `/ticket create`\n"
+                    "• `!ticket create`\n\n"
+                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue "
+                    "in detail and communicate with our support team.\n\n"
                     "Your ticket will be created and our support team will assist you as soon as possible."
                 ),
                 color=discord.Color.blue()
@@ -672,20 +672,48 @@ class TicketCog(commands.Cog, name='Tickets'):
             embed.add_field(
                 name="Important Notes",
                 value=(
-                    "• Please provide a clear description of your issue\n"
+                    "• Your ticket will be created in a private channel\n"
+                    "• Provide a clear description of your issue in the ticket channel\n"
                     "• One ticket per issue\n"
                     "• Be patient while waiting for a response\n"
-                    "• Keep all communication respectful"
+                    "• Keep all communication respectful\n"
+                    "• Only support team members can close tickets"
                 ),
                 inline=False
             )
-            embed.set_footer(text="Bot of the Specter Support System")
+            embed.set_footer(text="YourStreamingTools Support System")
             # Clear existing messages in info channel
             await info_channel.purge()
             await info_channel.send(embed=embed)
             # Set channel permissions
-            await info_channel.set_permissions(ctx.guild.default_role, send_messages=False)
-            await category.set_permissions(ctx.guild.default_role, read_messages=False)
+            await info_channel.set_permissions(
+                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=True,      # Allow everyone to see the channel
+                send_messages=True,      # Allow sending messages (for commands)
+                add_reactions=False,     # Prevent reactions
+                embed_links=False,       # Prevent embeds
+                attach_files=False,      # Prevent file attachments
+                use_application_commands=True  # Allow slash commands
+            )
+            # Set up channel slowmode to prevent spam
+            await info_channel.edit(slowmode_delay=5)  # 5 seconds between messages
+            # Add a warning message about channel usage
+            warning_embed = discord.Embed(
+                title="⚠️ Channel Information",
+                description=(
+                    "This channel is for creating support tickets only.\n"
+                    "Please use the commands `/ticket create` or `!ticket create` to open a ticket.\n"
+                    "Regular messages will be automatically deleted."
+                ),
+                color=discord.Color.yellow()
+            )
+            await info_channel.send(embed=warning_embed)
+            # Set proper permissions for the Open Tickets category
+            await category.set_permissions(
+                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=False,     # Hide all ticket channels by default
+                send_messages=False
+            )
             await ctx.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
             self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
         except Exception as e:
@@ -748,12 +776,14 @@ class TicketCog(commands.Cog, name='Tickets'):
                     """, (interaction.guild_id, info_channel.id, category.id))
             # Create the info message
             embed = discord.Embed(
-                title="🎫 Support Ticket System",
+                title="🎫 YourStreamingTools Support System",
                 description=(
                     "Welcome to our support ticket system!\n\n"
-                    "To create a new support ticket, use one of these commands:\n"
-                    "• `/ticket create` - Create a ticket using slash command\n"
-                    "• `!ticket create` - Create a ticket using text command\n\n"
+                    "To create a new support ticket, use either:\n"
+                    "• `/ticket create`\n"
+                    "• `!ticket create`\n\n"
+                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue "
+                    "in detail and communicate with our support team.\n\n"
                     "Your ticket will be created and our support team will assist you as soon as possible."
                 ),
                 color=discord.Color.blue()
@@ -761,20 +791,48 @@ class TicketCog(commands.Cog, name='Tickets'):
             embed.add_field(
                 name="Important Notes",
                 value=(
-                    "• Please provide a clear description of your issue\n"
+                    "• Your ticket will be created in a private channel\n"
+                    "• Provide a clear description of your issue in the ticket channel\n"
                     "• One ticket per issue\n"
                     "• Be patient while waiting for a response\n"
-                    "• Keep all communication respectful"
+                    "• Keep all communication respectful\n"
+                    "• Only support team members can close tickets"
                 ),
                 inline=False
             )
-            embed.set_footer(text="Bot of the Specter Support System")
+            embed.set_footer(text="YourStreamingTools Support System")
             # Clear existing messages in info channel
             await info_channel.purge()
             await info_channel.send(embed=embed)
             # Set channel permissions
-            await info_channel.set_permissions(interaction.guild.default_role, send_messages=False)
-            await category.set_permissions(interaction.guild.default_role, read_messages=False)
+            await info_channel.set_permissions(
+                interaction.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=True,      # Allow everyone to see the channel
+                send_messages=True,      # Allow sending messages (for commands)
+                add_reactions=False,     # Prevent reactions
+                embed_links=False,       # Prevent embeds
+                attach_files=False,      # Prevent file attachments
+                use_application_commands=True  # Allow slash commands
+            )
+            # Set up channel slowmode to prevent spam
+            await info_channel.edit(slowmode_delay=5)  # 5 seconds between messages
+            # Add a warning message about channel usage
+            warning_embed = discord.Embed(
+                title="⚠️ Channel Information",
+                description=(
+                    "This channel is for creating support tickets only.\n"
+                    "Please use the commands `/ticket create` or `!ticket create` to open a ticket.\n"
+                    "Regular messages will be automatically deleted."
+                ),
+                color=discord.Color.yellow()
+            )
+            await info_channel.send(embed=warning_embed)
+            # Set proper permissions for the Open Tickets category
+            await category.set_permissions(
+                interaction.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=False,     # Hide all ticket channels by default
+                send_messages=False
+            )
             await interaction.followup.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
             self.logger.info(f"Ticket system set up completed in {interaction.guild.name}")
         except Exception as e:
