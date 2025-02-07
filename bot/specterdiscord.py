@@ -534,63 +534,6 @@ class TicketCog(commands.Cog, name='Tickets'):
         else:
             await ctx.send("Invalid command. Use `!ticket create` to create a ticket or `!ticket close` to close your ticket.")
 
-    @app_commands.command(name="ticket", description="Ticket system commands")
-    @app_commands.choices(
-        action=[
-            app_commands.Choice(name="Create a new ticket", value="create"),
-            app_commands.Choice(name="Close this ticket", value="close")
-        ]
-    )
-    async def slash_ticket(self, interaction: discord.Interaction, action: str):
-        if action == "create":
-            try:
-                await interaction.response.defer(ephemeral=True)
-                ticket_id = await self.create_ticket(interaction.guild_id, interaction.user.id, str(interaction.user))
-                channel = await self.create_ticket_channel(interaction.guild_id, interaction.user.id, ticket_id)
-                await interaction.followup.send(
-                    f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
-                    ephemeral=True
-                )
-                self.logger.info(f"Ticket #{ticket_id} created by {interaction.user} with channel {channel.name}")
-            except ValueError as e:
-                await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
-            except Exception as e:
-                self.logger.error(f"Error creating ticket: {e}")
-                await interaction.followup.send(
-                    "An error occurred while creating your ticket. Please try again later.",
-                    ephemeral=True
-                )
-        elif action == "close":
-            # Check if the command is used in a ticket channel
-            if not interaction.channel.name.startswith("ticket-"):
-                await interaction.response.send_message(
-                    "This command can only be used in a ticket channel.",
-                    ephemeral=True
-                )
-                return
-            try:
-                ticket_id = int(interaction.channel.name.split("-")[1])
-                # Check if user is ticket creator or bot owner
-                ticket = await self.get_ticket(ticket_id)
-                if not ticket:
-                    await interaction.response.send_message(
-                        "Could not find ticket information.",
-                        ephemeral=True
-                    )
-                    return
-                if interaction.user.id != ticket['user_id'] and interaction.user.id != self.OWNER_ID:
-                    await interaction.response.send_message(
-                        "Only the ticket creator or support team can close this ticket.",
-                        ephemeral=True
-                    )
-                    return
-                await interaction.response.defer()
-                await self.close_ticket(ticket_id, interaction.channel.id, interaction.user.id, str(interaction.user))
-                self.logger.info(f"Ticket #{ticket_id} closed by {interaction.user}")
-            except Exception as e:
-                self.logger.error(f"Error closing ticket: {e}")
-                await interaction.followup.send("An error occurred while closing the ticket.")
-
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
         """Set up the ticket system (Bot Owner Only)"""
@@ -636,6 +579,9 @@ class TicketCog(commands.Cog, name='Tickets'):
                     reason="Ticket System Setup"
                 )
                 self.logger.info(f"Created ticket-info channel in {ctx.guild.name}")
+            else:
+                # If the channel already exists, delete existing messages
+                await info_channel.purge()  # This will delete all messages in the channel
             # Save settings to database
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -649,16 +595,31 @@ class TicketCog(commands.Cog, name='Tickets'):
                         enabled = TRUE,
                         updated_at = CURRENT_TIMESTAMP
                     """, (ctx.guild.id, info_channel.id, category.id))
+            # Set channel permissions
+            await info_channel.set_permissions(
+                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=True,      # Allow everyone to see the channel
+                send_messages=True,      # Allow sending messages (for commands)
+                add_reactions=False,     # Prevent reactions
+                embed_links=False,       # Prevent embeds
+                attach_files=False,      # Prevent file attachments
+                use_application_commands=True  # Allow slash commands
+            )
+            # Set up channel slowmode to prevent spam
+            await info_channel.edit(slowmode_delay=5)  # 5 seconds between messages
+            # Set proper permissions for the Open Tickets category
+            await category.set_permissions(
+                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
+                read_messages=False,     # Hide all ticket channels by default
+                send_messages=False
+            )
             # Create the info message
             embed = discord.Embed(
                 title="🎫 YourStreamingTools Support System",
                 description=(
                     "Welcome to our support ticket system!\n\n"
-                    "To create a new support ticket, use either:\n"
-                    "• `/ticket create`\n"
-                    "• `!ticket create`\n\n"
-                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue "
-                    "in detail and communicate with our support team.\n\n"
+                    "To create a new support ticket: `!ticket create`\n\n"
+                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue in detail and communicate with our support team.\n\n"
                     "Your ticket will be created and our support team will assist you as soon as possible."
                 ),
                 color=BOT_COLOR
@@ -675,170 +636,24 @@ class TicketCog(commands.Cog, name='Tickets'):
                 ),
                 inline=False
             )
-            embed.set_footer(text="YourStreamingTools Support System")
-            # Clear existing messages in info channel
-            await info_channel.purge()
-            await info_channel.send(embed=embed)
-            # Set channel permissions
-            await info_channel.set_permissions(
-                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
-                read_messages=True,      # Allow everyone to see the channel
-                send_messages=True,      # Allow sending messages (for commands)
-                add_reactions=False,     # Prevent reactions
-                embed_links=False,       # Prevent embeds
-                attach_files=False,      # Prevent file attachments
-                use_application_commands=True  # Allow slash commands
-            )
-            # Set up channel slowmode to prevent spam
-            await info_channel.edit(slowmode_delay=5)  # 5 seconds between messages
             # Add a warning message about channel usage
             warning_embed = discord.Embed(
                 title="⚠️ Channel Information",
                 description=(
                     "This channel is for creating support tickets only.\n"
-                    "Please use the commands `/ticket create` or `!ticket create` to open a ticket.\n"
+                    "Please use the commands `!ticket create` to open a ticket.\n"
                     "Regular messages will be automatically deleted."
                 ),
                 color=discord.Color.yellow()
             )
+            # Send the new info message
+            await info_channel.send(embed=embed)
             await info_channel.send(embed=warning_embed)
-            # Set proper permissions for the Open Tickets category
-            await category.set_permissions(
-                ctx.guild.default_role,  # or interaction.guild.default_role for slash command
-                read_messages=False,     # Hide all ticket channels by default
-                send_messages=False
-            )
             await ctx.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
             self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
             await ctx.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
-
-    @app_commands.command(name="setuptickets", description="Set up the ticket system (Bot Owner Only)")
-    async def slash_setup_tickets(self, interaction: discord.Interaction):
-        """Set up the ticket system (Bot Owner Only)"""
-        # Check if command is used in the moderator channel
-        if interaction.channel_id != self.MOD_CHANNEL_ID:
-            await interaction.response.send_message(
-                "❌ This command can only be used in the moderator channel.",
-                ephemeral=True
-            )
-            return
-        # Check if user is in the correct server
-        if interaction.guild_id != self.SUPPORT_GUILD_ID:
-            await interaction.response.send_message(
-                "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
-                "This is a centralized support system - please join <https://discord.com/invite/ANwEkpauHJ> "
-                "to create support tickets.",
-                ephemeral=True
-            )
-            return
-        # Check if user is the bot owner
-        if interaction.user.id != self.OWNER_ID:
-            await interaction.response.send_message(
-                "❌ Only the bot owner can set up the ticket system.\n"
-                "The ticket system is managed centrally through the YourStreamingTools Discord server.\n"
-                "Please join <https://discord.com/invite/ANwEkpauHJ> for support.",
-                ephemeral=True
-            )
-            return
-        await interaction.response.defer()
-        try:
-            # Create the category if it doesn't exist
-            category = discord.utils.get(interaction.guild.categories, name="Open Tickets")
-            if not category:
-                category = await interaction.guild.create_category(
-                    name="Open Tickets",
-                    reason="Ticket System Setup"
-                )
-                self.logger.info(f"Created 'Open Tickets' category in {interaction.guild.name}")
-            # Create info channel if it doesn't exist
-            info_channel = discord.utils.get(category.channels, name="ticket-info")
-            if not info_channel:
-                info_channel = await interaction.guild.create_text_channel(
-                    name="ticket-info",
-                    category=category,
-                    topic="How to create support tickets",
-                    reason="Ticket System Setup"
-                )
-                self.logger.info(f"Created ticket-info channel in {interaction.guild.name}")
-            # Save settings to database
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("""
-                        INSERT INTO ticket_settings 
-                        (guild_id, info_channel_id, category_id, enabled) 
-                        VALUES (%s, %s, %s, TRUE)
-                        ON DUPLICATE KEY UPDATE 
-                        info_channel_id = VALUES(info_channel_id),
-                        category_id = VALUES(category_id),
-                        enabled = TRUE,
-                        updated_at = CURRENT_TIMESTAMP
-                    """, (interaction.guild_id, info_channel.id, category.id))
-            # Create the info message
-            embed = discord.Embed(
-                title="🎫 YourStreamingTools Support System",
-                description=(
-                    "Welcome to our support ticket system!\n\n"
-                    "To create a new support ticket, use either:\n"
-                    "• `/ticket create`\n"
-                    "• `!ticket create`\n\n"
-                    "Once your ticket is created, you'll get access to a private channel where you can describe your issue "
-                    "in detail and communicate with our support team.\n\n"
-                    "Your ticket will be created and our support team will assist you as soon as possible."
-                ),
-                color=BOT_COLOR
-            )
-            embed.add_field(
-                name="Important Notes",
-                value=(
-                    "• Your ticket will be created in a private channel\n"
-                    "• Provide a clear description of your issue in the ticket channel\n"
-                    "• One ticket per issue\n"
-                    "• Be patient while waiting for a response\n"
-                    "• Keep all communication respectful\n"
-                    "• Only support team members can close tickets"
-                ),
-                inline=False
-            )
-            embed.set_footer(text="YourStreamingTools Support System")
-            # Clear existing messages in info channel
-            await info_channel.purge()
-            await info_channel.send(embed=embed)
-            # Set channel permissions
-            await info_channel.set_permissions(
-                interaction.guild.default_role,  # or interaction.guild.default_role for slash command
-                read_messages=True,      # Allow everyone to see the channel
-                send_messages=True,      # Allow sending messages (for commands)
-                add_reactions=False,     # Prevent reactions
-                embed_links=False,       # Prevent embeds
-                attach_files=False,      # Prevent file attachments
-                use_application_commands=True  # Allow slash commands
-            )
-            # Set up channel slowmode to prevent spam
-            await info_channel.edit(slowmode_delay=5)  # 5 seconds between messages
-            # Add a warning message about channel usage
-            warning_embed = discord.Embed(
-                title="⚠️ Channel Information",
-                description=(
-                    "This channel is for creating support tickets only.\n"
-                    "Please use the commands `/ticket create` or `!ticket create` to open a ticket.\n"
-                    "Regular messages will be automatically deleted."
-                ),
-                color=discord.Color.yellow()
-            )
-            await info_channel.send(embed=warning_embed)
-            # Set proper permissions for the Open Tickets category
-            await category.set_permissions(
-                interaction.guild.default_role,  # or interaction.guild.default_role for slash command
-                read_messages=False,     # Hide all ticket channels by default
-                send_messages=False
-            )
-            await interaction.followup.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
-            self.logger.info(f"Ticket system set up completed in {interaction.guild.name}")
-        except Exception as e:
-            self.logger.error(f"Error setting up ticket system: {e}")
-            await interaction.followup.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
 
     @commands.Cog.listener()
     async def on_message(self, message):
