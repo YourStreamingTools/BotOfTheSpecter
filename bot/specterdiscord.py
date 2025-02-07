@@ -67,6 +67,15 @@ class BotOfTheSpecter(commands.Bot):
     async def setup_hook(self):
         # Sync the slash commands when the bot starts
         await self.tree.sync()
+        # Add error handler for command tree
+        self.tree.on_error = self.on_app_command_error
+
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        # Ignore CommandNotFound errors (commands from other bots)
+        if isinstance(error, app_commands.CommandNotFound):
+            return
+        # Log other errors as usual
+        self.logger.error(f"Error in application command: {str(error)}")
 
     async def get_ai_response(self, user_message, channel_name):
         try:
