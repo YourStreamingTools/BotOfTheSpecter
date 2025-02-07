@@ -498,7 +498,10 @@ class TicketCog(commands.Cog, name='Tickets'):
     async def ticket_command(self, ctx, action: str = None, *, reason: str = None):
         """Ticket system commands"""
         if action is None:
-            await ctx.send("Please specify an action: `create` to create a ticket or `close` to close your ticket.")
+            await ctx.send(
+                "Please specify an action: `create` to create a ticket or `close` to close your ticket.",
+                delete_after=10
+            )
             return
         if action.lower() == "create":
             try:
@@ -510,31 +513,49 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 self.logger.info(f"Ticket #{ticket_id} created by {ctx.author} with channel {channel.name}")
             except ValueError as e:
-                await ctx.send(f"Error: {str(e)}")
+                self.logger.error(f"Error: {str(e)}")
+                await ctx.send(
+                    f"There was an erorr in trying to create your support ticket, the support team has been notified about this issue.",
+                    delete_after=10
+                )
             except Exception as e:
                 self.logger.error(f"Error creating ticket: {e}")
-                await ctx.send("An error occurred while creating your ticket. Please try again later.")
-                
+                await ctx.send(
+                    "An error occurred while creating your ticket, the support team has been notified about this issue.",
+                    delete_after=10
+                )
         elif action.lower() == "close":
             # Check if the command is used in a ticket channel
             if not ctx.channel.name.startswith("ticket-"):
-                await ctx.send("This command can only be used in a ticket channel.")
+                await ctx.send(
+                    "This command can only be used in a ticket channel.",
+                    delete_after=10
+                )
                 return
             try:
                 ticket_id = int(ctx.channel.name.split("-")[1])
                 # Check if user is ticket creator or bot owner
                 ticket = await self.get_ticket(ticket_id)
                 if not ticket:
-                    await ctx.send("Could not find ticket information.")
+                    await ctx.send(
+                        "Could not find ticket information.",
+                        delete_after=10
+                    )
                     return
                 if ctx.author.id != ticket['user_id'] and ctx.author.id != self.OWNER_ID:
-                    await ctx.send("Only the ticket creator or support team can close this ticket.")
+                    await ctx.send(
+                        "Only the support team can close this ticket.",
+                        delete_after=10
+                    )
                     return
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
             except Exception as e:
                 self.logger.error(f"Error closing ticket: {e}")
-                await ctx.send("An error occurred while closing the ticket.")
+                await ctx.send(
+                    "An error occurred while closing the ticket.",
+                    delete_after=10
+                )
         else:
             await ctx.send("Invalid actions. Use `!ticket create` to create a ticket or `!ticket close` to close your ticket.")
 
