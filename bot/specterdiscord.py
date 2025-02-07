@@ -533,16 +533,18 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 return
             try:
+                # Fetch ticket id from the channel name
                 ticket_id = int(ctx.channel.name.split("-")[1])
-                # Check if user is ticket creator or bot owner
                 ticket = await self.get_ticket(ticket_id)
                 if not ticket:
                     await ctx.send(
-                        "Could not find ticket information.",
+                        "It seems there is an issue: you're in a ticket channel, but I can't find the associated ticket number for this channel.",
                         delete_after=10
                     )
                     return
-                if ctx.author.id != ticket['user_id'] and ctx.author.id != self.OWNER_ID:
+                # Check if the user has the support role
+                support_role = ctx.guild.get_role(1337400720403468288)
+                if support_role not in ctx.author.roles:
                     await ctx.send(
                         "Only the support team can close this ticket.",
                         delete_after=10
