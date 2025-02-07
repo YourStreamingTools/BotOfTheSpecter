@@ -567,7 +567,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         # Check if command is used in the moderator channel
         if ctx.channel.id != self.MOD_CHANNEL_ID:
             await ctx.send(
-                "❌ This command can only be used in the moderator channel.",
+                "❌ This command can only be used in the <#1103695077928345683> channel.",
                 delete_after=10
             )
             return
