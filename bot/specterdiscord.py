@@ -497,6 +497,13 @@ class TicketCog(commands.Cog, name='Tickets'):
     @commands.command(name="ticket")
     async def ticket_command(self, ctx, action: str = None, *, reason: str = None):
         """Ticket system commands"""
+        # Check if the command is used in the correct server
+        if ctx.guild.id != self.SUPPORT_GUILD_ID:
+            await ctx.send(
+                "❌ This command can only be used in the support server.",
+                delete_after=10
+            )
+            return
         if action is None:
             await ctx.send(
                 "Please specify an action: `create` to create a ticket or `close` to close your ticket.",
@@ -515,7 +522,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             except ValueError as e:
                 self.logger.error(f"Error: {str(e)}")
                 await ctx.send(
-                    f"There was an erorr in trying to create your support ticket, the support team has been notified about this issue.",
+                    f"There was an error in trying to create your support ticket, the support team has been notified about this issue.",
                     delete_after=10
                 )
             except Exception as e:
