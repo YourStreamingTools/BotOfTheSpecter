@@ -199,27 +199,89 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.pool = None
 
     async def init_db(self):
-        self.pool = await aiomysql.create_pool(
+        # First create a connection without specifying a database
+        temp_pool = await aiomysql.create_pool(
             host=os.getenv('SQL_HOST'),
             user=os.getenv('SQL_USER'),
             password=os.getenv('SQL_PASSWORD'),
-            db='botofthespecter',
             autocommit=True
         )
-        # Create tickets table if it doesn't exist
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("""
-                    CREATE TABLE IF NOT EXISTS support_tickets (
-                        ticket_id INT AUTO_INCREMENT PRIMARY KEY,
-                        user_id BIGINT NOT NULL,
-                        username VARCHAR(255) NOT NULL,
-                        issue TEXT NOT NULL,
-                        status VARCHAR(20) DEFAULT 'open',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        closed_at TIMESTAMP NULL
-                    )
-                """)
+        try:
+            # Create database if it doesn't exist
+            async with temp_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("CREATE DATABASE IF NOT EXISTS tickets")
+            # Close the temporary pool
+            temp_pool.close()
+            await temp_pool.wait_closed()
+            # Create the main connection pool with the tickets database
+            self.pool = await aiomysql.create_pool(
+                host=os.getenv('SQL_HOST'),
+                user=os.getenv('SQL_USER'),
+                password=os.getenv('SQL_PASSWORD'),
+                db='tickets',
+                autocommit=True
+            )
+            # Create necessary tables
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    # Create tickets table
+                    await cur.execute("""
+                        CREATE TABLE IF NOT EXISTS tickets (
+                            ticket_id INT AUTO_INCREMENT PRIMARY KEY,
+                            user_id BIGINT NOT NULL,
+                            username VARCHAR(255) NOT NULL,
+                            issue TEXT NOT NULL,
+                            status VARCHAR(20) DEFAULT 'open',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            closed_at TIMESTAMP NULL,
+                            priority VARCHAR(20) DEFAULT 'normal',
+                            category VARCHAR(50) DEFAULT 'general'
+                        )
+                    """)
+                    # Create ticket_comments table
+                    await cur.execute("""
+                        CREATE TABLE IF NOT EXISTS ticket_comments (
+                            comment_id INT AUTO_INCREMENT PRIMARY KEY,
+                            ticket_id INT NOT NULL,
+                            user_id BIGINT NOT NULL,
+                            username VARCHAR(255) NOT NULL,
+                            comment TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id)
+                            ON DELETE CASCADE
+                        )
+                    """)
+                    # Create ticket_attachments table
+                    await cur.execute("""
+                        CREATE TABLE IF NOT EXISTS ticket_attachments (
+                            attachment_id INT AUTO_INCREMENT PRIMARY KEY,
+                            ticket_id INT NOT NULL,
+                            file_url VARCHAR(512) NOT NULL,
+                            file_name VARCHAR(255) NOT NULL,
+                            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id)
+                            ON DELETE CASCADE
+                        )
+                    """)
+                    # Create ticket_history table
+                    await cur.execute("""
+                        CREATE TABLE IF NOT EXISTS ticket_history (
+                            history_id INT AUTO_INCREMENT PRIMARY KEY,
+                            ticket_id INT NOT NULL,
+                            user_id BIGINT NOT NULL,
+                            username VARCHAR(255) NOT NULL,
+                            action VARCHAR(50) NOT NULL,
+                            details TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id)
+                            ON DELETE CASCADE
+                        )
+                    """)
+            self.logger.info("Successfully initialized ticket database and tables")
+        except Exception as e:
+            self.logger.error(f"Error initializing database: {e}")
+            raise
 
     async def create_ticket(self, user_id: int, username: str, issue: str) -> int:
         if not self.pool:
@@ -227,10 +289,16 @@ class TicketCog(commands.Cog, name='Tickets'):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO support_tickets (user_id, username, issue) VALUES (%s, %s, %s)",
+                    "INSERT INTO tickets (user_id, username, issue) VALUES (%s, %s, %s)",
                     (user_id, username, issue)
                 )
-                return cur.lastrowid
+                ticket_id = cur.lastrowid
+                # Log the ticket creation in history
+                await cur.execute(
+                    "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
+                    (ticket_id, user_id, username, "created", "Ticket created")
+                )
+                return ticket_id
 
     async def get_ticket(self, ticket_id: int):
         if not self.pool:
@@ -238,19 +306,24 @@ class TicketCog(commands.Cog, name='Tickets'):
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
-                    "SELECT * FROM support_tickets WHERE ticket_id = %s",
+                    "SELECT * FROM tickets WHERE ticket_id = %s",
                     (ticket_id,)
                 )
                 return await cur.fetchone()
 
-    async def close_ticket(self, ticket_id: int):
+    async def close_ticket(self, ticket_id: int, user_id: int, username: str):
         if not self.pool:
             await self.init_db()
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "UPDATE support_tickets SET status = 'closed', closed_at = NOW() WHERE ticket_id = %s",
+                    "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE ticket_id = %s",
                     (ticket_id,)
+                )
+                # Log the ticket closure in history
+                await cur.execute(
+                    "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
+                    (ticket_id, user_id, username, "closed", "Ticket closed")
                 )
 
     @commands.command(name="ticket")
@@ -265,14 +338,12 @@ class TicketCog(commands.Cog, name='Tickets'):
         embed.add_field(name="Ticket ID", value=f"#{ticket_id}", inline=False)
         embed.add_field(name="Issue", value=issue, inline=False)
         embed.set_footer(text=f"Created by {ctx.author}")
-        
         await ctx.send(embed=embed)
         self.logger.info(f"Ticket #{ticket_id} created by {ctx.author}")
 
     @app_commands.command(name="ticket", description="Create a support ticket")
     async def slash_ticket(self, interaction: discord.Interaction, issue: str):
         ticket_id = await self.create_ticket(interaction.user.id, str(interaction.user), issue)
-        
         embed = discord.Embed(
             title="Support Ticket Created",
             color=discord.Color.green()
@@ -280,7 +351,6 @@ class TicketCog(commands.Cog, name='Tickets'):
         embed.add_field(name="Ticket ID", value=f"#{ticket_id}", inline=False)
         embed.add_field(name="Issue", value=issue, inline=False)
         embed.set_footer(text=f"Created by {interaction.user}")
-        
         await interaction.response.send_message(embed=embed)
         self.logger.info(f"Ticket #{ticket_id} created by {interaction.user}")
 
@@ -298,7 +368,6 @@ class TicketCog(commands.Cog, name='Tickets'):
             embed.add_field(name="Issue", value=ticket['issue'], inline=False)
             embed.add_field(name="Status", value=ticket['status'], inline=False)
             embed.add_field(name="Created At", value=ticket['created_at'], inline=False)
-            
             await ctx.send(embed=embed)
             self.logger.info(f"Ticket #{ticket_id} viewed by {ctx.author}")
         else:
@@ -317,7 +386,6 @@ class TicketCog(commands.Cog, name='Tickets'):
             embed.add_field(name="Issue", value=ticket['issue'], inline=False)
             embed.add_field(name="Status", value=ticket['status'], inline=False)
             embed.add_field(name="Created At", value=ticket['created_at'], inline=False)
-            
             await interaction.response.send_message(embed=embed)
             self.logger.info(f"Ticket #{ticket_id} viewed by {interaction.user}")
         else:
@@ -329,7 +397,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         """Close a ticket (Admin only)"""
         ticket = await self.get_ticket(ticket_id)
         if ticket and ticket['status'] == 'open':
-            await self.close_ticket(ticket_id)
+            await self.close_ticket(ticket_id, ticket['user_id'], ticket['username'])
             await ctx.send(f"Ticket #{ticket_id} has been closed.")
             self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author}")
         else:
@@ -340,7 +408,7 @@ class TicketCog(commands.Cog, name='Tickets'):
     async def slash_close_ticket(self, interaction: discord.Interaction, ticket_id: int):
         ticket = await self.get_ticket(ticket_id)
         if ticket and ticket['status'] == 'open':
-            await self.close_ticket(ticket_id)
+            await self.close_ticket(ticket_id, ticket['user_id'], ticket['username'])
             await interaction.response.send_message(f"Ticket #{ticket_id} has been closed.")
             self.logger.info(f"Ticket #{ticket_id} closed by {interaction.user}")
         else:
