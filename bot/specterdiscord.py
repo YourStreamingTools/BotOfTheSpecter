@@ -839,6 +839,35 @@ class TicketCog(commands.Cog, name='Tickets'):
             self.logger.error(f"Error setting up ticket system: {e}")
             await interaction.followup.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # Ignore bot messages
+        if message.author.bot:
+            return
+        try:
+            # Check if this is a ticket-info channel
+            settings = await self.get_settings(message.guild.id)
+            if not settings:
+                return
+            if message.channel.id == settings['info_channel_id']:
+                # Check if message is a ticket command
+                is_ticket_command = (
+                    message.content.startswith('!ticket') or 
+                    message.content.startswith('/ticket')
+                )
+                if not is_ticket_command:
+                    # Delete non-ticket messages
+                    await message.delete()
+                    # Send a temporary warning message
+                    warning = await message.channel.send(
+                        f"{message.author.mention} This channel is for ticket commands only. "
+                        "Please use `/ticket create` or `!ticket create` to open a ticket.",
+                        delete_after=10
+                    )
+                    self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
+        except Exception as e:
+            self.logger.error(f"Error in ticket-info message watcher: {e}")
+
 class DiscordBotRunner:
     def __init__(self, discord_logger):
         self.logger = discord_logger
