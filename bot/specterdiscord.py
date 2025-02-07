@@ -581,9 +581,21 @@ class TicketCog(commands.Cog, name='Tickets'):
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
         """Set up the ticket system (Bot Owner Only)"""
+        # Check if user is in the correct server
+        if ctx.guild.id != 1103694163930787880:  # YourStreamingTools server ID
+            await ctx.send(
+                "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
+                "This is a centralized support system - please join https://discord.com/invite/ANwEkpauHJ "
+                "to create support tickets."
+            )
+            return
         # Check if user is the bot owner
         if ctx.author.id != self.OWNER_ID:
-            await ctx.send("Only the bot owner can set up the ticket system.")
+            await ctx.send(
+                "❌ Only the bot owner can set up the ticket system.\n"
+                "The ticket system is managed centrally through the YourStreamingTools Discord server.\n"
+                "Please join https://discord.com/invite/ANwEkpauHJ for support."
+            )
             return
         try:
             # Create the category if it doesn't exist
@@ -657,9 +669,23 @@ class TicketCog(commands.Cog, name='Tickets'):
     @app_commands.command(name="setuptickets", description="Set up the ticket system (Bot Owner Only)")
     async def slash_setup_tickets(self, interaction: discord.Interaction):
         """Set up the ticket system (Bot Owner Only)"""
+        # Check if user is in the correct server
+        if interaction.guild_id != 1103694163930787880:  # YourStreamingTools server ID
+            await interaction.response.send_message(
+                "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
+                "This is a centralized support system - please join https://discord.com/invite/ANwEkpauHJ "
+                "to create support tickets.",
+                ephemeral=True
+            )
+            return
         # Check if user is the bot owner
         if interaction.user.id != self.OWNER_ID:
-            await interaction.response.send_message("Only the bot owner can set up the ticket system.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Only the bot owner can set up the ticket system.\n"
+                "The ticket system is managed centrally through the YourStreamingTools Discord server.\n"
+                "Please join https://discord.com/invite/ANwEkpauHJ for support.",
+                ephemeral=True
+            )
             return
         await interaction.response.defer()
         try:
