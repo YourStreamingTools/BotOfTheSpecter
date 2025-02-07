@@ -586,7 +586,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         if ctx.guild.id != self.SUPPORT_GUILD_ID:
             await ctx.send(
                 "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
-                "This is a centralized support system - please join https://discord.com/invite/ANwEkpauHJ "
+                "This is a centralized support system - please join <https://discord.com/invite/ANwEkpauHJ> "
                 "to create support tickets."
             )
             return
@@ -595,7 +595,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             await ctx.send(
                 "❌ Only the bot owner can set up the ticket system.\n"
                 "The ticket system is managed centrally through the YourStreamingTools Discord server.\n"
-                "Please join https://discord.com/invite/ANwEkpauHJ for support."
+                "Please join <https://discord.com/invite/ANwEkpauHJ> for support."
             )
             return
         try:
@@ -674,7 +674,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         if interaction.guild_id != self.SUPPORT_GUILD_ID:
             await interaction.response.send_message(
                 "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
-                "This is a centralized support system - please join https://discord.com/invite/ANwEkpauHJ "
+                "This is a centralized support system - please join <https://discord.com/invite/ANwEkpauHJ> "
                 "to create support tickets.",
                 ephemeral=True
             )
@@ -684,7 +684,7 @@ class TicketCog(commands.Cog, name='Tickets'):
             await interaction.response.send_message(
                 "❌ Only the bot owner can set up the ticket system.\n"
                 "The ticket system is managed centrally through the YourStreamingTools Discord server.\n"
-                "Please join https://discord.com/invite/ANwEkpauHJ for support.",
+                "Please join <https://discord.com/invite/ANwEkpauHJ> for support.",
                 ephemeral=True
             )
             return
