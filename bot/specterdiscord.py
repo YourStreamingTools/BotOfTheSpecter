@@ -415,19 +415,16 @@ class TicketCog(commands.Cog, name='Tickets'):
             try:
                 ticket_creator = channel.guild.get_member(ticket_data['user_id'])
                 if ticket_creator:
+                    settings = await self.get_settings(channel.guild.id)
                     dm_embed = discord.Embed(
                         title="Support Ticket Closed",
                         description=(
-                            f"Your support ticket (#{ticket_id}) has been closed.\n\n"
-                            f"You can view the archive of this conversation at:\n"
-                            f"<https://tickets.botofthespecter.com/{self.SUPPORT_GUILD_ID}/{channel_id}>"
+                            f"Your support ticket (#{ticket_id}) has been closed by the support team.\n\n"
+                            f"If you need further assistance or if this ticket was closed by mistake, "
+                            f"please return to <#{settings['info_channel_id']}> and create a new ticket "
+                            f"using `/ticket create` or `!ticket create`."
                         ),
                         color=discord.Color.blue()
-                    )
-                    dm_embed.add_field(
-                        name="Need More Help?",
-                        value="If you need further assistance, feel free to create a new ticket.",
-                        inline=False
                     )
                     await ticket_creator.send(embed=dm_embed)
                     self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id}")
