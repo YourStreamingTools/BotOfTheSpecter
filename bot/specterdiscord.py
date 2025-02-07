@@ -444,7 +444,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         title="Support Ticket Closed",
                         description=(
                             f"Your support ticket (#{ticket_id}) has been closed by the support team.\n\n"
-                            f"Reason for closure: {reason}\n\n"
+                            + (f"Reason for closure: {reason}\n\n" if reason != "No reason provided" else "")
                             f"If you need further assistance or if this ticket was closed by mistake, "
                             f"please return to <#{settings['info_channel_id']}> and create a new ticket "
                             f"using `/ticket create` or `!ticket create`."
@@ -452,7 +452,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         color=BOT_COLOR
                     )
                     await ticket_creator.send(embed=dm_embed)
-                    self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id} with reason: {reason}")
+                    self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id} with reason: {reason if reason != 'No reason provided' else 'No reason provided'}")
             except discord.Forbidden:
                 self.logger.warning(f"Could not send DM to user {ticket_data['user_id']} for ticket #{ticket_id}")
             except Exception as e:
