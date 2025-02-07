@@ -1,5 +1,3 @@
-# BotOfTheSpecter Twitch Bot
-
 ## Overview
 BotOfTheSpecter is a comprehensive Twitch chat bot designed to enhance the streaming experience on Twitch. It offers a wide range of functionalities, from chat interaction and moderation to in-depth analytics and user management.
 
