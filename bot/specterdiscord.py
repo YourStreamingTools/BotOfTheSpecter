@@ -199,6 +199,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.pool = None
         self.OWNER_ID = 127783626917150720              # gfaUnDead User ID (Owner)
         self.SUPPORT_GUILD_ID = 1103694163930787880     # YourStreamingTools Server ID
+        self.MOD_CHANNEL_ID = 1103695077928345683       # Moderator Channel ID
 
     async def init_db(self):
         # First create a connection without specifying a database
@@ -607,6 +608,13 @@ class TicketCog(commands.Cog, name='Tickets'):
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
         """Set up the ticket system (Bot Owner Only)"""
+        # Check if command is used in the moderator channel
+        if ctx.channel.id != self.MOD_CHANNEL_ID:
+            await ctx.send(
+                "❌ This command can only be used in the moderator channel.",
+                delete_after=10
+            )
+            return
         # Check if user is in the correct server
         if ctx.guild.id != self.SUPPORT_GUILD_ID:
             await ctx.send(
@@ -723,6 +731,13 @@ class TicketCog(commands.Cog, name='Tickets'):
     @app_commands.command(name="setuptickets", description="Set up the ticket system (Bot Owner Only)")
     async def slash_setup_tickets(self, interaction: discord.Interaction):
         """Set up the ticket system (Bot Owner Only)"""
+        # Check if command is used in the moderator channel
+        if interaction.channel_id != self.MOD_CHANNEL_ID:
+            await interaction.response.send_message(
+                "❌ This command can only be used in the moderator channel.",
+                ephemeral=True
+            )
+            return
         # Check if user is in the correct server
         if interaction.guild_id != self.SUPPORT_GUILD_ID:
             await interaction.response.send_message(
