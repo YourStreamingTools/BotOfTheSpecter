@@ -57,9 +57,40 @@ class BotOfTheSpecter(commands.Bot):
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
 
+    async def get_twitch_access_token(self, user_id: str):
+        if not self.pool:
+            await self.init_db()
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (user_id,))
+                result = await cur.fetchone()
+                return result.get('twitch_access_token') if result else None
+
+    async def is_streaming(self):
+        client_id = os.getenv("CLIENT_ID")
+        twitch_user = "botofthespecter"
+        # Get the Twitch access token from the database
+        access_token = await self.get_twitch_access_token("971436498")  # Replace with your Twitch user ID
+        if not access_token:
+            self.logger.error("Failed to retrieve Twitch access token from the database.")
+            return False
+        async with aiohttp.ClientSession() as session:
+            # Check if the user is live
+            async with session.get(
+                f'https://api.twitch.tv/helix/streams?user_login={twitch_user}',
+                headers={'Client-ID': client_id, 'Authorization': f'Bearer {access_token}'}
+            ) as response:
+                stream_data = await response.json()
+                return len(stream_data.get('data', [])) > 0  # Returns True if the stream is live
+
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
+        # Check if the Twitch stream is live
+        if await self.is_streaming():
+            await self.change_presence(activity=discord.Streaming(name="Streaming on Twitch", url="https://www.twitch.tv/botofthespecter"))
+        else:
+            await self.change_presence(activity=discord.Game(name="Not currently streaming"))
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(TicketCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
@@ -927,7 +958,6 @@ class DiscordBotRunner:
     def run(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.logger.info("Starting BotOfTheSpecter Discord Bot")
         try:
             self.loop.run_until_complete(self.initialize_bot())
         except asyncio.CancelledError:
