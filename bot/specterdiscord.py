@@ -40,7 +40,7 @@ class Config:
 config = Config()
 
 # Define the bot version
-BOT_VERSION = "1.0"
+BOT_VERSION = "2.0"
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
