@@ -197,7 +197,8 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.pool = None
-        self.OWNER_ID = 127783626917150720
+        self.OWNER_ID = 127783626917150720              # gfaUnDead User ID (Owner)
+        self.SUPPORT_GUILD_ID = 1103694163930787880     # YourStreamingTools Server ID
 
     async def init_db(self):
         # First create a connection without specifying a database
@@ -582,7 +583,7 @@ class TicketCog(commands.Cog, name='Tickets'):
     async def setup_tickets(self, ctx):
         """Set up the ticket system (Bot Owner Only)"""
         # Check if user is in the correct server
-        if ctx.guild.id != 1103694163930787880:  # YourStreamingTools server ID
+        if ctx.guild.id != self.SUPPORT_GUILD_ID:
             await ctx.send(
                 "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
                 "This is a centralized support system - please join https://discord.com/invite/ANwEkpauHJ "
@@ -670,7 +671,7 @@ class TicketCog(commands.Cog, name='Tickets'):
     async def slash_setup_tickets(self, interaction: discord.Interaction):
         """Set up the ticket system (Bot Owner Only)"""
         # Check if user is in the correct server
-        if interaction.guild_id != 1103694163930787880:  # YourStreamingTools server ID
+        if interaction.guild_id != self.SUPPORT_GUILD_ID:
             await interaction.response.send_message(
                 "❌ The ticket system can only be set up in the YourStreamingTools Discord server.\n"
                 "This is a centralized support system - please join https://discord.com/invite/ANwEkpauHJ "
