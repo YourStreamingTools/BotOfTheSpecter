@@ -39,8 +39,9 @@ class Config:
 
 config = Config()
 
-# Define the bot version
+# Define the bot information
 BOT_VERSION = "2.0"
+BOT_COLOR = 0x001C1D
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
@@ -368,7 +369,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 "Our support team will assist you as soon as possible.\n"
                 "Please be patient and remain respectful throughout the process."
             ),
-            color=discord.Color.blue()
+            color=BOT_COLOR
         )
         await channel.send(embed=embed)  # Send the embed message to the channel
         # Notify the support team about the new ticket
@@ -431,7 +432,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "This ticket will be closed and archived.\n\n"
                     "If you need further assistance in the future, please create a new ticket."
                 ),
-                color=discord.Color.orange()
+                color=BOT_COLOR
             )
             await channel.send(embed=embed)
             # Try to send DM to ticket creator
@@ -447,7 +448,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                             f"please return to <#{settings['info_channel_id']}> and create a new ticket "
                             f"using `/ticket create` or `!ticket create`."
                         ),
-                        color=discord.Color.blue()
+                        color=BOT_COLOR
                     )
                     await ticket_creator.send(embed=dm_embed)
                     self.logger.info(f"Sent closure DM to user {ticket_creator.name} for ticket #{ticket_id}")
@@ -590,43 +591,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                 self.logger.error(f"Error closing ticket: {e}")
                 await interaction.followup.send("An error occurred while closing the ticket.")
 
-    @commands.command(name="viewticket")
-    @commands.has_permissions(administrator=True)
-    async def view_ticket(self, ctx, ticket_id: int):
-        """View a ticket (Admin only)"""
-        ticket = await self.get_ticket(ticket_id)
-        if ticket:
-            embed = discord.Embed(
-                title=f"Ticket #{ticket_id}",
-                color=discord.Color.blue()
-            )
-            embed.add_field(name="User", value=ticket['username'], inline=False)
-            embed.add_field(name="Issue", value=ticket['issue'], inline=False)
-            embed.add_field(name="Status", value=ticket['status'], inline=False)
-            embed.add_field(name="Created At", value=ticket['created_at'], inline=False)
-            await ctx.send(embed=embed)
-            self.logger.info(f"Ticket #{ticket_id} viewed by {ctx.author}")
-        else:
-            await ctx.send("Ticket not found!")
-
-    @app_commands.command(name="viewticket", description="View a support ticket (Admin only)")
-    @app_commands.default_permissions(administrator=True)
-    async def slash_view_ticket(self, interaction: discord.Interaction, ticket_id: int):
-        ticket = await self.get_ticket(ticket_id)
-        if ticket:
-            embed = discord.Embed(
-                title=f"Ticket #{ticket_id}",
-                color=discord.Color.blue()
-            )
-            embed.add_field(name="User", value=ticket['username'], inline=False)
-            embed.add_field(name="Issue", value=ticket['issue'], inline=False)
-            embed.add_field(name="Status", value=ticket['status'], inline=False)
-            embed.add_field(name="Created At", value=ticket['created_at'], inline=False)
-            await interaction.response.send_message(embed=embed)
-            self.logger.info(f"Ticket #{ticket_id} viewed by {interaction.user}")
-        else:
-            await interaction.response.send_message("Ticket not found!")
-
     @commands.command(name="setuptickets")
     async def setup_tickets(self, ctx):
         """Set up the ticket system (Bot Owner Only)"""
@@ -697,7 +661,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "in detail and communicate with our support team.\n\n"
                     "Your ticket will be created and our support team will assist you as soon as possible."
                 ),
-                color=discord.Color.blue()
+                color=BOT_COLOR
             )
             embed.add_field(
                 name="Important Notes",
@@ -823,7 +787,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "in detail and communicate with our support team.\n\n"
                     "Your ticket will be created and our support team will assist you as soon as possible."
                 ),
-                color=discord.Color.blue()
+                color=BOT_COLOR
             )
             embed.add_field(
                 name="Important Notes",
