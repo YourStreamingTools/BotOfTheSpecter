@@ -310,24 +310,20 @@ class TicketCog(commands.Cog, name='Tickets'):
         settings = await self.get_settings(guild_id)
         if not settings:
             raise ValueError("Ticket system not set up")
-
         guild = self.bot.get_guild(guild_id)
         category = guild.get_channel(settings['category_id'])
         user = guild.get_member(user_id)
         owner = guild.get_member(self.OWNER_ID)
-
         # Create the ticket channel
         channel = await guild.create_text_channel(
             name=f"ticket-{ticket_id}",
             category=category,
             topic=f"Support Ticket #{ticket_id} | User: {user.name}"
         )
-
         # Set permissions
         await channel.set_permissions(guild.default_role, read_messages=False)
         await channel.set_permissions(user, read_messages=True, send_messages=True)
         await channel.set_permissions(owner, read_messages=True, send_messages=True)
-
         # Create welcome message
         embed = discord.Embed(
             title=f"Support Ticket #{ticket_id}",
@@ -351,7 +347,6 @@ class TicketCog(commands.Cog, name='Tickets'):
             inline=False
         )
         embed.set_footer(text="Bot of the Specter Support System")
-
         await channel.send(f"{user.mention} Welcome to your support ticket!", embed=embed)
         return channel
 
@@ -359,7 +354,6 @@ class TicketCog(commands.Cog, name='Tickets'):
         settings = await self.get_settings(guild_id)
         if not settings or not settings['enabled']:
             raise ValueError("Ticket system is not set up in this server")
-
         if not self.pool:
             await self.init_db()
         async with self.pool.acquire() as conn:
@@ -378,8 +372,17 @@ class TicketCog(commands.Cog, name='Tickets'):
     async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str):
         if not self.pool:
             await self.init_db()
+        # Get the channel and ticket information
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            raise ValueError("Channel not found")
+        # Get ticket information to identify the ticket creator
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT user_id FROM tickets WHERE ticket_id = %s", (ticket_id,))
+                ticket_data = await cur.fetchone()
+                if not ticket_data:
+                    raise ValueError("Ticket not found in database")
                 # Update ticket status
                 await cur.execute(
                     "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE ticket_id = %s",
@@ -390,9 +393,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
                     (ticket_id, closer_id, closer_name, "closed", "Ticket closed by user")
                 )
-                
-        # Get the channel and close it
-        channel = self.bot.get_channel(channel_id)
         if channel:
             # Send closure message
             embed = discord.Embed(
@@ -405,10 +405,43 @@ class TicketCog(commands.Cog, name='Tickets'):
                 color=discord.Color.orange()
             )
             await channel.send(embed=embed)
-            
-            # Archive and lock the channel
-            await asyncio.sleep(10)  # Wait 10 seconds before closing
-            await channel.edit(archived=True, locked=True)
+            # Wait 10 seconds before proceeding with closure
+            await asyncio.sleep(10)
+            try:
+                # Get or create the Closed Tickets category
+                closed_category = discord.utils.get(channel.guild.categories, name="Closed Tickets")
+                if not closed_category:
+                    closed_category = await channel.guild.create_category(
+                        name="Closed Tickets",
+                        reason="Ticket System Archive"
+                    )
+                    # Set permissions for Closed Tickets category
+                    await closed_category.set_permissions(channel.guild.default_role, read_messages=False)
+                    await closed_category.set_permissions(
+                        channel.guild.get_member(self.OWNER_ID),
+                        read_messages=True,
+                        send_messages=True
+                    )
+                # Remove ticket creator's access
+                ticket_creator = channel.guild.get_member(ticket_data['user_id'])
+                if ticket_creator:
+                    await channel.set_permissions(ticket_creator, overwrite=None)
+                # Move channel to Closed Tickets category
+                await channel.edit(
+                    category=closed_category,
+                    sync_permissions=False,  # Don't sync with category permissions
+                    locked=True  # Lock the channel
+                )
+                # Update channel topic to indicate it's closed
+                new_topic = f"{channel.topic} [CLOSED]" if channel.topic else "[CLOSED]"
+                await channel.edit(topic=new_topic)
+                self.logger.info(f"Ticket #{ticket_id} closed and archived successfully")
+            except discord.Forbidden:
+                self.logger.error(f"Missing permissions to modify channel for ticket #{ticket_id}")
+                raise
+            except Exception as e:
+                self.logger.error(f"Error archiving ticket #{ticket_id}: {e}")
+                raise
 
     @commands.command(name="ticket")
     async def ticket_command(self, ctx, action: str = "create"):
@@ -417,13 +450,11 @@ class TicketCog(commands.Cog, name='Tickets'):
             try:
                 ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
                 channel = await self.create_ticket_channel(ctx.guild.id, ctx.author.id, ticket_id)
-                
                 await ctx.send(
                     f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
                     delete_after=10
                 )
                 self.logger.info(f"Ticket #{ticket_id} created by {ctx.author} with channel {channel.name}")
-                
             except ValueError as e:
                 await ctx.send(f"Error: {str(e)}")
             except Exception as e:
@@ -435,23 +466,18 @@ class TicketCog(commands.Cog, name='Tickets'):
             if not ctx.channel.name.startswith("ticket-"):
                 await ctx.send("This command can only be used in a ticket channel.")
                 return
-                
             try:
                 ticket_id = int(ctx.channel.name.split("-")[1])
-                
                 # Check if user is ticket creator or bot owner
                 ticket = await self.get_ticket(ticket_id)
                 if not ticket:
                     await ctx.send("Could not find ticket information.")
                     return
-                    
                 if ctx.author.id != ticket['user_id'] and ctx.author.id != self.OWNER_ID:
                     await ctx.send("Only the ticket creator or support team can close this ticket.")
                     return
-                    
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author))
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author}")
-                
             except Exception as e:
                 self.logger.error(f"Error closing ticket: {e}")
                 await ctx.send("An error occurred while closing the ticket.")
@@ -471,13 +497,11 @@ class TicketCog(commands.Cog, name='Tickets'):
                 await interaction.response.defer(ephemeral=True)
                 ticket_id = await self.create_ticket(interaction.guild_id, interaction.user.id, str(interaction.user))
                 channel = await self.create_ticket_channel(interaction.guild_id, interaction.user.id, ticket_id)
-                
                 await interaction.followup.send(
                     f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
                     ephemeral=True
                 )
                 self.logger.info(f"Ticket #{ticket_id} created by {interaction.user} with channel {channel.name}")
-                
             except ValueError as e:
                 await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
             except Exception as e:
@@ -486,7 +510,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "An error occurred while creating your ticket. Please try again later.",
                     ephemeral=True
                 )
-                
         elif action == "close":
             # Check if the command is used in a ticket channel
             if not interaction.channel.name.startswith("ticket-"):
@@ -495,10 +518,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                     ephemeral=True
                 )
                 return
-                
             try:
                 ticket_id = int(interaction.channel.name.split("-")[1])
-                
                 # Check if user is ticket creator or bot owner
                 ticket = await self.get_ticket(ticket_id)
                 if not ticket:
@@ -507,18 +528,15 @@ class TicketCog(commands.Cog, name='Tickets'):
                         ephemeral=True
                     )
                     return
-                    
                 if interaction.user.id != ticket['user_id'] and interaction.user.id != self.OWNER_ID:
                     await interaction.response.send_message(
                         "Only the ticket creator or support team can close this ticket.",
                         ephemeral=True
                     )
                     return
-                
                 await interaction.response.defer()
                 await self.close_ticket(ticket_id, interaction.channel.id, interaction.user.id, str(interaction.user))
                 self.logger.info(f"Ticket #{ticket_id} closed by {interaction.user}")
-                
             except Exception as e:
                 self.logger.error(f"Error closing ticket: {e}")
                 await interaction.followup.send("An error occurred while closing the ticket.")
@@ -567,7 +585,6 @@ class TicketCog(commands.Cog, name='Tickets'):
         if ctx.author.id != self.OWNER_ID:
             await ctx.send("Only the bot owner can set up the ticket system.")
             return
-
         try:
             # Create the category if it doesn't exist
             category = discord.utils.get(ctx.guild.categories, name="Open Tickets")
@@ -577,7 +594,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                     reason="Ticket System Setup"
                 )
                 self.logger.info(f"Created 'Open Tickets' category in {ctx.guild.name}")
-
             # Create info channel if it doesn't exist
             info_channel = discord.utils.get(category.channels, name="ticket-info")
             if not info_channel:
@@ -588,7 +604,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                     reason="Ticket System Setup"
                 )
                 self.logger.info(f"Created ticket-info channel in {ctx.guild.name}")
-
             # Save settings to database
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -602,7 +617,6 @@ class TicketCog(commands.Cog, name='Tickets'):
                         enabled = TRUE,
                         updated_at = CURRENT_TIMESTAMP
                     """, (ctx.guild.id, info_channel.id, category.id))
-
             # Create the info message
             embed = discord.Embed(
                 title="🎫 Support Ticket System",
@@ -628,49 +642,93 @@ class TicketCog(commands.Cog, name='Tickets'):
                 inline=False
             )
             embed.set_footer(text="Bot of the Specter Support System")
-
             # Clear existing messages in info channel
             await info_channel.purge()
             await info_channel.send(embed=embed)
-
             # Set channel permissions
             await info_channel.set_permissions(ctx.guild.default_role, send_messages=False)
             await category.set_permissions(ctx.guild.default_role, read_messages=False)
-
             await ctx.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
             self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
-
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
             await ctx.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
 
     @app_commands.command(name="setuptickets", description="Set up the ticket system (Bot Owner Only)")
     async def slash_setup_tickets(self, interaction: discord.Interaction):
-        if interaction.user.id != self.OWNER_ID:
-            await interaction.response.send_message("Only the bot owner can set up the ticket system.")
+        """Set up the ticket system (Bot Owner Only)"""
+        # Check if user is the bot owner
+        if ctx.author.id != self.OWNER_ID:
+            await ctx.send("Only the bot owner can set up the ticket system.")
             return
-
-        await interaction.response.defer()
-        
         try:
             # Create the category if it doesn't exist
-            category = discord.utils.get(interaction.guild.categories, name="Open Tickets")
+            category = discord.utils.get(ctx.guild.categories, name="Open Tickets")
             if not category:
-                category = await interaction.guild.create_category(
+                category = await ctx.guild.create_category(
                     name="Open Tickets",
                     reason="Ticket System Setup"
                 )
-                self.logger.info(f"Created 'Open Tickets' category in {interaction.guild.name}")
-
-            # Rest of the setup code (same as above)
-            # ... (copy the same setup logic from the regular command)
-
-            await interaction.followup.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
-            self.logger.info(f"Ticket system set up completed in {interaction.guild.name}")
-
+                self.logger.info(f"Created 'Open Tickets' category in {ctx.guild.name}")
+            # Create info channel if it doesn't exist
+            info_channel = discord.utils.get(category.channels, name="ticket-info")
+            if not info_channel:
+                info_channel = await ctx.guild.create_text_channel(
+                    name="ticket-info",
+                    category=category,
+                    topic="How to create support tickets",
+                    reason="Ticket System Setup"
+                )
+                self.logger.info(f"Created ticket-info channel in {ctx.guild.name}")
+            # Save settings to database
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("""
+                        INSERT INTO ticket_settings 
+                        (guild_id, info_channel_id, category_id, enabled) 
+                        VALUES (%s, %s, %s, TRUE)
+                        ON DUPLICATE KEY UPDATE 
+                        info_channel_id = VALUES(info_channel_id),
+                        category_id = VALUES(category_id),
+                        enabled = TRUE,
+                        updated_at = CURRENT_TIMESTAMP
+                    """, (ctx.guild.id, info_channel.id, category.id))
+            # Create the info message
+            embed = discord.Embed(
+                title="🎫 Support Ticket System",
+                description=(
+                    "Welcome to our support ticket system!\n\n"
+                    "To create a new support ticket, use one of these commands:\n"
+                    "• `/ticket <issue>` - Create a ticket using slash command\n"
+                    "• `!ticket <issue>` - Create a ticket using text command\n\n"
+                    "**Example:**\n"
+                    "`!ticket I need help with my account`\n\n"
+                    "Your ticket will be created and our support team will assist you as soon as possible."
+                ),
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="Important Notes",
+                value=(
+                    "• Please provide a clear description of your issue\n"
+                    "• One ticket per issue\n"
+                    "• Be patient while waiting for a response\n"
+                    "• Keep all communication respectful"
+                ),
+                inline=False
+            )
+            embed.set_footer(text="Bot of the Specter Support System")
+            # Clear existing messages in info channel
+            await info_channel.purge()
+            await info_channel.send(embed=embed)
+            # Set channel permissions
+            await info_channel.set_permissions(ctx.guild.default_role, send_messages=False)
+            await category.set_permissions(ctx.guild.default_role, read_messages=False)
+            await ctx.send(f"✅ Ticket system has been set up successfully!\nPlease check {info_channel.mention} for the info message.")
+            self.logger.info(f"Ticket system set up completed in {ctx.guild.name}")
         except Exception as e:
             self.logger.error(f"Error setting up ticket system: {e}")
-            await interaction.followup.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
+            await ctx.send("❌ An error occurred while setting up the ticket system. Please check the logs.")
 
 class DiscordBotRunner:
     def __init__(self, discord_logger):
