@@ -673,7 +673,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                         "Please use `!ticket create` to open a ticket."
                     )
                     # Set a delay before deleting the warning message
-                    await asyncio.sleep(30)  # Wait for 30 seconds
+                    await asyncio.sleep(10)  # Wait for 10 seconds
                     await warning.delete()  # Delete the warning message after the delay
                     self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
         except Exception as e:
