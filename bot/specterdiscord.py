@@ -58,54 +58,9 @@ class BotOfTheSpecter(commands.Bot):
         if not os.path.exists(self.processed_messages_file):
             open(self.processed_messages_file, 'w').close()
 
-    async def init_access_website_database(self):
-        self.pool = await aiomysql.create_pool(
-            host=os.getenv('SQL_HOST'),
-            user=os.getenv('SQL_USER'),
-            password=os.getenv('SQL_PASSWORD'),
-            db="website"
-        )
-        self.logger.info("Database connection pool for website initialized")
-
-    async def get_twitch_access_token(self, user_id: str):
-        if not self.pool:
-            await self.init_access_website_database()
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (user_id,))
-                result = await cur.fetchone()
-                return result.get('twitch_access_token') if result else None
-
-    async def is_streaming(self):
-        client_id = os.getenv("CLIENT_ID")
-        twitch_user = "botofthespecter"
-        # Get the Twitch access token from the database
-        access_token = await self.get_twitch_access_token("971436498")  # Replace with your Twitch user ID
-        if not access_token:
-            self.logger.error("Failed to retrieve Twitch access token from the database.")
-            return False, None  # Return None for thumbnail if access token is not available
-
-        async with aiohttp.ClientSession() as session:
-            # Check if the user is live
-            async with session.get(
-                f'https://api.twitch.tv/helix/streams?user_login={twitch_user}',
-                headers={'Client-ID': client_id, 'Authorization': f'Bearer {access_token}'}
-            ) as response:
-                stream_data = await response.json()
-                if stream_data.get('data'):
-                    # Stream is live, return the thumbnail URL
-                    thumbnail_url = stream_data['data'][0]['thumbnail_url']
-                    # Replace {width} and {height} with desired dimensions
-                    thumbnail_url = thumbnail_url.replace("{width}", "1280").replace("{height}", "720")
-                    return True, thumbnail_url  # Return True and the thumbnail URL
-                return False, None  # Stream is not live
-
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
-        # Ensure the database pool is initialized
-        if not self.pool:
-            await self.init_access_website_database()
         # Set the initial presence
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
@@ -119,7 +74,6 @@ class BotOfTheSpecter(commands.Bot):
             self.logger.info("Successfully synced slash commands.")
         except Exception as e:
             self.logger.error(f"Error syncing slash commands: {e}")
-        
         # Add error handler for command tree
         self.tree.on_error = self.on_app_command_error
 
