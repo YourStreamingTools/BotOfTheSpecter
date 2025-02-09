@@ -381,7 +381,7 @@ class BOTS_DISCORD_RUNNER:
         self.discord_token = discord_token
         self.channel_name = channel_name
         self.bot = None
-        self.loop = None
+        self.loop = asyncio.new_event_loop()
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
 
@@ -402,11 +402,10 @@ class BOTS_DISCORD_RUNNER:
                 self.logger.error("Bot task was cancelled. Forcing close.")
 
     def run(self):
-        self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.logger.info("Starting BotOfTheSpecter Discord Bot")
         try:
-            self.loop.run_until_complete(self.initialize_bot())
+            asyncio.run(self.initialize_bot())
         except asyncio.CancelledError:
             self.logger.error("BotRunner task was cancelled.")
         finally:
