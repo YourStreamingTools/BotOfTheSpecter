@@ -301,6 +301,7 @@ class FortuneResponse(BaseModel):
 
 # Define the response model for Version Control
 class VersionControlResponse(BaseModel):
+    alpha_version: str
     beta_version: str
     stable_version: str
     class Config:
@@ -464,7 +465,7 @@ async def fortune(api_key: str = Query(...)):
     "/versions",
     response_model=VersionControlResponse,
     summary="Get the current bot versions",
-    description="Fetch the beta and stable version numbers of the bot.",
+    description="Fetch the alpha, beta, and stable version numbers of the bot.",
     tags=["BotOfTheSpecter"],
     operation_id="get_bot_versions"
 )
