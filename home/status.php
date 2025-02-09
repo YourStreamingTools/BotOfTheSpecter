@@ -83,7 +83,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <div class="heartbeat-container">
     <p><strong>System Health:</strong></p>
     <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
-        <?= ($heartbeatStatus === 'OK') ? '❤️' : '💔'; ?>
+        <?= ($heartbeatStatus === 'OK') ? '❤️' : '💀'; ?>
     </div>
 </div>
 
