@@ -85,6 +85,9 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
     <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
         <?= ($heartbeatStatus === 'OK') ? '❤️' : '💀'; ?>
     </div>
+    <?php if ($heartbeatStatus === 'OFF') : ?> <!-- Only show message if OFF -->
+        <p style="font-size: 12px; color: #ffcc00;">The system is experiencing degraded services.</p>
+    <?php endif; ?>
 </div>
 
 <!-- Display Versions -->
