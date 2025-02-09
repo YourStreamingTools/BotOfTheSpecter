@@ -11,6 +11,7 @@ function fetchData($url) {
 // Fetch version data
 $versionData = fetchData('https://api.botofthespecter.com/versions');
 if ($versionData) {
+    $alphaVersion = $versionData['alpha_version'];
     $betaVersion = $versionData['beta_version'];
     $stableVersion = $versionData['stable_version'];
 } else {
@@ -88,6 +89,7 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 
 <!-- Display Versions -->
 <div class="info">
+    <p><strong>Alpha Version:</strong> <?= isset($alphaVersion) ? $alphaVersion : 'N/A'; ?></p>
     <p><strong>Beta Version:</strong> <?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></p>
     <p><strong>Stable Version:</strong> <?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></p>
 </div>
