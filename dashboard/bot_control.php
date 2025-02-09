@@ -29,6 +29,13 @@ $discordBotScriptPath = "/var/www/bot/discordbot.py";
 $discordStatusScriptPath = "/var/www/bot/discordstatus.py";
 $discordLogPath = "/var/www/logs/script/{$username}_discord.txt";
 
+// Define variables for Alpha bot
+$alphaVersionFilePath = '/var/www/logs/version/' . $username . '_alpha_version_control.txt';
+$alphaNewVersion = file_get_contents("/var/www/api/alpha_version_control.txt") ?: 'N/A';
+$alphaBotScriptPath = "/var/www/bot/alpha.py";
+$alphaStatusScriptPath = "/var/www/bot/alpha_status.py";
+$alphaLogPath = "/var/www/logs/script/{$username}_alpha.txt";
+
 $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
 $botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath);
 $betaStatusOutput = getBotsStatus($BetaStatusScriptPath, $username, $BetaLogPath);
@@ -75,6 +82,22 @@ fclose($file);
 
 if (($file = fopen($discordLogPath, 'w')) === false) {
     echo "<script>console.error('Failed to create/open the file: $discordLogPath');</script>";
+    exit;
+}
+fclose($file);
+
+// Check if directories exist, if not, create them
+$alphaDirectory = dirname($alphaLogPath);
+if (!file_exists($alphaDirectory)) {
+    if (!mkdir($alphaDirectory, 0777, true)) {
+        echo "<script>console.error('Failed to create directory: $alphaDirectory');</script>";
+        exit;
+    }
+}
+
+// Open and close the log file to ensure it exists
+if (($file = fopen($alphaLogPath, 'w')) === false) {
+    echo "<script>console.error('Failed to create/open the file: $alphaLogPath');</script>";
     exit;
 }
 fclose($file);
@@ -134,6 +157,22 @@ if (isset($_POST['killDiscordBot'])) {
 // Handling Discord bot restart
 if (isset($_POST['restartDiscordBot'])) {
     $discordStatusOutput = handleDiscordBotAction('restart', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
+}
+
+// Handle Alpha bot actions
+if (isset($_POST['runAlphaBot'])) {
+    $alphaStatusOutput = handleAlphaBotAction('run', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $alphaLogPath);
+    $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
+}
+
+if (isset($_POST['killAlphaBot'])) {
+    $alphaStatusOutput = handleAlphaBotAction('kill', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $alphaLogPath);
+    $alphaVersionRunning = "";
+}
+
+if (isset($_POST['restartAlphaBot'])) {
+    $alphaStatusOutput = handleAlphaBotAction('restart', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $alphaLogPath);
+    $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
 }
 
 // Function to handle bot actions
@@ -400,6 +439,86 @@ function startDiscordBot($botScriptPath, $username, $logPath) {
         error_log('SSH authentication failed for Discord bot');
         throw new Exception('SSH authentication failed'); }
     $command = "python $botScriptPath -channel $username > $logPath 2>&1 &";
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('SSH command execution failed'); }
+    fclose($stream);
+    ssh2_disconnect($connection);
+    return true;
+}
+
+function handleAlphaBotAction($action, $alphaBotScriptPath, $alphaStatusScriptPath, $username, $alphaLogPath) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    // Get PID of the running bot
+    $command = "python $alphaStatusScriptPath -channel $username";
+    $statusOutput = ssh2_exec($connection, $command);
+    if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
+    stream_set_blocking($statusOutput, true);
+    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+    fclose($statusOutput);
+    $message = '';
+    switch ($action) {
+        case 'run':
+            if ($pid > 0) {
+                $message = "<div class='status-message'>Alpha bot is already running. PID $pid.</div>";
+            } else {
+                startAlphaBot($alphaBotScriptPath, $username, $alphaLogPath);
+                sleep(2);
+                $statusOutput = ssh2_exec($connection, "python $alphaStatusScriptPath -channel $username");
+                if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
+                stream_set_blocking($statusOutput, true);
+                $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                fclose($statusOutput);
+                if ($pid > 0) {
+                    $message = "<div class='status-message'>Alpha bot started successfully. PID $pid.</div>";
+                } else {
+                    $message = "<div class='status-message error'>Failed to start the Alpha bot. Please check the configuration or server status.</div>";
+                }
+            }
+            break;
+        case 'kill':
+            if ($pid > 0) {
+                killBot($pid);
+                $message = "<div class='status-message'>Alpha bot stopped successfully.</div>";
+            } else {
+                $message = "<div class='status-message error'>Alpha bot is not running.</div>";
+            }
+            break;
+        case 'restart':
+            if ($pid > 0) {
+                killBot($pid);
+                startAlphaBot($alphaBotScriptPath, $username, $alphaLogPath);
+                $statusOutput = ssh2_exec($connection, "python $alphaStatusScriptPath -channel $username");
+                if (!$statusOutput) {
+                    throw new Exception('Failed to check bot status after restart');
+                }
+                stream_set_blocking($statusOutput, true);
+                $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                fclose($statusOutput);
+                if ($pid > 0) {
+                    $message = "<div class='status-message'>Alpha bot restarted. PID $pid.</div>";
+                } else {
+                    $message = "<div class='status-message error'>Failed to restart the Alpha bot.</div>";
+                }
+            } else {
+                $message = "<div class='status-message error'>Alpha bot is not running.</div>";
+            }
+            break;
+    }
+    ssh2_disconnect($connection);
+    return $message;
+}
+
+function startAlphaBot($alphaBotScriptPath, $username, $alphaLogPath) {
+    global $ssh_host, $ssh_username, $ssh_password;
+    $connection = ssh2_connect($ssh_host, 22);
+    if (!$connection) { throw new Exception('SSH connection failed'); }
+    if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
+        throw new Exception('SSH authentication failed'); }
+    $command = "python $alphaBotScriptPath -channel $username > $alphaLogPath 2>&1 &";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     fclose($stream);
