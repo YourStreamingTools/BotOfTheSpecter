@@ -930,7 +930,7 @@ async def connect():
     websocket_logger.info("Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
-        'name': f'Twitch Bot Beta V{VERSION}'
+        'name': f'Twitch Bot Alpha V{VERSION}'
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
@@ -6380,7 +6380,7 @@ async def update_version_control():
         if not os.path.exists(directory):
             os.makedirs(directory)
         # Define the file path with the channel name
-        file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
+        file_path = os.path.join(directory, f"{CHANNEL_NAME}_alpha_version_control.txt")
         # Delete the file if it exists
         if os.path.exists(file_path):
             os.remove(file_path)
