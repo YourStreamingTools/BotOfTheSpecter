@@ -200,6 +200,27 @@ if (file_exists($restartLog)) {
         </div>
       </div>
     <?php endif; ?>
+    <!-- Alpha Bot Section -->
+    <?php if ($showButtons): ?>
+      <div class="column is-5 bot-box" id="alpha-bot-status" style="position: relative;">
+        <i class="fas fa-question-circle" id="alpha-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <h4 class="title is-4 bot-box-title">Alpha Bot: (<?php echo "V" . $alphaNewVersion; ?>)</h4>
+        <div id="alphaStatus"><?php echo $alphaStatusOutput; ?></div>
+        <div id="alphaVersion"><?php echo $alphaVersionRunning; ?></div>
+        <br>
+        <div class="buttons">
+          <form action="" method="post">
+            <button class="button is-danger bot-button button-size" type="submit" name="killAlphaBot" disabled >Stop Alpha Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-success bot-button button-size" type="submit" name="runAlphaBot" disabled >Run Alpha Bot</button>
+          </form>
+          <form action="" method="post">
+            <button class="button is-warning bot-button button-size" type="submit" name="restartAlphaBot" disabled >Restart Alpha Bot</button>
+          </form>
+        </div>
+      </div>
+    <?php endif; ?>
     <!-- Discord Bot Section -->
     <?php if ($guild_id && $live_channel_id && $showButtons): ?>
       <div class="column is-5 bot-box" id="discord-bot-status" style="position: relative;">
@@ -314,7 +335,7 @@ if (file_exists($restartLog)) {
       <br>
       <p>
       <span class="has-text-weight-bold variable-title">Beta Bot Version Control</span>: Below you'll find information about when the beta file was last updated and how long it has been since you last started or restarted the beta bot. 
-        Keeping these two times as close as possible will ensure you’re up-to-date with the latest changes, as we continuously test and improve the bot's functionality.
+        Keeping these two times as close as possible will ensure you're up-to-date with the latest changes, as we continuously test and improve the bot's functionality.
         <br>
         <span class="has-text-weight-light">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span><br>
         <span class="has-text-weight-light">Last Ran: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
