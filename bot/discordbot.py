@@ -388,7 +388,7 @@ class BOTS_DISCORD_RUNNER:
     def sig_handler(self, signum, frame):
         signame = signal.Signals(signum).name
         self.logger.error(f'Caught Signal {signame} ({signum})')
-        self.stop()
+        asyncio.run_coroutine_threadsafe(self.stop(), self.loop)  # Ensure stop is awaited
 
     def stop(self):
         if self.bot is not None:
