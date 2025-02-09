@@ -13,9 +13,11 @@ if (!isset($_SESSION['access_token'])) {
 $title = "Dashboard";
 $statusOutput = 'Bot Status: Unknown';
 $betaStatusOutput = 'Bot Status: Unknown';
+$alphaStatusOutput = 'Bot Status: Unknown';
 $pid = '';
 $versionRunning = '';
 $betaVersionRunning = '';
+$alphaVersionRunning = '';
 $BotIsMod = false; // Default to false until we know for sure
 $BotModMessage = "";
 $setupMessage = "";
