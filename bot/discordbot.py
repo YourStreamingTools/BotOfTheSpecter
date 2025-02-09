@@ -154,13 +154,13 @@ class ChannelType(Enum):
     def has_value(cls, value):
         return value in cls._value2member_map_
 
-class LoggingClientSession(aiohttp.ClientSession):
-    def __init__(self, *args, logger=None, **kwargs):
-        super().__init__(*args, **kwargs)
+class LoggingClientSession:
+    def __init__(self, logger=None, **kwargs):
         self.logger = logger or logging.getLogger(__name__)
+        self.session = aiohttp.ClientSession(**kwargs)
 
     async def _request(self, method, url, **kwargs):
-        response = await super()._request(method, url, **kwargs)
+        response = await self.session._request(method, url, **kwargs)
         self.log_rate_limit_headers(response)
         return response
 
@@ -173,7 +173,7 @@ class LoggingClientSession(aiohttp.ClientSession):
             self.logger.info(f"Rate limit - Limit: {rate_limit_limit}, Remaining: {rate_limit_remaining}")
 
     async def close(self):
-        await super().close()
+        await self.session.close()
         self.logger.info("Client session closed")
 
 class BotOfTheSpecter(commands.Bot):
