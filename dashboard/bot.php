@@ -165,7 +165,7 @@ if (file_exists($restartLog)) {
       <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="stable-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4 bot-box-title">Stable Bot: (<?php echo "V" . $newVersion; ?>)</h4>
-        <div class="status-message">Stable Bot: The reliable version for everyday use.</div>
+        <div class="status-message" style="text-align: center;">Well-tested and reliable for everyday use.</div>
         <div id="stableStatus"><?php echo $statusOutput; ?></div>
         <div id="stableVersion"><?php echo $versionRunning; ?></div>
         <br>
@@ -187,7 +187,7 @@ if (file_exists($restartLog)) {
       <div class="column is-5 bot-box" id="beta-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="beta-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4 bot-box-title">Beta Bot: (<?php echo "V" . $betaNewVersion . "B"; ?>)</h4>
-        <div class="status-message">Beta Bot: Testing new features before full release.</div>
+        <div class="status-message" style="text-align: center;">In development, testing new features.</div>
         <div id="betaStatus"><?php echo $betaStatusOutput; ?></div>
         <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
         <br>
@@ -209,7 +209,7 @@ if (file_exists($restartLog)) {
       <div class="column is-5 bot-box" id="alpha-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="alpha-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4 bot-box-title">Alpha Bot: (<?php echo "V" . $alphaNewVersion . "A"; ?>)</h4>
-        <div class="status-message">Alpha Bot: Early testing phase for new features before Beta.</div>
+        <div class="status-message" style="text-align: center;">Early testing phase for experimental features.</div>
         <div id="alphaStatus"><?php echo $alphaStatusOutput; ?></div>
         <div id="alphaVersion"><?php echo $alphaVersionRunning; ?></div>
         <br>
