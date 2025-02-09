@@ -207,6 +207,7 @@ if (file_exists($restartLog)) {
       <div class="column is-5 bot-box" id="alpha-bot-status" style="position: relative;">
         <i class="fas fa-question-circle" id="alpha-bot-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4 bot-box-title">Alpha Bot: (<?php echo "V" . $alphaNewVersion . "A"; ?>)</h4>
+        <div class="status-message">Alpha Bot: Early testing phase for new features before Beta.</div>
         <div id="alphaStatus"><?php echo $alphaStatusOutput; ?></div>
         <div id="alphaVersion"><?php echo $alphaVersionRunning; ?></div>
         <br>
