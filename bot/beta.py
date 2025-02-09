@@ -54,7 +54,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.3"
+VERSION = "5.3B"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -118,7 +118,7 @@ event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
 
 # Log startup messages
-startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION}B)"
+startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION})"
 for logger in loggers.values():
     logger.info(startup_msg)
 
@@ -926,7 +926,7 @@ async def connect():
     websocket_logger.info("Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
-        'name': f'Twitch Bot Beta V{VERSION}B'
+        'name': f'Twitch Bot Beta V{VERSION}'
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
@@ -1083,7 +1083,7 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         asyncio.get_event_loop().create_task(check_song_requests())
-        await channel.send(f"/me is connected and ready! Running V{VERSION}B")
+        await channel.send(f"/me is connected and ready! Running V{VERSION}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -1780,7 +1780,7 @@ class TwitchBot(commands.Bot):
                         uptime_hours, remainder = divmod(uptime.seconds, 3600)
                         uptime_minutes, _ = divmod(remainder, 60)
                         # Build the message
-                        message = f"The version that is currently running is V{VERSION}B. Bot has been running for: "
+                        message = f"The version that is currently running is V{VERSION}. Bot has been running for: "
                         if uptime_days == 1:
                             message += f"1 day, "
                         elif uptime_days > 1:
@@ -4006,19 +4006,19 @@ class TwitchBot(commands.Bot):
                         if response.status == 200:
                             data = await response.json()
                             beta_version = data.get('beta_version', '').strip()
-                            if beta_version and beta_version != VERSION:
+                            if beta_version and beta_version != f"{VERSION[:-1]}":
                                 remote_major, remote_minor, remote_patch = map(int, beta_version.split('.'))
-                                local_major, local_minor, local_patch = map(int, VERSION.split('.'))
+                                local_major, local_minor, local_patch = map(int, VERSION[:-1].split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new beta update (V{beta_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}B."
+                                    message = f"A new beta update (V{beta_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
-                                    message = f"There is no beta update pending. You are currently running V{VERSION}B."
+                                    message = f"There is no beta update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"Bot beta update available. (V{beta_version})")
                                 await ctx.send(message)
                             else:
-                                message = f"There is no beta update pending. You are currently running V{VERSION}B."
+                                message = f"There is no beta update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"{message}")
                                 await ctx.send(message)
                         else:
