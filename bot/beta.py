@@ -4006,20 +4006,21 @@ class TwitchBot(commands.Bot):
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
                             data = await response.json()
-                            beta_version = data.get('beta_version', '').strip()
-                            if beta_version and beta_version != f"{VERSION[:-1]}":
-                                remote_major, remote_minor, remote_patch = map(int, beta_version.split('.'))
+                            version_key = f'{SYSTEM.lower()}_version'
+                            remote_version = data.get(version_key, '').strip()
+                            if remote_version and remote_version != f"{VERSION[:-1]}":
+                                remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
                                 local_major, local_minor, local_patch = map(int, VERSION[:-1].split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new beta update (V{beta_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new {SYSTEM.lower()} update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
-                                    message = f"There is no beta update pending. You are currently running V{VERSION}."
-                                bot_logger.info(f"Bot beta update available. (V{beta_version})")
+                                    message = f"There is no {SYSTEM.lower()} update pending. You are currently running V{VERSION}."
+                                bot_logger.info(f"Bot {SYSTEM.lower()} update available. (V{remote_version})")
                                 await ctx.send(message)
                             else:
-                                message = f"There is no beta update pending. You are currently running V{VERSION}."
+                                message = f"There is no {SYSTEM.lower()} update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"{message}")
                                 await ctx.send(message)
                         else:
