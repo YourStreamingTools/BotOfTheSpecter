@@ -54,7 +54,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.3B"
+VERSION = "5.3"
 SYSTEM = "BETA"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -119,7 +119,7 @@ event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
 
 # Log startup messages
-startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION})"
+startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION}{SYSTEM})"
 for logger in loggers.values():
     logger.info(startup_msg)
 
@@ -927,7 +927,7 @@ async def connect():
     websocket_logger.info("Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
-        'name': f'Twitch Bot Beta V{VERSION}'
+        'name': f'Twitch Bot Beta V{VERSION}{SYSTEM}'
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
@@ -1084,7 +1084,7 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         asyncio.get_event_loop().create_task(check_song_requests())
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await channel.send(f"/me is connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -1781,7 +1781,7 @@ class TwitchBot(commands.Bot):
                         uptime_hours, remainder = divmod(uptime.seconds, 3600)
                         uptime_minutes, _ = divmod(remainder, 60)
                         # Build the message
-                        message = f"The version that is currently running is V{VERSION}. Bot has been running for: "
+                        message = f"The version that is currently running is V{VERSION} {SYSTEM}. Bot has been running for: "
                         if uptime_days == 1:
                             message += f"1 day, "
                         elif uptime_days > 1:
@@ -4008,9 +4008,9 @@ class TwitchBot(commands.Bot):
                             data = await response.json()
                             version_key = f'{SYSTEM.lower()}_version'
                             remote_version = data.get(version_key, '').strip()
-                            if remote_version and remote_version != f"{VERSION[:-1]}":
+                            if remote_version and remote_version != f"{VERSION}":
                                 remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
-                                local_major, local_minor, local_patch = map(int, VERSION[:-1].split('.'))
+                                local_major, local_minor, local_patch = map(int, VERSION.split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
