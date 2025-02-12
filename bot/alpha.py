@@ -58,7 +58,8 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.4A"
+VERSION = "5.4"
+SYSTEM = "ALPHA"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -122,7 +123,7 @@ event_logger = loggers['event_log']
 websocket_logger = loggers['websocket']
 
 # Log startup messages
-startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION})"
+startup_msg = f"Logger initialized for channel: {CHANNEL_NAME} (Bot Version: {VERSION}{SYSTEM})"
 for logger in loggers.values():
     logger.info(startup_msg)
 
@@ -930,7 +931,7 @@ async def connect():
     websocket_logger.info("Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
-        'name': f'Twitch Bot Alpha V{VERSION}'
+        'name': f'Twitch Bot Beta V{VERSION}{SYSTEM}'
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
@@ -1087,7 +1088,7 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         asyncio.get_event_loop().create_task(check_song_requests())
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await channel.send(f"/me is connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -1784,7 +1785,7 @@ class TwitchBot(commands.Bot):
                         uptime_hours, remainder = divmod(uptime.seconds, 3600)
                         uptime_minutes, _ = divmod(remainder, 60)
                         # Build the message
-                        message = f"The version that is currently running is V{VERSION}. Bot has been running for: "
+                        message = f"The version that is currently running is V{VERSION} {SYSTEM}. Bot has been running for: "
                         if uptime_days == 1:
                             message += f"1 day, "
                         elif uptime_days > 1:
@@ -4009,20 +4010,21 @@ class TwitchBot(commands.Bot):
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
                             data = await response.json()
-                            alpha_version = data.get('alpha_version', '').strip()
-                            if alpha_version and alpha_version != f"{VERSION[:-1]}":
-                                remote_major, remote_minor, remote_patch = map(int, alpha_version.split('.'))
-                                local_major, local_minor, local_patch = map(int, VERSION[:-1].split('.'))
+                            version_key = f'{SYSTEM.lower()}_version'
+                            remote_version = data.get(version_key, '').strip()
+                            if remote_version and remote_version != f"{VERSION}":
+                                remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
+                                local_major, local_minor, local_patch = map(int, VERSION.split('.'))
                                 if remote_major > local_major or \
                                         (remote_major == local_major and remote_minor > local_minor) or \
                                         (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
-                                    message = f"A new alpha update (V{alpha_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
+                                    message = f"A new {SYSTEM.lower()} update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
-                                    message = f"There is no alpha update pending. You are currently running V{VERSION}."
-                                bot_logger.info(f"Bot alpha update available. (V{alpha_version})")
+                                    message = f"There is no {SYSTEM.lower()} update pending. You are currently running V{VERSION}."
+                                bot_logger.info(f"Bot {SYSTEM.lower()} update available. (V{remote_version})")
                                 await ctx.send(message)
                             else:
-                                message = f"There is no alpha update pending. You are currently running V{VERSION}."
+                                message = f"There is no {SYSTEM.lower()} update pending. You are currently running V{VERSION}."
                                 bot_logger.info(f"{message}")
                                 await ctx.send(message)
                         else:
@@ -6380,7 +6382,7 @@ async def update_version_control():
         if not os.path.exists(directory):
             os.makedirs(directory)
         # Define the file path with the channel name
-        file_path = os.path.join(directory, f"{CHANNEL_NAME}_alpha_version_control.txt")
+        file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
         # Delete the file if it exists
         if os.path.exists(file_path):
             os.remove(file_path)
