@@ -949,14 +949,14 @@ async def WEATHER_DATA(data):
 async def hyperate_websocket():
     while True:
         try:
-            bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
+            websocket_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
             hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
             async with websockets.connect(hyperate_websocket_uri) as hyperate_websocket:
-                bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
+                websocket_logger.info("HypeRate info: Successfully connected to the WebSocket.")
                 # Send 'phx_join' message to join the appropriate channel
-                await join_channel(hyperate_websocket)
+                await hyperate_join_channel(hyperate_websocket)
                 # Send the heartbeat every 10 seconds
-                asyncio.create_task(send_heartbeat(hyperate_websocket))
+                asyncio.create_task(hyperate_send_heartbeat(hyperate_websocket))
                 while True:
                     try:
                         # Continuously wait for incoming messages
@@ -965,13 +965,13 @@ async def hyperate_websocket():
                         data = json.loads(data)
                         HEARTRATE = data['payload'].get('hr', None)
                     except websockets.ConnectionClosed:
-                        bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
+                        websocket_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
                         break
         except Exception as e:
-            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
+            websocket_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
             await asyncio.sleep(10)  # Retry connection after a brief wait
 
-async def send_heartbeat(hyperate_websocket):
+async def hyperate_send_heartbeat(hyperate_websocket):
     while True:
         await asyncio.sleep(10)  # Send heartbeat every 10 seconds
         heartbeat_payload = {
@@ -983,17 +983,17 @@ async def send_heartbeat(hyperate_websocket):
         try:
             await hyperate_websocket.send(json.dumps(heartbeat_payload))
         except Exception as e:
-            bot_logger.error(f"Error sending heartbeat: {e}")
+            websocket_logger.error(f"Error sending heartbeat: {e}")
             break
 
-async def join_channel(hyperate_websocket):
+async def hyperate_join_channel(hyperate_websocket):
     try:
         sqldb = await get_mysql_connection(CHANNEL_NAME)
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute('SELECT heartrate_code FROM profile')
             heartrate_code_data = await cursor.fetchone()
             if not heartrate_code_data:
-                bot_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
+                websocket_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
                 return
             heartrate_code = heartrate_code_data['heartrate_code']
             # Construct the 'phx_join' event payload
@@ -1006,7 +1006,7 @@ async def join_channel(hyperate_websocket):
             # Send the 'phx_join' event to join the channel
             await hyperate_websocket.send(json.dumps(phx_join))
     except Exception as e:
-        bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
+        websocket_logger.error(f"HypeRate error: Error during 'hyperate_join_channel' operation: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -1042,7 +1042,7 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         asyncio.get_event_loop().create_task(check_song_requests())
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await channel.send(f"/me is connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
