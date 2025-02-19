@@ -43,11 +43,13 @@ import bot_modules.database
 import bot_modules.logger
 import bot_modules.twitch.vaild_user
 import bot_modules.websocket_notice
+import bot_modules.fourthwall_events
 from bot_modules.custom_commands import handle_custom_command as custom_commands
 from bot_modules.database import get_mysql_connection
 from bot_modules.logger import initialize_loggers
 from bot_modules.twitch.vaild_user import is_valid_twitch_user
 from bot_modules.websocket_notice import websocket_notice
+from bot_modules.fourthwall_events import process_fourthwall_event
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -933,7 +935,7 @@ async def STREAM_OFFLINE(data):
 async def FOURTHWALL(data):
     websocket_logger.info(f"FourthWall event received: {data}")
     try:
-        await process_fourthwall_event(data)
+        await process_fourthwall_event(data, CHANNEL_NAME)
     except Exception as e:
         websocket_logger.error(f"Failed to process FourthWall event: {e}")
 
@@ -4857,86 +4859,6 @@ async def fetch_json(url, headers=None):
         api_logger.error(f"Error fetching data: {e}")
     return None
 
-# Function to process fourthwall events
-async def process_fourthwall_event(data):
-    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    event_logger.info(f"Fourthwall event received: {data}")
-    # Check if 'data' is a string and needs to be parsed
-    if isinstance(data.get('data'), str):
-        try:
-            # Parse the string to convert it to a dictionary
-            data['data'] = ast.literal_eval(data['data'])
-        except (ValueError, SyntaxError) as e:
-            event_logger.error(f"Failed to parse data: {e}")
-            return
-    # Extract the event type and the nested event data
-    event_type = data.get('data', {}).get('type')
-    event_data = data.get('data', {}).get('data', {})
-    # Check the event type and process accordingly
-    try:
-        if event_type == 'ORDER_PLACED':
-            purchaser_name = event_data['username']
-            offer = event_data['offers'][0]
-            item_name = offer['name']
-            item_quantity = offer['variant']['quantity']
-            total_price = event_data['amounts']['total']['value']
-            currency = event_data['amounts']['total']['currency']
-            # Log the order details
-            event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
-            # Prepare the message to send
-            message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
-            await channel.send(message)
-        elif event_type == 'DONATION':
-            donor_username = event_data['username']
-            donation_amount = event_data['amounts']['total']['value']
-            currency = event_data['amounts']['total']['currency']
-            message_from_supporter = event_data.get('message', '')
-            # Log the donation details and prepare the message
-            if message_from_supporter:
-                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency} with message: {message_from_supporter}")
-                message = f"💰 {donor_username} just donated {donation_amount} {currency}! Message: {message_from_supporter}"
-            else:
-                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
-                message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
-            await channel.send(message)
-        elif event_type == 'GIVEAWAY_PURCHASED':
-            purchaser_username = event_data['username']
-            item_name = event_data['offer']['name']
-            total_price = event_data['amounts']['total']['value']
-            currency = event_data['amounts']['total']['currency']
-            # Log the giveaway purchase details
-            event_logger.info(f"New Giveaway Purchase: {purchaser_username} purchased giveaway '{item_name}' for {total_price} {currency}")
-            # Prepare and send the message
-            message = f"🎁 {purchaser_username} just purchased a giveaway: {item_name} for {total_price} {currency}!"
-            await channel.send(message)
-            # Process each gift
-            for idx, gift in enumerate(event_data.get('gifts', []), start=1):
-                gift_status = gift['status']
-                winner = gift.get('winner', {})
-                winner_username = winner.get('username', "No winner yet")
-                # Log each gift's status and winner details
-                event_logger.info(f"Gift {idx} is {gift_status} with winner: {winner_username}")
-                # Prepare and send the gift status message
-                gift_message = f"🎁 Gift {idx}: Status - {gift_status}. Winner: {winner_username}."
-                await channel.send(gift_message)
-        elif event_type == 'SUBSCRIPTION_PURCHASED':
-            subscriber_nickname = event_data['nickname']
-            subscription_variant = event_data['subscription']['variant']
-            interval = subscription_variant['interval']
-            amount = subscription_variant['amount']['value']
-            currency = subscription_variant['amount']['currency']
-            # Log the subscription purchase details
-            event_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
-            # Prepare and send the message
-            message = f"🎉 {subscriber_nickname} just subscribed for {interval}, paying {amount} {currency}!"
-            await channel.send(message)
-        else:
-            event_logger.info(f"Unhandled Fourthwall event: {event_type}")
-    except KeyError as e:
-        event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
-    except Exception as e:
-        event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
-
 # Function to process KOFI events
 async def process_kofi_event(data):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
@@ -6543,6 +6465,7 @@ async def midnight():
             importlib.reload(bot_modules.logger)
             importlib.reload(bot_modules.twitch.vaild_user)
             importlib.reload(bot_modules.websocket_notice)
+            importlib.reload(bot_modules.fourthwall_events)
             # Log or handle any environment variable updates
             bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
