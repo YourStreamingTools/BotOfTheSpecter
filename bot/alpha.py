@@ -37,9 +37,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Custom Bot Modules
-from bot.beta import SYSTEM
 from bot_modules.custom_commands import handle_custom_command as custom_commands
-from bot_modules import database as get_mysql_connection
+from bot_modules.database import get_mysql_connection
 from bot_modules.logger import initialize_loggers
 
 # Parse command-line arguments
@@ -79,6 +78,7 @@ mod_commands = {"addcommand", "removecommand", "editcommand", "removetypos", "ad
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
 # Initialize loggers with the actual channel name
+global bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
 initialize_loggers(CHANNEL_NAME)
 from bot_modules.logger import bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
 
