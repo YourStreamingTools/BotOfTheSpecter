@@ -1025,7 +1025,6 @@ class TwitchBot(commands.Bot):
 
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.nick}"')
-        channel = self.get_channel(self.channel_name)
         await update_version_control()
         await builtin_commands_creation()
         await check_stream_online()
@@ -1042,10 +1041,10 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         asyncio.get_event_loop().create_task(check_song_requests())
-        await channel.send(f"/me is connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
-        self.target_channel = channel 
+        self.target_channel = channel
+        await channel.send(f"/me is connected and ready! Running V{VERSION} {SYSTEM}")
         bot_logger.info(f"Joined channel: {channel.name}")
 
     # Errors
