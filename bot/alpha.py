@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 import ast
 import signal
 import sys
+import importlib
 
 # Third-party imports
 import aiohttp
@@ -37,9 +38,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Custom Bot Modules
+import bot_modules.custom_commands
+import bot_modules.database
+import bot_modules.logger
+import bot_modules.twitch.vaild_user
 from bot_modules.custom_commands import handle_custom_command as custom_commands
 from bot_modules.database import get_mysql_connection
 from bot_modules.logger import initialize_loggers
+from bot_modules.twitch.vaild_user import is_valid_twitch_user
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -2473,7 +2479,7 @@ class TwitchBot(commands.Bot):
                     await ctx.send("Usage: !hug @username")
                     return
                 # Check if the mentioned username is valid on Twitch
-                is_valid_user = await is_valid_twitch_user(mentioned_username)
+                is_valid_user = await is_valid_twitch_user(mentioned_username, CLIENT_ID, CHANNEL_AUTH)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a hug to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
@@ -2529,7 +2535,7 @@ class TwitchBot(commands.Bot):
                     await ctx.send("Usage: !kiss @username")
                     return
                 # Check if the mentioned username is valid on Twitch
-                is_valid_user = await is_valid_twitch_user(mentioned_username)
+                is_valid_user = await is_valid_twitch_user(mentioned_username, CLIENT_ID, CHANNEL_AUTH)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a kiss to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
@@ -3834,7 +3840,7 @@ class TwitchBot(commands.Bot):
                 try:
                     chat_logger.info(f"Shoutout command trying to run.")
                     user_to_shoutout = user_to_shoutout.lstrip('@')
-                    is_valid_user = await is_valid_twitch_user(user_to_shoutout)
+                    is_valid_user = await is_valid_twitch_user(user_to_shoutout, CLIENT_ID, CHANNEL_AUTH)
                     if not is_valid_user:
                         chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout.")
                         await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
@@ -4515,25 +4521,6 @@ class TwitchBot(commands.Bot):
 
 # Functions for all the commands
 ##
-# Function  to check if the user is a real user on Twitch
-async def is_valid_twitch_user(user_to_shoutout):
-    url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
-    headers = {
-        "Client-ID": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}"
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            if response.status == 200:
-                data = await response.json()
-                if data['data']:
-                    return True  # User exists
-                else:
-                    return False  # User does not exist
-            else:
-                # If there's an error with the request or response, return False
-                return False
-
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
     # Replace with actual method to get display name from Twitch API
@@ -6633,6 +6620,11 @@ async def midnight():
         if current_time.hour == 0 and current_time.minute == 0:
             # Reload the .env file at midnight
             load_dotenv()
+            # Reload the custom modules
+            importlib.reload(bot_modules.custom_commands)
+            importlib.reload(bot_modules.database)
+            importlib.reload(bot_modules.logger)
+            importlib.reload(bot_modules.twitch.vaild_user)
             # Log or handle any environment variable updates
             bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
