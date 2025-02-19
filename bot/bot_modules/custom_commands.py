@@ -6,7 +6,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
 
-from bot_modules import database as get_mysql_connection
+from bot_modules.database import get_mysql_connection
 from bot_modules.logger import chat_logger
 
 command_last_used = {}
