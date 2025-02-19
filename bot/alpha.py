@@ -47,7 +47,7 @@ parser.add_argument("-channel", dest="target_channel", required=True, help="Targ
 parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch user ID")
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
 parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refresh Token for authentication")
-parser.add_argument("-apitoken", dest="api_token", required=False, help="API Token for Websocket Server")
+parser.add_argument("-apitoken", dest="api_token", required=True, help="API Token for Websocket Server")
 args = parser.parse_args()
 
 # Twitch bot settings
