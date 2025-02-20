@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 import ast
 import signal
 import sys
+import importlib
 
 # Third-party imports
 import aiohttp
@@ -37,10 +38,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Custom Bot Modules
-from bot.beta import SYSTEM
+import bot_modules.custom_commands
+import bot_modules.database
+import bot_modules.logger
+import bot_modules.twitch.vaild_user
+import bot_modules.websocket_notice
+import bot_modules.fourthwall_events
+import bot_modules.twitch.channel_points
 from bot_modules.custom_commands import handle_custom_command as custom_commands
-from bot_modules import database as get_mysql_connection
+from bot_modules.database import get_mysql_connection
 from bot_modules.logger import initialize_loggers
+from bot_modules.twitch.vaild_user import is_valid_twitch_user
+from bot_modules.websocket_notice import websocket_notice
+from bot_modules.fourthwall_events import process_fourthwall_event
+from bot_modules.twitch.channel_points import channel_point_rewards
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -48,7 +59,7 @@ parser.add_argument("-channel", dest="target_channel", required=True, help="Targ
 parser.add_argument("-channelid", dest="channel_id", required=True, help="Twitch user ID")
 parser.add_argument("-token", dest="channel_auth_token", required=True, help="Auth Token for authentication")
 parser.add_argument("-refresh", dest="refresh_token", required=True, help="Refresh Token for authentication")
-parser.add_argument("-apitoken", dest="api_token", required=False, help="API Token for Websocket Server")
+parser.add_argument("-apitoken", dest="api_token", required=True, help="API Token for Websocket Server")
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -59,7 +70,7 @@ REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
 VERSION = "5.4"
-SYSTEM = "APLHA"
+SYSTEM = "ALPHA"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -79,6 +90,7 @@ mod_commands = {"addcommand", "removecommand", "editcommand", "removetypos", "ad
 builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
 
 # Initialize loggers with the actual channel name
+global bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
 initialize_loggers(CHANNEL_NAME)
 from bot_modules.logger import bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
 
@@ -817,10 +829,10 @@ async def process_twitch_eventsub_message(message):
                 elif event_type in ["stream.online", "stream.offline"]:
                     if event_type == "stream.online":
                         bot_logger.info(f"Stream is now online!")
-                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE"))
+                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE", CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                     else:
                         bot_logger.info(f"Stream is now offline.")
-                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE", CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                 # AutoMod Message Hold Event
                 elif event_type == "automod.message.hold":
                     event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
@@ -925,7 +937,7 @@ async def STREAM_OFFLINE(data):
 async def FOURTHWALL(data):
     websocket_logger.info(f"FourthWall event received: {data}")
     try:
-        await process_fourthwall_event(data)
+        await process_fourthwall_event(data, CHANNEL_NAME)
     except Exception as e:
         websocket_logger.error(f"Failed to process FourthWall event: {e}")
 
@@ -949,14 +961,14 @@ async def WEATHER_DATA(data):
 async def hyperate_websocket():
     while True:
         try:
-            bot_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
+            websocket_logger.info("HypeRate info: Attempting to connect to HypeRate Heart Rate WebSocket Server")
             hyperate_websocket_uri = f"wss://app.hyperate.io/socket/websocket?token={HYPERATE_API_KEY}"
             async with websockets.connect(hyperate_websocket_uri) as hyperate_websocket:
-                bot_logger.info("HypeRate info: Successfully connected to the WebSocket.")
+                websocket_logger.info("HypeRate info: Successfully connected to the WebSocket.")
                 # Send 'phx_join' message to join the appropriate channel
-                await join_channel(hyperate_websocket)
+                await hyperate_join_channel(hyperate_websocket)
                 # Send the heartbeat every 10 seconds
-                asyncio.create_task(send_heartbeat(hyperate_websocket))
+                asyncio.create_task(hyperate_send_heartbeat(hyperate_websocket))
                 while True:
                     try:
                         # Continuously wait for incoming messages
@@ -965,13 +977,13 @@ async def hyperate_websocket():
                         data = json.loads(data)
                         HEARTRATE = data['payload'].get('hr', None)
                     except websockets.ConnectionClosed:
-                        bot_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
+                        websocket_logger.warning("HypeRate WebSocket connection closed, reconnecting...")
                         break
         except Exception as e:
-            bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
+            websocket_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {e}")
             await asyncio.sleep(10)  # Retry connection after a brief wait
 
-async def send_heartbeat(hyperate_websocket):
+async def hyperate_send_heartbeat(hyperate_websocket):
     while True:
         await asyncio.sleep(10)  # Send heartbeat every 10 seconds
         heartbeat_payload = {
@@ -983,17 +995,17 @@ async def send_heartbeat(hyperate_websocket):
         try:
             await hyperate_websocket.send(json.dumps(heartbeat_payload))
         except Exception as e:
-            bot_logger.error(f"Error sending heartbeat: {e}")
+            websocket_logger.error(f"Error sending heartbeat: {e}")
             break
 
-async def join_channel(hyperate_websocket):
+async def hyperate_join_channel(hyperate_websocket):
     try:
         sqldb = await get_mysql_connection(CHANNEL_NAME)
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute('SELECT heartrate_code FROM profile')
             heartrate_code_data = await cursor.fetchone()
             if not heartrate_code_data:
-                bot_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
+                websocket_logger.error("HypeRate error: No Heart Rate Code found in database, aborting connection.")
                 return
             heartrate_code = heartrate_code_data['heartrate_code']
             # Construct the 'phx_join' event payload
@@ -1006,7 +1018,7 @@ async def join_channel(hyperate_websocket):
             # Send the 'phx_join' event to join the channel
             await hyperate_websocket.send(json.dumps(phx_join))
     except Exception as e:
-        bot_logger.error(f"HypeRate error: Error during 'join_channel' operation: {e}")
+        websocket_logger.error(f"HypeRate error: Error during 'hyperate_join_channel' operation: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -1025,12 +1037,11 @@ class TwitchBot(commands.Bot):
 
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.nick}"')
-        channel = self.get_channel(self.channel_name)
         await update_version_control()
         await builtin_commands_creation()
         await check_stream_online()
         asyncio.create_task(known_users())
-        asyncio.create_task(channel_point_rewards())
+        asyncio.create_task(channel_point_rewards(CHANNEL_ID, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH))
         asyncio.get_event_loop().create_task(twitch_token_refresh())
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
@@ -1042,10 +1053,10 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         asyncio.get_event_loop().create_task(check_song_requests())
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
 
     async def event_channel_joined(self, channel):
-        self.target_channel = channel 
+        self.target_channel = channel
+        await channel.send(f"/me is connected and ready! Running V{VERSION} {SYSTEM}")
         bot_logger.info(f"Joined channel: {channel.name}")
 
     # Errors
@@ -1264,7 +1275,7 @@ class TwitchBot(commands.Bot):
                             else:
                                 message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                     # Send the welcome message
-                    asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
+                    asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                     await self.send_message_to_channel(message_to_send)
                 else:
                     chat_logger.info(f"User status for {messageAuthor} is disabled or welcome messages are turned off.")
@@ -1493,7 +1504,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now online!")
                         await ctx.send("Stream status has been forcibly set to online.")
-                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE"))
+                        asyncio.create_task(websocket_notice(event="STREAM_ONLINE", CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -1524,7 +1535,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now offline.")
                         await ctx.send("Stream status has been forcibly set to offline.")
-                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        asyncio.create_task(websocket_notice(event="STREAM_OFFLINE", CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
                         await ctx.send("You do not have the required permissions to use this command.")
@@ -2474,7 +2485,7 @@ class TwitchBot(commands.Bot):
                     await ctx.send("Usage: !hug @username")
                     return
                 # Check if the mentioned username is valid on Twitch
-                is_valid_user = await is_valid_twitch_user(mentioned_username)
+                is_valid_user = await is_valid_twitch_user(mentioned_username, CLIENT_ID, CHANNEL_AUTH)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a hug to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
@@ -2530,7 +2541,7 @@ class TwitchBot(commands.Bot):
                     await ctx.send("Usage: !kiss @username")
                     return
                 # Check if the mentioned username is valid on Twitch
-                is_valid_user = await is_valid_twitch_user(mentioned_username)
+                is_valid_user = await is_valid_twitch_user(mentioned_username, CLIENT_ID, CHANNEL_AUTH)
                 if not is_valid_user:
                     chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a kiss to them.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
@@ -3442,7 +3453,7 @@ class TwitchBot(commands.Bot):
                 await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times.")
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await ctx.send(f"An error occurred while executing the command. {e}")
@@ -3499,7 +3510,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"Total death count has been updated to: {total_death_count}")
                     chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
                     await ctx.send(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
@@ -3551,7 +3562,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been updated to: {total_death_count} to reflect the removal.")
                     await ctx.send(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
-                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    asyncio.create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                 except Exception as e:
                     await ctx.send(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
@@ -3835,7 +3846,7 @@ class TwitchBot(commands.Bot):
                 try:
                     chat_logger.info(f"Shoutout command trying to run.")
                     user_to_shoutout = user_to_shoutout.lstrip('@')
-                    is_valid_user = await is_valid_twitch_user(user_to_shoutout)
+                    is_valid_user = await is_valid_twitch_user(user_to_shoutout, CLIENT_ID, CHANNEL_AUTH)
                     if not is_valid_user:
                         chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout.")
                         await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
@@ -4516,25 +4527,6 @@ class TwitchBot(commands.Bot):
 
 # Functions for all the commands
 ##
-# Function  to check if the user is a real user on Twitch
-async def is_valid_twitch_user(user_to_shoutout):
-    url = f"https://api.twitch.tv/helix/users?login={user_to_shoutout}"
-    headers = {
-        "Client-ID": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}"
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            if response.status == 200:
-                data = await response.json()
-                if data['data']:
-                    return True  # User exists
-                else:
-                    return False  # User does not exist
-            else:
-                # If there's an error with the request or response, return False
-                return False
-
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
     # Replace with actual method to get display name from Twitch API
@@ -4571,13 +4563,19 @@ async def command_permissions(setting, user):
         chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
         return True
     # Check if the user is a VIP and the setting is "vip"
-    elif setting == "vip" and user.is_vip:
-        chat_logger.info(f"Command Permission checked, {user.name} is a VIP")
+    elif setting == "vip" and user.is_vip or user.is_mod:
+        if user.is_mod:
+            chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
+        else:
+            chat_logger.info(f"Command Permission checked, {user.name} is a VIP")
         return True
     # Check if the user is a subscriber for all-subs or t1-sub
     elif setting in ["all-subs", "t1-sub"]:
-        if user.is_subscriber:
-            chat_logger.info(f"Command Permission checked, {user.name} is a Subscriber")
+        if user.is_subscriber or user.is_mod:
+            if user.is_mod:
+                chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
+            else:
+                chat_logger.info(f"Command Permission checked, {user.name} is a Subscriber")
             return True
     # Check for Tier 2 or Tier 3 subscription using the Twitch API
     elif setting in ["t2-sub", "t3-sub"]:
@@ -4598,8 +4596,11 @@ async def command_permissions(setting, user):
                     if subscriptions:
                         for subscription in subscriptions:
                             tier = subscription['tier']
-                            if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000"):
-                                chat_logger.info(f"Command Permission checked, {user.name} has the required subscription tier ({tier}).")
+                            if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000") or user.is_mod:
+                                if user.is_mod:
+                                    chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
+                                else:
+                                    chat_logger.info(f"Command Permission checked, {user.name} has the required subscription tier ({tier}).")
                                 return True
     # If none of the above, the user does not have required permissions
     twitch_logger.info(f"User {user.name} does not have required permissions for the command that requires {setting} permission.")
@@ -4868,86 +4869,6 @@ async def fetch_json(url, headers=None):
     except Exception as e:
         api_logger.error(f"Error fetching data: {e}")
     return None
-
-# Function to process fourthwall events
-async def process_fourthwall_event(data):
-    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    event_logger.info(f"Fourthwall event received: {data}")
-    # Check if 'data' is a string and needs to be parsed
-    if isinstance(data.get('data'), str):
-        try:
-            # Parse the string to convert it to a dictionary
-            data['data'] = ast.literal_eval(data['data'])
-        except (ValueError, SyntaxError) as e:
-            event_logger.error(f"Failed to parse data: {e}")
-            return
-    # Extract the event type and the nested event data
-    event_type = data.get('data', {}).get('type')
-    event_data = data.get('data', {}).get('data', {})
-    # Check the event type and process accordingly
-    try:
-        if event_type == 'ORDER_PLACED':
-            purchaser_name = event_data['username']
-            offer = event_data['offers'][0]
-            item_name = offer['name']
-            item_quantity = offer['variant']['quantity']
-            total_price = event_data['amounts']['total']['value']
-            currency = event_data['amounts']['total']['currency']
-            # Log the order details
-            event_logger.info(f"New Order: {purchaser_name} bought {item_quantity} x {item_name} for {total_price} {currency}")
-            # Prepare the message to send
-            message = f"🎉 {purchaser_name} just bought {item_quantity} x {item_name} for {total_price} {currency}!"
-            await channel.send(message)
-        elif event_type == 'DONATION':
-            donor_username = event_data['username']
-            donation_amount = event_data['amounts']['total']['value']
-            currency = event_data['amounts']['total']['currency']
-            message_from_supporter = event_data.get('message', '')
-            # Log the donation details and prepare the message
-            if message_from_supporter:
-                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency} with message: {message_from_supporter}")
-                message = f"💰 {donor_username} just donated {donation_amount} {currency}! Message: {message_from_supporter}"
-            else:
-                event_logger.info(f"New Donation: {donor_username} donated {donation_amount} {currency}")
-                message = f"💰 {donor_username} just donated {donation_amount} {currency}! Thank you!"
-            await channel.send(message)
-        elif event_type == 'GIVEAWAY_PURCHASED':
-            purchaser_username = event_data['username']
-            item_name = event_data['offer']['name']
-            total_price = event_data['amounts']['total']['value']
-            currency = event_data['amounts']['total']['currency']
-            # Log the giveaway purchase details
-            event_logger.info(f"New Giveaway Purchase: {purchaser_username} purchased giveaway '{item_name}' for {total_price} {currency}")
-            # Prepare and send the message
-            message = f"🎁 {purchaser_username} just purchased a giveaway: {item_name} for {total_price} {currency}!"
-            await channel.send(message)
-            # Process each gift
-            for idx, gift in enumerate(event_data.get('gifts', []), start=1):
-                gift_status = gift['status']
-                winner = gift.get('winner', {})
-                winner_username = winner.get('username', "No winner yet")
-                # Log each gift's status and winner details
-                event_logger.info(f"Gift {idx} is {gift_status} with winner: {winner_username}")
-                # Prepare and send the gift status message
-                gift_message = f"🎁 Gift {idx}: Status - {gift_status}. Winner: {winner_username}."
-                await channel.send(gift_message)
-        elif event_type == 'SUBSCRIPTION_PURCHASED':
-            subscriber_nickname = event_data['nickname']
-            subscription_variant = event_data['subscription']['variant']
-            interval = subscription_variant['interval']
-            amount = subscription_variant['amount']['value']
-            currency = subscription_variant['amount']['currency']
-            # Log the subscription purchase details
-            event_logger.info(f"New Subscription: {subscriber_nickname} subscribed {interval} for {amount} {currency}")
-            # Prepare and send the message
-            message = f"🎉 {subscriber_nickname} just subscribed for {interval}, paying {amount} {currency}!"
-            await channel.send(message)
-        else:
-            event_logger.info(f"Unhandled Fourthwall event: {event_type}")
-    except KeyError as e:
-        event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
-    except Exception as e:
-        event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
 
 # Function to process KOFI events
 async def process_kofi_event(data):
@@ -5480,7 +5401,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             # Send raid notification to Discord Logs, Twitch Chat, and Websocket
             discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
             await send_to_discord(discord_message, "New Raid!", "raid.png")
-            asyncio.create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
+            asyncio.create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
             await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
@@ -5545,7 +5466,7 @@ async def process_cheer_event(user_id, user_name, bits):
             # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
             await send_to_discord(discord_message, "New Cheer!", image)
             await channel.send(f"Thank you {user_name} for {bits} bits!")
-            asyncio.create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits))
+            asyncio.create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -5619,7 +5540,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             except Exception as e:
                 event_logger.error(f"Failed to send message to Discord: {e}")
             try:
-                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -5703,7 +5624,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
             except Exception as e:
                 event_logger.error(f"Failed to send message to Discord: {e}")
             try:
-                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                asyncio.create_task(websocket_notice("TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                 event_logger.info("Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
@@ -5791,7 +5712,7 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         message = f"Thank you {user_name} for following! Welcome to the channel!"
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
-        asyncio.create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
+        asyncio.create_task(websocket_notice("TWITCH_FOLLOW", user=user_name, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
         await channel.send(message)
         marker_description = f"New Twitch Follower: {user_name}"
         if await make_stream_marker(marker_description):
@@ -5958,91 +5879,6 @@ async def send_to_discord_stream_online(message, image):
     finally:
         await sqldb.ensure_closed()
 
-# Unified function to connect to the websocket server and push notices
-async def websocket_notice(
-    event, user=None, death=None, game=None, weather=None, cheer_amount=None,
-    sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
-    video=None, additional_data=None
-):
-    sqldb = await get_mysql_connection(CHANNEL_NAME)
-    try:
-        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            async with ClientSession() as session:
-                params = {
-                    'code': API_TOKEN,
-                    'event': event
-                }
-                # Event-specific parameter handling
-                if event == "WALKON" and user:
-                    walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}.mp3"
-                    if os.path.exists(walkon_file_path):
-                        params['channel'] = CHANNEL_NAME
-                        params['user'] = user
-                    else:
-                        return
-                elif event == "DEATHS" and death and game:
-                    params['death-text'] = death
-                    params['game'] = game
-                elif event in ["STREAM_ONLINE", "STREAM_OFFLINE"]:
-                    pass  # No additional parameters needed
-                elif event == "WEATHER" and weather:
-                    params['location'] = weather
-                elif event == "TWITCH_FOLLOW" and user:
-                    params['twitch-username'] = user
-                elif event == "TWITCH_CHEER" and user and cheer_amount:
-                    params['twitch-username'] = user
-                    params['twitch-cheer-amount'] = cheer_amount
-                elif event == "TWITCH_SUB" and user and sub_tier and sub_months:
-                    params['twitch-username'] = user
-                    params['twitch-tier'] = sub_tier
-                    params['twitch-sub-months'] = sub_months
-                elif event == "TWITCH_RAID" and user and raid_viewers:
-                    params['twitch-username'] = user
-                    params['twitch-raid'] = raid_viewers
-                elif event == "TTS" and text:
-                    # Make a database query to fetch additional information for TTS
-                    try:
-                        query = "SELECT voice, language FROM tts_settings WHERE user = %s"
-                        await cursor.execute(query, (user,))
-                        result = await cursor.fetchone()
-                        if result:
-                            params['voice'] = result.get('voice', 'default')
-                            params['language'] = result.get('language', 'en')
-                        else:
-                            params['voice'] = 'default'
-                            params['language'] = 'en'
-                    except aiomysql.Error as e:
-                        bot_logger.error(f"Database error while fetching TTS settings for user '{user}': {e}")
-                        params['voice'] = 'default'
-                        params['language'] = 'en'
-                    params['text'] = text
-                elif event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
-                    if additional_data:
-                        params.update(additional_data)
-                    else:
-                        bot_logger.error(f"Event '{event}' requires additional parameters.")
-                        return
-                elif event == "SOUND_ALERT" and sound:
-                    params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
-                elif event == "VIDEO_ALERT" and video:
-                    params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
-                else:
-                    bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
-                    return
-                # URL-encode the parameters
-                encoded_params = urlencode(params)
-                url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
-                # Send the HTTP request
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
-                    else:
-                        bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
-    except Exception as e:
-        bot_logger.error(f"Error while processing websocket notice: {e}")
-    finally:
-        await sqldb.ensure_closed()
-
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
     sqldb = await get_mysql_connection(CHANNEL_NAME)
@@ -6192,7 +6028,7 @@ async def process_channel_point_rewards(event_data, event_type):
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
-                asyncio.create_task(websocket_notice(event="TTS", text=tts_message))
+                asyncio.create_task(websocket_notice(event="TTS", text=tts_message, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                 return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
@@ -6216,14 +6052,14 @@ async def process_channel_point_rewards(event_data, event_type):
             if (sound_result and sound_result["sound_mapping"]):
                 sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
             # Video alert logic
             await cursor.execute("SELECT video_mapping FROM video_alerts WHERE reward_id = %s", (reward_id,))
             video_result = await cursor.fetchone()
             if (video_result and video_result["video_mapping"]):
                 video_file = video_result.get("video_mapping")
                 event_logger.info(f"Got {event_type} - Found Video Mapping - {reward_id} - {video_file}")
-                asyncio.create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
+                asyncio.create_task(websocket_notice(event="VIDEO_ALERT", video=video_file, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
@@ -6236,69 +6072,6 @@ async def process_channel_point_rewards(event_data, event_type):
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
         finally:
-            await sqldb.ensure_closed()
-
-async def channel_point_rewards():
-    # Check the broadcaster's type
-    user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
-    headers = {
-        "Client-Id": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}"
-    }
-    try:
-        # Get MySQL connection
-        sqldb = await get_mysql_connection(CHANNEL_NAME)
-        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            async with aiohttp.ClientSession() as session:
-                # Fetch broadcaster info
-                async with session.get(user_api_url, headers=headers) as user_response:
-                    if user_response.status == 200:
-                        user_data = await user_response.json()
-                        broadcaster_type = user_data["data"][0].get("broadcaster_type", "")
-                        if broadcaster_type not in ["affiliate", "partner"]:
-                            api_logger.info(f"Broadcaster type '{broadcaster_type}' does not support channel points. Exiting.")
-                            return
-                    else:
-                        api_logger.error(f"Failed to fetch broadcaster info: {user_response.status} {user_response.reason}")
-                        return
-                # If the broadcaster is an affiliate or partner, proceed with fetching rewards
-                api_url = f"https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={CHANNEL_ID}"
-                async with session.get(api_url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        rewards = data.get("data", [])
-                        for reward in rewards:
-                            reward_id = reward.get("id")
-                            reward_title = reward.get("title")
-                            reward_cost = reward.get("cost")
-                            # Check if the reward already exists in the database
-                            await cursor.execute("SELECT COUNT(*) FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                            count_result = await cursor.fetchone()
-                            if count_result["COUNT(*)"] == 0:
-                                # Insert new reward
-                                api_logger.info(f"Inserting new reward: {reward_id}, {reward_title}, {reward_cost}")
-                                await cursor.execute(
-                                    "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) "
-                                    "VALUES (%s, %s, %s)",
-                                    (reward_id, reward_title, reward_cost)
-                                )
-                            else:
-                                # Update existing reward
-                                await cursor.execute(
-                                    "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
-                                    "WHERE reward_id = %s",
-                                    (reward_title, reward_cost, reward_id)
-                                )
-                        api_logger.info("Rewards processed successfully.")
-                    else:
-                        api_logger.error(f"Failed to fetch rewards: {response.status} {response.reason}")
-                        
-        await sqldb.commit()
-    except Exception as e:
-        api_logger.error(f"An error occurred in channel_point_rewards: {str(e)}")
-    finally:
-        if sqldb:
-            sqldb.close()
             await sqldb.ensure_closed()
 
 # Function to generate random Lotto numbers
@@ -6486,7 +6259,7 @@ async def start_subathon(ctx):
                     asyncio.create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
-                    asyncio.create_task(websocket_notice("SUBATHON_START", additional_data))
+                    asyncio.create_task(websocket_notice("SUBATHON_START", additional_data, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
                 else:
                     await ctx.send(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -6504,7 +6277,7 @@ async def stop_subathon(ctx):
                 await sqldb.commit()
                 await ctx.send(f"Subathon ended!")
                 # Send websocket notice
-                asyncio.create_task(websocket_notice("SUBATHON_STOP"))
+                asyncio.create_task(websocket_notice("SUBATHON_STOP", CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
             else:
                 await ctx.send(f"No subathon active.")
     finally:
@@ -6524,7 +6297,7 @@ async def pause_subathon(ctx):
                 await ctx.send(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
-                asyncio.create_task(websocket_notice("SUBATHON_PAUSE", additional_data))
+                asyncio.create_task(websocket_notice("SUBATHON_PAUSE", additional_data, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
             else:
                 await ctx.send("No subathon is active or it's already paused!")
     finally:
@@ -6545,7 +6318,7 @@ async def resume_subathon(ctx):
                 asyncio.create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
-                asyncio.create_task(websocket_notice("SUBATHON_RESUME", additional_data))
+                asyncio.create_task(websocket_notice("SUBATHON_RESUME", additional_data, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
     finally:
         await cursor.close()
         await sqldb.ensure_closed()
@@ -6563,7 +6336,7 @@ async def addtime_subathon(ctx, minutes):
                 await ctx.send(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
-                asyncio.create_task(websocket_notice("SUBATHON_ADD_TIME", additional_data))
+                asyncio.create_task(websocket_notice("SUBATHON_ADD_TIME", additional_data, CHANNEL_NAME=CHANNEL_NAME, API_TOKEN=API_TOKEN))
             else:
                 await ctx.send("No subathon is active or it's paused!")
     finally:
@@ -6634,15 +6407,24 @@ async def midnight():
         if current_time.hour == 0 and current_time.minute == 0:
             # Reload the .env file at midnight
             load_dotenv()
+            # Reload the custom modules
+            importlib.reload(bot_modules.custom_commands)
+            importlib.reload(bot_modules.database)
+            importlib.reload(bot_modules.logger)
+            importlib.reload(bot_modules.twitch.vaild_user)
+            importlib.reload(bot_modules.websocket_notice)
+            importlib.reload(bot_modules.fourthwall_events)
+            importlib.reload(bot_modules.twitch.channel_points)
             # Log or handle any environment variable updates
             bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
             cur_date = current_time.strftime("%d %B %Y")
             cur_time = current_time.strftime("%I %p")
             cur_day = current_time.strftime("%A")
-            message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
-            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-            await channel.send(message)
+            if stream_online:
+                message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
+                channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+                await channel.send(message)
             # Sleep for 120 seconds to avoid sending the message multiple times
             await asyncio.sleep(120)
         else:
