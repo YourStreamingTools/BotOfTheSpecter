@@ -6926,9 +6926,10 @@ async def midnight():
             cur_date = current_time.strftime("%d %B %Y")
             cur_time = current_time.strftime("%I %p")
             cur_day = current_time.strftime("%A")
-            message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
-            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-            await channel.send(message)
+            if stream_online:
+                message = f"Welcome to {cur_day}, {cur_date}. It's currently {cur_time}. Good morning everyone!"
+                channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+                await channel.send(message)
             # Sleep for 120 seconds to avoid sending the message multiple times
             await asyncio.sleep(120)
         else:
