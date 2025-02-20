@@ -44,12 +44,14 @@ import bot_modules.logger
 import bot_modules.twitch.vaild_user
 import bot_modules.websocket_notice
 import bot_modules.fourthwall_events
+import bot_modules.twitch.channel_points
 from bot_modules.custom_commands import handle_custom_command as custom_commands
 from bot_modules.database import get_mysql_connection
 from bot_modules.logger import initialize_loggers
 from bot_modules.twitch.vaild_user import is_valid_twitch_user
 from bot_modules.websocket_notice import websocket_notice
 from bot_modules.fourthwall_events import process_fourthwall_event
+from bot_modules.twitch.channel_points import channel_point_rewards
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -1039,7 +1041,7 @@ class TwitchBot(commands.Bot):
         await builtin_commands_creation()
         await check_stream_online()
         asyncio.create_task(known_users())
-        asyncio.create_task(channel_point_rewards())
+        asyncio.create_task(channel_point_rewards(CHANNEL_ID, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH))
         asyncio.get_event_loop().create_task(twitch_token_refresh())
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
@@ -6072,69 +6074,6 @@ async def process_channel_point_rewards(event_data, event_type):
         finally:
             await sqldb.ensure_closed()
 
-async def channel_point_rewards():
-    # Check the broadcaster's type
-    user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
-    headers = {
-        "Client-Id": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}"
-    }
-    try:
-        # Get MySQL connection
-        sqldb = await get_mysql_connection(CHANNEL_NAME)
-        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            async with aiohttp.ClientSession() as session:
-                # Fetch broadcaster info
-                async with session.get(user_api_url, headers=headers) as user_response:
-                    if user_response.status == 200:
-                        user_data = await user_response.json()
-                        broadcaster_type = user_data["data"][0].get("broadcaster_type", "")
-                        if broadcaster_type not in ["affiliate", "partner"]:
-                            api_logger.info(f"Broadcaster type '{broadcaster_type}' does not support channel points. Exiting.")
-                            return
-                    else:
-                        api_logger.error(f"Failed to fetch broadcaster info: {user_response.status} {user_response.reason}")
-                        return
-                # If the broadcaster is an affiliate or partner, proceed with fetching rewards
-                api_url = f"https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={CHANNEL_ID}"
-                async with session.get(api_url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        rewards = data.get("data", [])
-                        for reward in rewards:
-                            reward_id = reward.get("id")
-                            reward_title = reward.get("title")
-                            reward_cost = reward.get("cost")
-                            # Check if the reward already exists in the database
-                            await cursor.execute("SELECT COUNT(*) FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
-                            count_result = await cursor.fetchone()
-                            if count_result["COUNT(*)"] == 0:
-                                # Insert new reward
-                                api_logger.info(f"Inserting new reward: {reward_id}, {reward_title}, {reward_cost}")
-                                await cursor.execute(
-                                    "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) "
-                                    "VALUES (%s, %s, %s)",
-                                    (reward_id, reward_title, reward_cost)
-                                )
-                            else:
-                                # Update existing reward
-                                await cursor.execute(
-                                    "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
-                                    "WHERE reward_id = %s",
-                                    (reward_title, reward_cost, reward_id)
-                                )
-                        api_logger.info("Rewards processed successfully.")
-                    else:
-                        api_logger.error(f"Failed to fetch rewards: {response.status} {response.reason}")
-                        
-        await sqldb.commit()
-    except Exception as e:
-        api_logger.error(f"An error occurred in channel_point_rewards: {str(e)}")
-    finally:
-        if sqldb:
-            sqldb.close()
-            await sqldb.ensure_closed()
-
 # Function to generate random Lotto numbers
 async def user_lotto_numbers():
     # Draw 7 winning numbers and 3 supplementary numbers from 1-47
@@ -6475,6 +6414,7 @@ async def midnight():
             importlib.reload(bot_modules.twitch.vaild_user)
             importlib.reload(bot_modules.websocket_notice)
             importlib.reload(bot_modules.fourthwall_events)
+            importlib.reload(bot_modules.twitch.channel_points)
             # Log or handle any environment variable updates
             bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
