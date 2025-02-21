@@ -5,8 +5,8 @@ $today = new DateTime();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title and Initial Variables
@@ -50,45 +50,45 @@ $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 $checkModConnect = curl_init($checkMod);
 $headers = [
-    "Client-ID: {$clientID}",
-    "Authorization: Bearer {$authToken}"
+  "Client-ID: {$clientID}",
+  "Authorization: Bearer {$authToken}"
 ];
 curl_setopt($checkModConnect, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($checkModConnect, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($checkModConnect);
 if ($response !== false) {
-    $httpStatus = curl_getinfo($checkModConnect, CURLINFO_HTTP_CODE);
-    if ($httpStatus === 200) {
-        $responseData = json_decode($response, true);
-        if (isset($responseData['data'])) {
-            foreach ($responseData['data'] as $mod) {
-                if ($mod['user_login'] === 'botofthespecter') {
-                    $BotIsMod = true;
-                    break;
-                }
-            }
+  $httpStatus = curl_getinfo($checkModConnect, CURLINFO_HTTP_CODE);
+  if ($httpStatus === 200) {
+    $responseData = json_decode($response, true);
+    if (isset($responseData['data'])) {
+      foreach ($responseData['data'] as $mod) {
+        if ($mod['user_login'] === 'botofthespecter') {
+          $BotIsMod = true;
+          break;
         }
-    } else {
-        // Set re-login message if authentication fails
-        $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
-                          <form action="relink.php" method="get"><button class="button is-danger bot-button" type="submit">Re-log in</button></form>
-                        </div>';
+      }
     }
+  } else {
+    // Set re-login message if authentication fails
+    $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
+                      <form action="relink.php" method="get"><button class="button is-danger bot-button" type="submit">Re-log in</button></form>
+                    </div>';
+  }
 } else {
-    $error = 'Curl error: ' . curl_error($checkModConnect);
+  $error = 'Curl error: ' . curl_error($checkModConnect);
 }
 curl_close($checkModConnect);
 
 // Only set mod warning if no authentication message is needed
 if (empty($BotModMessage) && !$BotIsMod && $username !== 'botofthespecter') {
-    $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not currently a moderator on your channel. To continue, please add BotOfTheSpecter as a mod on your Twitch channel.<br>You can do this by navigating to your Twitch Streamer Dashboard, then going to Community > Roles Manager.<br>After you have made BotOfTheSpecter a mod, refresh this page to access your controls.</div>';
+  $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not currently a moderator on your channel. To continue, please add BotOfTheSpecter as a mod on your Twitch channel.<br>You can do this by navigating to your Twitch Streamer Dashboard, then going to Community > Roles Manager.<br>After you have made BotOfTheSpecter a mod, refresh this page to access your controls.</div>';
 }
 
 $ModStatusOutput = $BotIsMod;
 if ($username === 'botofthespecter' || $ModStatusOutput) {
-    $showButtons = true;
+  $showButtons = true;
 } else {
-    $showButtons = false;
+  $showButtons = false;
 }
 
 // Check Beta Access
@@ -118,27 +118,27 @@ if ($user['beta_access'] == 1) {
 // Last Changed Time
 $betaFile = '/var/www/bot/beta.py';
 if (file_exists($betaFile)) {
-    $betaFileModifiedTime = filemtime($betaFile);
-    $timeAgo = time() - $betaFileModifiedTime;
-    if ($timeAgo < 60) $lastModifiedOutput = $timeAgo . ' seconds ago';
-    elseif ($timeAgo < 3600) $lastModifiedOutput = floor($timeAgo / 60) . ' minutes ago';
-    elseif ($timeAgo < 86400) $lastModifiedOutput = floor($timeAgo / 3600) . ' hours ago';
-    else $lastModifiedOutput = floor($timeAgo / 86400) . ' days ago';
+  $betaFileModifiedTime = filemtime($betaFile);
+  $timeAgo = time() - $betaFileModifiedTime;
+  if ($timeAgo < 60) $lastModifiedOutput = $timeAgo . ' seconds ago';
+  elseif ($timeAgo < 3600) $lastModifiedOutput = floor($timeAgo / 60) . ' minutes ago';
+  elseif ($timeAgo < 86400) $lastModifiedOutput = floor($timeAgo / 3600) . ' hours ago';
+  else $lastModifiedOutput = floor($timeAgo / 86400) . ' days ago';
 } else {
-    $lastModifiedOutput = 'File not found';
+  $lastModifiedOutput = 'File not found';
 }
 
 // Last Restarted Time
 $restartLog = '/var/www/logs/version/' . $username . '_beta_version_control.txt';
 if (file_exists($restartLog)) {
-    $restartFileTime = filemtime($restartLog);
-    $restartTimeAgo = time() - $restartFileTime;
-    if ($restartTimeAgo < 60) $lastRestartOutput = $restartTimeAgo . ' seconds ago';
-    elseif ($restartTimeAgo < 3600) $lastRestartOutput = floor($restartTimeAgo / 60) . ' minutes ago';
-    elseif ($restartTimeAgo < 86400) $lastRestartOutput = floor($restartTimeAgo / 3600) . ' hours ago';
-    else $lastRestartOutput = floor($restartTimeAgo / 86400) . ' days ago';
+  $restartFileTime = filemtime($restartLog);
+  $restartTimeAgo = time() - $restartFileTime;
+  if ($restartTimeAgo < 60) $lastRestartOutput = $restartTimeAgo . ' seconds ago';
+  elseif ($restartTimeAgo < 3600) $lastRestartOutput = floor($restartTimeAgo / 60) . ' minutes ago';
+  elseif ($restartTimeAgo < 86400) $lastRestartOutput = floor($restartTimeAgo / 3600) . ' hours ago';
+  else $lastRestartOutput = floor($restartTimeAgo / 86400) . ' days ago';
 } else {
-    $lastRestartOutput = 'Never'; // Message if restart log file does not exist
+  $lastRestartOutput = 'Never'; // Message if restart log file does not exist
 }
 ?>
 <!doctype html>
