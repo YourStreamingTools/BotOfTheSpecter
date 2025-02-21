@@ -253,11 +253,11 @@ if (file_exists($restartLog)) {
       <h4 class="title is-4 bot-box-title" style="text-align: center;">System Status</h4>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
       <span style="margin-right: 10px;">API Service</span>
-      <span id="apiServiceIcon"><i id="apiService" class="fas fa-check-circle" style="color: green;"></i></span>
+      <span id="apiServiceIcon"><i id="apiService" class="fas fa-heartbeat" style="color: green;"></i></span>
       </div>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
       <span style="margin-right: 10px;">Database Service</span>
-      <span id="databaseServiceIcon"><i id="databaseService" class="fas fa-check-circle" style="color: green;"></i></span>
+      <span id="databaseServiceIcon"><i id="databaseService" class="fas fa-heartbeat" style="color: green;"></i></span>
       </div>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
       <span style="margin-right: 10px;">Notification Service</span>
