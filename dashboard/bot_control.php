@@ -36,6 +36,7 @@ $alphaBotScriptPath = "/var/www/bot/alpha.py";
 $alphaStatusScriptPath = "/var/www/bot/alpha_status.py";
 $alphaLogPath = "/var/www/logs/script/{$username}_alpha.txt";
 
+// Get bot status and check if it's running
 $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
 $botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath);
 $betaStatusOutput = getBotsStatus($BetaStatusScriptPath, $username, $BetaLogPath);
@@ -103,14 +104,6 @@ if (($file = fopen($alphaLogPath, 'w')) === false) {
     exit;
 }
 fclose($file);
-
-// Initialize status message variables
-$statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
-$botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath);
-$betaStatusOutput = getBotsStatus($BetaStatusScriptPath, $username, $BetaLogPath);
-$betaBotSystemStatus = checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath);
-$discordStatusOutput = getBotsStatus($discordStatusScriptPath, $username, $discordLogPath);
-$discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath);
 
 // Handle standard bot actions
 if (isset($_POST['runBot'])) {
