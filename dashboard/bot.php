@@ -303,7 +303,7 @@ if (file_exists($restartLog)) {
     <section class="modal-card-body has-background-dark has-text-white">
       <p>
         <span class="has-text-weight-bold variable-title">Run Bot</span>:
-        This button runs the stable version of the bot.
+        This button runs the stable version of the bot, which is well-tested and reliable for everyday use.
       </p>
       <p>
         <span class="has-text-weight-bold variable-title">Stop Bot</span>:
@@ -327,23 +327,47 @@ if (file_exists($restartLog)) {
     <section class="modal-card-body has-background-dark has-text-white">
       <p>
         <span class="has-text-weight-bold variable-title">Run Beta Bot</span>:
-        This button runs the Beta version of the Twitch bot "BotOfTheSpecter".</span>
-      </p>
-      <p>
-        <span class="has-text-weight-bold variable-title">Restart Beta Bot</span>:<br>
-        This button restarts the Beta version of the Twitch bot, refreshing its connection and settings.</span>
+        This button runs the Beta version of the bot, which is in development and testing new features.
       </p>
       <p>
         <span class="has-text-weight-bold variable-title">Stop Beta Bot</span>:
-        This button stops the Beta version of the Twitch bot from running.<br>
+        This button stops the Beta version of the bot from running.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Restart Beta Bot</span>:
+        This button restarts the Beta version of the bot, refreshing its connection and settings.
       </p>
       <br>
       <p>
-      <span class="has-text-weight-bold variable-title">Beta Bot Version Control</span>: Below you'll find information about when the beta file was last updated and how long it has been since you last started or restarted the beta bot. 
+        <span class="has-text-weight-bold variable-title">Beta Bot Version Control</span>: Below you'll find information about when the beta file was last updated and how long it has been since you last started or restarted the beta bot. 
         Keeping these two times as close as possible will ensure you're up-to-date with the latest changes, as we continuously test and improve the bot's functionality.
         <br>
         <span class="has-text-weight-light">Last Changed: <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></span><br>
         <span class="has-text-weight-light">Last Ran: <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></span>
+      </p>
+    </section>
+  </div>
+</div>
+
+<div class="modal" id="alpha-bot-modal">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head has-background-dark">
+      <p class="modal-card-title has-text-white">Alpha Bot Information</p>
+      <button class="delete" aria-label="close" id="alpha-bot-modal-close"></button>
+    </header>
+    <section class="modal-card-body has-background-dark has-text-white">
+      <p>
+        <span class="has-text-weight-bold variable-title">Run Alpha Bot</span>:
+        This button runs the Alpha version of the bot, which is in the early testing phase for experimental features.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Stop Alpha Bot</span>:
+        This button stops the Alpha version of the bot from running.
+      </p>
+      <p>
+        <span class="has-text-weight-bold variable-title">Restart Alpha Bot</span>:
+        This button restarts the Alpha version of the bot, refreshing its connection and settings.
       </p>
     </section>
   </div>
@@ -359,7 +383,7 @@ if (file_exists($restartLog)) {
     <section class="modal-card-body has-background-dark has-text-white">
       <p>
         <span class="has-text-weight-bold variable-title">Run Discord Bot</span>:
-        This button runs the bot for your Discord server using the shared Discord bot "BotOfTheSpecter". 
+        This button runs the bot for your Discord server using the shared Discord bot "BotOfTheSpecter".
       </p>
       <p>
         <span class="has-text-weight-bold variable-title">Stop Discord Bot</span>:
@@ -381,11 +405,13 @@ if (file_exists($restartLog)) {
       <button class="delete" aria-label="close" id="websocket-service-modal-close"></button>
     </header>
     <section class="modal-card-body has-background-dark has-text-white">
-      <p><span class="has-text-weight-bold variable-title">Force Online Status</span>:<br>
+      <p>
+        <span class="has-text-weight-bold variable-title">Force Online Status</span>:<br>
         Clicking this button will set your status to online across the entire system, even if your stream is currently offline. By doing so, both the Twitch Chat Bot and Discord Bot will be notified of your desire to appear as online.
       </p>
       <br>
-      <p><span class="has-text-weight-bold variable-title">Force Offline Status</span>:<br>
+      <p>
+        <span class="has-text-weight-bold variable-title">Force Offline Status</span>:<br>
         This button will mark you as offline in the system, even if you are online. When clicked, it will notify both the Twitch Chat Bot and Discord Bot that you wish to be displayed as offline.<br>
         Additionally, after 5 minutes, if you remain offline, this action will clear the "Credits" overlay data and the "Seen Users" list for welcome messages.
       </p>
@@ -425,21 +451,30 @@ const modalIds = [
   { open: "beta-bot-modal-open", close: "beta-bot-modal-close" },
   { open: "discord-bot-modal-open", close: "discord-bot-modal-close" },
   { open: "websocket-service-modal-open", close: "websocket-service-modal-close" },
-  { open: "api-limits-modal-open", close: "api-limits-modal-close" }
+  { open: "api-limits-modal-open", close: "api-limits-modal-close" },
+  { open: "alpha-bot-modal-open", close: "alpha-bot-modal-close" }
 ];
 
 modalIds.forEach(modal => {
   const openButton = document.getElementById(modal.open);
   const closeButton = document.getElementById(modal.close);
-  
+  const modalElement = document.getElementById(modal.close.replace('-close', ''));
+
   if (openButton) {
     openButton.addEventListener("click", function() {
-      document.getElementById(modal.close.replace('-close', '')).classList.add("is-active");
+      modalElement.classList.add("is-active");
     });
   }
   if (closeButton) {
     closeButton.addEventListener("click", function() {
-      document.getElementById(modal.close.replace('-close', '')).classList.remove("is-active");
+      modalElement.classList.remove("is-active");
+    });
+  }
+  if (modalElement) {
+    modalElement.addEventListener("click", function(event) {
+      if (event.target === modalElement) {
+        modalElement.classList.remove("is-active");
+      }
     });
   }
 });
