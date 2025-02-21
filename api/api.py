@@ -9,6 +9,7 @@ import datetime
 import logging
 import asyncio
 import urllib
+import aioping
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse
@@ -152,6 +153,14 @@ async def get_mysql_connection():
         password=SQL_PASSWORD,
         db="website"
     )
+
+# Check if a host is reachable via ICMP ping
+async def check_icmp_ping(host: str) -> bool:
+    try:
+        await aioping.ping(host, timeout=2)
+        return True
+    except TimeoutError:
+        return False
 
 # Verify the API Key Given
 async def verify_api_key(api_key):
@@ -479,11 +488,11 @@ async def versions():
 
 # Websocket Heartbeat endpoint
 @app.get(
-    "/websocket/heartbeat",
+    "/heartbeat/websocket",
     response_model=HeartbeatControlResponse,
     summary="Get the heartbeat status of the websocket server",
     description="Retrieve the current heartbeat status of the WebSocket server.",
-    tags=["BotOfTheSpecter", "Websocket"],
+    tags=["Heartbeats"],
     operation_id="get_websocket_heartbeat"
 )
 async def websocket_heartbeat():
@@ -498,6 +507,33 @@ async def websocket_heartbeat():
                     return {"status": "OFF"}
     except Exception:
         return {"status": "OFF"}
+
+# Heartbeat endpoint
+@app.get(
+    "/heartbeat/api",
+    response_model=HeartbeatControlResponse,
+    summary="Get the heartbeat status of the API server",
+    description="Retrieve the current heartbeat status of the API server.",
+    tags=["Heartbeats"],
+    operation_id="get_api_heartbeat"
+)
+async def api_heartbeat():
+    api_host = "localhost"
+    is_alive = await check_icmp_ping(api_host)
+    return {"status": "OK" if is_alive else "OFF"}
+
+@app.get(
+    "/heartbeat/database",
+    response_model=HeartbeatControlResponse,
+    summary="Get the heartbeat status of the database server",
+    description="Retrieve the current heartbeat status of the database server.",
+    tags=["Heartbeats"],
+    operation_id="get_database_heartbeat"
+)
+async def database_heartbeat():
+    db_host = "10.240.0.40"
+    is_alive = await check_icmp_ping(db_host)
+    return {"status": "OK" if is_alive else "OFF"}
 
 # Public API Requests Remaining (for song)
 @app.get(
