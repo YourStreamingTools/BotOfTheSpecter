@@ -43,6 +43,9 @@ $betaBotSystemStatus = checkBotsRunning($BetaStatusScriptPath, $username, $BetaL
 $discordStatusOutput = getBotsStatus($discordStatusScriptPath, $username, $discordLogPath);
 $discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath);
 
+$alphaStatusOutput = getBotsStatus($alphaStatusScriptPath, $username, $alphaLogPath);
+$alphaBotSystemStatus = checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath);
+
 $directory = dirname($logPath);
 $betaDirectory = dirname($BetaLogPath);
 $discordDirectory = dirname($discordLogPath);
@@ -460,6 +463,10 @@ if ($discordBotSystemStatus) {
 } else {
     $discordRunning = "<div class='status-message error'>Discord bot is NOT RUNNING.</div>";
     $discordVersionRunning = "";
+}
+
+if ($alphaBotSystemStatus) {
+    $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
 }
 
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
