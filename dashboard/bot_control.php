@@ -2,12 +2,6 @@
 // SSH Connection parameters
 include "/var/www/config/ssh.php";
 
-// Display running versions if bots are running
-$versionRunning = '';
-$betaVersionRunning = '';
-$discordRunning = '';
-$discordVersionRunning = "";
-
 // Define variables for standard bot
 $versionFilePath = '/var/www/logs/version/' . $username . '_version_control.txt';
 $newVersion = file_get_contents("/var/www/api/bot_version_control.txt") ?: 'N/A';
@@ -46,6 +40,7 @@ $alphaBotSystemStatus = checkBotsRunning($alphaStatusScriptPath, $username, $alp
 $discordStatusOutput = getBotsStatus($discordStatusScriptPath, $username, $discordLogPath);
 $discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath);
 
+// Check if log directories exist, if not, create them
 $directory = dirname($logPath);
 $betaDirectory = dirname($BetaLogPath);
 $discordDirectory = dirname($discordLogPath);
