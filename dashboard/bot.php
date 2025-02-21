@@ -409,22 +409,35 @@ if (file_exists($restartLog)) {
   <div class="modal-background"></div>
   <div class="modal-card">
     <header class="modal-card-head has-background-dark">
-      <p class="modal-card-title has-text-white">Websocket Service Information</p>
+      <p class="modal-card-title has-text-white">System Status Information</p>
       <button class="delete" aria-label="close" id="websocket-service-modal-close"></button>
     </header>
     <section class="modal-card-body has-background-dark has-text-white">
       <p>
+        <span class="has-text-weight-bold variable-title">API Service</span>:<br>
+        The API service is responsible for providing system data and managing events. It is currently active as shown by the green heartbeat icon. If the service status is offline, the icon will turn red.
+      </p>
+      <br>
+      <p>
+        <span class="has-text-weight-bold variable-title">Database Service</span>:<br>
+        The database service handles all data storage and retrieval tasks. The service is currently running as indicated by the green heartbeat icon. If the service is down, the icon will display red.
+      </p>
+      <br>
+      <p>
+        <span class="has-text-weight-bold variable-title">Notification Service</span>:<br>
+        This service ensures that notifications are sent out properly. The service is operational if the green heartbeat icon is visible. A red icon means the notification service is currently unavailable.
+      </p>
+      <br>
+      <p>
         <span class="has-text-weight-bold variable-title">Force Online Status</span>:<br>
-        Clicking this button will set your status to online across the entire system, even if your stream is currently offline. By doing so, both the Twitch Chat Bot and Discord Bot will be notified of your desire to appear as online.
+        Clicking this button will force the system to display you as online, even if your stream is not active. This will notify both the Twitch Chat Bot and the Discord Bot that you wish to appear online.
       </p>
       <br>
       <p>
         <span class="has-text-weight-bold variable-title">Force Offline Status</span>:<br>
-        This button will mark you as offline in the system, even if you are online. When clicked, it will notify both the Twitch Chat Bot and Discord Bot that you wish to be displayed as offline.<br>
-        Additionally, after 5 minutes, if you remain offline, this action will clear the "Credits" overlay data and the "Seen Users" list for welcome messages.
+        This button will set your status to offline across the system, even if you are currently online. Once clicked, both the Twitch Chat Bot and Discord Bot will be notified of your offline status.<br>
+        Additionally, after 5 minutes of being offline, this action will clear the "Credits" overlay data and the "Seen Users" list for welcome messages.
       </p>
-      <br>
-      <a href="https://wiki.botofthespecter.com/tiki-index.php?page=Websocket%20Service" target="_blank" class="button is-info">View More Information</a>
     </section>
   </div>
 </div>
