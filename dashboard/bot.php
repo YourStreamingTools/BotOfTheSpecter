@@ -563,7 +563,7 @@ function updateApiLimits() {
     // Update Weather Section
     document.getElementById('weather-section').innerHTML = `
       <p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>${data.weather.requests_remaining}</span><br> 
-      (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes, and ${data.weather.seconds_until_midnight} seconds until reset</span>)</p>
+      (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes until reset</span>)</p>
       <p>Last checked: <span style='color: #f39c12;'>${data.weather.last_modified}</span></p>
     `;
   })
