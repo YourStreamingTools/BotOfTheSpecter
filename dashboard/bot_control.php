@@ -40,11 +40,10 @@ $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
 $botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath);
 $betaStatusOutput = getBotsStatus($BetaStatusScriptPath, $username, $BetaLogPath);
 $betaBotSystemStatus = checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath);
-$discordStatusOutput = getBotsStatus($discordStatusScriptPath, $username, $discordLogPath);
-$discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath);
-
 $alphaStatusOutput = getBotsStatus($alphaStatusScriptPath, $username, $alphaLogPath);
 $alphaBotSystemStatus = checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath);
+$discordStatusOutput = getBotsStatus($discordStatusScriptPath, $username, $discordLogPath);
+$discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath);
 
 $directory = dirname($logPath);
 $betaDirectory = dirname($BetaLogPath);
