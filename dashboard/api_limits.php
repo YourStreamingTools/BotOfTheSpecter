@@ -36,7 +36,6 @@ $midnight = new DateTime('tomorrow midnight');
 $time_until_midnight = $today->diff($midnight);
 $hours_until_midnight = $time_until_midnight->h;
 $minutes_until_midnight = $time_until_midnight->i;
-$seconds_until_midnight = $time_until_midnight->s;
 $weather_requests_remaining = file_exists($weatherFile) ? file_get_contents($weatherFile) : "N/A";
 $last_modified_weather = file_exists($weatherFile) ? date("F j, Y, g:i A T", filemtime($weatherFile)) : "N/A";
 
@@ -58,7 +57,6 @@ echo json_encode([
         "requests_remaining" => $weather_requests_remaining,
         "hours_until_midnight" => $hours_until_midnight,
         "minutes_until_midnight" => $minutes_until_midnight,
-        "seconds_until_midnight" => $seconds_until_midnight,
         "last_modified" => $last_modified_weather
     ]
 ]);
