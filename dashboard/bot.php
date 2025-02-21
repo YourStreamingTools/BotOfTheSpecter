@@ -553,9 +553,9 @@ function checkServiceStatus(service, elementId, url) {
 }
 
 function checkAllServices() {
-  checkServiceStatus('API Service', 'apiService', 'https://api.botofthespecter.com/api/heartbeat');
-  checkServiceStatus('Database Service', 'databaseService', 'https://api.botofthespecter.com/database/heartbeat');
-  checkServiceStatus('Notification Service', 'heartbeat', 'https://api.botofthespecter.com/websocket/heartbeat');
+  checkServiceStatus('API Service', 'apiService', 'https://api.botofthespecter.com/heartbeat/api');
+  checkServiceStatus('Database Service', 'databaseService', 'https://api.botofthespecter.com/heartbeat/database');
+  checkServiceStatus('Notification Service', 'heartbeat', 'https://api.botofthespecter.com/heartbeat/websocket');
 }
 
 function updateApiLimits() {
