@@ -17,6 +17,7 @@ $totalHugs = 0;
 $hugCounts = [];
 $totalKisses = 0;
 $kissCounts = [];
+$highfiveCounts = [];
 $customCounts = [];
 $userCounts = [];
 $seenUsersData = [];
@@ -73,6 +74,10 @@ try {
     // Fetch kiss counts
     $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
     $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch highfive counts
+    $getHighfiveCounts = $db->query("SELECT username, highfive_count FROM highfive_counts ORDER BY highfive_count DESC");
+    $highfiveCounts = $getHighfiveCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch custom counts
     $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
