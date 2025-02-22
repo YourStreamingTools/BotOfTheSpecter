@@ -233,6 +233,7 @@ if (file_exists($restartLog)) {
         <h4 class="title is-4 bot-box-title">Discord Bot: (<?php echo "V" . htmlspecialchars($discordNewVersion); ?>)</h4>
         <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
         <div id="discordVersion"><?php echo $discordVersionRunning; ?></div>
+        <br>
         <div class="buttons">
           <form action="" method="post">
             <button class="button is-danger bot-button button-size" type="submit" name="killDiscordBot">Stop Discord Bot</button>
