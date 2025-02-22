@@ -1231,6 +1231,9 @@ class TwitchBot(commands.Bot):
                     user_data = None
                     has_welcome_message = None
                     user_status_enabled = True
+                    # Insert the new user into the seen_users table
+                    await cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (messageAuthor, "True"))
+                    await sqldb.commit()
                 # Query the streamer preferences for the welcome message settings
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
                 preferences = await cursor.fetchone()
