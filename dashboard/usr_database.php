@@ -75,6 +75,12 @@ try {
                 hug_count INT DEFAULT 0,
                 PRIMARY KEY (username)
             ) ENGINE=InnoDB",
+        'highfive_counts' => "
+            CREATE TABLE IF NOT EXISTS highfive_counts (
+                username VARCHAR(255),
+                highfive_count INT DEFAULT 0,
+                PRIMARY KEY (username)
+            ) ENGINE=InnoDB",
         'kiss_counts' => "
             CREATE TABLE IF NOT EXISTS kiss_counts (
                 username VARCHAR(255),
