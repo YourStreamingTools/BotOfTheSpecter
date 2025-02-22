@@ -252,28 +252,29 @@ if (file_exists($restartLog)) {
       <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4 bot-box-title" style="text-align: center;">System Status</h4>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
-      <span style="margin-right: 10px;">API Service</span>
-      <span id="apiServiceIcon"><i id="apiService" class="fas fa-heartbeat" style="color: green;"></i></span>
+        <span id="apiServiceIcon"><i id="apiService" class="fas fa-heartbeat" style="color: green; margin-right: 5px"></i></span>
+        <span class="subtitle" style="margin-right: 10px;">API Service</span>
       </div>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
-      <span style="margin-right: 10px;">Database Service</span>
-      <span id="databaseServiceIcon"><i id="databaseService" class="fas fa-heartbeat" style="color: green;"></i></span>
+        <span id="databaseServiceIcon"><i id="databaseService" class="fas fa-heartbeat" style="color: green; margin-right: 5px"></i></span>
+        <span class="subtitle" style="margin-right: 10px;">Database Service</span>
       </div>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
-      <span style="margin-right: 10px;">Notification Service</span>
-      <span id="heartbeatIcon"><i id="heartbeat" class="fas fa-heartbeat" style="color: green;"></i></span>
+        <span id="heartbeatIcon"><i id="heartbeat" class="fas fa-heartbeat" style="color: green; margin-right: 5px"></i></span>
+        <span class="subtitle" style="margin-right: 10px;">Notification Service</span>
       </div>
+      <br>
       <div style="display: flex; align-items: center; margin-bottom: 10px;">
-      <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-        <button class="button is-primary bot-button" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
-        <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
-      </div>
+        <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
+          <button class="button is-primary bot-button" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
+          <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
+        </div>
       </div>
       <div style="display: flex; align-items: center;">
-      <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-        <button class="button is-danger bot-button" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
-        <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
-      </div>
+        <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
+          <button class="button is-danger bot-button" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
+          <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
+        </div>
       </div>
     </div>
     <!-- API System -->
