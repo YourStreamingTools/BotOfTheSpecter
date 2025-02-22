@@ -122,7 +122,8 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
     <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
     <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
-    <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
+    <button class="button is-info" onclick="loadData('highfives')">High-Five Counts</button>
+    <button class="button is-info" onclick="loadData('customCounts')">Custom Counts</button>
     <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
     <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
     <button class="button is-info" onclick="loadData('quotes')">Quotes</button>
@@ -197,22 +198,28 @@ function loadData(type) {
     case 'deaths':
       data = <?php echo json_encode($gameDeaths); ?>;
       title = 'Deaths Overview';
-      dataColumn = 'Death Count';
+      dataColumn = 'Count';
       infoColumn = 'Game'; 
       break;
     case 'hugs':
       data = <?php echo json_encode($hugCounts); ?>;
       title = 'Hug Counts';
-      dataColumn = 'Hug Count';
+      dataColumn = 'Count';
       infoColumn = 'Username'; 
       break;
     case 'kisses':
       data = <?php echo json_encode($kissCounts); ?>;
       title = 'Kiss Counts';
-      dataColumn = 'Kiss Count';
+      dataColumn = 'Count';
       infoColumn = 'Username'; 
       break;
-    case 'custom':
+    case 'highfives':
+      data = <?php echo json_encode($highfiveCounts); ?>;
+      title = 'High-Five Counts';
+      dataColumn = 'Count';
+      infoColumn = 'Username'; 
+      break;
+    case 'customCounts':
       data = <?php echo json_encode($customCounts); ?>;
       title = 'Custom Counts';
       dataColumn = 'Used';
@@ -251,23 +258,25 @@ function loadData(type) {
   data.forEach(item => {
     output += `<tr>`;
     if (type === 'lurkers') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`;
     } else if (type === 'typos') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`;
     } else if (type === 'deaths') {
-      output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
+      output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`;
     } else if (type === 'hugs') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`;
     } else if (type === 'kisses') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
-    } else if (type === 'custom') {
-      output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`;
+    } else if (type === 'highfives') {
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.highfive_count}</span></td>`;
+    } else if (type === 'customCounts') {
+      output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'userCounts') {
-      output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`; 
+      output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {
-      output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`; 
+      output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`;
     }
     output += `</tr>`;
   });
