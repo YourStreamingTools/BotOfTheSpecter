@@ -85,9 +85,20 @@ SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
-builtin_commands = {"commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer", "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping", "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking", "lurklead", "clip", "subscription", "hug", "kiss", "uptime", "typo", "typos", "followage", "deaths", "heartrate"}
-mod_commands = {"addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd", "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"}
-builtin_aliases = {"cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"}
+builtin_commands = {
+    "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer",
+    "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
+    "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
+    "lurklead", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage", "deaths",
+    "heartrate"
+}
+mod_commands = {
+    "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
+    "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"
+}
+builtin_aliases = {
+    "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"
+}
 
 # Initialize loggers with the actual channel name
 global bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
@@ -2513,6 +2524,62 @@ class TwitchBot(commands.Bot):
                     await ctx.send(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
         except Exception as e:
             chat_logger.error(f"Error in hug command: {e}")
+            await ctx.send("An error occurred while processing the command.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
+    @commands.command(name='highfive')
+    async def hug_command(self, ctx, *, mentioned_username: str = None):
+        global bot_owner
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                # Fetch the status and permissions for the hug command
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("highfive",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    # If the command is disabled, stop execution
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                # Verify user permissions
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+                # Remove any '@' symbol from the mentioned username if present
+                if mentioned_username:
+                    mentioned_username = mentioned_username.lstrip('@')
+                else:
+                    await ctx.send("Usage: !highfive @username")
+                    return
+                # Check if the mentioned username is valid on Twitch
+                is_valid_user = await is_valid_twitch_user(mentioned_username)
+                if not is_valid_user:
+                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a high five to them.")
+                    await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
+                    return
+                # Increment highfive count in the database
+                await cursor.execute(
+                    'INSERT INTO highfive_counts (username, highfive_count) VALUES (%s, 1) '
+                    'ON DUPLICATE KEY UPDATE highfive_count = highfive_count + 1', 
+                    (mentioned_username,)
+                )
+                await sqldb.commit()
+                # Retrieve the updated count
+                await cursor.execute('SELECT highfive_count FROM highfive_counts WHERE username = %s', (mentioned_username,))
+                highfive_count_result = await cursor.fetchone()
+                if highfive_count_result:
+                    highfive_count = highfive_count_result.get("highfive_count")
+                    # Send the message
+                    chat_logger.info(f"{mentioned_username} has been high-fived by {ctx.author.name}. They have been high-fived: {highfive_count}")
+                    await ctx.send(f"@{mentioned_username} has been high-fived by @{ctx.author.name}, they have been high-fived {highfive_count} times.")
+                else:
+                    chat_logger.error(f"No high-five count found for user: {mentioned_username}")
+                    await ctx.send(f"Sorry @{ctx.author.name}, you can't high-five @{mentioned_username} right now, there's an issue in my system.")
+        except Exception as e:
+            chat_logger.error(f"Error in highfive command: {e}")
             await ctx.send("An error occurred while processing the command.")
         finally:
             await sqldb.ensure_closed()
