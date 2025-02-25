@@ -34,32 +34,15 @@ if ($versionData) {
     echo "<div class='error'>Error fetching version data.</div>";
 }
 
-// Fetch heartbeat data
-$heartbeatData = fetchData('https://api.botofthespecter.com/websocket/heartbeat');
-$heartbeatStatus = ($heartbeatData && $heartbeatData['status'] === 'OK') ? 'OK' : 'OFF';
+// Directly ping the servers
+$apiPingStatus = pingServer('10.240.0.120', 443);
+$apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF'];
 
-// Fetch additional service statuses
-$apiServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/api');
-$databaseServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/database');
-$notificationServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/websocket');
+$websocketPingStatus = pingServer('10.240.0.254', 443);
+$notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF'];
 
-// Check if API service is offline and ping directly
-if (!$apiServiceStatus || $apiServiceStatus['status'] !== 'OK') {
-    $apiPingStatus = pingServer('10.240.0.120', 443);
-    $apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF'];
-}
-
-// Check if WebSocket service is offline and ping directly
-if (!$notificationServiceStatus || $notificationServiceStatus['status'] !== 'OK') {
-    $websocketPingStatus = pingServer('10.240.0.254', 443);
-    $notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF'];
-}
-
-// Check if Database service is offline and ping directly
-if (!$databaseServiceStatus || $databaseServiceStatus['status'] !== 'OK') {
-    $databasePingStatus = pingServer('10.240.0.40', 3306);
-    $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
-}
+$databasePingStatus = pingServer('10.240.0.40', 3306);
+$databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
 
 function checkServiceStatus($serviceName, $serviceData) {
     if ($serviceData && $serviceData['status'] === 'OK') {
