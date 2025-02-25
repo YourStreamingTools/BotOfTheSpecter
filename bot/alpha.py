@@ -1098,7 +1098,7 @@ class TwitchBot(commands.Bot):
         await builtin_commands_creation()
         await check_stream_online()
         asyncio.create_task(known_users())
-        asyncio.create_task(channel_point_rewards(CHANNEL_ID, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH))
+        asyncio.create_task(channel_point_rewards(CHANNEL_ID, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH, api_logger))
         asyncio.get_event_loop().create_task(twitch_token_refresh())
         asyncio.get_event_loop().create_task(spotify_token_refresh())
         asyncio.get_event_loop().create_task(twitch_eventsub())
