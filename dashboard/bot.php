@@ -215,13 +215,13 @@ if (file_exists($restartLog)) {
         <br>
         <div class="buttons">
           <form action="" method="post">
-            <button class="button is-danger bot-button button-size" type="submit" name="killAlphaBot" disabled >Stop Alpha Bot</button>
+            <button class="button is-danger bot-button button-size" type="submit" name="killAlphaBot">Stop Alpha Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-success bot-button button-size" type="submit" name="runAlphaBot" disabled >Run Alpha Bot</button>
+            <button class="button is-success bot-button button-size" type="submit" name="runAlphaBot">Run Alpha Bot</button>
           </form>
           <form action="" method="post">
-            <button class="button is-warning bot-button button-size" type="submit" name="restartAlphaBot" disabled >Restart Alpha Bot</button>
+            <button class="button is-warning bot-button button-size" type="submit" name="restartAlphaBot">Restart Alpha Bot</button>
           </form>
         </div>
       </div>
