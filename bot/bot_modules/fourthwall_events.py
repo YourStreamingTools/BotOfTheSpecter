@@ -1,8 +1,7 @@
-from bot_modules.logger import event_logger
 import ast
 
 # Function to process fourthwall events
-async def process_fourthwall_event(data, channel):
+async def process_fourthwall_event(data, channel, event_logger):
     event_logger.info(f"Fourthwall event received: {data}")
     # Check if 'data' is a string and needs to be parsed
     if isinstance(data.get('data'), str):
