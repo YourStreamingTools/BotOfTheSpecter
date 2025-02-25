@@ -20,11 +20,7 @@ if ($versionData) {
 
 // Fetch heartbeat data
 $heartbeatData = fetchData('https://api.botofthespecter.com/websocket/heartbeat');
-if ($heartbeatData && $heartbeatData['status'] === 'OK') {
-    $heartbeatStatus = 'OK';
-} else {
-    $heartbeatStatus = 'OFF';
-}
+$heartbeatStatus = ($heartbeatData && $heartbeatData['status'] === 'OK') ? 'OK' : 'OFF';
 
 // Fetch additional service statuses
 $apiServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/api');
@@ -38,6 +34,12 @@ function checkServiceStatus($serviceName, $serviceData) {
         return "<p><strong>$serviceName:</strong> <span style='color: #ff4d4d;'>OFF</span></p>";
     }
 }
+
+// Determine overall system health
+$overallHealth = ($heartbeatStatus === 'OK' && 
+                  isset($apiServiceStatus['status']) && $apiServiceStatus['status'] === 'OK' && 
+                  isset($databaseServiceStatus['status']) && $databaseServiceStatus['status'] === 'OK' && 
+                  isset($notificationServiceStatus['status']) && $notificationServiceStatus['status'] === 'OK') ? 'OK' : 'OFF';
 
 // Fetch song request data
 $songData = fetchData('https://api.botofthespecter.com/api/song');
@@ -95,10 +97,10 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
 <!-- Display System Health with Heartbeat -->
 <div class="heartbeat-container">
     <p><strong>System Health:</strong></p>
-    <div class="heartbeat <?= ($heartbeatStatus === 'OK') ? 'beating' : ''; ?>">
-        <?= ($heartbeatStatus === 'OK') ? '❤️' : '💀'; ?>
+    <div class="heartbeat <?= ($overallHealth === 'OK') ? 'beating' : ''; ?>">
+        <?= ($overallHealth === 'OK') ? '❤️' : '💀'; ?>
     </div>
-    <?php if ($heartbeatStatus === 'OFF') : ?> <!-- Only show message if OFF -->
+    <?php if ($overallHealth === 'OFF') : ?> <!-- Only show message if OFF -->
         <br><p style="font-size: 12px; color: #ffcc00;">The system is experiencing degraded services.</p>
     <?php endif; ?>
 </div>
