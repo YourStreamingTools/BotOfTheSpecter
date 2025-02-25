@@ -5516,7 +5516,11 @@ async def timed_message():
                 scheduled_tasks.clear()
                 chat_trigger_tasks.clear()
                 # Schedule each message for intervals or chat triggers
-                for message_id, interval, chat_line_trigger, message in messages:
+                for row in messages:
+                    message_id = row["id"]
+                    interval = row["interval_count"]
+                    chat_line_trigger = row["chat_line_trigger"]
+                    message = row["message"]
                     # Handle timed intervals
                     if interval and int(interval) > 0:
                         wait_time = int(interval) * 60  # Convert minutes to seconds
