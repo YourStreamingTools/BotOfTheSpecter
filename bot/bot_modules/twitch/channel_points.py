@@ -1,10 +1,9 @@
 import aiohttp
 import aiomysql
-from bot_modules.logger import api_logger
 from bot_modules.database import get_mysql_connection
 
 # Functions for handling Twitch channel points
-async def channel_point_rewards(CHANNEL_ID, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH):
+async def channel_point_rewards(CHANNEL_ID, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH, api_logger):
     # Check the broadcaster's type
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {
