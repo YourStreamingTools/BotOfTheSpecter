@@ -994,7 +994,7 @@ async def STREAM_OFFLINE(data):
 async def FOURTHWALL(data):
     websocket_logger.info(f"FourthWall event received: {data}")
     try:
-        await process_fourthwall_event(data, CHANNEL_NAME)
+        await process_fourthwall_event(data, CHANNEL_NAME, event_logger)
     except Exception as e:
         websocket_logger.error(f"Failed to process FourthWall event: {e}")
 
