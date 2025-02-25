@@ -8,6 +8,22 @@ function fetchData($url) {
     return json_decode($response, true);
 }
 
+function pingServer($host, $port) {
+    $starttime = microtime(true);
+    $file = @fsockopen($host, $port, $errno, $errstr, 2);
+    $stoptime = microtime(true);
+    $status = 0;
+
+    if (!$file) {
+        $status = -1;  // Site is down
+    } else {
+        fclose($file);
+        $status = ($stoptime - $starttime) * 1000;
+        $status = floor($status);
+    }
+    return $status;
+}
+
 // Fetch version data
 $versionData = fetchData('https://api.botofthespecter.com/versions');
 if ($versionData) {
@@ -27,11 +43,29 @@ $apiServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/api');
 $databaseServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/database');
 $notificationServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/websocket');
 
+// Check if API service is offline and ping directly
+if (!$apiServiceStatus || $apiServiceStatus['status'] !== 'OK') {
+    $apiPingStatus = pingServer('10.240.0.120', 443);
+    $apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF'];
+}
+
+// Check if WebSocket service is offline and ping directly
+if (!$notificationServiceStatus || $notificationServiceStatus['status'] !== 'OK') {
+    $websocketPingStatus = pingServer('10.240.0.254', 443);
+    $notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF'];
+}
+
+// Check if Database service is offline and ping directly
+if (!$databaseServiceStatus || $databaseServiceStatus['status'] !== 'OK') {
+    $databasePingStatus = pingServer('10.240.0.40', 3306);
+    $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
+}
+
 function checkServiceStatus($serviceName, $serviceData) {
     if ($serviceData && $serviceData['status'] === 'OK') {
-        return "<p><strong>$serviceName:</strong> <span style='color: #76ff7a;'>OK</span></p>";
+        return "<p><strong>$serviceName:</strong> <span class='heartbeat beating'>❤️</span></p>";
     } else {
-        return "<p><strong>$serviceName:</strong> <span style='color: #ff4d4d;'>OFF</span></p>";
+        return "<p><strong>$serviceName:</strong> <span>💀</span></p>";
     }
 }
 
@@ -94,17 +128,6 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
     </style>
 </head>
 <body>
-<!-- Display System Health with Heartbeat -->
-<div class="heartbeat-container">
-    <p><strong>System Health:</strong></p>
-    <div class="heartbeat <?= ($overallHealth === 'OK') ? 'beating' : ''; ?>">
-        <?= ($overallHealth === 'OK') ? '❤️' : '💀'; ?>
-    </div>
-    <?php if ($overallHealth === 'OFF') : ?> <!-- Only show message if OFF -->
-        <br><p style="font-size: 12px; color: #ffcc00;">The system is experiencing degraded services.</p>
-    <?php endif; ?>
-</div>
-
 <!-- Display Additional Service Statuses -->
 <div class="info">
     <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
