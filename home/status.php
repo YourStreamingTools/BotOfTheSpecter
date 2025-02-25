@@ -26,6 +26,19 @@ if ($heartbeatData && $heartbeatData['status'] === 'OK') {
     $heartbeatStatus = 'OFF';
 }
 
+// Fetch additional service statuses
+$apiServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/api');
+$databaseServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/database');
+$notificationServiceStatus = fetchData('https://api.botofthespecter.com/heartbeat/websocket');
+
+function checkServiceStatus($serviceName, $serviceData) {
+    if ($serviceData && $serviceData['status'] === 'OK') {
+        return "<p><strong>$serviceName:</strong> <span style='color: #76ff7a;'>OK</span></p>";
+    } else {
+        return "<p><strong>$serviceName:</strong> <span style='color: #ff4d4d;'>OFF</span></p>";
+    }
+}
+
 // Fetch song request data
 $songData = fetchData('https://api.botofthespecter.com/api/song');
 if ($songData) {
@@ -86,8 +99,15 @@ $secondsUntilMidnight = $interval->h * 3600 + $interval->i * 60 + $interval->s;
         <?= ($heartbeatStatus === 'OK') ? '❤️' : '💀'; ?>
     </div>
     <?php if ($heartbeatStatus === 'OFF') : ?> <!-- Only show message if OFF -->
-        <p style="font-size: 12px; color: #ffcc00;">The system is experiencing degraded services.</p>
+        <br><p style="font-size: 12px; color: #ffcc00;">The system is experiencing degraded services.</p>
     <?php endif; ?>
+</div>
+
+<!-- Display Additional Service Statuses -->
+<div class="info">
+    <?= checkServiceStatus('API Service', $apiServiceStatus); ?>
+    <?= checkServiceStatus('Database Service', $databaseServiceStatus); ?>
+    <?= checkServiceStatus('Notification Service', $notificationServiceStatus); ?>
 </div>
 
 <!-- Display Versions -->
