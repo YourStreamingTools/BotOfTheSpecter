@@ -1,15 +1,14 @@
 import os
 import aiomysql
 from bot_modules.database import get_mysql_connection
-from bot_modules.logger import bot_logger
 from aiohttp import ClientSession
 from urllib.parse import urlencode
 
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
-    event, user=None, death=None, game=None, weather=None, cheer_amount=None,
+    CHANNEL_NAME, API_TOKEN, bot_logger, event, user=None, death=None, game=None, weather=None, cheer_amount=None,
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
-    video=None, additional_data=None, CHANNEL_NAME=None, API_TOKEN=None
+    video=None, additional_data=None
 ):
     sqldb = await get_mysql_connection(CHANNEL_NAME)
     try:
