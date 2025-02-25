@@ -17,6 +17,7 @@ import ast
 import signal
 import sys
 import importlib
+import logging
 
 # Third-party imports
 import aiohttp
@@ -40,18 +41,10 @@ load_dotenv()
 # Custom Bot Modules
 import bot_modules.custom_commands
 import bot_modules.database
-import bot_modules.logger
 import bot_modules.twitch.vaild_user
 import bot_modules.websocket_notice
 import bot_modules.fourthwall_events
 import bot_modules.twitch.channel_points
-from bot_modules.custom_commands import handle_custom_command as custom_commands
-from bot_modules.database import get_mysql_connection
-from bot_modules.logger import initialize_loggers
-from bot_modules.twitch.vaild_user import is_valid_twitch_user
-from bot_modules.websocket_notice import websocket_notice
-from bot_modules.fourthwall_events import process_fourthwall_event
-from bot_modules.twitch.channel_points import channel_point_rewards
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -102,8 +95,61 @@ builtin_aliases = {
 
 # Initialize loggers with the actual channel name
 global bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
-initialize_loggers(CHANNEL_NAME)
-from bot_modules.logger import bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
+
+# Logs
+webroot = "/var/www/"
+logs_directory = os.path.join(webroot, "logs")
+log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
+
+# Ensure directories exist
+for log_type in log_types:
+    directory_path = os.path.join(logs_directory, log_type)
+    os.makedirs(directory_path, mode=0o755, exist_ok=True)
+
+# Create a function to setup individual loggers for clarity
+def setup_logger(name, log_file, level=logging.INFO):
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    # Clear any existing handlers to prevent duplicates
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    # Setup rotating file handler
+    handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=10485760, # 10MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+
+def initialize_loggers(channel_name):
+    loggers = {}
+    for log_type in log_types:
+        log_file = os.path.join(logs_directory, log_type, f"{channel_name}.txt")
+        loggers[log_type] = setup_logger(f"bot.{log_type}", log_file)
+    # Access individual loggers
+    global bot_logger, chat_logger, twitch_logger, api_logger, chat_history_logger, event_logger, websocket_logger
+    bot_logger = loggers['bot']
+    chat_logger = loggers['chat']
+    twitch_logger = loggers['twitch']
+    api_logger = loggers['api']
+    chat_history_logger = loggers['chat_history']
+    event_logger = loggers['event_log']
+    websocket_logger = loggers['websocket']
+    # Log startup messages
+    startup_msg = f"Logger initialized for channel: {channel_name}"
+    for logger in loggers.values():
+        logger.info(startup_msg)
+
+from bot_modules.custom_commands import handle_custom_command as custom_commands
+from bot_modules.database import get_mysql_connection
+from bot_modules.twitch.vaild_user import is_valid_twitch_user
+from bot_modules.websocket_notice import websocket_notice
+from bot_modules.fourthwall_events import process_fourthwall_event
+from bot_modules.twitch.channel_points import channel_point_rewards
 
 # Setup Globals
 global stream_online
@@ -1145,7 +1191,7 @@ class TwitchBot(commands.Bot):
                     else:
                         tz = pytz.UTC
                         chat_logger.info("Timezone not set, defaulting to UTC")
-                    await custom_commands(command, messageContent, messageAuthor, channel, tz)
+                    await custom_commands(command, messageContent, messageAuthor, channel, tz, chat_logger)
                 # Handle AI responses
                 if f'@{self.nick.lower()}' in message.content.lower():
                     user_message = message.content.lower().replace(f'@{self.nick.lower()}', '').strip()
@@ -6480,7 +6526,6 @@ async def midnight():
             # Reload the custom modules
             importlib.reload(bot_modules.custom_commands)
             importlib.reload(bot_modules.database)
-            importlib.reload(bot_modules.logger)
             importlib.reload(bot_modules.twitch.vaild_user)
             importlib.reload(bot_modules.websocket_notice)
             importlib.reload(bot_modules.fourthwall_events)
