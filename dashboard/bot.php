@@ -571,6 +571,138 @@ function showTooltip(eventType) {
     tooltip.style.opacity = '0';
   }, 2000);
 }
+
+function checkServiceStatus(service, elementId, url) {
+  fetch(url)
+    .then(response => response.json())
+    .then(data => {
+      const serviceIcon = document.getElementById(elementId);
+      if (data.status === 'OK') {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        serviceIcon.className = 'fas fa-heart-broken';
+        serviceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const serviceIcon = document.getElementById(elementId);
+      serviceIcon.className = 'fas fa-heart-broken';
+      serviceIcon.style.color = 'red';
+    });
+}
+
+function checkAllServices() {
+  // Fetch the latest status for API service
+  fetch('/api_status.php?service=api')
+    .then(response => response.json())
+    .then(data => {
+      const serviceIcon = document.getElementById('apiService');
+      if (data.status === 'OK') {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        serviceIcon.className = 'fas fa-heart-broken';
+        serviceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const serviceIcon = document.getElementById('apiService');
+      serviceIcon.className = 'fas fa-heart-broken';
+      serviceIcon.style.color = 'red';
+    });
+
+  // Fetch the latest status for WebSocket service
+  fetch('/api_status.php?service=websocket')
+    .then(response => response.json())
+    .then(data => {
+      const websocketServiceIcon = document.getElementById('heartbeat');
+      if (data.status === 'OK') {
+        websocketServiceIcon.className = 'fas fa-heartbeat beating';
+        websocketServiceIcon.style.color = 'green';
+      } else {
+        websocketServiceIcon.className = 'fas fa-heart-broken';
+        websocketServiceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const websocketServiceIcon = document.getElementById('heartbeat');
+      websocketServiceIcon.className = 'fas fa-heart-broken';
+      websocketServiceIcon.style.color = 'red';
+    });
+
+  // Fetch the latest status for Database service
+  fetch('/api_status.php?service=database')
+    .then(response => response.json())
+    .then(data => {
+      const databaseServiceIcon = document.getElementById('databaseService');
+      if (data.status === 'OK') {
+        databaseServiceIcon.className = 'fas fa-heartbeat beating';
+        databaseServiceIcon.style.color = 'green';
+      } else {
+        databaseServiceIcon.className = 'fas fa-heart-broken';
+        databaseServiceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const databaseServiceIcon = document.getElementById('databaseService');
+      databaseServiceIcon.className = 'fas fa-heart-broken';
+      databaseServiceIcon.style.color = 'red';
+    });
+}
+
+function updateApiLimits() {
+  fetch('/api_limits.php')
+  .then(response => response.json())
+  .then(data => {
+    // Update Shazam Section
+    document.getElementById('shazam-section').innerHTML = `
+      <p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>${data.shazam.requests_remaining}</span> 
+      (<span title='Next reset date: ${data.shazam.reset_date}'>${data.shazam.days_until_reset} days until reset</span>)</p>
+      <p>Last checked: <span style='color: #f39c12;'>${data.shazam.last_modified}</span></p>
+    `;
+    // Update Exchange Rate Section
+    document.getElementById('exchangerate-section').innerHTML = `
+      <p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>${data.exchangerate.requests_remaining}</span> 
+      (<span title='Next reset date: ${data.exchangerate.reset_date}'>${data.exchangerate.days_until_reset} days until reset</span>)</p>
+      <p>Last checked: <span style='color: #f39c12;'>${data.exchangerate.last_modified}</span></p>
+    `;
+    // Update Weather Section
+    document.getElementById('weather-section').innerHTML = `
+      <p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>${data.weather.requests_remaining}</span><br> 
+      (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes until reset</span>)</p>
+      <p>Last checked: <span style='color: #f39c12;'>${data.weather.last_modified}</span></p>
+    `;
+  })
+  .catch(error => {
+    console.error('Error fetching API limits:', error);
+  });
+}
+
+function checkLastModified() {
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", "", true);
+  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4 && xhr.status === 200) {
+      var response = xhr.responseText.trim();
+      var lastModifiedStart = response.indexOf('<span id="last-modified-time">') + '<span id="last-modified-time">'.length;
+      var lastModifiedEnd = response.indexOf('</span>', lastModifiedStart);
+      var lastModifiedTime = response.substring(lastModifiedStart, lastModifiedEnd).trim();
+      if (lastModifiedTime) {
+        document.getElementById("last-modified-time").innerText = lastModifiedTime;
+      }
+    }
+  };
+  xhr.send();
+}
+
+setInterval(checkAllServices, 5000);
+setInterval(updateApiLimits, 60000);
+setInterval(checkLastModified, 300000);
+checkAllServices();
+updateApiLimits();
+checkLastModified();
 </script>
 <?php if ($showButtons): ?>
 <script>
@@ -595,38 +727,62 @@ function checkServiceStatus(service, elementId, url) {
 }
 
 function checkAllServices() {
-  // Check if API service is offline and ping directly
-  const apiPingStatus = <?php echo json_encode($apiServiceStatus); ?>;
-  const serviceIcon = document.getElementById('apiService');
-  if (apiPingStatus.status === 'OK') {
-    serviceIcon.className = 'fas fa-heartbeat beating';
-    serviceIcon.style.color = 'green';
-  } else {
-    serviceIcon.className = 'fas fa-heart-broken';
-    serviceIcon.style.color = 'red';
-  }
+  // Fetch the latest status for API service
+  fetch('/api_status.php?service=api')
+    .then(response => response.json())
+    .then(data => {
+      const serviceIcon = document.getElementById('apiService');
+      if (data.status === 'OK') {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        serviceIcon.className = 'fas fa-heart-broken';
+        serviceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const serviceIcon = document.getElementById('apiService');
+      serviceIcon.className = 'fas fa-heart-broken';
+      serviceIcon.style.color = 'red';
+    });
 
-  // Check if WebSocket service is offline and ping directly
-  const websocketPingStatus = <?php echo json_encode($notificationServiceStatus); ?>;
-  const websocketServiceIcon = document.getElementById('heartbeat');
-  if (websocketPingStatus.status === 'OK') {
-    websocketServiceIcon.className = 'fas fa-heartbeat beating';
-    websocketServiceIcon.style.color = 'green';
-  } else {
-    websocketServiceIcon.className = 'fas fa-heart-broken';
-    websocketServiceIcon.style.color = 'red';
-  }
+  // Fetch the latest status for WebSocket service
+  fetch('/api_status.php?service=websocket')
+    .then(response => response.json())
+    .then(data => {
+      const websocketServiceIcon = document.getElementById('heartbeat');
+      if (data.status === 'OK') {
+        websocketServiceIcon.className = 'fas fa-heartbeat beating';
+        websocketServiceIcon.style.color = 'green';
+      } else {
+        websocketServiceIcon.className = 'fas fa-heart-broken';
+        websocketServiceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const websocketServiceIcon = document.getElementById('heartbeat');
+      websocketServiceIcon.className = 'fas fa-heart-broken';
+      websocketServiceIcon.style.color = 'red';
+    });
 
-  // Check if Database service is offline and ping directly
-  const databasePingStatus = <?php echo json_encode($databaseServiceStatus); ?>;
-  const databaseServiceIcon = document.getElementById('databaseService');
-  if (databasePingStatus.status === 'OK') {
-    databaseServiceIcon.className = 'fas fa-heartbeat beating';
-    databaseServiceIcon.style.color = 'green';
-  } else {
-    databaseServiceIcon.className = 'fas fa-heart-broken';
-    databaseServiceIcon.style.color = 'red';
-  }
+  // Fetch the latest status for Database service
+  fetch('/api_status.php?service=database')
+    .then(response => response.json())
+    .then(data => {
+      const databaseServiceIcon = document.getElementById('databaseService');
+      if (data.status === 'OK') {
+        databaseServiceIcon.className = 'fas fa-heartbeat beating';
+        databaseServiceIcon.style.color = 'green';
+      } else {
+        databaseServiceIcon.className = 'fas fa-heart-broken';
+        databaseServiceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const databaseServiceIcon = document.getElementById('databaseService');
+      databaseServiceIcon.className = 'fas fa-heart-broken';
+      databaseServiceIcon.style.color = 'red';
+    });
 }
 
 function updateApiLimits() {
