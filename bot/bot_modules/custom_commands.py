@@ -7,11 +7,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from bot_modules.database import get_mysql_connection
-from bot_modules.logger import chat_logger
 
 command_last_used = {}
 
-async def handle_custom_command(command, messageContent, messageAuthor, channel, tz):
+async def handle_custom_command(command, messageContent, messageAuthor, channel, tz, chat_logger):
     sqldb = await get_mysql_connection(channel)
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         await cursor.execute('SELECT response, status, cooldown FROM custom_commands WHERE command = %s', (command,))
@@ -42,8 +41,8 @@ async def handle_custom_command(command, messageContent, messageAuthor, channel,
                     # Handle (count)
                     if '(count)' in response:
                         try:
-                            await update_custom_count(command)
-                            get_count = await get_custom_count(command)
+                            await update_custom_count(command, chat_logger)
+                            get_count = await get_custom_count(command, chat_logger)
                             response = response.replace('(count)', str(get_count))
                         except Exception as e:
                             chat_logger.error(f"{e}")
@@ -190,7 +189,7 @@ async def handle_custom_command(command, messageContent, messageAuthor, channel,
             chat_logger.info(f"{command} not found in the database.")
 
 # Function to update custom counts
-async def update_custom_count(command):
+async def update_custom_count(command, chat_logger):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -226,7 +225,7 @@ async def fetch_api_response(url, json_flag=False):
     except Exception as e:
         return f"Exception Error: {str(e)}"
 
-async def get_custom_count(command):
+async def get_custom_count(command, chat_logger):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
