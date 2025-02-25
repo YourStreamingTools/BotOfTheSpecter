@@ -140,6 +140,23 @@ if (file_exists($restartLog)) {
 } else {
   $lastRestartOutput = 'Never'; // Message if restart log file does not exist
 }
+
+// Function to ping server
+function pingServer($host, $port) {
+    $starttime = microtime(true);
+    $file = @fsockopen($host, $port, $errno, $errstr, 2);
+    $stoptime = microtime(true);
+    $status = 0;
+
+    if (!$file) {
+        $status = -1;  // Site is down
+    } else {
+        fclose($file);
+        $status = ($stoptime - $starttime) * 1000;
+        $status = floor($status);
+    }
+    return $status;
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -568,9 +585,98 @@ function checkServiceStatus(service, elementId, url) {
 }
 
 function checkAllServices() {
-  checkServiceStatus('API Service', 'apiService', 'https://api.botofthespecter.com/heartbeat/api');
-  checkServiceStatus('Database Service', 'databaseService', 'https://api.botofthespecter.com/heartbeat/database');
-  checkServiceStatus('Notification Service', 'heartbeat', 'https://api.botofthespecter.com/heartbeat/websocket');
+  // Check if API service is offline and ping directly
+  fetch('https://api.botofthespecter.com/heartbeat/api')
+    .then(response => response.json())
+    .then(data => {
+      const serviceIcon = document.getElementById('apiService');
+      if (data.status === 'OK') {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        const apiPingStatus = pingServer('10.240.0.120', 443);
+        if (apiPingStatus >= 0) {
+          serviceIcon.className = 'fas fa-heartbeat beating';
+          serviceIcon.style.color = 'green';
+        } else {
+          serviceIcon.className = 'fas fa-heart-broken';
+          serviceIcon.style.color = 'red';
+        }
+      }
+    })
+    .catch(error => {
+      const serviceIcon = document.getElementById('apiService');
+      const apiPingStatus = pingServer('10.240.0.120', 443);
+      if (apiPingStatus >= 0) {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        serviceIcon.className = 'fas fa-heart-broken';
+        serviceIcon.style.color = 'red';
+      }
+    });
+
+  // Check if WebSocket service is offline and ping directly
+  fetch('https://api.botofthespecter.com/heartbeat/websocket')
+    .then(response => response.json())
+    .then(data => {
+      const serviceIcon = document.getElementById('heartbeat');
+      if (data.status === 'OK') {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        const websocketPingStatus = pingServer('10.240.0.254', 443);
+        if (websocketPingStatus >= 0) {
+          serviceIcon.className = 'fas fa-heartbeat beating';
+          serviceIcon.style.color = 'green';
+        } else {
+          serviceIcon.className = 'fas fa-heart-broken';
+          serviceIcon.style.color = 'red';
+        }
+      }
+    })
+    .catch(error => {
+      const serviceIcon = document.getElementById('heartbeat');
+      const websocketPingStatus = pingServer('10.240.0.254', 443);
+      if (websocketPingStatus >= 0) {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        serviceIcon.className = 'fas fa-heart-broken';
+        serviceIcon.style.color = 'red';
+      }
+    });
+
+  // Check if Database service is offline and ping directly
+  fetch('https://api.botofthespecter.com/heartbeat/database')
+    .then(response => response.json())
+    .then(data => {
+      const serviceIcon = document.getElementById('databaseService');
+      if (data.status === 'OK') {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        const databasePingStatus = pingServer('10.240.0.40', 3306);
+        if (databasePingStatus >= 0) {
+          serviceIcon.className = 'fas fa-heartbeat beating';
+          serviceIcon.style.color = 'green';
+        } else {
+          serviceIcon.className = 'fas fa-heart-broken';
+          serviceIcon.style.color = 'red';
+        }
+      }
+    })
+    .catch(error => {
+      const serviceIcon = document.getElementById('databaseService');
+      const databasePingStatus = pingServer('10.240.0.40', 3306);
+      if (databasePingStatus >= 0) {
+        serviceIcon.className = 'fas fa-heartbeat beating';
+        serviceIcon.style.color = 'green';
+      } else {
+        serviceIcon.className = 'fas fa-heart-broken';
+        serviceIcon.style.color = 'red';
+      }
+    });
 }
 
 function updateApiLimits() {
