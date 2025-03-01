@@ -4810,8 +4810,11 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='startlotto')
     async def start_lotto_command(self, ctx):
-        asyncio.create_task(generate_winning_lotto_numbers())
-        ctx.send("Lotto numbers have been generated. Good luck everyone!")
+        done = await generate_winning_lotto_numbers()
+        if done == True:
+            await ctx.send("Lotto numbers have been generated. Good luck everyone!")
+        else:
+            await ctx.send("There was an error generating the lotto numbers.")
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='drawlotto')
@@ -5483,7 +5486,7 @@ async def process_stream_online_websocket():
     global current_game
     stream_online = True
     asyncio.get_event_loop().create_task(timed_message())
-    asyncio.create_task(generate_winning_lotto_numbers())
+    await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
@@ -6756,6 +6759,7 @@ async def generate_winning_lotto_numbers():
         "winning_numbers": winning_numbers,
         "supplementary_numbers": supplementary_numbers
     }
+    return True
 
 # Function to generate random Lotto numbers
 async def generate_user_lotto_numbers(user_name, user_id, reward_id, event_id):
