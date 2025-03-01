@@ -6761,12 +6761,10 @@ async def generate_user_lotto_numbers(user_name, user_id, reward_id, event_id):
     if (user_name, user_id) in user_lotto_numbers:
         response = await refund_lotto_points(reward_id, event_id)
         if response == 200:
-            api_logger.info(f"Custom Reward Redemption - {reward_id} - {event_id} - CANCELED/REFUNDED")
             return {"error": "You've already played the lotto, your points have been refunded."}
     if not lotto_numebrs:
         response = await refund_lotto_points(reward_id, event_id)
         if response == 200:
-            api_logger.info(f"Custom Reward Redemption - {reward_id} - {event_id} - CANCELED/REFUNDED")
             return {"error": "Can't play lotto as the winning numbers haven't been selected yet, your points have been refunded."}
         return {"error": "Can't play lotto as the winning numbers haven't been selected yet."}
     # Draw 7 winning numbers and 3 supplementary numbers from 1-47
@@ -6789,7 +6787,7 @@ async def refund_lotto_points(reward_id, event_id):
     async with aiohttp.ClientSession() as session:
             url = f'https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id={CHANNEL_ID}&reward_id={reward_id}&id={event_id}'
             async with session.patch(url, headers=headers, json="{\"status\": \"CANCELED\"}") as response:
-                api_logger.info(f"Refund For Channel Points:  {response.status}")
+                twitch_logger.info(f"Refund For Channel Points:  {response.status}")
                 return response.status
 
 # Function to fetch a random fortune
