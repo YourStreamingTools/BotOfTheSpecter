@@ -4882,8 +4882,10 @@ class TwitchBot(commands.Bot):
                         message = f"@{user_name} you've won {division} and got {prize} points! Total points: {total_points}"
                         await ctx.send(message)
                         del user_lotto_numbers[user_id]
+                        del lotto_numbers["winning_numbers"]
+                        del lotto_numbers["supplementary_numbers"]
                 if not results:
-                    await ctx.send("No winners this time!")
+                    await ctx.send(f"No winners this time! The winning numbers were: {lotto_numbers['winning_numbers']} and Supplementary: {lotto_numbers['supplementary_numbers']}")
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await ctx.send("Sorry, there is an error in drawing the lotto winners.")
