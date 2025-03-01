@@ -4842,8 +4842,8 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
                 results = []
-                for user, user_id, numbers in user_lotto_numbers.items():
-                    user_id = numbers["user_id"]
+                for user_id, numbers in user_lotto_numbers.items():
+                    user_name = numbers["user_name"]
                     user_winning_set = set(numbers["winning_numbers"])
                     user_supplementary_set = set(numbers["supplementary_numbers"])
                     winning_set = set(lotto_numbers["winning_numbers"])
@@ -4879,9 +4879,9 @@ class TwitchBot(commands.Bot):
                             total_points = total_points_data["points"]
                         else:
                             total_points = prize
-                        message = f"{user} you've won {division} and got {prize} points! Total points: {total_points}"
+                        message = f"@{user_name} you've won {division} and got {prize} points! Total points: {total_points}"
                         await ctx.send(message)
-                        del user_lotto_numbers[user]
+                        del user_lotto_numbers[user_id]
                 if not results:
                     await ctx.send("No winners this time!")
         except Exception as e:
@@ -6764,7 +6764,7 @@ async def generate_winning_lotto_numbers():
 # Function to generate random Lotto numbers
 async def generate_user_lotto_numbers(user_name, user_id):
     global lotto_numbers, user_lotto_numbers
-    if (user_name, user_id) in user_lotto_numbers:
+    if user_id in user_lotto_numbers:
         return {"error": "you've already played the lotto, please wait until the next round."}
     if not lotto_numbers:
         return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
@@ -6773,10 +6773,11 @@ async def generate_user_lotto_numbers(user_name, user_id):
     winning_numbers = all_numbers[:6]
     supplementary_numbers = all_numbers[6:]
     user_numbers = {
+        "user_name": user_name,
         "winning_numbers": winning_numbers,
         "supplementary_numbers": supplementary_numbers
     }
-    user_lotto_numbers[user_name, user_id] = user_numbers
+    user_lotto_numbers[user_id] = user_numbers
     return user_numbers
 
 # Function to fetch a random fortune
