@@ -27,6 +27,7 @@ from socketio import AsyncClient as SocketClient
 import aiomysql
 from deep_translator import GoogleTranslator
 from twitchio.ext import commands
+from twitchio.ext import routines as routine
 import streamlink
 import pytz
 from geopy.geocoders import Nominatim
@@ -4745,7 +4746,7 @@ class TwitchBot(commands.Bot):
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.user)
     @commands.command(name='watchtime')
-    async def watchtime(self, ctx):
+    async def watchtime_command(self, ctx):
         global bot_owner
         user_id = ctx.author.id
         username = ctx.author.name
@@ -4809,7 +4810,7 @@ class TwitchBot(commands.Bot):
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='startlotto')
-    async def start_lotto_command(self, ctx):
+    async def startlotto_command(self, ctx):
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -5897,8 +5898,10 @@ async def handle_ad_break(duration_seconds):
     else:
         formatted_duration = f"{minutes} minutes, {seconds} seconds"
     await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-    await asyncio.sleep(duration_seconds)
-    await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+    @routine.routine(seconds=duration_seconds)
+    async def ad_break_end():
+        await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+    ad_break_end.start()
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
