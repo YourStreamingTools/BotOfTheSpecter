@@ -7,7 +7,6 @@ import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
 import logging
-from logging.handlers import RotatingFileHandler
 import subprocess
 import json
 import time
@@ -2740,7 +2739,7 @@ class TwitchBot(commands.Bot):
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='highfive')
-    async def hug_command(self, ctx, *, mentioned_username: str = None):
+    async def highfive_command(self, ctx, *, mentioned_username: str = None):
         global bot_owner
         sqldb = await get_mysql_connection()
         try:
