@@ -6790,7 +6790,7 @@ async def refund_lotto_points(reward_id, event_id):
             url = f'https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id={CHANNEL_ID}&reward_id={reward_id}&id={event_id}'
             async with session.patch(url, headers=headers, json="{\"status\": \"CANCELED\"}") as response:
                 return response.status
-    
+
 # Function to fetch a random fortune
 async def tell_fortune():
     url = f"https://api.botofthespecter.com/fortune?api_key={API_TOKEN}"
