@@ -2713,7 +2713,7 @@ class TwitchBot(commands.Bot):
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
-                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a hug to them.")
+                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Instead, you hugged the air.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
                 # Increment hug count in the database
@@ -2769,7 +2769,7 @@ class TwitchBot(commands.Bot):
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
-                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a high five to them.")
+                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. You swung and hit only air.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
                 # Increment highfive count in the database
@@ -2825,7 +2825,7 @@ class TwitchBot(commands.Bot):
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
-                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. Failed to give a kiss to them.")
+                    chat_logger.error(f"User {mentioned_username} does not exist on Twitch. You kissed the air.")
                     await ctx.send(f"The user @{mentioned_username} does not exist on Twitch.")
                     return
                 # Increment kiss count in the database
@@ -4130,7 +4130,7 @@ class TwitchBot(commands.Bot):
                     user_to_shoutout = user_to_shoutout.lstrip('@')
                     is_valid_user = await is_valid_twitch_user(user_to_shoutout)
                     if not is_valid_user:
-                        chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. Failed to give shoutout.")
+                        chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. You yelled the shoutout to only air.")
                         await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
                         return
                     chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
