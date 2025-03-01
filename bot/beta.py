@@ -6762,8 +6762,8 @@ async def generate_winning_lotto_numbers():
     return True
 
 # Function to generate random Lotto numbers
-async def generate_user_lotto_numbers(user_name, user_id, reward_id, event_id):
-    global user_lotto_numbers
+async def generate_user_lotto_numbers(user_name, user_id):
+    global lotto_numebrs, user_lotto_numbers
     if (user_name, user_id) in user_lotto_numbers:
         return {"error": "you've already played the lotto, please wait until the next round."}
     if not lotto_numebrs:
