@@ -5616,6 +5616,38 @@ async def timed_message():
                 # Fetch enabled messages with their interval, chat trigger, and ID
                 await cursor.execute('SELECT id, interval_count, chat_line_trigger, message FROM timed_messages WHERE status = "true"')
                 messages = await cursor.fetchall()
+                for row in messages:
+                    message_id = row["id"]
+                    interval = row["interval_count"]
+                    message = row["message"]
+                    if message_id in scheduled_tasks:
+                        scheduled_tasks[message_id].stop()
+                    @routine.routine(minutes=interval)
+                    async def send_timed_message():
+                        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+                        await channel.send(message)
+                    send_timed_message.start(wait_first=True)
+                    scheduled_tasks[message_id] = send_timed_message
+            else:
+                # Cancel all scheduled tasks if the stream goes offline
+                bot_logger.info("Stream is offline. Resetting counters and cancelling all timed messages.")
+                if message_id in scheduled_tasks:
+                        scheduled_tasks[message_id].stop()
+                send_timed_message.cancel()
+    except Exception as e:
+        bot_logger.error(f"An error occurred in timed_message: {e}")
+    finally:
+        await sqldb.ensure_closed()
+
+async def old_timed_message():
+    global scheduled_tasks, chat_trigger_tasks, stream_online, chat_line_count
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            if stream_online:
+                # Fetch enabled messages with their interval, chat trigger, and ID
+                await cursor.execute('SELECT id, interval_count, chat_line_trigger, message FROM timed_messages WHERE status = "true"')
+                messages = await cursor.fetchall()
                 chat_logger.info(f"Timed Messages: {messages}")
                 # Cancel and clear any old tasks
                 for task in scheduled_tasks:
@@ -5632,7 +5664,7 @@ async def timed_message():
                     if interval and int(interval) > 0:
                         wait_time = int(interval) * 60  # Convert minutes to seconds
                         chat_logger.info(f"Scheduling Message ID: {message_id} - '{message}' for interval: {interval} minutes")
-                        task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
+                        task = asyncio.create_task(old_send_timed_message(message_id, message, wait_time))
                         task.set_name(f"Interval Message ID: {message_id}")
                         scheduled_tasks.append(task)
                     # Handle chat line triggers
@@ -5678,7 +5710,7 @@ async def handle_chat_message(messageAuthor):
             channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
             await channel.send(message)
 
-async def send_timed_message(message_id, message, delay):
+async def old_send_timed_message(message_id, message, delay):
     global stream_online
     while stream_online:
         try:
@@ -5898,10 +5930,10 @@ async def handle_ad_break(duration_seconds):
     else:
         formatted_duration = f"{minutes} minutes, {seconds} seconds"
     await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-    @routine.routine(seconds=duration_seconds)
+    @routine.routine(seconds=duration_seconds, iterations=1)
     async def ad_break_end():
         await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
-    ad_break_end.start()
+    ad_break_end.start(wait_first=True)
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
