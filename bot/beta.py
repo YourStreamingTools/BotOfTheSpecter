@@ -79,7 +79,7 @@ builtin_commands = {
 }
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
-    "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate"
+    "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"
@@ -164,6 +164,8 @@ last_poll_progress_update = 0                           # Variable for last poll
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
 song_requests = {}                                      # Tracks song request from users
+lotto_numebrs = {}                                       # Tracks the lottery numbers
+user_lotto_numbers = {}                                 # Tracks the user lottery numbers
 
 # Initialize global variables
 bot_started = datetime.now()                            # Time the bot started
@@ -4299,7 +4301,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has enabled the command: {command}")
-                await ctx.send(f'Custom command enabled: !{command}')
+                await ctx.send(f'Command enabled: !{command}')
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
@@ -4335,7 +4337,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
                     await sqldb.commit()
                 chat_logger.info(f"{ctx.author.name} has disabled the command: {command}")
-                await ctx.send(f'Custom command disabled: !{command}')
+                await ctx.send(f'Command disabled: !{command}')
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
@@ -4802,6 +4804,86 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await ctx.send(f"@{username}, an error occurred while fetching your watch time.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='startlotto')
+    async def start_lotto_command(self, ctx):
+        asyncio.get_event_loop().create_task(generate_winning_lotto_numbers())
+        ctx.send("Lotto numbers have been generated. Good luck everyone!")
+
+    @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
+    @commands.command(name='drawlotto')
+    async def drawlotto_command(self, ctx):
+        global bot_owner, user_lotto_numbers, lotto_numbers
+        sqldb = await get_mysql_connection()
+        try:
+            prize_pool = {
+                "Division 1 (Jackpot!)": 100000,
+                "Division 2": 50000,
+                "Division 3": 10000,
+                "Division 4": 5000,
+                "Division 5": 1000,
+                "Division 6": 500
+            }
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("drawlotto",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                results = []
+                for user, user_id, numbers in user_lotto_numbers.items():
+                    user_id = numbers["user_id"]
+                    user_winning_set = set(numbers["winning_numbers"])
+                    user_supplementary_set = set(numbers["supplementary_numbers"])
+                    winning_set = set(lotto_numbers["winning_numbers"])
+                    supplementary_set = set(lotto_numbers["supplementary_numbers"])
+                    match_main = len(user_winning_set & winning_set)
+                    match_supplementary = len(user_supplementary_set & supplementary_set)
+                    if match_main == 6:
+                        division = "Division 1 (Jackpot!)"
+                    elif match_main == 5 and match_supplementary >= 1:
+                        division = "Division 2"
+                    elif match_main == 5:
+                        division = "Division 3"
+                    elif match_main == 4:
+                        division = "Division 4"
+                    elif match_main == 3 and match_supplementary >= 1:
+                        division = "Division 5"
+                    elif match_main == 3:
+                        division = "Division 6"
+                    else:
+                        division = None
+                    if division:
+                        prize = prize_pool.get(division, 0)
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                        user_points = await cursor.fetchone()
+                        if user_points:
+                            current_points = user_points["points"]
+                            new_points = current_points + prize
+                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                            await sqldb.commit()
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                        total_points_data = await cursor.fetchone()
+                        if total_points_data:
+                            total_points = total_points_data["points"]
+                        else:
+                            total_points = prize
+                        message = f"{user} you've won {division} and got {prize} points! Total points: {total_points}"
+                        await ctx.send(message)
+                        del user_lotto_numbers[user]
+                if not results:
+                    await ctx.send("No winners this time!")
+        except Exception as e:
+            bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
+            await ctx.send("Sorry, there is an error in drawing the lotto winners.")
         finally:
             await sqldb.ensure_closed()
 
@@ -5401,6 +5483,7 @@ async def process_stream_online_websocket():
     global current_game
     stream_online = True
     asyncio.get_event_loop().create_task(timed_message())
+    asyncio.get_event_loop().create_task(generate_winning_lotto_numbers())
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
     async with aiohttp.ClientSession() as session:
@@ -6546,6 +6629,8 @@ async def process_channel_point_rewards(event_data, event_type):
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
+            user_id = event_data["user_id"]
+            event_id = event_data["id"]
             reward_data = event_data.get("reward", {})
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
@@ -6556,7 +6641,7 @@ async def process_channel_point_rewards(event_data, event_type):
                 return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
-                lotto_result = await user_lotto_numbers()
+                lotto_result = await generate_user_lotto_numbers(user_name, user_id, reward_id, event_id)
                 winning = ', '.join(map(str, lotto_result['winning_numbers']))
                 supplementary = ', '.join(map(str, lotto_result['supplementary_numbers']))
                 lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning} Supplementary Numbers: {supplementary}"
@@ -6639,15 +6724,13 @@ async def channel_point_rewards():
                                 api_logger.info(f"Inserting new reward: {reward_id}, {reward_title}, {reward_cost}")
                                 await cursor.execute(
                                     "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost) "
-                                    "VALUES (%s, %s, %s)",
-                                    (reward_id, reward_title, reward_cost)
+                                    "VALUES (%s, %s, %s)", (reward_id, reward_title, reward_cost)
                                 )
                             else:
                                 # Update existing reward
                                 await cursor.execute(
                                     "UPDATE channel_point_rewards SET reward_title = %s, reward_cost = %s "
-                                    "WHERE reward_id = %s",
-                                    (reward_title, reward_cost, reward_id)
+                                    "WHERE reward_id = %s", (reward_title, reward_cost, reward_id)
                                 )
                         api_logger.info("Rewards processed successfully.")
                     else:
@@ -6661,17 +6744,53 @@ async def channel_point_rewards():
             sqldb.close()
             await sqldb.ensure_closed()
 
-# Function to generate random Lotto numbers
-async def user_lotto_numbers():
+async def generate_winning_lotto_numbers():
+    global lotto_numbers
     # Draw 7 winning numbers and 3 supplementary numbers from 1-47
     all_numbers = random.sample(range(1, 48), 9)
     winning_numbers = all_numbers[:6]
     supplementary_numbers = all_numbers[6:]
-    return {
+    lotto_numbers = {
         "winning_numbers": winning_numbers,
         "supplementary_numbers": supplementary_numbers
     }
 
+# Function to generate random Lotto numbers
+async def generate_user_lotto_numbers(user_name, user_id, reward_id, event_id):
+    global user_lotto_numbers
+    if (user_name, user_id) in user_lotto_numbers:
+        response = await refund_lotto_points(reward_id, event_id)
+        if response == 200:
+            api_logger.info(f"Custom Reward Redemption - {reward_id} - {event_id} - CANCELED/REFUNDED")
+            return {"error": "You've already played the lotto, your points have been refunded."}
+    if not lotto_numebrs:
+        response = await refund_lotto_points(reward_id, event_id)
+        if response == 200:
+            api_logger.info(f"Custom Reward Redemption - {reward_id} - {event_id} - CANCELED/REFUNDED")
+            return {"error": "Can't play lotto as the winning numbers haven't been selected yet, your points have been refunded."}
+        return {"error": "Can't play lotto as the winning numbers haven't been selected yet."}
+    # Draw 7 winning numbers and 3 supplementary numbers from 1-47
+    all_numbers = random.sample(range(1, 48), 9)
+    winning_numbers = all_numbers[:6]
+    supplementary_numbers = all_numbers[6:]
+    user_numbers = {
+        "winning_numbers": winning_numbers,
+        "supplementary_numbers": supplementary_numbers
+    }
+    user_lotto_numbers[user_name, user_id] = user_numbers
+    return user_numbers
+
+async def refund_lotto_points(reward_id, event_id):
+    headers = {
+            "Authorization": f"Bearer {CHANNEL_AUTH}",
+            "Client-Id": CLIENT_ID,
+            "Content-Type": "application/json"
+        }
+    async with aiohttp.ClientSession() as session:
+            url = f'https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id={CHANNEL_ID}&reward_id={reward_id}&id={event_id}'
+            async with session.patch(url, headers=headers, json="{\"status\": \"CANCELED\"}") as response:
+                return response.status
+    
 # Function to fetch a random fortune
 async def tell_fortune():
     url = f"https://api.botofthespecter.com/fortune?api_key={API_TOKEN}"
