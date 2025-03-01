@@ -7,6 +7,7 @@ import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
 import logging
+from logging.handlers import RotatingFileHandler
 import subprocess
 import json
 import time
@@ -102,7 +103,7 @@ def setup_logger(name, log_file, level=logging.INFO):
     if logger.hasHandlers():
         logger.handlers.clear()
     # Setup rotating file handler
-    handler = logging.handlers.RotatingFileHandler(
+    handler = RotatingFileHandler(
         log_file,
         maxBytes=10485760, # 10MB
         backupCount=5,
