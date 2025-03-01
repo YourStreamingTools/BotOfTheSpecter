@@ -5631,9 +5631,9 @@ async def timed_message():
             else:
                 # Cancel all scheduled tasks if the stream goes offline
                 bot_logger.info("Stream is offline. Resetting counters and cancelling all timed messages.")
-                if message_id in scheduled_tasks:
-                        scheduled_tasks[message_id].stop()
-                send_timed_message.cancel()
+                for message_id in list(scheduled_tasks.keys()):
+                    scheduled_tasks[message_id].stop()
+                scheduled_tasks.clear()
     except Exception as e:
         bot_logger.error(f"An error occurred in timed_message: {e}")
     finally:
