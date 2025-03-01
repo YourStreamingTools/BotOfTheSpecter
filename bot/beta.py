@@ -4822,14 +4822,6 @@ class TwitchBot(commands.Bot):
         global bot_owner, user_lotto_numbers, lotto_numbers
         sqldb = await get_mysql_connection()
         try:
-            prize_pool = {
-                "Division 1 (Jackpot!)": 100000,
-                "Division 2": 50000,
-                "Division 3": 10000,
-                "Division 4": 5000,
-                "Division 5": 1000,
-                "Division 6": 500
-            }
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("drawlotto",))
                 result = await cursor.fetchone()
@@ -4841,6 +4833,14 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
+                prize_pool = {
+                    "Division 1 (Jackpot!)": 100000,
+                    "Division 2": 50000,
+                    "Division 3": 10000,
+                    "Division 4": 5000,
+                    "Division 5": 1000,
+                    "Division 6": 500
+                }
                 results = []
                 for user_id, numbers in user_lotto_numbers.items():
                     user_name = numbers["user_name"]
