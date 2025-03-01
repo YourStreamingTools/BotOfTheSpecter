@@ -54,7 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $dbcommand = $_POST['command_name'];
         $dbstatus = $_POST['status'];
         // Update the status in the database
-        $updateQuery = $db->prepare("UPDATE builtin_commands SET status = :status WHERE command = :command_name");
+        $updateQuery = $db->prepare("UPDATE builtin_commands SET 'status' = :status WHERE command = :command_name");
         $updateQuery->bindParam(':status', $dbstatus);
         $updateQuery->bindParam(':command_name', $dbcommand);
         $updateQuery->execute();
