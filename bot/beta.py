@@ -6642,6 +6642,8 @@ async def process_channel_point_rewards(event_data, event_type):
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
                 lotto_result = await generate_user_lotto_numbers(user_name, user_id, reward_id, event_id)
+                if 'error' in lotto_result:
+                    await channel.send(f"@{user_name}, {lotto_result['error']}")
                 winning = ', '.join(map(str, lotto_result['winning_numbers']))
                 supplementary = ', '.join(map(str, lotto_result['supplementary_numbers']))
                 lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning} Supplementary Numbers: {supplementary}"
@@ -6759,14 +6761,9 @@ async def generate_winning_lotto_numbers():
 async def generate_user_lotto_numbers(user_name, user_id, reward_id, event_id):
     global user_lotto_numbers
     if (user_name, user_id) in user_lotto_numbers:
-        response = await refund_lotto_points(reward_id, event_id)
-        if response == 200:
-            return {"error": "You've already played the lotto, your points have been refunded."}
+        return {"error": "you've already played the lotto, your points have been refunded."}
     if not lotto_numebrs:
-        response = await refund_lotto_points(reward_id, event_id)
-        if response == 200:
-            return {"error": "Can't play lotto as the winning numbers haven't been selected yet, your points have been refunded."}
-        return {"error": "Can't play lotto as the winning numbers haven't been selected yet."}
+        return {"error": "can't play lotto as the winning numbers haven't been selected yet."}
     # Draw 7 winning numbers and 3 supplementary numbers from 1-47
     all_numbers = random.sample(range(1, 48), 9)
     winning_numbers = all_numbers[:6]
@@ -6777,18 +6774,6 @@ async def generate_user_lotto_numbers(user_name, user_id, reward_id, event_id):
     }
     user_lotto_numbers[user_name, user_id] = user_numbers
     return user_numbers
-
-async def refund_lotto_points(reward_id, event_id):
-    headers = {
-            "Authorization": f"Bearer {CHANNEL_AUTH}",
-            "Client-Id": CLIENT_ID,
-            "Content-Type": "application/json"
-        }
-    async with aiohttp.ClientSession() as session:
-            url = f'https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id={CHANNEL_ID}&reward_id={reward_id}&id={event_id}'
-            async with session.patch(url, headers=headers, json="{\"status\": \"CANCELED\"}") as response:
-                twitch_logger.info(f"Refund For Channel Points:  {response.status}")
-                return response.status
 
 # Function to fetch a random fortune
 async def tell_fortune():
