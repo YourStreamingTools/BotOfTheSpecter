@@ -6763,7 +6763,7 @@ async def generate_user_lotto_numbers(user_name, user_id, reward_id, event_id):
     if (user_name, user_id) in user_lotto_numbers:
         return {"error": "you've already played the lotto, your points have been refunded."}
     if not lotto_numebrs:
-        return {"error": "can't play lotto as the winning numbers haven't been selected yet."}
+        return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
     # Draw 7 winning numbers and 3 supplementary numbers from 1-47
     all_numbers = random.sample(range(1, 48), 9)
     winning_numbers = all_numbers[:6]
