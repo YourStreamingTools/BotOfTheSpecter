@@ -6644,7 +6644,7 @@ async def process_channel_point_rewards(event_data, event_type):
                 return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
-                lotto_result = await generate_user_lotto_numbers(user_name, user_id, reward_id, event_id)
+                lotto_result = await generate_user_lotto_numbers(user_name, user_id)
                 if 'error' in lotto_result:
                     await channel.send(f"@{user_name}, {lotto_result['error']}")
                 winning = ', '.join(map(str, lotto_result['winning_numbers']))
@@ -6766,7 +6766,7 @@ async def generate_user_lotto_numbers(user_name, user_id):
     global lotto_numbers, user_lotto_numbers
     if (user_name, user_id) in user_lotto_numbers:
         return {"error": "you've already played the lotto, please wait until the next round."}
-    if not lotto_numebrs:
+    if not lotto_numbers:
         return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
     # Draw 7 winning numbers and 3 supplementary numbers from 1-47
     all_numbers = random.sample(range(1, 48), 9)
