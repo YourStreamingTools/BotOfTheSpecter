@@ -4810,11 +4810,29 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='startlotto')
     async def start_lotto_command(self, ctx):
-        done = await generate_winning_lotto_numbers()
-        if done == True:
-            await ctx.send("Lotto numbers have been generated. Good luck everyone!")
-        else:
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("startlotto",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await ctx.send("You do not have the required permissions to use this command.")
+                        return
+                done = await generate_winning_lotto_numbers()
+                if done == True:
+                    await ctx.send("Lotto numbers have been generated. Good luck everyone!")
+                else:
+                    await ctx.send("There was an error generating the lotto numbers.")
+        except Exception as e:
+            bot_logger.error(f"Error in starting lotto game: {e}")
             await ctx.send("There was an error generating the lotto numbers.")
+        finally:
+            await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='drawlotto')
