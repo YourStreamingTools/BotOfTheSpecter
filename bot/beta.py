@@ -5898,6 +5898,7 @@ async def handle_ad_break(duration_seconds):
     await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
     @routines.routine(seconds=duration_seconds, iterations=1)
     async def ad_break_end():
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
     ad_break_end.start(wait_first=True)
 
