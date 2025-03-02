@@ -5653,7 +5653,7 @@ async def handle_chat_message(messageAuthor):
     global chat_trigger_tasks, chat_line_count, stream_online
     if not stream_online:
         return
-    if messageAuthor.lower() == BOT_USERNAME:
+    if messageAuthor.lower() == BOT_USERNAME.lower():
         return
     # Increment the global chat message counter
     chat_line_count += 1
