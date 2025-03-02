@@ -1511,6 +1511,7 @@ class TwitchBot(commands.Bot):
             await sqldb.ensure_closed()
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
+            await handle_chat_message(messageAuthor)
 
     async def user_points(self, messageAuthor, messageAuthorID):
         sqldb = await get_mysql_connection()
