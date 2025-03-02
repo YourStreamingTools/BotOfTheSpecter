@@ -754,7 +754,7 @@ async def process_twitch_eventsub_message(message):
                     event_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 # Ad Break Begin Event
                 elif event_type == 'channel.ad_break.begin':
-                    asyncio.create_task(handle_ad_break(event_data["duration_seconds"]))
+                    asyncio.create_task(handle_ad_break_start(event_data["duration_seconds"]))
                 # Charity Campaign Donate Event
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["event"]["user_name"]
@@ -5885,7 +5885,7 @@ async def delete_recorded_files():
 
 ## Functions for the EventSub
 # Function for AD BREAK
-async def handle_ad_break(duration_seconds):
+async def handle_ad_break_start(duration_seconds):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     minutes = duration_seconds // 60
     seconds = duration_seconds % 60
@@ -5896,11 +5896,14 @@ async def handle_ad_break(duration_seconds):
     else:
         formatted_duration = f"{minutes} minutes, {seconds} seconds"
     await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-    @routines.routine(seconds=duration_seconds, iterations=1)
-    async def ad_break_end():
+    @routines.routine(seconds=duration_seconds)
+    async def handle_ad_break_end():
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
-    ad_break_end.start(wait_first=True)
+    @handle_ad_break_end.error
+    async def ad_break_error(error):
+        chat_logger.error(f"Ad break routine error: {error}")
+    handle_ad_break_end.start(wait_first=True, stop_on_error=False)
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
