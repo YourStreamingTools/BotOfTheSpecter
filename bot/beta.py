@@ -26,8 +26,7 @@ import socketio
 from socketio import AsyncClient as SocketClient
 import aiomysql
 from deep_translator import GoogleTranslator
-from twitchio.ext import commands
-from twitchio.ext import routines as routine
+from twitchio.ext import commands, routines
 import streamlink
 import pytz
 from geopy.geocoders import Nominatim
@@ -2559,7 +2558,7 @@ class TwitchBot(commands.Bot):
                             429: "Spotify is overloaded right now. Try again in a moment.",
                             500: "Spotify is having technical difficulties. Let's try later.",
                         }.get(response.status, "Something went wrong with Spotify. Please try again soon.")
-                        await ctx.send(f"Sorry, I couldn’t fetch the queue. {error_message}")
+                        await ctx.send(f"Sorry, I couldn't fetch the queue. {error_message}")
                         api_logger.error(f"Spotify returned response code: {response.status}")
         except Exception as e:
             await ctx.send("Something went wrong while fetching the song queue. Please try again later.")
@@ -5622,19 +5621,12 @@ async def timed_message():
                     task.cancel()
                 scheduled_tasks.clear()
                 chat_trigger_tasks.clear()
-                # Schedule each message for intervals or chat triggers
+                # Schedule each message for chat triggers
                 for row in messages:
                     message_id = row["id"]
                     interval = row["interval_count"]
                     chat_line_trigger = row["chat_line_trigger"]
                     message = row["message"]
-                    # Handle timed intervals
-                    if interval and int(interval) > 0:
-                        wait_time = int(interval) * 60  # Convert minutes to seconds
-                        chat_logger.info(f"Scheduling Message ID: {message_id} - '{message}' for interval: {interval} minutes")
-                        task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
-                        task.set_name(f"Interval Message ID: {message_id}")
-                        scheduled_tasks.append(task)
                     # Handle chat line triggers
                     if chat_line_trigger and int(chat_line_trigger) > 0:
                         chat_logger.info(f"Tracking Message ID: {message_id} - '{message}' for chat line trigger: {chat_line_trigger}")
@@ -5642,6 +5634,7 @@ async def timed_message():
                             "chat_line_trigger": int(chat_line_trigger),
                             "message": message,
                             "last_trigger_count": chat_line_count,  # Start tracking from the current global counter
+                            "interval": interval  # Store the interval for later use
                         }
             else:
                 # Cancel all scheduled tasks if the stream goes offline
@@ -5673,10 +5666,14 @@ async def handle_chat_message(messageAuthor):
         if chat_line_count - last_trigger_count >= chat_line_trigger:
             # Update the last trigger count
             trigger_info["last_trigger_count"] = chat_line_count
-            # Send the message
-            chat_logger.info(f"Sending Chat Line-Triggered Message ID: {message_id} - {message}")
-            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-            await channel.send(message)
+            # Start the timer for sending the message
+            interval = trigger_info["interval"]
+            if interval and int(interval) > 0:
+                wait_time = int(interval) * 60  # Convert minutes to seconds
+                chat_logger.info(f"Scheduling Timed Message ID: {message_id} - '{message}' for interval: {interval} minutes after trigger.")
+                task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
+                task.set_name(f"Interval Message ID: {message_id}")
+                scheduled_tasks.append(task)
 
 async def send_timed_message(message_id, message, delay):
     global stream_online
@@ -5898,7 +5895,7 @@ async def handle_ad_break(duration_seconds):
     else:
         formatted_duration = f"{minutes} minutes, {seconds} seconds"
     await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-    @routine.routine(seconds=duration_seconds, iterations=1)
+    @routines.routine(seconds=duration_seconds, iterations=1)
     async def ad_break_end():
         await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
     ad_break_end.start(wait_first=True)
