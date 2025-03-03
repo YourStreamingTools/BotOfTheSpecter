@@ -818,54 +818,40 @@ async def process_twitch_eventsub_message(message):
                     asyncio.create_task(process_channel_point_rewards(event_data, event_type))
                 # Poll Event
                 elif event_type in ["channel.poll.begin", "channel.poll.end"]:
+                    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
                     if event_type == "channel.poll.begin":
                         poll_title = event_data.get("title")
-                        poll_ends_at = datetime.strptime(event_data.get("ends_at")[:-11], "%Y-%m-%dT%H:%M:%S")
-                        message = f"Poll '{poll_title}' has started!  "
+                        poll_ends_at = datetime.fromisoformat(event_data["ends_at"].replace("Z", "+00:00"))
                         utc_now = datetime.now(timezone.utc)
-                        poll_ends_at_utc = poll_ends_at.replace(tzinfo=timezone.utc)
-                        time_until_end = poll_ends_at_utc - utc_now
-                        minutes, seconds = divmod(time_until_end.total_seconds(), 60)
-                        if minutes > 0:
-                            message += f"Poll ending in {int(minutes)} minutes"
-                            is_minutes = True
+                        time_until_end = (poll_ends_at - utc_now).total_seconds()
+                        half_time = int(time_until_end / 2)
+                        minutes, seconds = divmod(time_until_end, 60)
+                        if minutes and seconds:
+                            message = f"Poll '{poll_title}' has started! Poll ending in {int(minutes)} minutes and {int(seconds)} seconds."
+                        elif minutes:
+                            message = f"Poll '{poll_title}' has started! Poll ending in {int(minutes)} minutes."
                         else:
-                            is_minutes = False
-                        if seconds > 0:
-                            if is_minutes is not False:
-                                message += f" and {int(seconds)} seconds. "
-                            else:
-                                message += f"Poll ending in {int(seconds)} seconds. "
-                        else:
-                            message += ". "
+                            message = f"Poll '{poll_title}' has started! Poll ending in {int(seconds)} seconds."
                         await channel.send(message)
+                        asyncio.create_task(send_poll_halfway_notification(half_time, poll_title))
                     elif event_type == "channel.poll.end":
                         poll_id = event_data.get("id")
                         poll_title = event_data.get("title")
                         choices_data = []
                         for choice in event_data.get("choices", []):
-                            choice_title = choice.get("title")
-                            bits_votes = choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else False
-                            channel_points_votes = choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else False
-                            total_votes = choice.get("votes")
                             choices_data.append({
-                                "title": choice_title,
-                                "bits_votes": bits_votes,
-                                "channel_points_votes": channel_points_votes,
-                                "total_votes": total_votes
+                                "title": choice.get("title"),
+                                "bits_votes": choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else 0,
+                                "channel_points_votes": choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else 0,
+                                "total_votes": choice.get("votes", 0)
                             })
                         sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
-                        message = f"The poll '{poll_title}' has ended!"
-                        await channel.send(message)
+                        await channel.send(f"The poll '{poll_title}' has ended!")
                         await cursor.execute("INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s)", (poll_id, poll_title))
                         await sqldb.commit()
                         sql_options = ["one", "two", "three", "four", "five"]
-                        sql_query = "UPDATE poll_results SET "
-                        for i in enumerate(sql_options, start=1):
-                            sql_query += f"poll_option_{i} = %s, "
-                        sql_query = sql_query.rstrip(", ")
-                        sql_query += " WHERE poll_id = %s"
-                        params = [choice_data["title"] if i < len(sorted_choices) else None for i, choice_data in enumerate(sorted_choices)] + [None, None, None, None, None, poll_id]
+                        sql_query = "UPDATE poll_results SET " + ", ".join([f"poll_option_{i+1} = %s" for i in range(len(sql_options))]) + " WHERE poll_id = %s"
+                        params = [sorted_choices[i]["title"] if i < len(sorted_choices) else None for i in range(len(sql_options))] + [poll_id]
                         await cursor.execute(sql_query, params)
                         await sqldb.commit()
                 # Stream Online/Offline Event
@@ -5896,14 +5882,23 @@ async def handle_ad_break_start(duration_seconds):
     else:
         formatted_duration = f"{minutes} minutes, {seconds} seconds"
     await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-    @routines.routine(seconds=duration_seconds)
-    async def handle_ad_break_end():
-        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-        await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
-    @handle_ad_break_end.error
-    async def ad_break_error(error):
-        chat_logger.error(f"Ad break routine error: {error}")
-    handle_ad_break_end.start(wait_first=True, stop_on_error=False)
+    await asyncio.sleep(duration_seconds)
+    await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+
+# Fcuntion for POLLS
+async def send_poll_halfway_notification(half_time, poll_title):
+    await asyncio.sleep(half_time.total_seconds())
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+    if not channel:
+        return
+    minutes, seconds = divmod(int(half_time.total_seconds()), 60)
+    if minutes and seconds:
+        time_left = f"{minutes} minutes and {seconds} seconds"
+    elif minutes:
+        time_left = f"{minutes} minutes"
+    else:
+        time_left = f"{seconds} seconds"
+    await channel.send(f"The poll '{poll_title}' is halfway through! You have {time_left} left to cast your vote.")
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
