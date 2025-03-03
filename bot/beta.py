@@ -5544,14 +5544,19 @@ async def process_stream_offline_websocket():
 
 # Function to clear both tables if the stream remains offline after 5 minutes
 async def delayed_clear_tables():
-    global stream_online
-    await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
-    if not stream_online:  # If the stream is still offline, clear the tables
-        await clear_seen_today()
-        await clear_credits_data()
-        await clear_per_stream_deaths()
-    else:
-        bot_logger.info("Stream is back online. Skipping table clear.")
+    global stream_online, user_lotto_numbers, lotto_numbers
+    for _ in range(30):  # Check every 10 seconds for 5 minutes
+        await asyncio.sleep(10)
+        if stream_online:
+            bot_logger.info("Stream is back online. Skipping table clear.")
+            return
+    # If the stream is still offline after 5 minutes, clear the tables
+    await clear_seen_today()
+    await clear_credits_data()
+    await clear_per_stream_deaths()
+    user_lotto_numbers.clear()
+    lotto_numbers.clear()
+    bot_logger.info("Tables and lotto entries cleared after stream remained offline.")
 
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
