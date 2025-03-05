@@ -5656,31 +5656,22 @@ async def handle_chat_message(messageAuthor):
         message = trigger_info["message"]
         # Check if enough new chat lines have occurred since the last trigger
         if chat_line_count - last_trigger_count >= chat_line_trigger:
-            # Update the last trigger count
-            trigger_info["last_trigger_count"] = chat_line_count
-            # Start the timer for sending the message
+            trigger_info["last_trigger_count"] = chat_line_count  # Update last trigger count
             interval = trigger_info["interval"]
             if interval and int(interval) > 0:
-                wait_time = int(interval) * 60  # Convert minutes to seconds
-                chat_logger.info(f"Scheduling Timed Message ID: {message_id} - '{message}' for interval: {interval} minutes after trigger.")
-                task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
-                task.set_name(f"Interval Message ID: {message_id}")
-                scheduled_tasks.append(task)
+                wait_time = int(interval) * 60
+                chat_logger.info(f"Delaying Timed Message ID: {message_id} - '{message}' for {interval} minutes.")
+                asyncio.create_task(send_timed_message(message_id, message, wait_time))
 
 async def send_timed_message(message_id, message, delay):
     global stream_online
-    while stream_online:
-        try:
-            await asyncio.sleep(delay)
-            if stream_online:
-                chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
-                channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-                await channel.send(message)
-            else:
-                chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
-        except asyncio.CancelledError:
-            bot_logger.info(f"Task cancelled for Message ID: {message_id} - {message}")
-            break
+    await asyncio.sleep(delay)
+    if stream_online:
+        chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
+        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+        await channel.send(message)
+    else:
+        chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
