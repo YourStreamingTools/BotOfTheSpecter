@@ -371,10 +371,11 @@ async def twitch_eventsub():
             await asyncio.sleep(10)  # Wait before reconnecting
 
 async def subscribe_to_events(session_id):
+    global CHANNEL_ID, CHANNEL_AUTH, CLIENT_ID
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     headers = {
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Client-Id": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Content-Type": "application/json"
     }
     v1topics = [
@@ -2938,7 +2939,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='cheerleader', aliases=['bitsleader'])
     async def cheerleader_command(self, ctx):
-        global bot_owner
+        global bot_owner, CLIENT_ID, CHANNEL_AUTH
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2986,7 +2987,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='mybits')
     async def mybits_command(self, ctx):
-        global bot_owner
+        global bot_owner, CLIENT_ID, CHANNEL_AUTH
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3262,7 +3263,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='clip')
     async def clip_command(self, ctx):
-        global stream_online, bot_owner
+        global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3346,7 +3347,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(self, ctx):
-        global bot_owner
+        global bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3404,7 +3405,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='uptime')
     async def uptime_command(self, ctx):
-        global stream_online, bot_owner
+        global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3881,7 +3882,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.member)
     @commands.command(name='followage')
     async def followage_command(self, ctx, *, mentioned_username: str = None):
-        global bot_owner
+        global bot_owner, CLIENT_ID, CHANNEL_AUTH
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -3963,7 +3964,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='schedule')
     async def schedule_command(self, ctx):
-        global bot_owner
+        global bot_owner, CLIENT_ID, CHANNEL_AUTH
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4911,6 +4912,7 @@ class TwitchBot(commands.Bot):
 ##
 # Function  to check if the user is a real user on Twitch
 async def is_valid_twitch_user(user_name):
+    global CLIENT_ID, CHANNEL_AUTH
     url = f"https://api.twitch.tv/helix/users?login={user_name}"
     headers = {
         "Client-ID": CLIENT_ID,
@@ -4930,6 +4932,7 @@ async def is_valid_twitch_user(user_name):
 
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
+    global CLIENT_ID, CHANNEL_AUTH
     # Replace with actual method to get display name from Twitch API
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
     headers = {
@@ -4946,7 +4949,7 @@ async def get_display_name(user_id):
 
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
 async def command_permissions(setting, user):
-    global bot_owner
+    global bot_owner, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     # Check if the setting allows everyone
     if setting == "everyone":
         chat_logger.info(f"Command Permission granted to {user.name}. (Everyone allowed)")
@@ -5009,6 +5012,7 @@ async def command_permissions(setting, user):
 
 # Function to check if a user is a mod of the channel using the Twitch API
 async def is_user_mod(user_id):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -5031,6 +5035,7 @@ async def is_user_mod(user_id):
 
 # Function to check if a user is a VIP of the channel using the Twitch API
 async def is_user_vip(user_id):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -5053,6 +5058,7 @@ async def is_user_vip(user_id):
 
 # Function to check if a user is a subscriber of the channel
 async def is_user_subscribed(user_id):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -5164,6 +5170,7 @@ async def get_streamer_weather():
 
 # Function to udpate the stream title
 async def trigger_twitch_title_update(new_title):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     # Twitch API
     url = "https://api.twitch.tv/helix/channels"
     headers = {
@@ -5183,6 +5190,7 @@ async def trigger_twitch_title_update(new_title):
 
 # Function to update the current stream category
 async def update_twitch_game(game_name: str):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     # API URLs
     internal_api_url = "https://api.botofthespecter.com/games"
     twitch_game_update_url = "https://api.twitch.tv/helix/channels"
@@ -5287,6 +5295,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, user_id):
 
 # Function to get the last stream category for a user to shoutout
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
+    global CLIENT_ID, CHANNEL_AUTH
     headers = {
         'Client-ID': CLIENT_ID,
         'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -5499,8 +5508,7 @@ async def process_weather_websocket(data):
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
-    global stream_online
-    global current_game
+    global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
     stream_online = True
     asyncio.get_event_loop().create_task(timed_message())
     await generate_winning_lotto_numbers()
@@ -6594,8 +6602,7 @@ async def update_version_control():
         bot_logger.error(f"An error occurred in update_version_control: {e}")
 
 async def check_stream_online():
-    global stream_online
-    global current_game
+    global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
     async with aiohttp.ClientSession() as session:
         headers = {
             'Client-ID': CLIENT_ID,
@@ -6725,6 +6732,7 @@ async def process_channel_point_rewards(event_data, event_type):
             await sqldb.ensure_closed()
 
 async def channel_point_rewards():
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     # Check the broadcaster's type
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {
@@ -7193,6 +7201,7 @@ async def get_point_settings():
         await sqldb.ensure_closed()
 
 async def known_users():
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     sqldb = await get_mysql_connection()
     try:
         headers = {
@@ -7233,6 +7242,7 @@ async def known_users():
         await sqldb.ensure_closed()
 
 async def check_premium_feature():
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, ADMIN_API_KEY
     try:
         twitch_user_url = "https://api.twitch.tv/helix/users"
         twitch_subscriptions_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id={CHANNEL_ID}"
@@ -7269,6 +7279,7 @@ async def check_premium_feature():
 
 # Make a Stream Marker for events
 async def make_stream_marker(description: str):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     payload = {
         "user_id": CHANNEL_ID,
         "description": description
@@ -7349,6 +7360,7 @@ async def periodic_watch_time_update():
 
 # Function to get a list of users that are active in chat
 async def fetch_active_users():
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
