@@ -221,7 +221,7 @@ async def twitch_token_refresh():
 
 # Function to refresh Twitch token
 async def refresh_twitch_token(current_refresh_token):
-    global CHANNEL_AUTH
+    global CHANNEL_AUTH, OAUTH_TOKEN
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
         'grant_type': 'refresh_token',
@@ -240,6 +240,8 @@ async def refresh_twitch_token(current_refresh_token):
                     if new_access_token:
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
+                        if BACKUP_SYSTEM == True:
+                            OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
                         twitch_logger.info(f"Refreshed token. New Access Token: {CHANNEL_AUTH}.")
                         sqldb = await access_website_database()
                         try:
@@ -5888,8 +5890,10 @@ async def handle_ad_break_start(duration_seconds):
     else:
         formatted_duration = f"{minutes} minutes, {seconds} seconds"
     await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
-    await asyncio.sleep(duration_seconds)
-    await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+    @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
+    async def handle_ad_break_end(channel):
+        await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
+    handle_ad_break_end.start(channel)
 
 # Fcuntion for POLLS
 async def send_poll_halfway_notification(half_time, poll_title):
