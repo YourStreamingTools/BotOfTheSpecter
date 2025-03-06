@@ -56,9 +56,17 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_API_KEY = os.getenv('ADMIN_KEY')
-OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
-CLIENT_ID = os.getenv('CLIENT_ID')
-CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+USE_BACKUP_SYSTEM = os.getenv('USE_BACKUP_SYSTEM')
+if USE_BACKUP_SYSTEM == "True":
+    BACKUP_SYSTEM = True
+    OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
+    CLIENT_ID = os.getenv('BAKCUP_CLIENT_ID')
+    CLIENT_SECRET = os.getenv('BACKUP_SECRET_KEY')
+else:
+    BACKUP_SYSTEM = False
+    OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
+    CLIENT_ID = os.getenv('CLIENT_ID')
+    CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
@@ -1039,7 +1047,7 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
         asyncio.get_event_loop().create_task(check_song_requests())
-        await channel.send(f"/me is connected and ready! Running V{VERSION}")
+        await channel.send(f"SpecterSystems connected and ready! Running V{VERSION}")
 
     async def event_channel_joined(self, channel):
         self.target_channel = channel 
@@ -5317,7 +5325,9 @@ async def handle_chat_message(messageAuthor):
     global chat_trigger_tasks, chat_line_count, stream_online
     if not stream_online:
         return
-    if messageAuthor.lower() == BOT_USERNAME:
+    if messageAuthor.lower() == BOT_USERNAME.lower():
+        return
+    if BACKUP_SYSTEM == True and messageAuthor.lower() == CHANNEL_NAME.lower():
         return
     # Increment the global chat message counter
     chat_line_count += 1
@@ -5328,12 +5338,12 @@ async def handle_chat_message(messageAuthor):
         message = trigger_info["message"]
         # Check if enough new chat lines have occurred since the last trigger
         if chat_line_count - last_trigger_count >= chat_line_trigger:
-            # Update the last trigger count
-            trigger_info["last_trigger_count"] = chat_line_count
-            # Send the message
-            chat_logger.info(f"Sending Chat Line-Triggered Message ID: {message_id} - {message}")
-            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-            await channel.send(message)
+            trigger_info["last_trigger_count"] = chat_line_count  # Update last trigger count
+            interval = trigger_info["interval"]
+            if interval and int(interval) > 0:
+                wait_time = int(interval) * 60
+                chat_logger.info(f"Delaying Timed Message ID: {message_id} - '{message}' for {interval} minutes.")
+                asyncio.create_task(send_timed_message(message_id, message, wait_time))
 
 async def send_timed_message(message_id, message, delay):
     global stream_online
@@ -5931,10 +5941,16 @@ async def ban_user(username, user_id):
     sqldb = await access_website_database()
     # Fetch settings from the twitch_bot_access table
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-        bot_id = "971436498"
+        if BACKUP_SYSTEM == False:
+            bot_id = "971436498"
+        else:
+            bot_id = CHANNEL_ID
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
         result = await cursor.fetchone()
-        bot_auth = result.get('twitch_access_token')
+        if BACKUP_SYSTEM == False:
+            bot_auth = result.get('twitch_access_token')
+        else:
+            bot_auth = CHANNEL_AUTH
         await sqldb.ensure_closed()
     # Construct the ban URL using the bot's user ID
     ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={bot_id}"
