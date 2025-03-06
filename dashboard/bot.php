@@ -2,6 +2,7 @@
 // Initialize the session
 session_start();
 $today = new DateTime();
+$backup_system = true;
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -70,9 +71,11 @@ if ($response !== false) {
     }
   } else {
     // Set re-login message if authentication fails
+    if ($backup_system == True) {} else {
     $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">Your Twitch login session has expired. Please log in again to continue.
                       <form action="relink.php" method="get"><button class="button is-danger bot-button" type="submit">Re-log in</button></form>
                     </div>';
+    }
   }
 } else {
   $error = 'Curl error: ' . curl_error($checkModConnect);
@@ -80,7 +83,7 @@ if ($response !== false) {
 curl_close($checkModConnect);
 
 // Only set mod warning if no authentication message is needed
-if (empty($BotModMessage) && !$BotIsMod && $username !== 'botofthespecter') {
+if (empty($BotModMessage) && !$BotIsMod && $username !== 'botofthespecter' && $backup_system == False) {
   $BotModMessage = '<div class="notification is-danger has-text-black has-text-weight-bold">BotOfTheSpecter is not currently a moderator on your channel. To continue, please add BotOfTheSpecter as a mod on your Twitch channel.<br>You can do this by navigating to your Twitch Streamer Dashboard, then going to Community > Roles Manager.<br>After you have made BotOfTheSpecter a mod, refresh this page to access your controls.</div>';
 }
 
@@ -167,6 +170,10 @@ $notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OF
 
 $databasePingStatus = pingServer('10.240.0.40', 3306);
 $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
+
+if ($backup_system == true) {
+  $showButtons = true;
+};
 ?>
 <!doctype html>
 <html lang="en">
@@ -185,6 +192,8 @@ $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
   <?php echo $BotModMessage; ?>
   <?php echo $setupMessage; ?>
   <?php if ($betaAccess && $showButtons): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div><?php endif; ?>
+  <br>
+  <div class="notification is-warning has-text-black has-text-weight-bold">There is an issue with the bot account on twitch, system will use backup API and use your streamer account for chat messages.</div>
   <br>
   <div class="columns is-desktop is-multiline is-centered box-container">
     <!-- Stable Bot Section -->
