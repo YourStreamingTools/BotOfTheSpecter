@@ -56,11 +56,11 @@ SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_API_KEY = os.getenv('ADMIN_KEY')
-USE_BACKUP_SYSTEM = os.getenv('USE_BACKUP_SYSTEM')
-if USE_BACKUP_SYSTEM == "True":
+USE_BACKUP_SYSTEM = os.getenv('USE_BACKUP_SYSTEM') == "True"
+if USE_BACKUP_SYSTEM:
     BACKUP_SYSTEM = True
     OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
-    CLIENT_ID = os.getenv('BAKCUP_CLIENT_ID')
+    CLIENT_ID = os.getenv('BACKUP_CLIENT_ID')
     CLIENT_SECRET = os.getenv('BACKUP_SECRET_KEY')
 else:
     BACKUP_SYSTEM = False
@@ -210,7 +210,7 @@ async def refresh_twitch_token(current_refresh_token):
                     if new_access_token:
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
-                        if BACKUP_SYSTEM == True:
+                        if BACKUP_SYSTEM:
                             OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
                         twitch_logger.info(f"Refreshed token. New Access Token: {CHANNEL_AUTH}.")
                         sqldb = await access_website_database()
@@ -230,6 +230,8 @@ async def refresh_twitch_token(current_refresh_token):
                 else:
                     error_response = await response.json()
                     twitch_logger.error(f"Twitch token refresh failed: HTTP {response.status} - {error_response}")
+                    # Additional error logging for better insights
+                    twitch_logger.error(f"Error details: {error_response}")
     except Exception as e:
         twitch_logger.error(f"Twitch token refresh error: {e}")
     return time.time() + 3600  # Default retry time of 1 hour
@@ -5938,33 +5940,28 @@ async def process_followers_event(user_id, user_name, followed_at_twitch):
         await sqldb.ensure_closed()
 
 # Function to ban a user
-async def ban_user(username, user_id):
+async def ban_user(username, user_id, use_streamer=False):
     # Connect to the database
     sqldb = await access_website_database()
-    # Fetch settings from the twitch_bot_access table
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-        if BACKUP_SYSTEM == False:
-            bot_id = "971436498"
-        else:
-            bot_id = CHANNEL_ID
-        await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
+        # Determine which user ID to use for the API request (bot or streamer)
+        api_user_id = CHANNEL_ID if use_streamer else "971436498" if not BACKUP_SYSTEM else CHANNEL_ID
+        # Fetch settings from the twitch_bot_access table
+        await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
         result = await cursor.fetchone()
-        if BACKUP_SYSTEM == False:
-            bot_auth = result.get('twitch_access_token')
-        else:
-            bot_auth = CHANNEL_AUTH
-        await sqldb.ensure_closed()
-    # Construct the ban URL using the bot's user ID
-    ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={bot_id}"
+        # Use the token from the database if found, otherwise default to CHANNEL_AUTH
+        api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
+    # Construct the ban URL using the selected API user
+    ban_url = f"https://api.twitch.tv/helix/moderation/bans?broadcaster_id={CHANNEL_ID}&moderator_id={api_user_id}"
     headers = {
         "Client-ID": CLIENT_ID,
-        "Authorization": f"Bearer {bot_auth}",
-        'Content-Type': "application/json",
+        "Authorization": f"Bearer {api_user_auth}",
+        "Content-Type": "application/json",
     }
     data = {
-        'data': {
-            'user_id': user_id,
-            'reason': "Spam/Bot Account"
+        "data": {
+            "user_id": user_id,
+            "reason": "Spam/Bot Account",
         }
     }
     # Perform the ban request
@@ -5973,7 +5970,8 @@ async def ban_user(username, user_id):
             if response.status == 200:
                 twitch_logger.info(f"{username} has been banned for sending a spam message in chat.")
             else:
-                twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}")
+                error_text = await response.text()
+                twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}, Response: {error_text}")
 
 # Function to build the Discord Notice
 async def send_to_discord(message, title, image):
