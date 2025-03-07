@@ -193,8 +193,7 @@ if ($backup_system == true) {
   <?php echo $setupMessage; ?>
   <?php if ($betaAccess && $showButtons): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div><?php endif; ?>
   <br>
-  <div class="notification is-warning has-text-black has-text-weight-bold">There is an issue with the bot account on twitch, system will use backup API and use your streamer account for chat messages.</div>
-  <br>
+  <!--<div class="notification is-warning has-text-black has-text-weight-bold">There is an issue with the bot account on twitch, system will use backup API and use your streamer account for chat messages.</div><br>-->
   <div class="columns is-desktop is-multiline is-centered box-container">
     <!-- Stable Bot Section -->
     <?php if ($showButtons): ?>
