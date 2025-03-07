@@ -2710,6 +2710,9 @@ class TwitchBot(commands.Bot):
                 else:
                     await ctx.send("Usage: !hug @username")
                     return
+                if mentioned_username == ctx.author.name:
+                    await ctx.send("You can't hug yourself.")
+                    return
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
@@ -2766,6 +2769,9 @@ class TwitchBot(commands.Bot):
                 else:
                     await ctx.send("Usage: !highfive @username")
                     return
+                if mentioned_username == ctx.author.name:
+                    await ctx.send("You can't high-five yourself.")
+                    return
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
                 if not is_valid_user:
@@ -2821,6 +2827,9 @@ class TwitchBot(commands.Bot):
                     mentioned_username = mentioned_username.lstrip('@')
                 else:
                     await ctx.send("Usage: !kiss @username")
+                    return
+                if mentioned_username == ctx.author.name:
+                    await ctx.send("You can't kiss yourself.")
                     return
                 # Check if the mentioned username is valid on Twitch
                 is_valid_user = await is_valid_twitch_user(mentioned_username)
