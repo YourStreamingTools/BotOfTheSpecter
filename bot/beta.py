@@ -227,7 +227,7 @@ async def refresh_twitch_token(current_refresh_token):
         'grant_type': 'refresh_token',
         'refresh_token': current_refresh_token,
         'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET
+        'client_secret': CLIENT_SECRET,
     }
     try:
         async with aiohttp.ClientSession() as session:
@@ -260,6 +260,8 @@ async def refresh_twitch_token(current_refresh_token):
                 else:
                     error_response = await response.json()
                     twitch_logger.error(f"Twitch token refresh failed: HTTP {response.status} - {error_response}")
+                    # Additional error logging for better insights
+                    twitch_logger.error(f"Error details: {error_response}")
     except Exception as e:
         twitch_logger.error(f"Twitch token refresh error: {e}")
     return time.time() + 3600  # Default retry time of 1 hour
