@@ -185,12 +185,11 @@ permitted_users = {}                                    # Dictionary for permitt
 connected = set()                                       # Set for connected users
 pending_removals = {}                                   # Dictionary for pending removals
 shoutout_tracker = {}                                   # Dictionary for tracking shoutouts
-command_last_used = {}                                  # Dictionary for tracking command usage
 last_poll_progress_update = 0                           # Variable for last poll progress update
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
 song_requests = {}                                      # Tracks song request from users
-lotto_numebrs = {}                                       # Tracks the lottery numbers
+lotto_numbers = {}                                       # Tracks the lottery numbers
 user_lotto_numbers = {}                                 # Tracks the user lottery numbers
 
 # Initialize global variables
