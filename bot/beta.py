@@ -2734,6 +2734,9 @@ class TwitchBot(commands.Bot):
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
                     await ctx.send(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+                    if mentioned_username == BOT_USERNAME:
+                        author = ctx.author.name
+                        await return_the_action_back(ctx, author, "hug")
                 else:
                     chat_logger.error(f"No hug count found for user: {mentioned_username}")
                     await ctx.send(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
@@ -2793,6 +2796,9 @@ class TwitchBot(commands.Bot):
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been high-fived by {ctx.author.name}. They have been high-fived: {highfive_count}")
                     await ctx.send(f"@{mentioned_username} has been high-fived by @{ctx.author.name}, they have been high-fived {highfive_count} times.")
+                    if mentioned_username == BOT_USERNAME:
+                        author = ctx.author.name
+                        await return_the_action_back(ctx, author, "highfive")
                 else:
                     chat_logger.error(f"No high-five count found for user: {mentioned_username}")
                     await ctx.send(f"Sorry @{ctx.author.name}, you can't high-five @{mentioned_username} right now, there's an issue in my system.")
@@ -2852,6 +2858,9 @@ class TwitchBot(commands.Bot):
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
                     await ctx.send(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+                    if mentioned_username == BOT_USERNAME:
+                        author = ctx.author.name
+                        await return_the_action_back(ctx, author, "kiss")
                 else:
                     chat_logger.error(f"No kiss count found for user: {mentioned_username}")
                     await ctx.send(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
@@ -7478,6 +7487,47 @@ async def check_song_requests():
                                     api_logger.info(f"Song {song_info['song_name']} by {song_info['artist_name']} removed from tracking list.")
                     else:
                         api_logger.error(f"Failed to fetch queue from Spotify, status code: {response.status}")
+
+# Function to return the action back to the user
+async def return_the_action_back(ctx, author, action):
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+        if action == "kiss":
+            await cursor.execute(''
+                'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1',
+                (author,)
+            )
+            await cursor.commit()
+            await cursor.select(f'SELECT kiss_count FROM kiss_counts WHERE username = {author}')
+            result = await cursor.fetchone()
+            if result:
+                count = result['kiss_count']
+        if action == "hug":
+            await cursor.execute(''
+                'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE hug_count = hug_count + 1',
+                (author,)
+            )
+            await cursor.commit()
+            await cursor.select(f'SELECT hug_count FROM hug_counts WHERE username = {author}')
+            result = await cursor.fetchone()
+            if result:
+                count = result['hug_count']
+        if action == "highfive":
+            await cursor.execute(''
+                'INSERT INTO highfive_counts (username, highfive_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE highfive_count = highfive_count + 1',
+                (author,)
+            )
+            await cursor.commit()
+            await cursor.select(f'SELECT highfive_count FROM highfive_counts WHERE username = {author}')
+            result = await cursor.fetchone()
+            if result:
+                count = result['highfive_count']
+        if count:
+            ctx.send(f"Thanks for the {action}, {author}! I've given you a {action} too, you have been {action} {count} times!")
+        else:
+            return
+    sqldb.close()
+    await sqldb.ensure_closed()
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
