@@ -7493,32 +7493,35 @@ async def return_the_action_back(ctx, author, action):
     sqldb = await get_mysql_connection()
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         if action == "kiss":
-            await cursor.execute(''
-                'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1',
+            await cursor.execute(
+                'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) '
+                'ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1', 
                 (author,)
             )
             await sqldb.commit()
-            await cursor.execute(f'SELECT kiss_count FROM kiss_counts WHERE username = {author}')
+            await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (author,))
             result = await cursor.fetchone()
             if result:
                 count = result['kiss_count']
         if action == "hug":
-            await cursor.execute(''
-                'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE hug_count = hug_count + 1',
+            await cursor.execute(
+                'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) '
+                'ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', 
                 (author,)
             )
             await sqldb.commit()
-            await cursor.execute(f'SELECT hug_count FROM hug_counts WHERE username = {author}')
+            await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (author,))
             result = await cursor.fetchone()
             if result:
                 count = result['hug_count']
         if action == "highfive":
-            await cursor.execute(''
-                'INSERT INTO highfive_counts (username, highfive_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE highfive_count = highfive_count + 1',
+            await cursor.execute(
+                'INSERT INTO highfive_counts (username, highfive_count) VALUES (%s, 1) '
+                'ON DUPLICATE KEY UPDATE highfive_count = highfive_count + 1', 
                 (author,)
             )
             await sqldb.commit()
-            await cursor.execute(f'SELECT highfive_count FROM highfive_counts WHERE username = {author}')
+            await cursor.execute('SELECT highfive_count FROM highfive_counts WHERE username = %s', (author,))
             result = await cursor.fetchone()
             if result:
                 count = result['highfive_count']
