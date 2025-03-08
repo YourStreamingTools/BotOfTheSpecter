@@ -183,6 +183,10 @@ $max_upload_size = $remaining_storage;
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
+    // NEW: Ensure directory exists
+    if (!file_exists($twitch_sound_alert_path)) {
+        mkdir($twitch_sound_alert_path, 0777, true);
+    }
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
@@ -363,10 +367,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                         <input type="submit" value="Upload MP3 Files" name="submit">
                     </form>
                     <br>
-                    <div class="upload-progress-bar-container">
-                        <div class="upload-progress-bar has-text-black-bis" style="width: 0%;"></div>
-                    </div>
-                    <br>
                     <div class="progress-bar-container">
                         <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
                     </div>
@@ -462,7 +462,6 @@ $(document).ready(function() {
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
     let fileList = $('#file-list');
-    let uploadProgressBar = $('.upload-progress-bar');
 
     dropArea.on('dragover', function(e) {
         e.preventDefault();
@@ -499,6 +498,7 @@ $(document).ready(function() {
     });
 
     function uploadFiles(files) {
+        console.log("Starting upload:", files);
         let formData = new FormData();
         $.each(files, function(index, file) {
             formData.append('filesToUpload[]', file);
@@ -509,17 +509,6 @@ $(document).ready(function() {
             data: formData,
             contentType: false,
             processData: false,
-            xhr: function() {
-                let xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        let percentComplete = (e.loaded / e.total) * 100;
-                        uploadProgressBar.css('width', percentComplete + '%');
-                        uploadProgressBar.text(Math.round(percentComplete) + '%');
-                    }
-                }, false);
-                return xhr;
-            },
             success: function(response) {
                 location.reload(); // Reload the page to update the file list and storage usage
             },
