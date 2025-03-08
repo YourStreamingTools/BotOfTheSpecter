@@ -399,10 +399,15 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                         <?php
                                         // Determine the current mapped reward (if any)
                                         $current_reward_id = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
-                                        $current_reward_title = $current_reward_id ? htmlspecialchars($current_reward_id) : "Not Mapped";
+                                        $mappedEvents = [];
+                                        foreach ($twitchSoundAlertMappings as $mappedFile => $mappedEvent) {
+                                            if ($mappedFile !== $file && $mappedEvent) {
+                                                $mappedEvents[] = $mappedEvent;
+                                            }
+                                        }
                                         ?>
                                         <?php if ($current_reward_id): ?>
-                                            <em><?php echo $current_reward_title; ?></em>
+                                            <em><?php echo htmlspecialchars($current_reward_id); ?></em>
                                         <?php else: ?>
                                             <em>Not Mapped</em>
                                         <?php endif; ?>
@@ -412,11 +417,10 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                             <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
                                                 <option value="">-- Select Event --</option>
                                                 <?php
-                                                $events = ['Follow','Raid','Cheer','Subscription'];
-                                                if (in_array($current_reward_id, $events)) {
-                                                    $events = array_diff($events, [$current_reward_id]);
-                                                }
-                                                foreach ($events as $evt) {
+                                                $allEvents = ['Follow','Raid','Cheer','Subscription'];
+                                                foreach ($allEvents as $evt) {
+                                                    if ($current_reward_id === $evt) continue;
+                                                    if (in_array($evt, $mappedEvents)) continue;
                                                     echo '<option value="' . $evt . '">' . $evt . '</option>';
                                                 }
                                                 ?>
