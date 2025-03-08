@@ -62,7 +62,8 @@ date_default_timezone_set($timezone);
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
                 <p><em>This URL includes all overlays we offer, automatically added and updated.
-                    <br>The only exception is the Stream Ending Credits & To Do List, which must be added separately.
+                    <br>The exceptions are: Stream Ending Credits,  To Do List & Video Alerts Only.
+                    <br>These exceptions require a separate URL, please see below.
                     <br>Add this link once, and any new overlays will be included automatically:</em></p>
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
@@ -156,6 +157,14 @@ date_default_timezone_set($timezone);
                 <h4 class="title is-4">Sound Alerts Only:</h4>
                 <p><em>Only hear the sound alerts for each channel point reward.</em></p>
                 <code>https://overlay.botofthespecter.com/sound-alert.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- Video Alerts Only Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Video Alerts:</h4>
+                <p><em>To see the video alerts for each channel point reward use the following link</em></p>
+                <code>https://overlay.botofthespecter.com/video-alert.php?code=API_KEY_HERE</code>
             </div>
         </div>
     </div>
