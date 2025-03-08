@@ -6732,6 +6732,35 @@ async def process_channel_point_rewards(event_data, event_type):
                 if custom_message:
                     if '(user)' in custom_message:
                         custom_message = custom_message.replace('(user)', user_name)
+                    # Handle (usercount)
+                    if '(usercount)' in custom_message:
+                        try:
+                            # Get the user count for the specific reward
+                            await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
+                            result = await cursor.fetchone()
+                            if result:
+                                user_count = result.get("count")
+                            else:
+                                # If no entry found, initialize it to 0
+                                user_count = 0
+                                await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
+                                await cursor.commit()
+                            # Increment the count
+                            user_count += 1
+                            await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
+                            await cursor.commit()
+                            # Fetch the updated count
+                            await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
+                            updated_result = await cursor.fetchone()
+                            if updated_result:
+                                updated_user_count = updated_result.get("count")
+                            else:
+                                updated_user_count = 0
+                            # Replace the (usercount) placeholder with the updated user count
+                            custom_message = custom_message.replace('(usercount)', str(updated_user_count))
+                        except Exception as e:
+                            chat_logger.error(f"Error while handling (usercount) in channel points: {e}")
+                            custom_message = custom_message.replace('(usercount)', "Error")
                 await channel.send(custom_message)
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
