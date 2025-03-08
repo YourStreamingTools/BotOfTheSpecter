@@ -48,8 +48,9 @@
                 currentVideo = document.createElement('video');
                 currentVideo.src = `${url}?t=${new Date().getTime()}`;
                 currentVideo.volume = 0.8;
-                currentVideo.controls = true;
+                currentVideo.controls = false;
                 currentVideo.className = 'centered-video';
+                currentVideo.preload = 'auto';
                 document.body.appendChild(currentVideo);
                 currentVideo.addEventListener('canplaythrough', () => {
                     console.log('Video can play through without buffering');
