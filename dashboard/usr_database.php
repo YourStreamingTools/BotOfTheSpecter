@@ -117,6 +117,14 @@ try {
                 count INT DEFAULT 0,
                 UNIQUE (command, user)
             ) ENGINE=InnoDB",
+        'reward_counts' => "
+            CREATE TABLE IF NOT EXISTS reward_counts (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                reward_id VARCHAR(255) NOT NULL,
+                user VARCHAR(255) NOT NULL,
+                count INT DEFAULT 0,
+                UNIQUE (reward_id, user)
+            ) ENGINE=InnoDB",
         'bits_data' => "
             CREATE TABLE IF NOT EXISTS bits_data (
                 id INT PRIMARY KEY AUTO_INCREMENT,
