@@ -202,6 +202,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
         }
     }
+    // After handling file uploads, return JSON:
+    header('Content-Type: application/json');
+    echo json_encode([
+        "status" => "OK",
+        "details" => $status
+    ]);
+    exit;
 }
 
 // Handle file deletion
@@ -496,6 +503,7 @@ $(document).ready(function() {
     $('#uploadForm').on('submit', function(e) {
         e.preventDefault(); 
         let files = fileInput.prop('files');
+        console.log("Form submitted. Files selected:", files);
         if (files.length === 0) {
             alert('No files selected!');
             return;
@@ -510,12 +518,24 @@ $(document).ready(function() {
             formData.append('filesToUpload[]', file);
         });
         $.ajax({
-            url: 'modules.php', // Match how sound-alerts.php does it
+            url: 'modules.php',
             type: 'POST',
             data: formData,
             contentType: false,
             processData: false,
+            xhr: function() {
+                let xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        let percentComplete = (e.loaded / e.total) * 100;
+                        uploadProgressBar.css('width', percentComplete + '%');
+                        uploadProgressBar.text(Math.round(percentComplete) + '%');
+                    }
+                }, false);
+                return xhr;
+            },
             success: function(response) {
+                // location.reload();
             },
             error: function(jqXHR, textStatus, errorThrown) {
                 console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
