@@ -394,12 +394,14 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info(f"Walkon event from SID [{sid}]: {data}")
         channel = data.get('channel')
         user = data.get('user')
+        ext = data.get('ext', 'mp3')
         if not channel or not user:
             self.logger.error('Missing channel or user information for WALKON event')
             return
         walkon_data = {
             'channel': channel,
-            'user': user
+            'user': user,
+            'ext': ext
         }
         # Broadcast the walkon event to all clients
         await self.sio.emit("WALKON", walkon_data)
