@@ -363,7 +363,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                     </form>
                     <br>
                     <div class="upload-progress-bar-container">
-                        <div class="upload-progress-bar has-text-black-bis" style="width: 0%;">0%</div>
+                        <div class="upload-progress-bar has-text-black-bis" style="width: 0%;"></div>
                     </div>
                     <br>
                     <div class="progress-bar-container">
@@ -376,14 +376,14 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 </div>
                 <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
                     <?php $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
-                    <h1 class="title is-4">Your Sound Alerts</h1>
+                    <h1 class="title is-4">Your Twitch Sound Alerts</h1>
                     <form action="" method="POST" id="deleteForm">
                         <table class="table is-striped" style="width: 100%; text-align: center;">
                             <thead>
                                 <tr>
                                     <th style="width: 70px;">Select</th>
                                     <th>File Name</th>
-                                    <th>Channel Point Reward</th>
+                                    <th>Twitch Event</th>
                                     <th style="width: 100px;">Action</th>
                                     <th style="width: 100px;">Test Audio</th>
                                 </tr>
@@ -412,24 +412,11 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                         <form action="" method="POST" class="mapping-form">
                                             <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                             <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
-                                                <option value="">-- Select Reward --</option>
-                                                <?php 
-                                                foreach ($channelPointRewards as $reward): 
-                                                    $isMapped = in_array($reward['twitch_alert_id'], $twitchSoundAlertMappings);
-                                                    $isCurrent = ($current_reward_id === $reward['twitch_alert_id']);
-                                                    // Skip rewards that are already mapped to other sounds, unless it's the current mapping
-                                                    if ($isMapped && !$isCurrent) continue; 
-                                                ?>
-                                                    <option value="<?php echo htmlspecialchars($reward['twitch_alert_id']); ?>" 
-                                                        <?php 
-                                                        if ($isCurrent) {
-                                                            echo 'selected';
-                                                        }
-                                                        ?>
-                                                    >
-                                                        <?php echo htmlspecialchars($reward['reward_title']); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
+                                                <option value="">-- Select Event --</option>
+                                                <option value="Follow" <?php echo $current_reward_id === 'Follow' ? 'selected' : ''; ?>>Follow</option>
+                                                <option value="Raid" <?php echo $current_reward_id === 'Raid' ? 'selected' : ''; ?>>Raid</option>
+                                                <option value="Cheer" <?php echo $current_reward_id === 'Cheer' ? 'selected' : ''; ?>>Cheer</option>
+                                                <option value="Subscription" <?php echo $current_reward_id === 'Subscription' ? 'selected' : ''; ?>>Subscription</option>
                                             </select>
                                         </form>
                                     </td>
