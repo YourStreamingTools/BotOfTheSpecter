@@ -99,7 +99,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
         <p class="has-text-weight-bold">Custom Variables for Custom Messages | <span style="color: #000000;">BLACK</span> = Beta Bot Only</p>
         <p>You can use the following custom variables in the message to send to chat when a reward is triggered.</p>
         <ul>
-          <li><span class="has-text-weight-bold">(user)</span>: This will tag the user that has used the channel reward.</li>
+          <li><span class="has-text-weight-bold">(user)</span>: This will tag the user that has used the channel point reward.</li>
           <li><span class="has-text-weight-bold" style="color: #000000;">(usercount)</span>: This will count how many times a user has used the channel point reward. </li>
         </ul>
       </td>
