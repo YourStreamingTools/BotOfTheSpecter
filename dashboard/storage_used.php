@@ -1,4 +1,26 @@
 <?php
+// Define user-specific storage limits
+$base_storage_size = 2 * 1024 * 1024; // 2MB in bytes
+$tier = $_SESSION['tier'] ?? "None";
+
+switch ($tier) {
+    case "1000":
+        $max_storage_size = 5 * 1024 * 1024; // 5MB
+        break;
+    case "2000":
+        $max_storage_size = 10 * 1024 * 1024; // 10MB
+        break;
+    case "3000":
+        $max_storage_size = 20 * 1024 * 1024; // 20MB
+        break;
+    case "4000":
+        $max_storage_size = 50 * 1024 * 1024; // 50MB
+        break;
+    default:
+        $max_storage_size = $base_storage_size; // Default 2MB
+        break;
+}
+
 // Define the user's directories
 $walkon_path = "/var/www/walkons/" . $username;
 $soundalert_path = "/var/www/soundalerts/" . $username;
