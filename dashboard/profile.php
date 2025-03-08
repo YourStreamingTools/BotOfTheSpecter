@@ -95,6 +95,7 @@ switch ($tier) {
         break;
 }
 
+// Include the storage used calculation
 include 'storage_used.php';
 ?>
 <!DOCTYPE html>
