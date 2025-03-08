@@ -172,7 +172,7 @@ last_poll_progress_update = 0                           # Variable for last poll
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
 song_requests = {}                                      # Tracks song request from users
-lotto_numbers = {}                                       # Tracks the lottery numbers
+lotto_numbers = {}                                      # Tracks the lottery numbers
 user_lotto_numbers = {}                                 # Tracks the user lottery numbers
 
 # Initialize global variables
