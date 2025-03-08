@@ -348,8 +348,8 @@ class BotOfTheSpecter_WebsocketServer:
     async def sftp_transfer(self, local_file_path):
         # Set up the SFTP connection details from .env file
         hostname = "10.240.0.169"
-        username = os.getenv("SFPT_USERNAME")
-        password = os.getenv("SFPT_PASSWORD")
+        username = os.getenv("SFTP_USERNAME")
+        password = os.getenv("SFTP_PASSWORD")
         remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
         try:
             # Establish an SFTP session
@@ -368,8 +368,8 @@ class BotOfTheSpecter_WebsocketServer:
     async def sftp_delete(self, local_file_path):
         # Set up the SFTP connection details from .env file
         hostname = "10.240.0.169"
-        username = os.getenv("SFPT_USERNAME")
-        password = os.getenv("SFPT_PASSWORD")
+        username = os.getenv("SFTP_USERNAME")
+        password = os.getenv("SFTP_PASSWORD")
         remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
         try:
             # Establish an SFTP session
