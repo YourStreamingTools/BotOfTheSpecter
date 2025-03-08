@@ -405,6 +405,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                                 $mappedEvents[] = $mappedEvent;
                                             }
                                         }
+                                        $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription'];
+                                        $availableEvents = array_diff($allEvents, $mappedEvents);
                                         ?>
                                         <?php if ($current_reward_id): ?>
                                             <em><?php echo htmlspecialchars($current_reward_id); ?></em>
@@ -412,20 +414,23 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                             <em>Not Mapped</em>
                                         <?php endif; ?>
                                         <br>
-                                        <form action="" method="POST" class="mapping-form">
-                                            <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                            <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
-                                                <option value="">-- Select Event --</option>
-                                                <?php
-                                                $allEvents = ['Follow','Raid','Cheer','Subscription'];
-                                                foreach ($allEvents as $evt) {
-                                                    if ($current_reward_id === $evt) continue;
-                                                    if (in_array($evt, $mappedEvents)) continue;
-                                                    echo '<option value="' . $evt . '">' . $evt . '</option>';
-                                                }
-                                                ?>
-                                            </select>
-                                        </form>
+                                        <?php if (!empty($availableEvents)): ?>
+                                            <form action="" method="POST" class="mapping-form">
+                                                <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
+                                                <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
+                                                    <option value="">-- Select Event --</option>
+                                                    <?php
+                                                    foreach ($availableEvents as $evt) {
+                                                        if ($current_reward_id !== $evt) {
+                                                            echo '<option value="' . $evt . '">' . $evt . '</option>';
+                                                        }
+                                                    }
+                                                    ?>
+                                                </select>
+                                            </form>
+                                        <?php else: ?>
+                                            <em>All events are mapped. Delete a file to add new mappings.</em>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
