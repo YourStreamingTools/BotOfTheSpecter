@@ -6468,7 +6468,7 @@ async def send_to_discord_stream_online(message, image):
 async def websocket_notice(
     event, user=None, death=None, game=None, weather=None, cheer_amount=None,
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
-    video=None, additional_data=None
+    video=None, additional_data=None, rewards_data=None
 ):
     sqldb = await get_mysql_connection()
     try:
@@ -6507,6 +6507,8 @@ async def websocket_notice(
                 elif event == "TWITCH_RAID" and user and raid_viewers:
                     params['twitch-username'] = user
                     params['twitch-raid'] = raid_viewers
+                elif event == "TWITCH_CHANNELPOINTS" and rewards_data:
+                    params['rewards'] = json.dumps(rewards_data)
                 elif event == "TTS" and text:
                     # Make a database query to fetch additional information for TTS
                     try:
@@ -6698,6 +6700,7 @@ async def process_channel_point_rewards(event_data, event_type):
             reward_data = event_data.get("reward", {})
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
+            asyncio.create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
             # Check for TTS reward
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
