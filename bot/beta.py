@@ -7498,7 +7498,7 @@ async def return_the_action_back(ctx, author, action):
                 (author,)
             )
             await sqldb.commit()
-            await cursor.select(f'SELECT kiss_count FROM kiss_counts WHERE username = {author}')
+            await cursor.execute(f'SELECT kiss_count FROM kiss_counts WHERE username = {author}')
             result = await cursor.fetchone()
             if result:
                 count = result['kiss_count']
@@ -7508,7 +7508,7 @@ async def return_the_action_back(ctx, author, action):
                 (author,)
             )
             await sqldb.commit()
-            await cursor.select(f'SELECT hug_count FROM hug_counts WHERE username = {author}')
+            await cursor.execute(f'SELECT hug_count FROM hug_counts WHERE username = {author}')
             result = await cursor.fetchone()
             if result:
                 count = result['hug_count']
@@ -7518,7 +7518,7 @@ async def return_the_action_back(ctx, author, action):
                 (author,)
             )
             await sqldb.commit()
-            await cursor.select(f'SELECT highfive_count FROM highfive_counts WHERE username = {author}')
+            await cursor.execute(f'SELECT highfive_count FROM highfive_counts WHERE username = {author}')
             result = await cursor.fetchone()
             if result:
                 count = result['highfive_count']
