@@ -7491,6 +7491,7 @@ async def check_song_requests():
 # Function to return the action back to the user
 async def return_the_action_back(ctx, author, action):
     sqldb = await get_mysql_connection()
+    count = None
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         if action == "kiss":
             await cursor.execute(
@@ -7500,10 +7501,7 @@ async def return_the_action_back(ctx, author, action):
             )
             await sqldb.commit()
             await cursor.execute('SELECT kiss_count FROM kiss_counts WHERE username = %s', (author,))
-            result = await cursor.fetchone()
-            if result:
-                count = result['kiss_count']
-        if action == "hug":
+        elif action == "hug":
             await cursor.execute(
                 'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) '
                 'ON DUPLICATE KEY UPDATE hug_count = hug_count + 1', 
@@ -7511,10 +7509,7 @@ async def return_the_action_back(ctx, author, action):
             )
             await sqldb.commit()
             await cursor.execute('SELECT hug_count FROM hug_counts WHERE username = %s', (author,))
-            result = await cursor.fetchone()
-            if result:
-                count = result['hug_count']
-        if action == "highfive":
+        elif action == "highfive":
             await cursor.execute(
                 'INSERT INTO highfive_counts (username, highfive_count) VALUES (%s, 1) '
                 'ON DUPLICATE KEY UPDATE highfive_count = highfive_count + 1', 
@@ -7522,15 +7517,15 @@ async def return_the_action_back(ctx, author, action):
             )
             await sqldb.commit()
             await cursor.execute('SELECT highfive_count FROM highfive_counts WHERE username = %s', (author,))
-            result = await cursor.fetchone()
-            if result:
-                count = result['highfive_count']
-        if count:
-            ctx.send(f"Thanks for the {action}, {author}! I've given you a {action} too, you have been {action} {count} times!")
+            action = "high five"
         else:
             return
-    sqldb.close()
+        result = await cursor.fetchone()
+        if result:
+            count = list(result.values())[0]
     await sqldb.ensure_closed()
+    if count is not None:
+        await ctx.send(f"Thanks for the {action}, {author}! I've given you a {action} too, you have been {action} {count} times!")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
