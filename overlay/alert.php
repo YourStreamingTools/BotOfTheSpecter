@@ -99,7 +99,9 @@
                 // Listen for WALKON events
                 socket.on('WALKON', (data) => {
                     console.log('Walkon:', data);
-                    const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
+                    const channel_name = data.channel;
+                    const user_name = data.user;
+                    const audioFile = `https://walkons.botofthespecter.com/${channel_name}/${user_name}.mp3`;
                     enqueueAudio(audioFile);
                 });
 
