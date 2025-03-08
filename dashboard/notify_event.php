@@ -57,6 +57,8 @@ try {
             }
         } elseif ($event === "SOUND_ALERT" && isset($_POST['sound'], $_POST['channel_name'])) {
             $params['sound'] = "https://soundalerts.botofthespecter.com/" . $_POST['channel_name'] . "/" . $_POST['sound'];
+        } elseif ($event === "VIDEO_ALERT" && isset($_POST['video'], $_POST['channel_name'])) {
+            $params['video'] = "https://videoalerts.botofthespecter.com/" . $_POST['channel_name'] . "/" . $_POST['video'];
         } else {
             $response['message'] = "Event '$event' requires additional parameters or is not recognized.";
             echo json_encode($response);
