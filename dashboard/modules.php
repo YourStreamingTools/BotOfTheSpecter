@@ -189,7 +189,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
             continue;
         }
-        $targetFile = $twitch_sound_alert_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
+        $cleanPath = rtrim($twitch_sound_alert_path, '/\\');
+        $targetFile = $cleanPath . DIRECTORY_SEPARATOR . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
         if ($fileType != "mp3") {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
