@@ -491,6 +491,18 @@ $(document).ready(function() {
         });
     });
 
+    $('#uploadForm').attr('action', ''); // Ensure action is empty
+
+    $('#uploadForm').on('submit', function(e) {
+        e.preventDefault(); 
+        let files = fileInput.prop('files');
+        if (files.length === 0) {
+            alert('No files selected!');
+            return;
+        }
+        uploadFiles(files);
+    });
+
     function uploadFiles(files) {
         console.log("Starting upload:", files);
         let formData = new FormData();
@@ -498,7 +510,7 @@ $(document).ready(function() {
             formData.append('filesToUpload[]', file);
         });
         $.ajax({
-            url: '',
+            url: 'modules.php', // Match how sound-alerts.php does it
             type: 'POST',
             data: formData,
             contentType: false,
