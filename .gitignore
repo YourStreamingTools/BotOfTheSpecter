@@ -62,3 +62,11 @@ docs/5.3.md
 /api/api
 /specterbotapp/*/
 /videoalerts
+
+# Python Cache files
+bot/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
