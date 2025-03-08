@@ -109,6 +109,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Set success message for welcome messages update in session
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
     }    
+    // NEW: Move channel point reward mapping here
+    elseif (isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
+        $status = "";
+        $soundFile = htmlspecialchars($_POST['sound_file']);
+        $rewardId = htmlspecialchars($_POST['twitch_alert_id']);
+        $db->beginTransaction();
+        // Check if a mapping already exists for this sound file
+        $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = :sound_mapping");
+        $checkExisting->bindParam(':sound_mapping', $soundFile);
+        $checkExisting->execute();
+        if ($checkExisting->rowCount() > 0) {
+            // Update existing mapping
+            if ($rewardId) {
+                $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = :twitch_alert_id WHERE sound_mapping = :sound_mapping");
+                $updateMapping->bindParam(':twitch_alert_id', $rewardId);
+                $updateMapping->bindParam(':sound_mapping', $soundFile);
+                if (!$updateMapping->execute()) {
+                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->errorInfo(), true) . "<br>"; 
+                } else {
+                    $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
+                }
+            } else {
+                // Clear the mapping if no reward is selected
+                $clearMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = :sound_mapping");
+                $clearMapping->bindParam(':sound_mapping', $soundFile);
+                if (!$clearMapping->execute()) {
+                    $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
+                } else {
+                    $status .= "Mapping for file '" . $soundFile . "' has been cleared.<br>";
+                }
+            }
+        } else {
+            // Create a new mapping if it doesn't exist
+            if ($rewardId) {
+                $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (:sound_mapping, :twitch_alert_id)");
+                $insertMapping->bindParam(':sound_mapping', $soundFile);
+                $insertMapping->bindParam(':twitch_alert_id', $rewardId);
+                if (!$insertMapping->execute()) {
+                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->errorInfo(), true) . "<br>"; 
+                } else {
+                    $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
+                }
+            } 
+        }
+        // Commit transaction
+        $db->commit();
+        $_SESSION['update_message'] = $status;
+    }
     // Refresh the page to show updated settings
     header("Location: " . $_SERVER['PHP_SELF']);
     exit();
@@ -126,56 +174,6 @@ $soundAlerts = $getTwitchAlerts->fetchAll(PDO::FETCH_ASSOC);
 $twitchSoundAlertMappings = [];
 foreach ($soundAlerts as $alert) {
     $twitchSoundAlertMappings[$alert['sound_mapping']] = $alert['twitch_alert_id'];
-}
-
-// Handle channel point reward mapping
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
-    $status = ""; // Initialize $status
-    $soundFile = $_POST['sound_file'];
-    $rewardId = $_POST['twitch_alert_id'];
-    $soundFile = htmlspecialchars($soundFile); 
-    $rewardId = htmlspecialchars($rewardId);
-    $db->beginTransaction();  
-    // Check if a mapping already exists for this sound file
-    $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = :sound_mapping");
-    $checkExisting->bindParam(':sound_mapping', $soundFile);
-    $checkExisting->execute();
-    if ($checkExisting->rowCount() > 0) {
-        // Update existing mapping
-        if ($rewardId) {
-            $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = :twitch_alert_id WHERE sound_mapping = :sound_mapping");
-            $updateMapping->bindParam(':twitch_alert_id', $rewardId);
-            $updateMapping->bindParam(':sound_mapping', $soundFile);
-            if (!$updateMapping->execute()) {
-                $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->errorInfo(), true) . "<br>"; 
-            } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
-            }
-        } else {
-            // Clear the mapping if no reward is selected
-            $clearMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = :sound_mapping");
-            $clearMapping->bindParam(':sound_mapping', $soundFile);
-            if (!$clearMapping->execute()) {
-                $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
-            } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been cleared.<br>";
-            }
-        }
-    } else {
-        // Create a new mapping if it doesn't exist
-        if ($rewardId) {
-            $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (:sound_mapping, :twitch_alert_id)");
-            $insertMapping->bindParam(':sound_mapping', $soundFile);
-            $insertMapping->bindParam(':twitch_alert_id', $rewardId);
-            if (!$insertMapping->execute()) {
-                $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->errorInfo(), true) . "<br>"; 
-            } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
-            }
-        } 
-    }
-    // Commit transaction
-    $db->commit();
 }
 
 $remaining_storage = $max_storage_size - $current_storage_used;
