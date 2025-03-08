@@ -126,12 +126,6 @@ foreach ($soundAlerts as $alert) {
     $twitchSoundAlertMappings[$alert['sound_mapping']] = $alert['twitch_alert_id'];
 }
 
-// Create an associative array for twitch_alert_id => reward_title for easy lookup
-$rewardIdToTitle = [];
-foreach ($channelPointRewards as $reward) {
-    $rewardIdToTitle[$reward['twitch_alert_id']] = $reward['reward_title'];
-}
-
 // Handle channel point reward mapping
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
     $status = ""; // Initialize $status
@@ -410,7 +404,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                         <?php
                                         // Determine the current mapped reward (if any)
                                         $current_reward_id = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
-                                        $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
+                                        $current_reward_title = $current_reward_id ? htmlspecialchars($current_reward_id) : "Not Mapped";
                                         ?>
                                         <?php if ($current_reward_id): ?>
                                             <em><?php echo $current_reward_title; ?></em>
