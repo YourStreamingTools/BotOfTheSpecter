@@ -132,16 +132,19 @@ $existingOfflineText = $discordData['offline_text'] ?? "";
 <div class="container">
   <br>
   <?php if (!$is_linked) { ?>
-    <h3 class="subtitle is-5">By linking your Discord account to Specter, you'll unlock some exciting features.<br>
-      You'll receive alerts from Specter directly in your Discord server via a webhook, and our new feature will update a voice channel when you go live.
-    </h3>
-    <br>
-    <button class="button is-link" onclick="linkDiscord()">Link Discord</button>
+    <div class="is-centered has-text-centered">
+      <h3 class="subtitle is-5">By linking your Discord account to Specter, you'll unlock some exciting features.<br>
+        You'll receive alerts from Specter directly in your Discord server via a webhook, and our new feature will update a voice channel when you go live.
+      </h3>
+      <br>
+      <button class="button is-link" onclick="linkDiscord()">Link Discord</button>
+    </div>
   <?php } else { ?>
-    <h4 class="subtitle is-5">Thank you for linking your account.<br>
-      We're constantly adding new Specter features to the Discord Bot, so keep an eye on the Discord server for updates.</h4>
-    <button class="button is-link" onclick="discordBotDashboard()">BotOfTheSpecter Discord Bot Dashboard</button>
-    <br>
+    <div class="is-centered has-text-centered">
+      <h4 class="subtitle is-5">Thank you for linking your account.<br>
+        We're constantly adding new Specter features to the Discord Bot, so keep an eye on the Discord server for updates.</h4>
+      <button class="button is-link" onclick="discordBotDashboard()">BotOfTheSpecter Discord Bot Dashboard</button>
+    </div>
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { ?>
       <?php if ($buildStatus) { ?>
         <p class='has-text-success'><?php echo $buildStatus; ?></p>
