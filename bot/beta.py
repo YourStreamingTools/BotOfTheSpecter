@@ -6471,7 +6471,8 @@ async def websocket_notice(
                 }
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
-                    walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}.mp3"
+                    for ext in ['.mp3', '.mp4']:
+                        walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
                     if os.path.exists(walkon_file_path):
                         params['channel'] = CHANNEL_NAME
                         params['user'] = user
@@ -6509,7 +6510,7 @@ async def websocket_notice(
                             params['voice'] = 'default'
                             params['language'] = 'en'
                     except aiomysql.Error as e:
-                        bot_logger.error(f"Database error while fetching TTS settings for user '{user}': {e}")
+                        bot_logger.error(f"Database error while fetching TTS settings for the channel: {e}")
                         params['voice'] = 'default'
                         params['language'] = 'en'
                     params['text'] = text
