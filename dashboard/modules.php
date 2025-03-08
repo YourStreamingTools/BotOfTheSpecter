@@ -204,13 +204,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>Error details: " . print_r($error, true) . "<br>";
         }
     }
-    // After handling file uploads, return JSON:
-    header('Content-Type: application/json');
-    echo json_encode([
-        "status" => "OK",
-        "details" => $status
-    ]);
-    exit;
 }
 
 // Handle file deletion
@@ -520,7 +513,7 @@ $(document).ready(function() {
             formData.append('filesToUpload[]', file);
         });
         $.ajax({
-            url: 'modules.php',
+            url: '',
             type: 'POST',
             data: formData,
             contentType: false,
@@ -536,7 +529,7 @@ $(document).ready(function() {
                 return xhr;
             },
             success: function(response) {
-                // location.reload();
+                location.reload();
             },
             error: function(jqXHR, textStatus, errorThrown) {
                 console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
