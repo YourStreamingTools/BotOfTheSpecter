@@ -77,18 +77,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
     <form method="POST" class="is-flex is-align-items-center is-justify-content-space-between">
       <div>
         Pressing the sync button will sync your Twitch channel point rewards to the Specter System.
-        This process can take up to 30 seconds to complete.
+        This process can take up to 30 seconds to complete.<br>
+        If you have removed a reward from Twitch, it will not be removed from the Specter System, and you will need to manually delete it.
       </div>
       <button class="button is-primary" name="syncRewards" type="submit">Sync Rewards</button>
     </form>
   </div>
   <div class="notification is-info mt-4">
     <p class="has-text-weight-bold">Built-in Tags Information:</p>
-    <p>Users can set up specific channel point rewards in Twitch to access Specter's built-in tags:</p>
+    <p>You can set up specific channel point rewards in Twitch to access Specter's built-in tags:</p>
     <ul>
-      <li><span class="has-text-weight-bold">Fortunes:</span> Any channel point reward name containing "fortune" will enable this feature.</li>
-      <li><span class="has-text-weight-bold">Lotto Numbers:</span> Any channel point reward name containing "lotto" will enable this feature.</li>
-      <li><span class="has-text-weight-bold">Text-to-Speech (TTS):</span> Any channel point reward name containing "tts" will enable this feature. TTS is then used via the sound overlays on the <a href="overlays.php">Overlays</a> page.</li>
+      <li><span class="has-text-weight-bold">Fortunes</span>: Any channel point reward name containing "fortune" will enable this feature.</li>
+      <li><span class="has-text-weight-bold">Lotto Numbers</span>: Any channel point reward name containing "lotto" will enable this feature.</li>
+      <li><span class="has-text-weight-bold">Text-to-Speech (TTS)</span>: Any channel point reward name containing "tts" will enable this feature.<br>
+      <span style="margin-left: 10.4em; margin-top: 0.5em;">TTS is then used via the sound overlays on the <a href="overlays.php">Overlays</a> page.</span></li>
+    </ul>
+    <p class="has-text-weight-bold">Custom Variables</p>
+    <p>You can use the following custom variables in the message to send to chat when a reward is triggered.</p>
+    <ul>
+      <li><span class="has-text-weight-bold">(user)</span>: Add this tag in any of your custom message below will tag the user that has used the channel reward.</li>
     </ul>
   </div>
   <table class="table is-striped is-fullwidth">
