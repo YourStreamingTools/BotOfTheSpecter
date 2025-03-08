@@ -6476,6 +6476,7 @@ async def websocket_notice(
                     if os.path.exists(walkon_file_path):
                         params['channel'] = CHANNEL_NAME
                         params['user'] = user
+                        params['ext'] = ext
                     else:
                         return
                 elif event == "DEATHS" and death and game:
