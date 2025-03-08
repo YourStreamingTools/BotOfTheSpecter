@@ -17,33 +17,12 @@ require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
+include 'storage_used.php';
 foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
   $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
-
-// Define user-specific storage limits
-$base_storage_size = 2 * 1024 * 1024; // 2MB in bytes
-$tier = $_SESSION['tier'] ?? "None";
-
-switch ($tier) {
-    case "1000":
-        $max_storage_size = 5 * 1024 * 1024; // 5MB
-        break;
-    case "2000":
-        $max_storage_size = 10 * 1024 * 1024; // 10MB
-        break;
-    case "3000":
-        $max_storage_size = 20 * 1024 * 1024; // 20MB
-        break;
-    case "4000":
-        $max_storage_size = 50 * 1024 * 1024; // 50MB
-        break;
-    default:
-        $max_storage_size = $base_storage_size; // Default 2MB
-        break;
-}
 
 // Fetch video alert mappings for the current user
 $getVideoAlerts = $db->prepare("SELECT video_mapping, reward_id FROM video_alerts");
@@ -62,8 +41,7 @@ foreach ($channelPointRewards as $reward) {
     $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
 }
 
-// storage limits
-include 'storage_used.php';
+// Define empty variables
 $status = '';
 
 // Handle channel point reward mapping
