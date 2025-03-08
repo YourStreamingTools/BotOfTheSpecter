@@ -183,10 +183,6 @@ $max_upload_size = $remaining_storage;
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
-    // NEW: Ensure directory exists
-    if (!file_exists($twitch_sound_alert_path)) {
-        mkdir($twitch_sound_alert_path, 0777, true);
-    }
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
