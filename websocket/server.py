@@ -90,6 +90,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("TWITCH_CHEER", self.twitch_cheer),
             ("TWITCH_RAID", self.twitch_raid),
             ("TWITCH_SUB", self.twitch_sub),
+            ("TWITCH_CHANNELPOINTS", self.twitch_channelpoints),
             ("WALKON", self.walkon),
             ("TTS", self.tts),
             ("SOUND_ALERT", self.sound_alert),
@@ -490,6 +491,12 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info(f"Twitch sub event from SID [{sid}]: {data}")
         # Broadcast the sub event to all clients
         await self.sio.emit("TWITCH_SUB", data)
+
+    async def twitch_channelpoints(self, sid, data):
+        # Handle the Twitch Channel Points event for SocketIO.
+        self.logger.info(f"Twitch Channel Points event from SID [{sid}]: {data}")
+        # Broadcast the Channel Points event to all clients
+        await self.sio.emit("TWITCH_CHANNELPOINTS", data)
 
     async def stream_online(self, sid, data):
         # Handle the STREAM_ONLINE event for SocketIO.
