@@ -159,7 +159,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // Refresh the page to show updated settings
     header("Location: " . $_SERVER['PHP_SELF']);
-    exit();
 }
 
 // Define empty variables
