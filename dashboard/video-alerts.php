@@ -245,7 +245,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
                 </span>
             </div>
             <div class="column">
-                This feature is coming soon to V5.3 for beta users.
+                This feature is in V5.3 Beta.
             </div>
         </div>
     </div>
