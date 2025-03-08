@@ -6755,11 +6755,11 @@ async def process_channel_point_rewards(event_data, event_type):
                                 # If no entry found, initialize it to 0
                                 user_count = 0
                                 await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
-                                await cursor.commit()
+                                await sqldb.commit()
                             # Increment the count
                             user_count += 1
                             await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
-                            await cursor.commit()
+                            await sqldb.commit()
                             # Fetch the updated count
                             await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
                             updated_result = await cursor.fetchone()
@@ -7497,7 +7497,7 @@ async def return_the_action_back(ctx, author, action):
                 'INSERT INTO kiss_counts (username, kiss_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE kiss_count = kiss_count + 1',
                 (author,)
             )
-            await cursor.commit()
+            await sqldb.commit()
             await cursor.select(f'SELECT kiss_count FROM kiss_counts WHERE username = {author}')
             result = await cursor.fetchone()
             if result:
@@ -7507,7 +7507,7 @@ async def return_the_action_back(ctx, author, action):
                 'INSERT INTO hug_counts (username, hug_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE hug_count = hug_count + 1',
                 (author,)
             )
-            await cursor.commit()
+            await sqldb.commit()
             await cursor.select(f'SELECT hug_count FROM hug_counts WHERE username = {author}')
             result = await cursor.fetchone()
             if result:
@@ -7517,7 +7517,7 @@ async def return_the_action_back(ctx, author, action):
                 'INSERT INTO highfive_counts (username, highfive_count) VALUES (%s, 1) ON DUPLICATE KEY UPDATE highfive_count = highfive_count + 1',
                 (author,)
             )
-            await cursor.commit()
+            await sqldb.commit()
             await cursor.select(f'SELECT highfive_count FROM highfive_counts WHERE username = {author}')
             result = await cursor.fetchone()
             if result:
