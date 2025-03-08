@@ -371,7 +371,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                     </form>
                     <br>
                     <div class="progress-bar-container">
-                        <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
+                        <div id="uploadProgressBar" class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
                     </div>
                     <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB used</p>
                     <?php if (!empty($status)) : ?>
@@ -528,8 +528,7 @@ $(document).ready(function() {
                 xhr.upload.addEventListener('progress', function(e) {
                     if (e.lengthComputable) {
                         let percentComplete = (e.loaded / e.total) * 100;
-                        uploadProgressBar.css('width', percentComplete + '%');
-                        uploadProgressBar.text(Math.round(percentComplete) + '%');
+                        console.log("Upload progress: " + Math.round(percentComplete) + "%");
                     }
                 }, false);
                 return xhr;
