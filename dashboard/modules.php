@@ -116,27 +116,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 $status = '';
 
 // Fetch sound alert mappings for the current user
-$getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
-$getSoundAlerts->execute();
-$soundAlerts = $getSoundAlerts->fetchAll(PDO::FETCH_ASSOC);
+$getTwitchAlerts = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM sound_alerts");
+$getTwitchAlerts->execute();
+$soundAlerts = $getTwitchAlerts->fetchAll(PDO::FETCH_ASSOC);
 
-// Create an associative array for easy lookup: sound_mapping => reward_id
+// Create an associative array for easy lookup: sound_mapping => twitch_alert_id
 $soundAlertMappings = [];
 foreach ($soundAlerts as $alert) {
-    $soundAlertMappings[$alert['sound_mapping']] = $alert['reward_id'];
+    $soundAlertMappings[$alert['sound_mapping']] = $alert['twitch_alert_id'];
 }
 
-// Create an associative array for reward_id => reward_title for easy lookup
+// Create an associative array for twitch_alert_id => reward_title for easy lookup
 $rewardIdToTitle = [];
 foreach ($channelPointRewards as $reward) {
-    $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
+    $rewardIdToTitle[$reward['twitch_alert_id']] = $reward['reward_title'];
 }
 
 // Handle channel point reward mapping
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST['reward_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
     $status = ""; // Initialize $status
     $soundFile = $_POST['sound_file'];
-    $rewardId = $_POST['reward_id'];
+    $rewardId = $_POST['twitch_alert_id'];
     $soundFile = htmlspecialchars($soundFile); 
     $db->beginTransaction();  
     // Check if a mapping already exists for this sound file
@@ -146,8 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
     if ($checkExisting->rowCount() > 0) {
         // Update existing mapping
         if ($rewardId) {
-            $updateMapping = $db->prepare("UPDATE sound_alerts SET reward_id = :reward_id WHERE sound_mapping = :sound_mapping");
-            $updateMapping->bindParam(':reward_id', $rewardId);
+            $updateMapping = $db->prepare("UPDATE sound_alerts SET twitch_alert_id = :twitch_alert_id WHERE sound_mapping = :sound_mapping");
+            $updateMapping->bindParam(':twitch_alert_id', $rewardId);
             $updateMapping->bindParam(':sound_mapping', $soundFile);
             if (!$updateMapping->execute()) {
                 $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->errorInfo(), true) . "<br>"; 
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
             }
         } else {
             // Clear the mapping if no reward is selected
-            $clearMapping = $db->prepare("UPDATE sound_alerts SET reward_id = NULL WHERE sound_mapping = :sound_mapping");
+            $clearMapping = $db->prepare("UPDATE sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = :sound_mapping");
             $clearMapping->bindParam(':sound_mapping', $soundFile);
             if (!$clearMapping->execute()) {
                 $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
@@ -167,9 +167,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
     } else {
         // Create a new mapping if it doesn't exist
         if ($rewardId) {
-            $insertMapping = $db->prepare("INSERT INTO sound_alerts (sound_mapping, reward_id) VALUES (:sound_mapping, :reward_id)");
+            $insertMapping = $db->prepare("INSERT INTO sound_alerts (sound_mapping, twitch_alert_id) VALUES (:sound_mapping, :twitch_alert_id)");
             $insertMapping->bindParam(':sound_mapping', $soundFile);
-            $insertMapping->bindParam(':reward_id', $rewardId);
+            $insertMapping->bindParam(':twitch_alert_id', $rewardId);
             if (!$insertMapping->execute()) {
                 $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->errorInfo(), true) . "<br>"; 
             } else {
@@ -420,16 +420,16 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                         <br>
                                         <form action="" method="POST" class="mapping-form">
                                             <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                            <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
+                                            <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
                                                 <option value="">-- Select Reward --</option>
                                                 <?php 
                                                 foreach ($channelPointRewards as $reward): 
-                                                    $isMapped = in_array($reward['reward_id'], $soundAlertMappings);
-                                                    $isCurrent = ($current_reward_id === $reward['reward_id']);
+                                                    $isMapped = in_array($reward['twitch_alert_id'], $soundAlertMappings);
+                                                    $isCurrent = ($current_reward_id === $reward['twitch_alert_id']);
                                                     // Skip rewards that are already mapped to other sounds, unless it's the current mapping
                                                     if ($isMapped && !$isCurrent) continue; 
                                                 ?>
-                                                    <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
+                                                    <option value="<?php echo htmlspecialchars($reward['twitch_alert_id']); ?>" 
                                                         <?php 
                                                         if ($isCurrent) {
                                                             echo 'selected';
