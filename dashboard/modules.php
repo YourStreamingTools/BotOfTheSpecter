@@ -1,4 +1,6 @@
-<?php 
+<?php
+ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 $today = new DateTime();
@@ -132,6 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
     $soundFile = $_POST['sound_file'];
     $rewardId = $_POST['twitch_alert_id'];
     $soundFile = htmlspecialchars($soundFile); 
+    $rewardId = htmlspecialchars($rewardId);
     $db->beginTransaction();  
     // Check if a mapping already exists for this sound file
     $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = :sound_mapping");
