@@ -188,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
             continue;
         }
-        $targetFile = $soundalert_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
+        $targetFile = $twitch_sound_alert_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
         if ($fileType != "mp3") {
             $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
@@ -207,18 +207,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
 // Handle file deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
     foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete = $soundalert_path . '/' . basename($file_to_delete);
+        $file_to_delete = $twitch_sound_alert_path . '/' . basename($file_to_delete);
         if (is_file($file_to_delete) && unlink($file_to_delete)) {
             $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
         } else {
             $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
         }
     }
-    $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
+    $current_storage_used = calculateStorageUsed([$walkon_path, $twitch_sound_alert_path]);
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
 
-$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..'));
+$soundalert_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
 function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 ?>
 <!doctype html>
@@ -378,7 +378,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                     <?php endif; ?>
                 </div>
                 <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
-                    <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
+                    <?php $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
                     <h1 class="title is-4">Your Sound Alerts</h1>
                     <form action="" method="POST" id="deleteForm">
                         <table class="table is-striped" style="width: 100%; text-align: center;">
