@@ -483,7 +483,6 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        uploadFiles(files);
     });
     dropArea.on('click', function() {
         fileInput.click();
@@ -494,7 +493,6 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        uploadFiles(files);
     });
 
     function uploadFiles(files) {
@@ -510,7 +508,6 @@ $(document).ready(function() {
             contentType: false,
             processData: false,
             success: function(response) {
-                location.reload(); // Reload the page to update the file list and storage usage
             },
             error: function(jqXHR, textStatus, errorThrown) {
                 console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
