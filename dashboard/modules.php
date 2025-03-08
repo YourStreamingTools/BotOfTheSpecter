@@ -121,9 +121,9 @@ $getTwitchAlerts->execute();
 $soundAlerts = $getTwitchAlerts->fetchAll(PDO::FETCH_ASSOC);
 
 // Create an associative array for easy lookup: sound_mapping => twitch_alert_id
-$soundAlertMappings = [];
+$twitchSoundAlertMappings = [];
 foreach ($soundAlerts as $alert) {
-    $soundAlertMappings[$alert['sound_mapping']] = $alert['twitch_alert_id'];
+    $twitchSoundAlertMappings[$alert['sound_mapping']] = $alert['twitch_alert_id'];
 }
 
 // Create an associative array for twitch_alert_id => reward_title for easy lookup
@@ -409,7 +409,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                     <td>
                                         <?php
                                         // Determine the current mapped reward (if any)
-                                        $current_reward_id = isset($soundAlertMappings[$file]) ? $soundAlertMappings[$file] : null;
+                                        $current_reward_id = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
                                         $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
                                         ?>
                                         <?php if ($current_reward_id): ?>
@@ -424,7 +424,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                                 <option value="">-- Select Reward --</option>
                                                 <?php 
                                                 foreach ($channelPointRewards as $reward): 
-                                                    $isMapped = in_array($reward['twitch_alert_id'], $soundAlertMappings);
+                                                    $isMapped = in_array($reward['twitch_alert_id'], $twitchSoundAlertMappings);
                                                     $isCurrent = ($current_reward_id === $reward['twitch_alert_id']);
                                                     // Skip rewards that are already mapped to other sounds, unless it's the current mapping
                                                     if ($isMapped && !$isCurrent) continue; 
