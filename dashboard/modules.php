@@ -413,10 +413,12 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                             <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                             <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
                                                 <option value="">-- Select Event --</option>
-                                                <option value="Follow" <?php echo $current_reward_id === 'Follow' ? 'selected' : ''; ?>>Follow</option>
-                                                <option value="Raid" <?php echo $current_reward_id === 'Raid' ? 'selected' : ''; ?>>Raid</option>
-                                                <option value="Cheer" <?php echo $current_reward_id === 'Cheer' ? 'selected' : ''; ?>>Cheer</option>
-                                                <option value="Subscription" <?php echo $current_reward_id === 'Subscription' ? 'selected' : ''; ?>>Subscription</option>
+                                                <?php if (!$current_reward_id): ?>
+                                                    <option value="Follow" <?php echo $current_reward_id === 'Follow' ? 'selected' : ''; ?>>Follow</option>
+                                                    <option value="Raid" <?php echo $current_reward_id === 'Raid' ? 'selected' : ''; ?>>Raid</option>
+                                                    <option value="Cheer" <?php echo $current_reward_id === 'Cheer' ? 'selected' : ''; ?>>Cheer</option>
+                                                    <option value="Subscription" <?php echo $current_reward_id === 'Subscription' ? 'selected' : ''; ?>>Subscription</option>
+                                                <?php endif; ?>
                                             </select>
                                         </form>
                                     </td>
