@@ -201,7 +201,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
         }
     }
-    $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
 }
 
 // Handle file deletion
@@ -214,8 +213,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
             $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
         }
     }
-    $current_storage_used = calculateStorageUsed([$walkon_path, $twitch_sound_alert_path]);
-    $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
 
 $soundalert_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
