@@ -414,7 +414,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                             <em>Not Mapped</em>
                                         <?php endif; ?>
                                         <br>
-                                        <?php if (!empty($availableEvents)): ?>
+                                        <?php if (!empty($availableEvents) || !$current_reward_id): ?>
                                             <form action="" method="POST" class="mapping-form">
                                                 <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                                 <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
