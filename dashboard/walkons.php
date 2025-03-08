@@ -91,8 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
         }
         $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
-        if ($fileType != "mp3") {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
+        if ($fileType != "mp3" && $fileType != "mp4") {
+            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 and MP4 files are allowed.<br>";
             continue;
         }
         if (move_uploaded_file($tmp_name, $targetFile)) {
@@ -120,6 +120,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
 }
 $walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
 function formatFileName($fileName) { return basename($fileName, '.mp3'); }
+function formatFileNamewithEXT($fileName) {
+    $fileInfo = pathinfo($fileName);
+    $name = basename($fileName, '.' . $fileInfo['extension']);
+    $extenstion = strtoupper($fileInfo['extension']);
+    return $name . " (" . $extenstion . ")";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -195,7 +201,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                         <?php foreach ($walkon_files as $file): ?>
                         <tr>
                             <td style="text-align: center; vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                            <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                            <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileNamewithEXT($file)); ?></td>
                             <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
                             <td><button type="button" class="test-walkon button is-primary" data-file="<?php echo htmlspecialchars(formatFileName($file)); ?>">Test</button></td>
                         </tr>
