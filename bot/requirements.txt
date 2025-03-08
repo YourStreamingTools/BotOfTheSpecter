@@ -3,12 +3,11 @@ aiohttp
 websockets
 streamlink
 pytz
-mysql-connector-python
-jokeapi
-deep_translator
 python-dotenv
 socketio
 aiomysql
 geopy
 pint
 discord
+jokeapi
+deep_translator
