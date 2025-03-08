@@ -1,4 +1,10 @@
 <?php
+// Define the user's directories
+$walkon_path = "/var/www/walkons/" . $username;
+$soundalert_path = "/var/www/soundalerts/" . $username;
+$videoalert_path = "/var/www/videoalerts/" . $username;
+$twitch_sound_alert_path = $soundalert_path . "/twitch";
+
 // Define user-specific storage limits
 $base_storage_size = 2 * 1024 * 1024; // 2MB in bytes
 $tier = $_SESSION['tier'] ?? "None";
@@ -21,26 +27,30 @@ switch ($tier) {
         break;
 }
 
-// Define the user's directories
-$walkon_path = "/var/www/walkons/" . $username;
-$soundalert_path = "/var/www/soundalerts/" . $username;
-$videoalert_path = "/var/www/videoalerts/" . $username;
-
-// Create the user's directory if it doesn't exist
+// Create the user's walkon directory if it doesn't exist
 if (!is_dir($walkon_path)) {
     if (!mkdir($walkon_path, 0755, true)) {
         exit("Failed to create directory.");
     }
 }
 
+// Create the user's sound alerts directory if it doesn't exist
 if (!is_dir($soundalert_path)) {
     if (!mkdir($soundalert_path, 0755, true)) {
         exit("Failed to create directory.");
     }
 }
 
+// Create the user's video alerts directory if it doesn't exist
 if (!is_dir($videoalert_path)) {
     if (!mkdir($videoalert_path, 0755, true)) {
+        exit("Failed to create directory.");
+    }
+}
+
+// Create the user's Twitch sound alerts directory if it doesn't exist
+if (!is_dir($twitch_sound_alert_path)) {
+    if (!mkdir($twitch_sound_alert_path, 0755, true)) {
         exit("Failed to create directory.");
     }
 }
