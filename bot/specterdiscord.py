@@ -515,6 +515,8 @@ class TicketCog(commands.Cog, name='Tickets'):
             return
         if action.lower() == "create":
             try:
+                # Remove the command message for a clear channel
+                await ctx.message.delete()
                 ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
                 channel = await self.create_ticket_channel(ctx.guild.id, ctx.author.id, ticket_id)
                 await ctx.send(
