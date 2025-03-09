@@ -6522,7 +6522,7 @@ async def websocket_notice(
                             params['voice'] = 'default'
                             params['language'] = 'en'
                     except aiomysql.Error as e:
-                        bot_logger.error(f"Database error while fetching TTS settings for the channel: {e}")
+                        websocket_logger.error(f"Database error while fetching TTS settings for the channel: {e}")
                         params['voice'] = 'default'
                         params['language'] = 'en'
                     params['text'] = text
@@ -6530,14 +6530,14 @@ async def websocket_notice(
                     if additional_data:
                         params.update(additional_data)
                     else:
-                        bot_logger.error(f"Event '{event}' requires additional parameters.")
+                        websocket_logger.error(f"Event '{event}' requires additional parameters.")
                         return
                 elif event == "SOUND_ALERT" and sound:
                     params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
                 elif event == "VIDEO_ALERT" and video:
                     params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
                 else:
-                    bot_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
+                    websocket_logger.error(f"Event '{event}' requires additional parameters or is not recognized")
                     return
                 # URL-encode the parameters
                 encoded_params = urlencode(params)
@@ -6545,11 +6545,11 @@ async def websocket_notice(
                 # Send the HTTP request
                 async with session.get(url) as response:
                     if response.status == 200:
-                        bot_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
+                        websocket_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
                     else:
-                        bot_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
+                        websocket_logger.error(f"Failed to send HTTP event '{event}'. Status: {response.status}")
     except Exception as e:
-        bot_logger.error(f"Error while processing websocket notice: {e}")
+        websocket_logger.error(f"Error while processing websocket notice: {e}")
     finally:
         await sqldb.ensure_closed()
 
@@ -7195,7 +7195,7 @@ async def midnight():
         # Check if it's exactly midnight (00:00:00)
         if current_time.hour == 0 and current_time.minute == 0:
             # Reload the .env file at midnight
-            load_dotenv()
+            await reload_env_vars()
             # Log or handle any environment variable updates
             bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
@@ -7211,6 +7211,39 @@ async def midnight():
         else:
             # Sleep for 10 seconds before checking again
             await asyncio.sleep(10)
+
+async def reload_env_vars():
+    # Load in all the globals
+    global SQL_HOST, SQL_USER, SQL_PASSWORD, ADMIN_API_KEY, USE_BACKUP_SYSTEM
+    global BACKUP_SYSTEM, OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, TWITCH_GQL
+    global SHAZAM_API, STEAM_API, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+    global EXCHANGE_RATE_API_KEY, HYPERATE_API_KEY, CHANNEL_AUTH
+    # Reload the .env file
+    load_dotenv()
+    SQL_HOST = os.getenv('SQL_HOST')
+    SQL_USER = os.getenv('SQL_USER')
+    SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+    ADMIN_API_KEY = os.getenv('ADMIN_KEY')
+    USE_BACKUP_SYSTEM = os.getenv('USE_BACKUP_SYSTEM', 'False').lower() == 'true'
+    if USE_BACKUP_SYSTEM:
+        BACKUP_SYSTEM = True
+        OAUTH_TOKEN = f"oauth:{CHANNEL_AUTH}"
+        CLIENT_ID = os.getenv('BACKUP_CLIENT_ID')
+        CLIENT_SECRET = os.getenv('BACKUP_SECRET_KEY')
+    else:
+        BACKUP_SYSTEM = False
+        OAUTH_TOKEN = os.getenv('OAUTH_TOKEN')
+        CLIENT_ID = os.getenv('CLIENT_ID')
+        CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+    TWITCH_GQL = os.getenv('TWITCH_GQL')
+    SHAZAM_API = os.getenv('SHAZAM_API')
+    STEAM_API = os.getenv('STEAM_API')
+    SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
+    SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
+    EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
+    HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
+    # Log or handle any environment variable updates
+    bot_logger.info("Reloaded environment variables")
 
 async def get_point_settings():
     sqldb = await get_mysql_connection()
