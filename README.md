@@ -28,9 +28,10 @@ BotOfTheSpecter is a helpful Twitch chat bot designed to make your streaming exp
 - **Easy Log Management**: Find and manage different types of logs easily through the dashboard.
 
 ## API-based Premium Features
-Some of BotOfTheSpecter's features use special online services (like weather or music) that require paid keys. To use these extra features, please support gfaUnDead’s Twitch channel with a subscription. These features include:
-- Getting live weather information for commands.
-- Connecting to music services.
+Some of BotOfTheSpecter's features require a Twitch Subscription to use. To use these extra features, please support gfaUnDead’s Twitch channel with a subscription. These features include:
+- Using the `!song` command without connecting a Spotify account.
+- Accessing AI features and having conversations with the AI.
+- (Coming soon) Getting a dedicated bot with a custom name, so you don't have to use "BotOfTheSpecter".
 
 The main parts of BotOfTheSpecter are free and open source, so everyone can use and improve them!
 
