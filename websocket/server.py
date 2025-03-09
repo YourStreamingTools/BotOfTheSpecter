@@ -545,11 +545,11 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def sound_alert(self, sid, data):
         self.logger.info(f"Sound Alert event from SID [{sid}]: {data}")
-        return
+        await self.sio.emit("SOUND_ALERT", data)
 
     async def video_alert(self, sid, data):
         self.logger.info(f"Video Alert event from SID [{sid}]: {data}")
-        return
+        await self.sio.emit("VIDEO_ALERT", data)
 
     async def send_notification(self, message):
         # Broadcast a notification to all registered clients
