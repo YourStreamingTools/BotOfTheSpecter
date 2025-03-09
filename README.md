@@ -67,6 +67,7 @@ We look forward to your contributions. Thank you for supporting BotOfTheSpecter!
 
 ## Bot Support
 For one-on-one support, please join our Discord server and open a ticket.
+
 [Join our Discord](https://discord.gg/ANwEkpauHJ)
 
 As much as BotOfTheSpecter is open-sourced, premium features are available through a Twitch Subscription. These subscriptions also grant you additional support for the bot. Check the premium page on the bot dashboard for more information.
