@@ -7519,7 +7519,7 @@ async def check_song_requests():
                                 if song_id not in queue_ids:
                                     song_info = song_requests[song_id]
                                     del song_requests[song_id]
-                                    api_logger.info(f"Song {song_info['song_name']} by {song_info['artist_name']} removed from tracking list.")
+                                    api_logger.info(f"Song \"{song_info['song_name']} by {song_info['artist_name']}\" removed from tracking list.")
                     else:
                         api_logger.error(f"Failed to fetch queue from Spotify, status code: {response.status}")
 
