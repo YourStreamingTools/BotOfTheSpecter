@@ -46,7 +46,7 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
                     reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, name: 'Twitch Alerts Overlay' });
+                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Twitch Alerts' });
                 });
 
                 socket.on('disconnect', () => {
