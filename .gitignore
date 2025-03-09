@@ -70,3 +70,4 @@ bot/__pycache__/
 *.pyd
 *.pyw
 *.pyz
+bot/all_events.py
