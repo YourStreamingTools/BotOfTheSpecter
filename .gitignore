@@ -19,6 +19,7 @@ bot/working.py
 bot/test.py
 bot/test_websocket.py
 bot/phpmyadmin.txt
+bot/all_events.py
 
 # Log files & cache
 logs/*
@@ -31,7 +32,7 @@ ssl/sites-available/
 api/ssl/*
 websocket/ssl/*
 
-# Database files
+# Database files and executables
 bot/commands/*.db
 bot/sql/*
 api/app/*.exe
@@ -70,4 +71,3 @@ bot/__pycache__/
 *.pyd
 *.pyw
 *.pyz
-bot/all_events.py
