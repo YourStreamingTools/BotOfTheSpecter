@@ -25,7 +25,7 @@
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
                     reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, name: 'Deaths Overlay' });
+                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Deaths' });
                 });
 
                 socket.on('disconnect', () => {
