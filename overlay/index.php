@@ -92,7 +92,7 @@ if ($username) {
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
                     reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, name: 'All Overlays' });
+                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Everything' });
                 });
 
                 socket.on('disconnect', () => {
