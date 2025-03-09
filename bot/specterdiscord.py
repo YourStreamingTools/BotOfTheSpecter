@@ -346,6 +346,8 @@ class TicketCog(commands.Cog, name='Tickets'):
         guild = self.bot.get_guild(guild_id)
         category = guild.get_channel(settings['category_id'])
         user = guild.get_member(user_id)
+        if user is None:
+            user = await guild.fetch_member(user_id)
         support_role = guild.get_role(self.SUPPORT_ROLE)
         # Create the ticket channel
         channel = await guild.create_text_channel(
