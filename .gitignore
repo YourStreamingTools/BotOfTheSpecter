@@ -47,7 +47,7 @@ api/exchangerate.txt
 # Media files
 tts/*
 walkons/*
-soundalerts/*/*.mp3
+soundalerts/*/*
 
 # Miscellaneous files
 *Thumbs.db
