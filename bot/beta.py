@@ -939,7 +939,8 @@ async def connect():
     websocket_logger.info("Successfully established connection to internal websocket server")
     registration_data = {
         'code': API_TOKEN,
-        'name': f'Twitch Bot Beta V{VERSION}{SYSTEM}'
+        'channel': CHANNEL_NAME,
+        'name': f'Twitch Bot {SYSTEM} V{VERSION}'
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
