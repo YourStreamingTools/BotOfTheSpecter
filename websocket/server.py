@@ -150,8 +150,10 @@ class BotOfTheSpecter_WebsocketServer:
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
         code = data.get("code")
-        name = data.get("name", f"Unnamed-{sid}")
-        self.logger.info(f"Register event received from SID {sid} with code: {code} and name: {name}")
+        channel = data.get("channel", "Unknown-Channel")
+        sid_name = data.get("name", f"Unnamed-{sid}")
+        self.logger.info(f"Register event received from SID {sid} with code: '{code}', channel: '{channel}', name: '{sid_name}'")
+        name = f"{channel} - {sid_name}"
         if code:
             # Initialize the list for the code if it doesn't exist
             if code not in self.registered_clients:
