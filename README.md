@@ -55,8 +55,7 @@ Here are some general guidelines for pull requests:
 - Fork the repository and create your branch from `main`.
 - If you've added code, write clear, commented, and comprehensible code.
 - Ensure any new code or changes do not break existing functionality.
-- Update the README.md with details of changes, including new environment variables, exposed ports, useful file locations, and any other parameters.
-- Open a pull request with a clear title and description. Link the issue your pull request addresses.
+- Open a pull request with a clear title and description. Link the issue your pull request addresses if at all.
 
 ### Code of Conduct
 This project and everyone participating in it is governed by the [BotOfTheSpecter Code of Conduct](CODEOFCONDUCT.md). By contributing, you are expected to uphold this code. Please report unacceptable behavior to code@botofthespecter.com.
