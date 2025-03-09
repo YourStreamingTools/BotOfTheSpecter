@@ -64,3 +64,9 @@ This project and everyone participating in it is governed by the [BotOfTheSpecte
 If you have any questions or need further clarification about contributing, please feel free to reach out to us. You can open an issue with the tag "question" or contact questions@botofthespecter.com.
 
 We look forward to your contributions. Thank you for supporting BotOfTheSpecter!
+
+## Bot Support
+For one-on-one support, please join our Discord server and open a ticket.
+[Join our Discord](https://discord.gg/ANwEkpauHJ)
+
+As much as BotOfTheSpecter is open-sourced, premium features are available through a Twitch Subscription. These subscriptions also grant you additional support for the bot. Check the premium page on the bot dashboard for more information.
