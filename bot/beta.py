@@ -6482,12 +6482,11 @@ async def websocket_notice(
                 if event == "WALKON" and user:
                     for ext in ['.mp3', '.mp4']:
                         walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
-                    if os.path.exists(walkon_file_path):
-                        params['channel'] = CHANNEL_NAME
-                        params['user'] = user
-                        params['ext'] = ext
-                    else:
-                        return
+                        if os.path.exists(walkon_file_path):
+                            params['channel'] = CHANNEL_NAME
+                            params['user'] = user
+                            params['ext'] = ext
+                            break
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
                     params['game'] = game
