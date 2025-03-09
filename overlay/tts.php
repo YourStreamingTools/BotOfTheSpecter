@@ -68,7 +68,7 @@
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
                     reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, name: 'TTS Overlay' });
+                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'TTS' });
                 });
 
                 socket.on('disconnect', () => {
