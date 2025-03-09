@@ -1,7 +1,5 @@
 <?php
-$db_servername = 'sql.botofthespecter.com';
-$db_username = ''; // CHANGE TO MAKE THIS WORK
-$db_password = ''; // CHANGE TO MAKE THIS WORK
+include '/var/www/config/database.php';
 $primary_db_name = 'website';
 
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
