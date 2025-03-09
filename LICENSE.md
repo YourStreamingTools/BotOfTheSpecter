@@ -17,8 +17,17 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ### ADDITIONAL TERMS
-- Certain features of BotOfTheSpecter rely on external API services such as weather and music integrations. These APIs may require paid API keys, which are not included with the software.
-- Premium access to API-based features is available through support of gfaUnDead’s Twitch channel.
-- The base bot and its functionalities remain open source and free under the terms of AGPL-3.0.
+
+BotOfTheSpecter utilizes external API services for certain features like weather and music integrations. Please note the following:
+
+*   **API Keys:** These external services may require you to obtain and provide your own API keys, which are not included with the software.
+*   **Premium Features:** Some advanced, API-driven features are available as a perk for supporting gfaUnDead on Twitch through a subscription.
+*   **Open Source Core:** The core bot functionalities remain open source and free under the AGPL-3.0 license.
+
+**Code of Conduct:**
+By using or contributing to BotOfTheSpecter, you agree to adhere to our [Code of Conduct](CODEOFCONDUCT.md), which promotes a welcoming and inclusive environment.
+
+**Contribution and Usage:**
+We encourage contributions to BotOfTheSpecter. The bot is designed to enhance Twitch streaming experiences. While core functionalities are free, some premium features are offered through Twitch subscriptions to support development.
 
 For questions, please contact admin@botofthespecter.com.
