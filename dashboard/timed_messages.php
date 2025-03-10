@@ -156,7 +156,8 @@ if ($displayMessageData) {
                 <div class="field">
                     <label for="message">Message:</label>
                     <div class="control">
-                        <input class="input" type="text" name="message" id="message" required>
+                        <input class="input" type="text" name="message" id="message" required oninput="updateCharCount('message', 'charCount')">
+                        <p id="charCount" class="help">0/255 characters</p>
                         <span id="messageError" class="help is-danger" style="display: none;">Message is required</span>
                     </div>
                 </div>
@@ -215,7 +216,8 @@ if ($displayMessageData) {
                     <div class="field">
                         <label for="edit_message_content">Message:</label>
                         <div class="control">
-                            <input class="input" type="text" name="edit_message_content" id="edit_message_content" required>
+                            <input class="input" type="text" name="edit_message_content" id="edit_message_content" required oninput="updateCharCount('edit_message_content', 'editCharCount')">
+                            <p id="editCharCount" class="help">0/255 characters</p>
                         </div>
                     </div>
                     <div class="field">
@@ -279,14 +281,44 @@ function showResponse() {
         editMessageContent.value = messageData.message;
         editIntervalInput.value = messageData.interval_count;
         editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
+        // Update character count for the edit message field
+        updateCharCount('edit_message_content', 'editCharCount');
     } else {
         editMessageContent.value = '';
         editIntervalInput.value = '';
         editChatLineTriggerInput.value = '';
+        // Reset character count
+        document.getElementById('editCharCount').textContent = '0/255 characters';
+        document.getElementById('editCharCount').className = 'help';
     }
 }
+
+// Function to update character counts
+function updateCharCount(inputId, counterId) {
+    const input = document.getElementById(inputId);
+    const counter = document.getElementById(counterId);
+    const maxLength = 255;
+    const currentLength = input.value.length;
+    
+    // Update the counter text
+    counter.textContent = currentLength + '/' + maxLength + ' characters';
+    
+    // Update styling based on character count
+    if (currentLength > maxLength) {
+        counter.className = 'help is-danger';
+    } else if (currentLength > maxLength * 0.8) {
+        counter.className = 'help is-warning';
+    } else {
+        counter.className = 'help is-info';
+    }
+}
+
 // Call the function initially to pre-fill the fields if a default message is selected
-window.onload = showResponse;
+window.onload = function() {
+    showResponse();
+    // Initialize character count for the add message field
+    updateCharCount('message', 'charCount');
+}
 
 function showMessage() {
     var select = document.getElementById('remove_message');
