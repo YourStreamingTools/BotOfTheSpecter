@@ -59,47 +59,116 @@ tags_metadata = [
     },
 ]
 
+# Initialize database tables
+async def init_database():
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            # Create api_counts table if it doesn't exist
+            await cur.execute("""
+                CREATE TABLE IF NOT EXISTS api_counts (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    type VARCHAR(50) NOT NULL,
+                    count INT NOT NULL,
+                    reset_day INT NOT NULL,
+                    UNIQUE(type)
+                )
+            """)
+            # Initialize default counts if they don't exist
+            await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='weather'")
+            if (await cur.fetchone())[0] == 0:
+                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('weather', 1000, 0)")
+            await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='shazam'")
+            if (await cur.fetchone())[0] == 0:
+                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('shazam', 500, 23)")
+            await cur.execute("SELECT COUNT(*) FROM api_counts WHERE type='exchangerate'")
+            if (await cur.fetchone())[0] == 0:
+                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES ('exchangerate', 1500, 14)")
+            await conn.commit()
+            logging.info("Database tables initialized successfully")
+    except Exception as e:
+        logging.error(f"Error initializing database tables: {e}")
+    finally:
+        conn.close()
+
+# Function to get API count from database
+async def get_api_count(count_type):
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT count, reset_day FROM api_counts WHERE type=%s", (count_type,))
+            result = await cur.fetchone()
+            if result:
+                return result[0], result[1]  # Returns count and reset_day
+            # If no record exists, initialize with default values
+            if count_type == "weather":
+                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES (%s, 1000, 0)", (count_type,))
+                await conn.commit()
+                return 1000, 0
+            elif count_type == "shazam":
+                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES (%s, 500, 23)", (count_type,))
+                await conn.commit()
+                return 500, 23
+            elif count_type == "exchangerate":
+                await cur.execute("INSERT INTO api_counts (type, count, reset_day) VALUES (%s, 1500, 14)", (count_type,))
+                await conn.commit()
+                return 1500, 14
+            return None, None  # Fallback for unknown types
+    finally:
+        conn.close()
+
+# Function to update API count in database and sync with text file
+async def update_api_count(count_type, new_count):
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("UPDATE api_counts SET count=%s WHERE type=%s", (new_count, count_type))
+            await conn.commit()
+        # Update the corresponding text file
+        file_path = f"/home/fastapi/api/{count_type}_requests.txt"
+        with open(file_path, "w") as file:
+            file.write(str(new_count))
+        # Transfer the updated file to the bot's server via SFTP
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+        sftp = ssh.open_sftp()
+        sftp.put(file_path, f"/var/www/api/{count_type}.txt")
+        sftp.close()
+        ssh.close()
+    except Exception as e:
+        logging.error(f"Error updating API count for {count_type}: {e}")
+        raise
+    finally:
+        conn.close()
+
 # Midnight function
 async def midnight():
     while True:
         # Get the current time
         current_time = datetime.now()
-        # Paths to the log files
-        weather_log_file = "/home/fastapi/api/weather_requests.txt"
-        shazam_log_file = "/home/fastapi/api/shazam_requests.txt"
-        exchangerate_log_file = "/home/fastapi/api/exchangerate_requests.txt"
         try:
-            # Connect via SFTP
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-            sftp = ssh.open_sftp()
-            # Reset weather requests at midnight (this happens daily)
-            if current_time.hour == 0 and current_time.minute == 0:
-                # Reload the .env file at midnight
-                load_dotenv()
-                # Reset weather requests to 1000
-                with open(weather_log_file, "w") as weather_file:
-                    weather_file.write("1000")
-                # Transfer the weather requests file via SFTP
-                sftp.put(weather_log_file, "/var/www/api/weather.txt")
-            # Reset song identifications on the 23rd of each month
-            if current_time.day == 23 and current_time.hour == 0 and current_time.minute == 0:
-                # Reset song identifications to 500
-                with open(shazam_log_file, "w") as shazam_file:
-                    shazam_file.write("500")
-                # Transfer the song identification file via SFTP
-                sftp.put(shazam_log_file, "/var/www/api/shazam.txt")
-            # Reset exchange rate checks on the 14th of each month
-            if current_time.day == 14 and current_time.hour == 0 and current_time.minute == 0:
-                # Reset exchange rate checks to 1500
-                with open(exchangerate_log_file, "w") as exchangerate_file:
-                    exchangerate_file.write("1500")
-                # Transfer the exchange rate file via SFTP
-                sftp.put(exchangerate_log_file, "/var/www/api/exchangerate.txt")
-            # Close the SFTP connection
-            sftp.close()
-            ssh.close()
+            # Connect to database to check reset days
+            conn = await get_mysql_connection()
+            try:
+                async with conn.cursor() as cur:
+                    # Reset weather requests at midnight (this happens daily)
+                    if current_time.hour == 0 and current_time.minute == 0:
+                        # Reload the .env file at midnight
+                        load_dotenv()
+                        # Reset weather requests to 1000
+                        await update_api_count("weather", 1000)
+                    # Get reset days for other API types
+                    await cur.execute("SELECT type, reset_day FROM api_counts WHERE type in ('shazam', 'exchangerate')")
+                    reset_days = await cur.fetchall()
+                    for api_type, reset_day in reset_days:
+                        if current_time.day == reset_day and current_time.hour == 0 and current_time.minute == 0:
+                            if api_type == "shazam":
+                                await update_api_count("shazam", 500)
+                            elif api_type == "exchangerate":
+                                await update_api_count("exchangerate", 1500)
+            finally:
+                conn.close()
         except Exception as e:
             # Handle any errors during the reset and SFTP transfer
             logging.error(f"Failed to reset API request files or transfer via SFTP: {e}")
@@ -109,7 +178,8 @@ async def midnight():
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start the midnight task
+    # Initialize database tables
+    await init_database()
     midnight_task = asyncio.create_task(midnight())
     # Yield control back to FastAPI (letting it continue with startup and handling requests)
     yield
@@ -546,7 +616,10 @@ async def database_heartbeat():
 )
 async def api_song():
     try:
-        reset_day = 23
+        # Get count from database
+        count, reset_day = await get_api_count("shazam")
+        # Calculate days until reset
+        reset_day = int(reset_day)
         today = datetime.now()
         if today.day >= reset_day:
             next_month = today.month + 1 if today.month < 12 else 1
@@ -555,19 +628,9 @@ async def api_song():
         else:
             next_reset = datetime(today.year, today.month, reset_day)
         days_until_reset = (next_reset - today).days
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        get_requests_remaining = "/var/www/api/shazam.txt"
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        sftp = ssh.open_sftp()
-        with sftp.open(get_requests_remaining, "r") as requests_remaining:
-            file_content = requests_remaining.read().decode().strip()
-        sftp.close()
-        ssh.close()
-        return {"requests_remaining": file_content, "days_remaining": days_until_reset}
+        return {"requests_remaining": str(count), "days_remaining": days_until_reset}
     except Exception as e:
-        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
-        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving song API count: {str(e)}")
 
 # Public API Requests Remaining (for exchange rate)
 @app.get(
@@ -580,7 +643,10 @@ async def api_song():
 )
 async def api_exchangerate():
     try:
-        reset_day = 14
+        # Get count from database
+        count, reset_day = await get_api_count("exchangerate")
+        # Calculate days until reset
+        reset_day = int(reset_day)
         today = datetime.now()
         if today.day >= reset_day:
             next_month = today.month + 1 if today.month < 12 else 1
@@ -589,19 +655,9 @@ async def api_exchangerate():
         else:
             next_reset = datetime(today.year, today.month, reset_day)
         days_until_reset = (next_reset - today).days
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        get_requests_remaining = "/var/www/api/exchangerate.txt"
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        sftp = ssh.open_sftp()
-        with sftp.open(get_requests_remaining, "r") as requests_remaining:
-            file_content = requests_remaining.read().decode().strip()
-        sftp.close()
-        ssh.close()
-        return {"requests_remaining": file_content, "days_remaining": days_until_reset}
+        return {"requests_remaining": str(count), "days_remaining": days_until_reset}
     except Exception as e:
-        sanitized_error = str(e).replace(SFTP_USER, '[SFTP_USER]').replace(SFTP_PASSWORD, '[SFTP_PASSWORD]')
-        raise HTTPException(status_code=500, detail=f"SFTP connection failed: {sanitized_error}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving exchangerate API count: {str(e)}")
 
 # Public API Requests Remaining (for weather)
 @app.get(
@@ -623,20 +679,11 @@ async def api_weather_requests_remaining():
         if hours > 0: time_remaining = f"{hours} hours, {minutes} minutes, {seconds} seconds"
         elif minutes > 0: time_remaining = f"{minutes} minutes, {seconds} seconds"
         else: time_remaining = f"{seconds} seconds"
-        # Attempt to read the file content directly
-        weather_requests_file = "/home/fastapi/api/weather_requests.txt"
-        try:
-            with open(weather_requests_file, "r") as file:
-                file_content = file.read().strip()  # Read and strip extra spaces/newlines
-        except FileNotFoundError:
-            logging.error(f"Weather request file not found at {weather_requests_file}")  # Log the error
-            raise HTTPException(status_code=404, detail="Weather request file not found.")
-        except Exception as file_error:
-            logging.exception(f"Error reading the file: {str(file_error)}")  # Log the error with traceback
-            raise HTTPException(status_code=500, detail=f"Error reading the file: {str(file_error)}")
-        return {"requests_remaining": file_content, "time_remaining": time_remaining}
+        # Get count from database
+        count, _ = await get_api_count("weather")
+        return {"requests_remaining": str(count), "time_remaining": time_remaining}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving weather API count: {str(e)}")
 
 # killCommand EndPoint
 @app.get(
@@ -701,34 +748,17 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
             raise HTTPException(status_code=500, detail="Error fetching weather data.")
         # Format weather data & include location data
         formatted_weather_data = format_weather_data(weather_data_metric, weather_data_imperial, location_data['name'])
-        # Log the request for tracking remaining requests
-        log_file_path = "/home/fastapi/api/weather_requests.txt"
-        remaining_requests = 1000  # Default daily request limit
-        try:
-            with open(log_file_path, "r") as log_file:
-                remaining_requests = int(log_file.read().strip())
-        except FileNotFoundError:
-            remaining_requests = 1000  # If log file does not exist, we start with the max requests
-        # Reduce remaining requests by 2 (one for metric, one for imperial units)
-        remaining_requests -= 2
-        # Log the new remaining request count
-        with open(log_file_path, "w") as log_file:
-            log_file.write(str(remaining_requests))
-        # Transfer the updated file to the bot's server via SFTP
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        sftp = ssh.open_sftp()
-        sftp.put(log_file_path, "/var/www/api/weather.txt")  # Transfer to the bot's server location
-        sftp.close()
-        ssh.close()
+        # Get current weather API count from database and decrement by 2
+        count, _ = await get_api_count("weather")
+        new_count = count - 2  # Decrease by 2 for both metric and imperial requests
+        await update_api_count("weather", new_count)
         # Trigger WebSocket weather event
         params = {"event": "WEATHER_DATA", "weather_data": formatted_weather_data}
         await websocket_notice("WEATHER_DATA", params, api_key)
         return {
             "status": "success",
             "weather_data": formatted_weather_data,
-            "remaining_requests": remaining_requests,
+            "remaining_requests": new_count,
             "location_data": location_data
         }
     except Exception as e:
