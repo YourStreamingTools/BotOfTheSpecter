@@ -152,11 +152,11 @@ if ($displayMessageData) {
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-3 bot-box">
             <h4 class="title is-5">Add a timed message:</h4>
-            <form id="addMessageForm" method="post" action="">
+            <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
                 <div class="field">
                     <label for="message">Message:</label>
                     <div class="control">
-                        <input class="input" type="text" name="message" id="message" required oninput="updateCharCount('message', 'charCount')">
+                        <input class="input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount')">
                         <p id="charCount" class="help">0/255 characters</p>
                         <span id="messageError" class="help is-danger" style="display: none;">Message is required</span>
                     </div>
@@ -216,7 +216,7 @@ if ($displayMessageData) {
                     <div class="field">
                         <label for="edit_message_content">Message:</label>
                         <div class="control">
-                            <input class="input" type="text" name="edit_message_content" id="edit_message_content" required oninput="updateCharCount('edit_message_content', 'editCharCount')">
+                            <input class="input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount')">
                             <p id="editCharCount" class="help">0/255 characters</p>
                         </div>
                     </div>
@@ -274,7 +274,6 @@ function showResponse() {
     var editMessageContent = document.getElementById('edit_message_content');
     var editIntervalInput = document.getElementById('edit_interval');
     var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
-
     // Find the message content, interval, and chat line trigger for the selected message and update the corresponding input fields
     var messageData = timedMessagesData.find(m => m.id == editMessage);
     if (messageData) {
@@ -299,10 +298,8 @@ function updateCharCount(inputId, counterId) {
     const counter = document.getElementById(counterId);
     const maxLength = 255;
     const currentLength = input.value.length;
-    
     // Update the counter text
     counter.textContent = currentLength + '/' + maxLength + ' characters';
-    
     // Update styling based on character count
     if (currentLength > maxLength) {
         counter.className = 'help is-danger';
@@ -329,6 +326,42 @@ function showMessage() {
         }
     <?php endforeach; ?>
 }
+
+// Function to validate the form before submission
+function validateForm() {
+    // Message length validation
+    const messageInput = document.getElementById('message');
+    if (messageInput.value.length > 255) {
+        document.getElementById('messageError').textContent = 'Message exceeds 255 character limit';
+        document.getElementById('messageError').style.display = 'block';
+        return false;
+    }
+    // Interval validation
+    const intervalInput = document.getElementById('interval');
+    if (intervalInput.value < 5 || intervalInput.value > 60) {
+        document.getElementById('intervalError').style.display = 'block';
+        return false;
+    }
+    return true;
+}
+
+// Function to validate the edit form before submission
+function validateEditForm() {
+    const editMessageContent = document.getElementById('edit_message_content');
+    if (editMessageContent.value.length > 255) {
+        alert('Message exceeds 255 character limit');
+        return false;
+    }
+    return true;
+}
+
+// Update the edit form to use validation
+document.addEventListener('DOMContentLoaded', function() {
+    const editForm = document.querySelector('form:nth-of-type(2)');
+    if (editForm) {
+        editForm.onsubmit = validateEditForm;
+    }
+});
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
