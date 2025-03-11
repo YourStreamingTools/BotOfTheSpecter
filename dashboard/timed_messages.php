@@ -132,18 +132,22 @@ if ($displayMessageData) {
 
 <div class="container">
     <br>
-    <div class="notification is-danger">
+    <div class="notification is-info">
         <div class="columns is-vcentered is-centered">
             <div class="column is-narrow">
                 <span class="icon is-large">
-                    <i class="fas fa-tools fa-2x"></i> 
+                    <i class="fas fa-clock fa-2x"></i> 
                 </span>
             </div>
             <div class="column">
-                <p><strong>🚧 Under Construction! 🚧</strong></p> 
-                <p>Our timed messages are getting a major upgrade. Things might get a little bumpy while we're working on them.</p>
-                <p> <span class="icon"><i class="fas fa-power-off"></i></span> Don't forget to give your bot a power nap (restart it) after making any changes to your timed messages.</p>
-                <p>We appreciate your patience!</p>
+                <p><strong>Timed Messages - Fully Working as of Version 5.3</strong></p> 
+                <p>Timed messages function based on the following parameters:</p>
+                <ul style="margin-left: 20px; list-style-type: disc;">
+                    <li><strong>Message:</strong> Enter the text you want the bot to send to your chat.</li>
+                    <li><strong>Interval:</strong> Set the time interval between each message in minutes (between 5 and 60 minutes).</li>
+                    <li><strong>Chat Lines:</strong> Specify the minimum number of chat messages that must be sent in your chat before the timed message is triggered. The minimum is 5 chat messages.</li>
+                </ul>
+                <p><span class="icon"><i class="fas fa-power-off"></i></span> Don't forget to give your bot a power nap (restart it) after making any changes to your timed messages.</p>
             </div>
         </div>
     </div>
