@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="field">
                     <label for="response">Response:</label>
                     <div class="control has-icons-left">
-                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')">
+                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="255">
                         <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
                         <p id="responseCharCount" class="help">0/255 characters</p>
                     </div>
@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="field">
                         <label for="command_response">Response:</label>
                         <div class="control has-icons-left">
-                            <input class="input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')">
+                            <input class="input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255">
                             <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
                             <p id="editResponseCharCount" class="help">0/255 characters</p>
                         </div>
@@ -291,7 +291,6 @@ function showResponse() {
     var commandData = commands.find(c => c.command === command);
     responseInput.value = commandData ? commandData.response : '';
     cooldownInput.value = commandData ? commandData.cooldown : 15;
-    
     // Update character count for the edit response field
     updateCharCount('command_response', 'editResponseCharCount');
 }
@@ -302,18 +301,43 @@ function updateCharCount(inputId, counterId) {
     const counter = document.getElementById(counterId);
     const maxLength = 255;
     const currentLength = input.value.length;
-    
     // Update the counter text
     counter.textContent = currentLength + '/' + maxLength + ' characters';
-    
     // Update styling based on character count
     if (currentLength > maxLength) {
         counter.className = 'help is-danger';
+        input.classList.add('is-danger');
+        // Trim the input to maxLength characters
+        input.value = input.value.substring(0, maxLength);
     } else if (currentLength > maxLength * 0.8) {
         counter.className = 'help is-warning';
+        input.classList.remove('is-danger');
     } else {
         counter.className = 'help is-info';
+        input.classList.remove('is-danger');
     }
+}
+
+// Validate form before submission
+function validateForm(form) {
+    const maxLength = 255;
+    let valid = true;
+    // Check all text inputs with maxlength attribute
+    const textInputs = form.querySelectorAll('input[type="text"][maxlength]');
+    textInputs.forEach(input => {
+        if (input.value.length > maxLength) {
+            input.classList.add('is-danger');
+            valid = false;
+            // Find associated help text and update
+            const helpId = input.id + 'CharCount';
+            const helpText = document.getElementById(helpId);
+            if (helpText) {
+                helpText.textContent = input.value.length + '/' + maxLength + ' characters - Exceeds limit!';
+                helpText.className = 'help is-danger';
+            }
+        }
+    });
+    return valid;
 }
 
 // Initialize character counters when page loads
@@ -321,10 +345,19 @@ window.onload = function() {
     updateCharCount('response', 'responseCharCount');
     // Always initialize the edit response character counter, even when empty
     updateCharCount('command_response', 'editResponseCharCount');
-    
     // Add event listener to command dropdown to update character count when a command is selected
     document.getElementById('command_to_edit').addEventListener('change', function() {
         updateCharCount('command_response', 'editResponseCharCount');
+    });
+    // Add form validation to both forms
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(event) {
+            if (!validateForm(this)) {
+                event.preventDefault();
+                alert('Response exceeds the maximum character limit of 255 characters. Please shorten your message.');
+            }
+        });
     });
 }
 </script>
