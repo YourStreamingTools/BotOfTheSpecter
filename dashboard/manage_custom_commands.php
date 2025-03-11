@@ -131,8 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="field">
                     <label for="response">Response:</label>
                     <div class="control has-icons-left">
-                        <input class="input" type="text" name="response" id="response" required>
+                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')">
                         <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
+                        <p id="responseCharCount" class="help">0/255 characters</p>
                     </div>
                 </div>
                 <div class="field">
@@ -167,8 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="field">
                         <label for="command_response">Response:</label>
                         <div class="control has-icons-left">
-                            <input class="input" type="text" name="command_response" id="command_response" value="" required>
+                            <input class="input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')">
                             <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
+                            <p id="editResponseCharCount" class="help">0/255 characters</p>
                         </div>
                     </div>
                     <div class="field">
@@ -289,6 +291,41 @@ function showResponse() {
     var commandData = commands.find(c => c.command === command);
     responseInput.value = commandData ? commandData.response : '';
     cooldownInput.value = commandData ? commandData.cooldown : 15;
+    
+    // Update character count for the edit response field
+    updateCharCount('command_response', 'editResponseCharCount');
+}
+
+// Function to update character counts
+function updateCharCount(inputId, counterId) {
+    const input = document.getElementById(inputId);
+    const counter = document.getElementById(counterId);
+    const maxLength = 255;
+    const currentLength = input.value.length;
+    
+    // Update the counter text
+    counter.textContent = currentLength + '/' + maxLength + ' characters';
+    
+    // Update styling based on character count
+    if (currentLength > maxLength) {
+        counter.className = 'help is-danger';
+    } else if (currentLength > maxLength * 0.8) {
+        counter.className = 'help is-warning';
+    } else {
+        counter.className = 'help is-info';
+    }
+}
+
+// Initialize character counters when page loads
+window.onload = function() {
+    updateCharCount('response', 'responseCharCount');
+    // Always initialize the edit response character counter, even when empty
+    updateCharCount('command_response', 'editResponseCharCount');
+    
+    // Add event listener to command dropdown to update character count when a command is selected
+    document.getElementById('command_to_edit').addEventListener('change', function() {
+        updateCharCount('command_response', 'editResponseCharCount');
+    });
 }
 </script>
 </body>
