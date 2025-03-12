@@ -45,7 +45,6 @@
         </div>
     </div>
 </div>
-<br>
 <div class="section">
     <div class="container">
         <div class="columns">
