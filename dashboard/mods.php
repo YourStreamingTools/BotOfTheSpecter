@@ -145,15 +145,6 @@ foreach ($filteredModerators as $mod) {
         break;
     }
 }
-
-// Add BotOfTheSpecter if not already in the list
-if (!$botOfTheSpecterExists) {
-    $filteredModerators[] = [
-        'user_id' => 'botofthespecter_id', // Will be used just for display purposes
-        'user_name' => 'BotOfTheSpecter',
-        'user_login' => 'botofthespecter'
-    ];
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
