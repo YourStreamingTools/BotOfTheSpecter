@@ -29,7 +29,7 @@
     </div>
     <div id="navbarBasic" class="navbar-menu is-dark has-text-light">
         <div class="navbar-start is-dark has-text-light">
-            <div class="navbar-item has-dropdown is-hoverable">
+            <div class="navbar-item is-dark has-dropdown is-hoverable">
                 <a class="navbar-link is-dark has-text-light">Menu</a>
                 <div class="navbar-dropdown is-dark has-text-light">
                     <a href="index.php" class="navbar-item is-dark has-text-light">Home</a>
