@@ -287,29 +287,53 @@ if ($backup_system == true) {
     <div class="column is-5 bot-box" style="position: relative;">
       <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4 bot-box-title" style="text-align: center;">System Status</h4>
-      <div style="display: flex; align-items: center; margin-bottom: 10px;">
-        <span id="apiServiceIcon"><i id="apiService" class="fas fa-heartbeat" style="color: green; margin-right: 5px"></i></span>
-        <span class="subtitle" style="margin-right: 10px;">API Service</span>
-      </div>
-      <div style="display: flex; align-items: center; margin-bottom: 10px;">
-        <span id="databaseServiceIcon"><i id="databaseService" class="fas fa-heartbeat" style="color: green; margin-right: 5px"></i></span>
-        <span class="subtitle" style="margin-right: 10px;">Database Service</span>
-      </div>
-      <div style="display: flex; align-items: center; margin-bottom: 10px;">
-        <span id="heartbeatIcon"><i id="heartbeat" class="fas fa-heartbeat" style="color: green; margin-right: 5px"></i></span>
-        <span class="subtitle" style="margin-right: 10px;">Notification Service</span>
-      </div>
-      <br>
-      <div style="display: flex; align-items: center; margin-bottom: 10px;">
-        <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-          <button class="button is-primary bot-button" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
-          <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
+      <!-- Status indicators in 2x2 layout -->
+      <div class="columns is-mobile is-multiline">
+        <div class="column is-6">
+          <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+            <span class="subtitle">
+              <span id="apiServiceIcon">
+                <i id="apiService" class="fas fa-heartbeat" style="color: green;"></i>
+              </span>
+              <span style="margin-left: 3px">API Service</span>
+            </span>
+          </div>
+        </div>
+        <div class="column is-6">
+          <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+            <span class="subtitle">
+              <span id="databaseServiceIcon">
+                <i id="databaseService" class="fas fa-heartbeat" style="color: green;"></i>
+              </span>
+              <span style="margin-left: 3px">Database Service</span>
+            </span>
+          </div>
+        </div>
+        <div class="column is-12">
+          <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+            <span class="subtitle">
+              <span id="heartbeatIcon">
+                <i id="heartbeat" class="fas fa-heartbeat" style="color: green;"></i>
+              </span>
+              <span style="margin-left: 3px">Notification Service</span>
+            </span>
+          </div>
         </div>
       </div>
-      <div style="display: flex; align-items: center;">
-        <div class="buttons" style="position: relative; display: inline-block; cursor: pointer;">
-          <button class="button is-danger bot-button" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
-          <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
+      <br>
+      <!-- Buttons in 1x2 layout -->
+      <div class="columns is-mobile">
+        <div class="column">
+          <div style="position: relative; text-align: center;">
+            <button class="button is-primary bot-button is-fullwidth" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
+            <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
+          </div>
+        </div>
+        <div class="column">
+          <div style="position: relative; text-align: center;">
+            <button class="button is-danger bot-button is-fullwidth" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
+            <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
+          </div>
         </div>
       </div>
     </div>
