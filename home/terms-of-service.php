@@ -7,13 +7,13 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
     <link rel="stylesheet" type="text/css" href="style.css">
     <script src="navbar.js" defer></script>
-    <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
-    <link rel="apple-touch-icon" href="https://botofthespecter.yourcdnonline.com/logo.png">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Tools4Streaming" />
     <meta name="twitter:title" content="BotOfTheSpecter" />
     <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
-    <meta name="twitter:image" content="https://botofthespecter.yourcdnonline.com/BotOfTheSpecter.jpeg" />
+    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
 </head>
 <body>
 <div class="navbar is-fixed-top is-dark has-text-light" role="navigation" aria-label="main navigation">
