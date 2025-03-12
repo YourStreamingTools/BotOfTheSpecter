@@ -54,7 +54,7 @@
                     <h2 class="title is-3 has-text-light">Our Bot Solutions</h2>
                 </section>
                 <!-- Twitch Bot Section -->
-                <section class="has-text-light" style="padding: 20px; border-left: 4px solid #9146FF;">
+                <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Twitch Bot Features</h2>
                     <ul>
                         <li><strong>Custom Chat Commands:</strong> Create and manage custom commands to engage with your viewers</li>
@@ -67,10 +67,10 @@
                     <p class="mt-3">Take complete control of your Twitch channel with our powerful yet user-friendly dashboard. Streamline moderation, increase viewer engagement, and grow your community efficiently.</p>
                 </section>
                 <!-- Discord Bot Section -->
-                <section class="has-text-light" style="padding: 20px; border-left: 4px solid #5865F2;">
+                <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Discord Bot Features</h2>
                     <p><strong>Current Capabilities:</strong></p>
-                    <>
+                    <ul>
                         <li>Basic chat posting functionality</li>
                         <li>Server announcements integration</li>
                         <li>Role management and automation</li>
