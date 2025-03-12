@@ -2,6 +2,7 @@ body, html {
     margin: 0;
     padding: 0;
     height: 100%;
+    background-color: #121212;
 }
 
 body {
@@ -10,6 +11,42 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+}
+
+/* Add background color to sections */
+.section {
+    background-color: #121212;
+}
+
+/* Ensure containers maintain dark theme */
+.container {
+    flex: 1 0 auto;
+    background-color: #121212;
+}
+
+/* Fix for columns to maintain dark background */
+.columns, .column {
+    background-color: #121212;
+}
+
+/* Ensure content sections maintain dark background */
+section {
+    background-color: #121212;
+}
+
+/* Fix for potential scrollbar gap */
+::-webkit-scrollbar {
+    background-color: #121212;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #333333;
+    border-radius: 10px;
+}
+
+/* Ensure consistent spacing */
+.section, .container {
+    padding-top: 60px; /* Account for fixed navbar */
 }
 
 .footer {
