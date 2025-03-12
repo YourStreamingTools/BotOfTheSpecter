@@ -57,19 +57,19 @@
                 <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Twitch Bot Features</h2>
                     <ul>
-                        <li><strong>Custom Chat Commands:</strong> Create and manage custom commands to engage with your viewers</li>
-                        <li><strong>Channel Point Rewards:</strong> Set up and automate responses to channel point redemptions</li>
-                        <li><strong>Real-time Analytics:</strong> Monitor your channel growth, viewer engagement, and subscriber trends</li>
-                        <li><strong>Community Management:</strong> Tools for managing subscribers, VIPs, and moderating chat</li>
-                        <li><strong>Automated Alerts:</strong> Customizable notifications for follows, subscriptions, and donations</li>
-                        <li><strong>Stream Dashboard:</strong> All-in-one control center for your stream management</li>
+                        <li><span class="has-text-weight-bold">Custom Chat Commands:</span> Create and manage custom commands to engage with your viewers</li>
+                        <li><span class="has-text-weight-bold">Channel Point Rewards:</span> Set up and automate responses to channel point redemptions</li>
+                        <li><span class="has-text-weight-bold">Real-time Analytics:</span> Monitor your channel growth, viewer engagement, and subscriber trends</li>
+                        <li><span class="has-text-weight-bold">Community Management:</span> Tools for managing subscribers, VIPs, and moderating chat</li>
+                        <li><span class="has-text-weight-bold">Automated Alerts:</span> Customizable notifications for follows, subscriptions, and donations</li>
+                        <li><span class="has-text-weight-bold">Stream Dashboard:</span> All-in-one control center for your stream management</li>
                     </ul>
                     <p class="mt-3">Take complete control of your Twitch channel with our powerful yet user-friendly dashboard. Streamline moderation, increase viewer engagement, and grow your community efficiently.</p>
                 </section>
                 <!-- Discord Bot Section -->
                 <section class="has-text-light" style="padding: 20px;">
                     <h2 class="title is-4 has-text-light">Discord Bot Features</h2>
-                    <p><strong>Current Capabilities:</strong></p>
+                    <p><span class="has-text-weight-bold">Current Capabilities:</span></p>
                     <ul>
                         <li>Basic chat posting functionality</li>
                         <li>Server announcements integration</li>
