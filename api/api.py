@@ -12,7 +12,7 @@ import urllib
 import aioping
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List
@@ -491,6 +491,44 @@ async def handle_kofi_webhook(api_key: str = Query(...), data: str = Form(...)):
     except Exception as e:
         logging.error(f"Error forwarding Kofi webhook: {e}")
         raise HTTPException(status_code=500, detail=f"Error forwarding Kofi webhook: {str(e)}")
+
+# Define the /patreon endpoint for handling webhook data
+@app.post(
+    "/patreon",
+    summary="Receive and process Patreon Webhook Requests",
+    description="This endpoint allows you to send webhook data from Patreon to be processed by the bot's WebSocket server.",
+    tags=["Webhooks"],
+    status_code=status.HTTP_200_OK,
+    operation_id="process_patreon_webhook"
+)
+async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
+    try:
+        webhook_data = await request.json()
+        logging.info(f"Received Patreon Webhook data: {webhook_data}") # Log the received webhook data
+    except Exception as e:
+        logging.error(f"Error parsing Patreon webhook JSON payload: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    async with aiohttp.ClientSession() as session:
+        try:
+            params = {
+                "code": api_key,
+                "event": "PATREON",
+                "data": webhook_data
+            }
+            encoded_params = urlencode(params)
+            url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    error_detail = f"Failed to send HTTP event 'PATREON' to websocket server. Status code: {response.status}" # More specific error message
+                    logging.error(error_detail)
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=error_detail
+                    )
+        except Exception as e:
+            logging.error(f"Error sending Patreon event to websocket server: {e}")
+            return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Error forwarding to websocket server"}) # Return 500 on websocket send failure
+    return {"status": "success", "message": "Patreon Webhook received and processed"}
 
 # Quotes endpoint
 @app.get(
