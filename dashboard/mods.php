@@ -99,6 +99,61 @@ $stmt = $conn->prepare('SELECT * FROM moderator_access WHERE broadcaster_id = ?'
 $stmt->bind_param('s', $_SESSION['twitchUserId']);
 $stmt->execute();
 $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Fetch all registered users from the users table
+$registeredUsers = [];
+$userStmt = $conn->prepare('SELECT twitch_display_name FROM users');
+$userStmt->execute();
+$result = $userStmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $registeredUsers[] = strtolower($row['twitch_display_name']);
+}
+
+// Filter out common bot accounts
+$botAccounts = [
+    'streamelements',
+    'lumiastream',
+    'kofistreambot',
+    'fourthwallhq',
+    'nightbot',
+    'moobot',
+    'streamlabs',
+    'commanderroot',
+    'botisimo',
+    'fossabot',
+    'wizebot',
+    'deepbot',
+    'streamcaptainbot',
+    'moderator',
+    'raidshield',
+    'ankhbot',
+    'phantombot',
+    'streamlooter',
+    'revlobot',
+    'scottybot'
+];
+
+$filteredModerators = array_filter($allModerators, function($moderator) use ($botAccounts) {
+    return !in_array(strtolower($moderator['user_name']), $botAccounts);
+});
+
+// Check if BotOfTheSpecter is already in the list
+$botOfTheSpecterExists = false;
+foreach ($filteredModerators as $mod) {
+    if (strtolower($mod['user_name']) === 'botofthespecter') {
+        $botOfTheSpecterExists = true;
+        break;
+    }
+}
+
+// Add BotOfTheSpecter if not already in the list
+if (!$botOfTheSpecterExists) {
+    $filteredModerators[] = [
+        'user_id' => 'botofthespecter_id', // Will be used just for display purposes
+        'user_name' => 'BotOfTheSpecter',
+        'user_login' => 'botofthespecter'
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -125,6 +180,8 @@ $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <div class="column">
                 <p><span class="has-text-weight-bold">Moderator Dashboard Access: Coming Soon!</span></p>
                 <p>We're working on a feature to let your Twitch moderators access your Specter dashboard. This will allow them to manage Specter settings without using chat commands.</p>
+                <hr class="has-background-white-ter my-2" style="height: 1px;">
+                <p><span class="has-text-weight-bold">Note:</span> For clarity, common known bot accounts have been removed from this list, including: StreamElements, LumiaStream, KofiStreamBot, FourthwallHQ, NightBot, MooBot, Streamlabs, and others.</p>
             </div>
         </div>
     </div>
@@ -133,20 +190,36 @@ $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <thead>
                 <tr>
                     <th>Moderator Name</th>
+                    <th>Specter Dashboard Registration</th>
                     <th>Specter Moderator Access</th>
                 </tr>
             </thead>
             <tbody>
                 <?php 
-                foreach ($allModerators as $moderator) : 
+                foreach ($filteredModerators as $moderator) : 
                     $modDisplayName = $moderator['user_name'];
                     $modUserId = $moderator['user_id'];
                     $hasAccess = in_array($modUserId, array_column($moderatorsAccess, 'moderator_id'));
+                    $isRegistered = in_array(strtolower($modDisplayName), $registeredUsers);
+                    // BotOfTheSpecter always has access
+                    if (strtolower($modDisplayName) === 'botofthespecter') {
+                        $hasAccess = true;
+                        $isRegistered = true;
+                    }
                 ?>
                 <tr>
                     <td><?php echo $modDisplayName; ?></td>
                     <td>
-                        <?php if ($hasAccess) : ?>
+                        <?php if ($isRegistered) : ?>
+                            <span class="has-text-success">True</span>
+                        <?php else : ?>
+                            <span class="has-text-danger">False</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if (strtolower($modDisplayName) === 'botofthespecter') : ?>
+                            <button class="button is-success" disabled>Always Has Access</button>
+                        <?php elseif ($hasAccess) : ?>
                             <button class="button is-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove">Remove Access</button>
                         <?php else : ?>
                             <button class="button is-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add">Add Access</button>
