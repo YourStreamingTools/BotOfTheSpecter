@@ -874,18 +874,14 @@ checkLastModified();
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <?php include 'usr_database.php'; ?>
 <script>
-// Attach a submit handler on each form so that after submission the button is disabled
+// Attach a submit handler on each form so that after submission all bot buttons are disabled
 document.addEventListener('DOMContentLoaded', function() {
   const forms = document.querySelectorAll('form');
   forms.forEach(form => {
     form.addEventListener('submit', function(event) {
-      // If supported, use event.submitter (the button that triggered the submit)
-      let btn = event.submitter || form.querySelector('.bot-button');
-      // Use a very short delay to ensure the submit signal is sent
+      // Use a slight delay to ensure the submit signal is sent
       setTimeout(() => {
-        if(btn) {
-          btn.disabled = true;
-        }
+        document.querySelectorAll('.bot-button').forEach(btn => btn.disabled = true);
       }, 10);
     });
   });
