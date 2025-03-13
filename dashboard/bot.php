@@ -874,14 +874,19 @@ checkLastModified();
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <?php include 'usr_database.php'; ?>
 <script>
-// Wait 5 seconds after a bot button is clicked to disable all buttons
+// Attach a submit handler on each form so that after submission the button is disabled
 document.addEventListener('DOMContentLoaded', function() {
-  const buttons = document.querySelectorAll('.bot-button');
-  buttons.forEach(function(button) {
-    button.addEventListener('click', function() {
+  const forms = document.querySelectorAll('form');
+  forms.forEach(form => {
+    form.addEventListener('submit', function(event) {
+      // If supported, use event.submitter (the button that triggered the submit)
+      let btn = event.submitter || form.querySelector('.bot-button');
+      // Use a very short delay to ensure the submit signal is sent
       setTimeout(() => {
-        buttons.forEach(btn => btn.disabled = true);
-      }, 5000); // Wait 5 seconds before disabling
+        if(btn) {
+          btn.disabled = true;
+        }
+      }, 10);
     });
   });
 });
