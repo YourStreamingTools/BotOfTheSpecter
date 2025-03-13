@@ -7196,8 +7196,6 @@ async def midnight():
         if current_time.hour == 0 and current_time.minute == 0:
             # Reload the .env file at midnight
             await reload_env_vars()
-            # Log or handle any environment variable updates
-            bot_logger.info("Reloaded environment variables")
             # Send the midnight message to the channel
             cur_date = current_time.strftime("%d %B %Y")
             cur_time = current_time.strftime("%I %p")
