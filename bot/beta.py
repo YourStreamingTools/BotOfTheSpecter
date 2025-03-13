@@ -4522,6 +4522,8 @@ class TwitchBot(commands.Bot):
     @commands.command(name="roulette")
     async def roulette_command(self, ctx):
         global bot_owner
+        user_id = str(ctx.author.id)
+        user_name = ctx.author.name
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4535,12 +4537,33 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
+                # Fetch user's points from the database
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                user_data = await cursor.fetchone()
+                if not user_data:
+                    await cursor.execute(
+                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
+                        (user_id, user_name, 0)
+                    )
+                    await sqldb.commit()
+                    user_points = 0
+                else:
+                    user_points = user_data.get("points")
                 outcomes = [
                     "and survives!",
                     "and gets shot!"
                 ]
                 result = random.choice(outcomes)
-                await ctx.send(f"{ctx.author.name} pulls the trigger... {result}")
+                message = f"{ctx.author.name} pulls the trigger... {result}"
+                # If user gets shot, subtract 100 points for hospital bills
+                if "gets shot" in result:
+                    penalty = 100
+                    user_points = max(0, user_points - penalty)
+                    message += f" Lost {penalty} points for hospital bills. Current points: {user_points}"
+                    # Update user's points in the database
+                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                    await sqldb.commit()
+                await ctx.send(message)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
