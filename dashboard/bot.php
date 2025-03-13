@@ -180,28 +180,6 @@ if ($backup_system == true) {
   <head>
     <!-- Header -->
     <?php include('header.php'); ?>
-    <style>
-      .bot-button.is-loading {
-        opacity: 0.7;
-        cursor: not-allowed;
-        position: relative;
-      }
-      .bot-button.is-loading::after {
-        content: "";
-        position: absolute;
-        width: 16px;
-        height: 16px;
-        top: calc(50% - 8px);
-        right: 8px;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        border-right-color: transparent;
-        animation: spinner 0.75s linear infinite;
-      }
-      @keyframes spinner {
-        to {transform: rotate(360deg);}
-      }
-    </style>
     <!-- /Header -->
   </head>
 <body>
@@ -736,129 +714,88 @@ function updateApiLimits() {
 function checkLastModified() {
   var xhr = new XMLHttpRequest();
   xhr.open("GET", "", true);
-  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");ctionality
-  xhr.onreadystatechange = function () {.addEventListener('DOMContentLoaded', function() {
-    if (xhr.readyState === 4 && xhr.status === 200) {ion=""]');
+  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4 && xhr.status === 200) {
       var response = xhr.responseText.trim();
       var lastModifiedStart = response.indexOf('<span id="last-modified-time">') + '<span id="last-modified-time">'.length;
-      var lastModifiedEnd = response.indexOf('</span>', lastModifiedStart);stener('submit', function(event) {
+      var lastModifiedEnd = response.indexOf('</span>', lastModifiedStart);
       var lastModifiedTime = response.substring(lastModifiedStart, lastModifiedEnd).trim();
-      if (lastModifiedTime) {lector('button[type="submit"]');
+      if (lastModifiedTime) {
         document.getElementById("last-modified-time").innerText = lastModifiedTime;
       }
-    }preventDefault();
+    }
   };
-  xhr.send();t's processing
-} button.disabled = true;
-  const originalText = button.textContent;
-setInterval(checkAllServices, 5000);= 30;
-setInterval(updateApiLimits, 60000);
-setInterval(checkLastModified, 300000);
-checkAllServices();ng');
-updateApiLimits(); 
-checkLastModified();       // Create a timer that updates every second
-</script>        const timer = setInterval(function() {
+  xhr.send();
+}
+
+setInterval(checkAllServices, 5000);
+setInterval(updateApiLimits, 5000);
+setInterval(checkLastModified, 5000);
+checkAllServices();
+updateApiLimits();
+checkLastModified();
+</script>
 <?php if ($showButtons): ?>
-<script>xt} (${timeLeft}s)`;
+<script>
 function checkServiceStatus(service, elementId, url) {
   fetch(url)
-    .then(response => response.json())nable the button after timeout
+    .then(response => response.json())
     .then(data => {
-      const serviceIcon = document.getElementById(elementId);se;
+      const serviceIcon = document.getElementById(elementId);
       if (data.status === 'OK') {
-        serviceIcon.className = 'fas fa-heartbeat beating';ading');
+        serviceIcon.className = 'fas fa-heartbeat beating';
         serviceIcon.style.color = 'green';
       } else {
         serviceIcon.className = 'fas fa-heart-broken';
-        serviceIcon.style.color = 'red'; // Submit the form programmatically after disabling the button
-      }  const formData = new FormData(form);
-    })ew XMLHttpRequest();
-    .catch(error => {ue);
-      const serviceIcon = document.getElementById(elementId);
-      serviceIcon.className = 'fas fa-heart-broken';mplete, but we keep the button disabled for the full 30 seconds
-      serviceIcon.style.color = 'red';   if (xhr.status >= 200 && xhr.status < 400) {
-    });            // Success! We can update UI here if needed
-}
- status after 2 seconds
-function checkAllServices() {eady refreshing via PHP redirect
-  // Fetch the latest status for API servicexhr.responseText.includes('Location:')) {
-  fetch('/api_status.php?service=api')
-    .then(response => response.json())
-    .then(data => {
-      const serviceIcon = document.getElementById('apiService');
-      if (data.status === 'OK') { Handle error if needed
-        serviceIcon.className = 'fas fa-heartbeat beating';
-        serviceIcon.style.color = 'green';
-      } else { };
-        serviceIcon.className = 'fas fa-heart-broken';  xhr.onerror = function() {
-        serviceIcon.style.color = 'red';or('Form submission error');
-      }
-    })
-    .catch(error => {
-      const serviceIcon = document.getElementById('apiService');
-      serviceIcon.className = 'fas fa-heart-broken';  });
-      serviceIcon.style.color = 'red';
-    });
-
-  // Fetch the latest status for WebSocket service
-function checkServiceStatus(service, elementId, url) {
-  fetch(url)on())
-    .then(response => response.json())
-    .then(data => {mentById('heartbeat');
-      const serviceIcon = document.getElementById(elementId);.status === 'OK') {
-      if (data.status === 'OK') {ting';
-        serviceIcon.className = 'fas fa-heartbeat beating';n';
-        serviceIcon.style.color = 'green'; else {
-      } else {  websocketServiceIcon.className = 'fas fa-heart-broken';
-        serviceIcon.className = 'fas fa-heart-broken';iceIcon.style.color = 'red';
         serviceIcon.style.color = 'red';
       }
     })
-    .catch(error => {onst websocketServiceIcon = document.getElementById('heartbeat');
-      const serviceIcon = document.getElementById(elementId);     websocketServiceIcon.className = 'fas fa-heart-broken';
-      serviceIcon.className = 'fas fa-heart-broken';      websocketServiceIcon.style.color = 'red';
+    .catch(error => {
+      const serviceIcon = document.getElementById(elementId);
+      serviceIcon.className = 'fas fa-heart-broken';
       serviceIcon.style.color = 'red';
     });
-}abase service
-tus.php?service=database')
-function checkAllServices() {se.json())
+}
+
+function checkAllServices() {
   // Fetch the latest status for API service
   fetch('/api_status.php?service=api')
     .then(response => response.json())
     .then(data => {
-      const serviceIcon = document.getElementById('apiService');  databaseServiceIcon.style.color = 'green';
+      const serviceIcon = document.getElementById('apiService');
       if (data.status === 'OK') {
         serviceIcon.className = 'fas fa-heartbeat beating';
         serviceIcon.style.color = 'green';
       } else {
         serviceIcon.className = 'fas fa-heart-broken';
-        serviceIcon.style.color = 'red';atch(error => {
-      }on = document.getElementById('databaseService');
+        serviceIcon.style.color = 'red';
+      }
     })
     .catch(error => {
       const serviceIcon = document.getElementById('apiService');
       serviceIcon.className = 'fas fa-heart-broken';
       serviceIcon.style.color = 'red';
-    });tion updateApiLimits() {
-s.php')
+    });
+
   // Fetch the latest status for WebSocket service
-  fetch('/api_status.php?service=websocket')en(data => {
-    .then(response => response.json())   // Update Shazam Section
-    .then(data => {    document.getElementById('shazam-section').innerHTML = `
-      const websocketServiceIcon = document.getElementById('heartbeat');;'>Song Identifications Left: <span style='color: #e74c3c;'>${data.shazam.requests_remaining}</span> 
-      if (data.status === 'OK') {te: ${data.shazam.reset_date}'>${data.shazam.days_until_reset} days until reset</span>)</p>
-        websocketServiceIcon.className = 'fas fa-heartbeat beating'; style='color: #f39c12;'>${data.shazam.last_modified}</span></p>
+  fetch('/api_status.php?service=websocket')
+    .then(response => response.json())
+    .then(data => {
+      const websocketServiceIcon = document.getElementById('heartbeat');
+      if (data.status === 'OK') {
+        websocketServiceIcon.className = 'fas fa-heartbeat beating';
         websocketServiceIcon.style.color = 'green';
       } else {
-        websocketServiceIcon.className = 'fas fa-heart-broken';nnerHTML = `
-        websocketServiceIcon.style.color = 'red';e Checks Left: <span style='color: #e74c3c;'>${data.exchangerate.requests_remaining}</span> 
-      }t</span>)</p>
-    })st_modified}</span></p>
+        websocketServiceIcon.className = 'fas fa-heart-broken';
+        websocketServiceIcon.style.color = 'red';
+      }
+    })
     .catch(error => {
       const websocketServiceIcon = document.getElementById('heartbeat');
       websocketServiceIcon.className = 'fas fa-heart-broken';
-      websocketServiceIcon.style.color = 'red';p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>${data.weather.requests_remaining}</span><br> 
-    }); (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes until reset</span>)</p>
+      websocketServiceIcon.style.color = 'red';
+    });
 
   // Fetch the latest status for Database service
   fetch('/api_status.php?service=database')
@@ -927,8 +864,8 @@ function checkLastModified() {
 }
 
 setInterval(checkAllServices, 5000);
-setInterval(updateApiLimits, 60000);
-setInterval(checkLastModified, 300000);
+setInterval(updateApiLimits, 5000);
+setInterval(checkLastModified, 5000);
 checkAllServices();
 updateApiLimits();
 checkLastModified();
