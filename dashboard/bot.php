@@ -876,10 +876,27 @@ checkLastModified();
 <script>
 // Attach a submit handler on each form so that after submission all bot buttons are disabled
 document.addEventListener('DOMContentLoaded', function() {
+  // Reset all bot buttons on page load
+  const buttons = document.querySelectorAll('.bot-button');
+  buttons.forEach(btn => {
+    // Store original text if not already stored
+    if (!btn.dataset.originalText) {
+      btn.dataset.originalText = btn.innerHTML;
+    }
+    // Ensure button is enabled and its text is reset
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.originalText;
+    // On clicking update text to "Working" with spinner icon
+    btn.addEventListener('click', function() {
+      btn.innerHTML = 'Working <i class="fas fa-spinner fa-spin"></i>';
+    });
+  });
+
+  // Attach submit handler to disable buttons on form submit
   const forms = document.querySelectorAll('form');
   forms.forEach(form => {
     form.addEventListener('submit', function(event) {
-      // Use a slight delay to ensure the submit signal is sent
+      // Slight delay to ensure submit signal is sent
       setTimeout(() => {
         document.querySelectorAll('.bot-button').forEach(btn => btn.disabled = true);
       }, 10);
