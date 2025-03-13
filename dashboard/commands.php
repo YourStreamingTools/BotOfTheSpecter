@@ -82,12 +82,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <table class="table is-striped is-fullwidth" id="commandsTable">
           <thead>
             <tr>
-              <th style="width: 200px;">Command</th>
-              <th>Response</th>
-              <th style="width: 100px;">Cooldown</th>
-              <th style="width: 100px;">Status</th>
-              <th style="width: 100px;">Action</th>
-              <th style="width: 100px;">Remove</th>
+              <th style="width: 200px;" class="has-text-centered">Command</th>
+              <th class="has-text-centered">Response</th>
+              <th style="width: 100px;" class="has-text-centered">Cooldown</th>
+              <th style="width: 100px;" class="has-text-centered">Status</th>
+              <th style="width: 100px;" class="has-text-centered">Action</th>
+              <th style="width: 100px;" class="has-text-centered">Remove</th>
             </tr>
           </thead>
           <tbody>
@@ -95,9 +95,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
               <tr>
                 <td>!<?php echo $command['command']; ?></td>
                 <td><?php echo $command['response']; ?></td>
-                <td><?php echo $command['cooldown']; ?>s</td>
-                <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;"><?php echo $command['status']; ?></td>
-                <td>
+                <td class="has-text-centered" style="vertical-align: middle;"><?php echo $command['cooldown']; ?>s</td>
+                <td class="has-text-centered" style="vertical-align: middle; color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
+                  <?php echo $command['status']; ?>
+                </td>
+                <td class="has-text-centered" style="vertical-align: middle;">
                   <label class="checkbox">
                     <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked)">
                     <span class="icon is-small">
@@ -105,7 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </span>
                   </label>
                 </td>
-                <td>
+                <td class="has-text-centered" style="vertical-align: middle;">
                   <form method="POST" style="display:inline;">
                     <input type="hidden" name="remove_command" value="<?php echo $command['command']; ?>">
                     <button type="submit" class="button is-small is-danger"><i class="fas fa-trash-alt"></i></button>
