@@ -873,5 +873,16 @@ checkLastModified();
 <?php endif; ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <?php include 'usr_database.php'; ?>
+<script>
+// Disable all bot buttons permanently on click until page refresh
+document.addEventListener('DOMContentLoaded', function() {
+  const buttons = document.querySelectorAll('.bot-button');
+  buttons.forEach(function(button) {
+    button.addEventListener('click', function() {
+      buttons.forEach(btn => btn.disabled = true);
+    });
+  });
+});
+</script>
 </body>
 </html>
