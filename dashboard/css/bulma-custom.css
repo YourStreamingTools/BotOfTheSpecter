@@ -520,6 +520,10 @@ input[type="submit"]:hover {
     align-items: center;
 }
 
+.bot-button:hover {
+    color: #ffffff !important;
+}
+
 @media screen and (max-width: 1400px) {
     .navbar-item {
         padding: 0.5rem 0.5rem;

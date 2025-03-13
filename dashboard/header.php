@@ -8,7 +8,7 @@
     <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="../css/bulma-custom.css?v=5.0">
+    <link rel="stylesheet" href="../css/bulma-custom.css?v=5.1">
     <script src="../js/about.js?v=1.0"></script>
     <script src="../js/navbar.js?v=1.4"></script>
     <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
