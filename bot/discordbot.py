@@ -185,7 +185,6 @@ class BotOfTheSpecter(commands.Bot):
         self.discord_token = discord_token
         self.channel_name = channel_name
         self.logger = discord_logger
-        self.typing_speed = 50
         self.http._HTTPClient__session = LoggingClientSession(logger=self.logger, connector=aiohttp.TCPConnector(ssl=False))
 
     # Function to read the stream status from the file
@@ -242,7 +241,10 @@ class BotOfTheSpecter(commands.Bot):
         if message.author == self.user:
             return
         # Process the message
-        await self.process_commands(message)
+        try:
+            await self.process_commands(message)
+        except Exception as e:
+            self.logger.error(f"Error processing command: {e}")
 
     async def update_channel_status(self, channel_id: int, status: str):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {config.guild_id}.')
