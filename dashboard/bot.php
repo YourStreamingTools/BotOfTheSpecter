@@ -874,15 +874,14 @@ checkLastModified();
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <?php include 'usr_database.php'; ?>
 <script>
-// Disable all bot buttons permanently on click until page refresh
+// Wait 5 seconds after a bot button is clicked to disable all buttons
 document.addEventListener('DOMContentLoaded', function() {
   const buttons = document.querySelectorAll('.bot-button');
   buttons.forEach(function(button) {
     button.addEventListener('click', function() {
-      // Delay disabling to let the button's action take effect
       setTimeout(() => {
         buttons.forEach(btn => btn.disabled = true);
-      }, 0);
+      }, 5000); // Wait 5 seconds before disabling
     });
   });
 });
