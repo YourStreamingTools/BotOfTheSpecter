@@ -879,7 +879,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const buttons = document.querySelectorAll('.bot-button');
   buttons.forEach(function(button) {
     button.addEventListener('click', function() {
-      buttons.forEach(btn => btn.disabled = true);
+      // Delay disabling to let the button's action take effect
+      setTimeout(() => {
+        buttons.forEach(btn => btn.disabled = true);
+      }, 0);
     });
   });
 });
