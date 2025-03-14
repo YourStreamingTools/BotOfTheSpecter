@@ -103,6 +103,7 @@ fclose($file);
 // Handle standard bot actions
 if (isset($_POST['runBot'])) {
     $statusOutput = handleTwitchBotAction('run', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
+    // The version running will be updated in the handleTwitchBotAction function
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
 }
 
@@ -113,12 +114,14 @@ if (isset($_POST['killBot'])) {
 
 if (isset($_POST['restartBot'])) {
     $statusOutput = handleTwitchBotAction('restart', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
+    // The version running will be updated in the handleTwitchBotAction function
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
 }
 
 // Handle beta bot actions
 if (isset($_POST['runBetaBot'])) {
     $betaStatusOutput = handleTwitchBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
+    // The version running will be updated in the handleTwitchBotAction function
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
 
@@ -129,13 +132,15 @@ if (isset($_POST['killBetaBot'])) {
 
 if (isset($_POST['restartBetaBot'])) {
     $betaStatusOutput = handleTwitchBotAction('restart', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
+    // The version running will be updated in the handleTwitchBotAction function
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
 
 // Handle Discord bot actions
 if (isset($_POST['runDiscordBot'])) {
     $discordStatusOutput = handleDiscordBotAction('run', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
-    $discordVersionRunning = "Running Version: " . $discordVersionFilePath;
+    // Get the updated version running after action is performed
+    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
 }
 
 // Handling Discord bot stop
@@ -147,11 +152,14 @@ if (isset($_POST['killDiscordBot'])) {
 // Handling Discord bot restart
 if (isset($_POST['restartDiscordBot'])) {
     $discordStatusOutput = handleDiscordBotAction('restart', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
+    // Get the updated version running after action is performed
+    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
 }
 
 // Handle Alpha bot actions
 if (isset($_POST['runAlphaBot'])) {
     $alphaStatusOutput = handleTwitchBotAction('run', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
+    // The version running will be updated in the handleTwitchBotAction function
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
 }
 
@@ -162,12 +170,13 @@ if (isset($_POST['killAlphaBot'])) {
 
 if (isset($_POST['restartAlphaBot'])) {
     $alphaStatusOutput = handleTwitchBotAction('restart', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
+    // The version running will be updated in the handleTwitchBotAction function
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
 }
 
-// Function to handle bot actions
+// Function to handle Discord bot actions
 function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath) {
-    global $ssh_host, $ssh_username, $ssh_password;
+    global $ssh_host, $ssh_username, $ssh_password, $discordVersionFilePath, $discordNewVersion;
     $connection = ssh2_connect($ssh_host, 22);
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
@@ -184,7 +193,8 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
         case 'run':
             if ($pid > 0) {
                 $message = "<div class='status-message'>Discord bot is already running. PID $pid.</div>";
-                $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
+                // Ensure version file is up to date even if the bot is already running
+                updateVersionFile($discordVersionFilePath, $discordNewVersion);
             } else {
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
                 sleep(2);
@@ -194,8 +204,9 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
                 fclose($statusOutput);
                 if ($pid > 0) {
+                    // Update version file with latest version when bot is started
+                    updateVersionFile($discordVersionFilePath, $discordNewVersion);
                     $message = "<div class='status-message'>Discord bot started successfully. PID $pid.</div>";
-                    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
                 } else {
                     $message = "<div class='status-message error'>Failed to start the Discord bot. Please check the configuration or server status.</div>";
                     $discordVersionRunning = "";
@@ -224,8 +235,9 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
                 $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
                 fclose($statusOutput);
                 if ($pid > 0) {
+                    // Update version file with latest version on restart
+                    updateVersionFile($discordVersionFilePath, $discordNewVersion);
                     $message = "<div class='status-message'>Discord bot restarted. PID $pid.</div>";
-                    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
                 } else {
                     $message = "<div class='status-message error'>Failed to restart the Discord bot.</div>";
                     $discordVersionRunning = "";
@@ -242,6 +254,8 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
 
 function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath) {
     global $ssh_host, $ssh_username, $ssh_password;
+    // Also get access to the version file paths and new versions for updating
+    global $versionFilePath, $newVersion, $betaVersionFilePath, $betaNewVersion, $alphaVersionFilePath, $alphaNewVersion;
     $connection = ssh2_connect($ssh_host, 22);
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
@@ -254,10 +268,25 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
     $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
     fclose($statusOutput);
     $message = '';
+    // Determine which version file to update based on the bot script path
+    $currentVersionFilePath = "";
+    $currentNewVersion = "";
+    if (strpos($botScriptPath, 'beta.py') !== false) {
+        $currentVersionFilePath = $betaVersionFilePath;
+        $currentNewVersion = $betaNewVersion;
+    } elseif (strpos($botScriptPath, 'alpha.py') !== false) {
+        $currentVersionFilePath = $alphaVersionFilePath;
+        $currentNewVersion = $alphaNewVersion;
+    } else {
+        $currentVersionFilePath = $versionFilePath;
+        $currentNewVersion = $newVersion;
+    }
     try {
         switch ($action) {
             case 'run':
                 if ($pid > 0) {
+                    // Ensure version file is up to date even if the bot is already running
+                    updateVersionFile($currentVersionFilePath, $currentNewVersion);
                     $message = "<div class='status-message'>Bot is already running. PID $pid.</div>";
                 } else {
                     startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
@@ -268,6 +297,8 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
                     fclose($statusOutput);
                     if ($pid > 0) {
+                        // Update version file with latest version on successful start
+                        updateVersionFile($currentVersionFilePath, $currentNewVersion);
                         $message = "<div class='status-message'>Bot started successfully. PID $pid.</div>";
                     } else {
                         $message = "<div class='status-message error'>Failed to start the bot. Please check the configuration or server status.</div>";
@@ -293,6 +324,8 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
                     fclose($statusOutput);
                     if ($pid > 0) {
+                        // Update version file with latest version on successful restart
+                        updateVersionFile($currentVersionFilePath, $currentNewVersion);
                         $message = "<div class='status-message'>Bot restarted successfully. PID $pid.</div>";
                     } else {
                         $message = "<div class='status-message error'>Failed to restart the bot.</div>";
@@ -308,6 +341,13 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
     }
     ssh2_disconnect($connection);
     return $message;
+}
+
+// Add new function to update version file with latest version
+function updateVersionFile($versionFilePath, $newVersion) {
+    // Create the file if it doesn't exist and write the new version to it
+    file_put_contents($versionFilePath, $newVersion);
+    return true;
 }
 
 function getBotsStatus($statusScriptPath, $username) {
@@ -469,7 +509,9 @@ function getRunningVersion($versionFilePath, $newVersion, $type = '') {
         }
         return $output;
     } else {
-        return "<div class='status-message error'>Version information not available.</div>";
+        // If file doesn't exist, create it with the new version
+        file_put_contents($versionFilePath, $newVersion);
+        return "<div class='status-message'>" . ucfirst($type) . " Running Version: $newVersion</div>";
     }
 }
 ?>
