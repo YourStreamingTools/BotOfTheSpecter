@@ -6665,14 +6665,24 @@ async def update_version_control():
         # Ensure the directory exists, create it if it doesn't
         if not os.path.exists(directory):
             os.makedirs(directory)
-        # Define the file path with the channel name
-        file_path = os.path.join(directory, f"{CHANNEL_NAME}_beta_version_control.txt")
+        # Determine file name based on SYSTEM value
+        if SYSTEM == "STABLE":
+            file_name = f"{CHANNEL_NAME}_version_control.txt"
+        elif SYSTEM == "BETA":
+            file_name = f"{CHANNEL_NAME}_beta_version_control.txt"
+        elif SYSTEM == "ALPHA":
+            file_name = f"{CHANNEL_NAME}_alpha_version_control.txt"
+        else:
+            raise ValueError("Invalid SYSTEM value. Expected STABLE, BETA, or ALPHA.")
+        # Define the full file path
+        file_path = os.path.join(directory, file_name)
         # Delete the file if it exists
         if os.path.exists(file_path):
             os.remove(file_path)
         # Write the new version to the file
         with open(file_path, "w") as file:
             file.write(VERSION)
+        bot_logger.info(f"Version control file updated: {file_path}")
     except Exception as e:
         bot_logger.error(f"An error occurred in update_version_control: {e}")
 
