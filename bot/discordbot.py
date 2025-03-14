@@ -212,7 +212,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def update_version_control(self):
         global VERSION
-        VERSION = "4.3.2"
+        VERSION = "4.3.3"
         try:
             # Define the directory path for Discord bot version control
             directory = "/var/www/logs/version/"
@@ -242,9 +242,29 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Process the message
         try:
-            await self.process_commands(message)
+            # Store the current typing state
+            async with message.channel.typing():
+                await self.process_commands(message)
         except Exception as e:
             self.logger.error(f"Error processing command: {e}")
+            try:
+                # Attempt to send an error message if command processing fails
+                await self.send_message(message.channel, f"Error processing command: {str(e)}")
+            except Exception as send_error:
+                self.logger.error(f"Failed to send error message: {send_error}")
+
+    # Add a new safe message sending method
+    async def send_message(self, channel, content, **kwargs):
+        try:
+            self.logger.info(f"Attempting to send message to channel {channel.id}: {content[:50]}...")
+            return await channel.send(content, **kwargs)
+        except discord.Forbidden:
+            self.logger.error(f"Permission denied when sending message to channel {channel.id}")
+        except discord.HTTPException as e:
+            self.logger.error(f"HTTP error when sending message to channel {channel.id}: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error when sending message to channel {channel.id}: {e}")
+        return None
 
     async def update_channel_status(self, channel_id: int, status: str):
         self.logger.info(f'Updating channel {channel_id} to {status} status in guild {config.guild_id}.')
