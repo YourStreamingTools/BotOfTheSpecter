@@ -55,7 +55,7 @@ soundalerts/*/*
 *.DS_Store
 
 # Ignoring the next update changelog file
-docs/5.3.md
+docs/5.4.md
 
 # Ignoring entire directories
 /app
