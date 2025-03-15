@@ -569,3 +569,8 @@ input[type="submit"]:hover {
 .navbar-menu {
     background-color: #333333;
 }
+
+.navbar a.navbar-item:active,
+.navbar a.navbar-item:focus {
+	background-color: transparent !important;
+}
