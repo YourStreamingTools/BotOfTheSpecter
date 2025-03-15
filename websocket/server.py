@@ -100,6 +100,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("DISCORD_JOIN", self.discord_join),
             ("FOURTHWALL", self.handle_fourthwall_event),
             ("KOFI", self.handle_kofi_event),
+            ("PATREON", self.handle_patreon_event),
             ("SEND_OBS_EVENT", self.handle_obs_event),
             ("*", self.event)
         ]
@@ -233,6 +234,9 @@ class BotOfTheSpecter_WebsocketServer:
         elif event == "KOFI":
             # Handle Ko-Fi-specific event
             await self.handle_kofi_event(code, data)
+        elif event == "PATREON":
+            # Handle Patreon-specific event
+            await self.handle_patreon_event(code, data)
         else:
             # Broadcast other events to connected clients
             if code in self.registered_clients:
@@ -432,6 +436,18 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.info(f"Emitted KOFI event to client {sid}")
                 count += 1
         self.logger.info(f"Broadcasted KOFI event to {count} clients")
+
+    async def handle_patreon_event(self, code, data):
+        # Log and broadcast the PATREON event to the clients
+        self.logger.info(f"Handling PATREON event with data: {data}")
+        count = 0
+        if code in self.registered_clients:
+            for client in self.registered_clients[code]:
+                sid = client['sid']
+                await self.sio.emit("PATREON", data, to=sid)
+                self.logger.info(f"Emitted PATREON event to client {sid}")
+                count += 1
+        self.logger.info(f"Broadcasted PATREON event to {count} clients")
 
     async def handle_obs_event(self, sid, data):
         # Handle the OBS_EVENT event
