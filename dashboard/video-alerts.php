@@ -67,13 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
                 $status .= "Mapping for file '" . $videoFile . "' has been updated successfully.<br>";
             }
         } else {
-            // Clear the mapping if no reward is selected
-            $clearMapping = $db->prepare("UPDATE video_alerts SET reward_id = NULL WHERE video_mapping = :video_mapping");
-            $clearMapping->bindParam(':video_mapping', $videoFile);
-            if (!$clearMapping->execute()) {
-                $status .= "Failed to clear mapping for file '" . $videoFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
+            // Delete the mapping if no reward is selected (Remove Mapping option)
+            $deleteMapping = $db->prepare("DELETE FROM video_alerts WHERE video_mapping = :video_mapping");
+            $deleteMapping->bindParam(':video_mapping', $videoFile);
+            if (!$deleteMapping->execute()) {
+                $status .= "Failed to remove mapping for file '" . $videoFile . "'. Database error: " . print_r($deleteMapping->errorInfo(), true) . "<br>"; 
             } else {
-                $status .= "Mapping for file '" . $videoFile . "' has been cleared.<br>";
+                $status .= "Mapping for file '" . $videoFile . "' has been removed.<br>";
             }
         }
     } else {
@@ -123,6 +123,7 @@ function translateUploadError($code) {
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
+    $status = ""; // Reset status for this operation
     if (empty($_FILES["filesToUpload"]["tmp_name"]) || !$_FILES["filesToUpload"]["tmp_name"]) {
         $status .= "No file was received by the server.<br>";
     }
@@ -159,14 +160,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
 
 // Handle file deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
+    $status = ""; // Reset status for this operation
+    $db->beginTransaction(); // Begin transaction for database operations
     foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete = $videoalert_path . '/' . basename($file_to_delete);
-        if (is_file($file_to_delete) && unlink($file_to_delete)) {
-            $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
+        $filename = basename($file_to_delete);
+        $full_path = $videoalert_path . '/' . $filename;
+        // First delete the physical file
+        if (is_file($full_path) && unlink($full_path)) {
+            $status .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
+            // Now delete any mapping for this file from the database
+            $deleteMapping = $db->prepare("DELETE FROM video_alerts WHERE video_mapping = :video_mapping");
+            $deleteMapping->bindParam(':video_mapping', $filename);
+            if ($deleteMapping->execute()) {
+                if ($deleteMapping->rowCount() > 0) {
+                    $status .= "The mapping for " . htmlspecialchars($filename) . " has also been removed.<br>";
+                }
+            } else {
+                $status .= "Warning: Could not remove mapping for " . htmlspecialchars($filename) . ".<br>";
+            }
         } else {
-            $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+            $status .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
         }
     }
+    $db->commit(); // Commit all database changes
     $current_storage_used = calculateStorageUsed([$walkon_path, $videoalert_path]);
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
@@ -188,18 +204,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
 
 <div class="container">
     <br>
-    <div class="notification is-warning">
-        <div class="columns is-vcentered">
-            <div class="column is-narrow">
-                <span class="icon is-large">
-                    <i class="fas fa-exclamation-triangle fa-2x"></i> 
-                </span>
-            </div>
-            <div class="column">
-                This feature is in V5.3 Beta.
-            </div>
-        </div>
-    </div>
     <div class="notification is-danger">
         <div class="columns is-vcentered">
             <div class="column is-narrow">
@@ -283,6 +287,10 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
                                 <form action="" method="POST" class="mapping-form">
                                     <input type="hidden" name="video_file" value="<?php echo htmlspecialchars($file); ?>">
                                     <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
+                                        <?php 
+                                        if ($current_reward_id): ?>
+                                            <option value="" class="has-text-danger">-- Remove Mapping --</option>
+                                        <?php endif; ?>
                                         <option value="">-- Select Reward --</option>
                                         <?php 
                                         foreach ($channelPointRewards as $reward): 
@@ -291,13 +299,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
                                             // Skip rewards that are already mapped to other videos, unless it's the current mapping
                                             if ($isMapped && !$isCurrent) continue; 
                                         ?>
-                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
-                                                <?php 
-                                                if ($isCurrent) {
-                                                    echo 'selected';
-                                                }
-                                                ?>
-                                            >
+                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) { echo ' selected';}?>>
                                                 <?php echo htmlspecialchars($reward['reward_title']); ?>
                                             </option>
                                         <?php endforeach; ?>
