@@ -20,6 +20,7 @@ $kissCounts = [];
 $highfiveCounts = [];
 $customCounts = [];
 $userCounts = [];
+$rewardCounts = [];
 $seenUsersData = [];
 $timedMessagesData = [];
 $channelPointRewards = [];
@@ -86,6 +87,10 @@ try {
     // Fetah Custom User Counts
     $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
     $userCounts = $getUserCounts->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch reward counts
+    $getRewardCounts = $db->query("SELECT reward_name, count FROM reward_counts ORDER BY count DESC");
+    $rewardCounts = $getRewardCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch seen users data
     $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
