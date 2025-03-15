@@ -124,14 +124,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
 
 // Handle file deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
+    $db->beginTransaction();
     foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete = $soundalert_path . '/' . basename($file_to_delete);
-        if (is_file($file_to_delete) && unlink($file_to_delete)) {
-            $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
+        $filename = basename($file_to_delete);
+        $full_path = $soundalert_path . '/' . $filename;
+        // First delete the physical file
+        if (is_file($full_path) && unlink($full_path)) {
+            $status .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
+            // Now delete any mapping for this file from the database
+            $deleteMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = :sound_mapping");
+            $deleteMapping->bindParam(':sound_mapping', $filename);
+            if ($deleteMapping->execute()) {
+                if ($deleteMapping->rowCount() > 0) {
+                    $status .= "The mapping for " . htmlspecialchars($filename) . " has also been removed.<br>";
+                }
+            } else {
+                $status .= "Warning: Could not remove mapping for " . htmlspecialchars($filename) . ".<br>";
+            }
         } else {
-            $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+            $status .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
         }
     }
+    $db->commit(); // Commit all database changes
     $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
