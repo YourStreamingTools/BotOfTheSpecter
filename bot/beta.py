@@ -6847,16 +6847,15 @@ async def process_channel_point_rewards(event_data, event_type):
                 return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
-                winning_numbers, supplementary_numbers = await generate_user_lotto_numbers(user_name)
-                # Handling error if any
-                if isinstance(winning_numbers, dict) and 'error' in winning_numbers:
-                    await channel.send(f"Error: {winning_numbers['error']}")
+                winning_numbers_str = await generate_user_lotto_numbers(user_name)
+                # Handling errors (check if the result is an error message)
+                if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
+                    await channel.send(f"Error: {winning_numbers_str['error']}")
                     return
-                # Prepare and send the lotto message
-                lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
-                # Send the message to the channel
-                await channel.send(lotto_message)
-                chat_logger.info(f"Lotto numbers generated: {user_name} - Winning: {winning_numbers} Supplementary: {supplementary_numbers}")
+                # Send the combined numbers (winning and supplementary) as one message
+                await channel.send(f"{user_name} here are your Lotto numbers! {winning_numbers_str}")
+                # Log the generated numbers for debugging and records
+                chat_logger.info(f"Lotto numbers generated: {user_name} - {winning_numbers_str}")
                 return
             # Check for Fortune reward
             elif "fortune" in reward_title.lower():
@@ -7011,24 +7010,30 @@ async def generate_winning_lotto_numbers():
 async def generate_user_lotto_numbers(user_name):
     sqldb = await get_mysql_connection()
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+        # Check if there are winning numbers in the database
         await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
         game_running = await cursor.fetchone()
+        # Check if the user has already played
         await cursor.execute("SELECT username FROM stream_lotto WHERE username = %s", (user_name,))
         user_exists = await cursor.fetchone()
         if user_exists:
             return {"error": "you've already played the lotto, please wait until the next round."}
+        # If there are no winning numbers, return error
         if not game_running:
             return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
-        # Draw 7 winning numbers and 3 supplementary numbers from 1-47
+        # Draw the numbers if the game is running
         all_numbers = random.sample(range(1, 48), 9)
-        winning_str = ', '.join(map(str, all_numbers[:6]))
-        supplementary_str = ', '.join(map(str, all_numbers[6:]))
+        winning_numbers = ', '.join(map(str, all_numbers[:6]))  # Winning numbers as a string
+        supplementary_numbers = ', '.join(map(str, all_numbers[6:]))  # Supplementary numbers as a string
+        # Combine both sets of numbers into one string
+        all_numbers_str = f"Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
+        # Insert the user's numbers into the database
         await cursor.execute(
             "INSERT INTO stream_lotto (username, winning_numbers, supplementary_numbers) VALUES (%s, %s, %s)",
-            (user_name, winning_str, supplementary_str)
+            (user_name, winning_numbers, supplementary_numbers)
         )
         await sqldb.commit()
-        return winning_str, supplementary_str
+        return all_numbers_str
 
 # Function to fetch a random fortune
 async def tell_fortune():
