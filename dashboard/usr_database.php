@@ -384,7 +384,14 @@ try {
                 new_default_vip_welcome_message TEXT,
                 default_mod_welcome_message TEXT,
                 new_default_mod_welcome_message TEXT
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'stream_lotto' => "
+            CREATE TABLE IF NOT EXISTS stream_lotto (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                username VARCHAR(255),
+                ticket_numbers VARCHAR(255),
+                UNIQUE (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
