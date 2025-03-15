@@ -285,7 +285,7 @@ function loadData(type) {
     } else if (type === 'userCounts') {
       output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'rewardCounts') {
-      output += `<td>${item.reward_id}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
+      output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {
