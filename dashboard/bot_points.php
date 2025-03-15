@@ -110,17 +110,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
     <table class="table is-fullwidth is-striped">
         <thead>
             <tr>
-                <th style="white-space: nowrap;">Username</th>
-                <th style="white-space: nowrap;"><?php echo $pointsName !== 'Points' ? $pointsName . ' Points' : 'Points'; ?></th>
-                <th style="white-space: nowrap;">Actions</th>
+                <th class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">Username</th>
+                <th class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo $pointsName !== 'Points' ? $pointsName . ' Points' : 'Points'; ?></th>
+                <th class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">Actions</th>
             </tr>
         </thead>
         <tbody id="pointsTableBody">
             <?php foreach ($pointsData as $row): ?>
                 <tr>
-                    <td style="white-space: nowrap;"><?php echo htmlspecialchars($row['user_name']); ?></td>
-                    <td style="white-space: nowrap;"><?php echo htmlspecialchars($row['points']); ?></td>
-                    <td style="white-space: nowrap;">
+                    <td style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['user_name']); ?></td>
+                    <td style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['points']); ?></td>
+                    <td style="white-space: nowrap; vertical-align: middle;">
                         <form method="POST" action="" style="display:inline;">
                             <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
                             <div class="field has-addons">
@@ -234,7 +234,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                     tableBody += `<tr>
                         <td>${row.user_name}</td>
                         <td>${row.points}</td>
-                        <td>
+                        <td style="white-space: nowrap; vertical-align: middle;">
                             <form method="POST" action="" style="display:inline;">
                                 <input type="hidden" name="user_name" value="${row.user_name}">
                                 <div class="field has-addons">
@@ -247,7 +247,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
                     </tr>`;
                 });
                 $('#pointsTableBody').html(tableBody);
-                secondsAgo = 0; // Reset the seconds counter after each update
+                // Reapply the styles and class for the first two cells of each row.
+                $('#pointsTableBody tr').each(function() {
+                    $(this).find('td').eq(0).css('white-space', 'nowrap').css('vertical-align', 'middle');
+                    $(this).find('td').eq(1).css('white-space', 'nowrap').css('vertical-align', 'middle');
+                });
+                secondsAgo = 0; // Reset seconds counter
             }
         });
     }
