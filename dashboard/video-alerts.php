@@ -96,6 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['video_file'], $_POST[
     }
     // Commit transaction
     $db->commit();
+    // Re-fetch updated video alert mappings after mapping changes
+    $getVideoAlerts = $db->prepare("SELECT video_mapping, reward_id FROM video_alerts");
+    $getVideoAlerts->execute();
+    $videoAlerts = $getVideoAlerts->fetchAll(PDO::FETCH_ASSOC);
+    $videoAlertMappings = [];
+    foreach ($videoAlerts as $alert) {
+        $videoAlertMappings[$alert['video_mapping']] = $alert['reward_id'];
+    }
 }
 
 $remaining_storage = $max_storage_size - $current_storage_used;
