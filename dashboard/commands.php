@@ -93,8 +93,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           <tbody>
             <?php foreach ($commands as $command): ?>
               <tr>
-                <td>!<?php echo $command['command']; ?></td>
-                <td><?php echo $command['response']; ?></td>
+                <td style="vertical-align: middle;">!<?php echo $command['command']; ?></td>
+                <td style="vertical-align: middle;"><?php echo $command['response']; ?></td>
                 <td class="has-text-centered" style="vertical-align: middle;"><?php echo $command['cooldown']; ?>s</td>
                 <td class="has-text-centered" style="vertical-align: middle; color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
                   <?php echo $command['status']; ?>
