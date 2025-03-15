@@ -172,8 +172,6 @@ last_poll_progress_update = 0                           # Variable for last poll
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
 song_requests = {}                                      # Tracks song request from users
-lotto_numbers = {}                                      # Tracks the lottery numbers
-user_lotto_numbers = {}                                 # Tracks the user lottery numbers
 
 # Initialize global variables
 bot_started = datetime.now()                            # Time the bot started
@@ -4908,6 +4906,8 @@ class TwitchBot(commands.Bot):
                 done = await generate_winning_lotto_numbers()
                 if done == True:
                     await ctx.send("Lotto numbers have been generated. Good luck everyone!")
+                elif done == "exists":
+                    await ctx.send("Lotto numbers have already been generated. Ready to draw the winners.")
                 else:
                     await ctx.send("There was an error generating the lotto numbers.")
         except Exception as e:
@@ -4919,7 +4919,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='drawlotto')
     async def drawlotto_command(self, ctx):
-        global bot_owner, user_lotto_numbers, lotto_numbers
+        global bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4941,13 +4941,16 @@ class TwitchBot(commands.Bot):
                     "Division 5": 1000,
                     "Division 6": 500
                 }
-                results = []
-                for user_id, numbers in list(user_lotto_numbers.items()):
-                    user_name = numbers["user_name"]
-                    user_winning_set = set(numbers["winning_numbers"])
-                    user_supplementary_set = set(numbers["supplementary_numbers"])
-                    winning_set = set(lotto_numbers["winning_numbers"])
-                    supplementary_set = set(lotto_numbers["supplementary_numbers"])
+                await cursor.execute("SELECT username, winning_numbers, supplementary_numbers FROM lotto_numbers")
+                user_lotto_numbers = await cursor.fetchall()
+                await cursor.execute("SELECT * FROM stream_lotto_winning_numbers")
+                winning_lotto_numbers = await cursor.fetchone()
+                winning_set = winning_lotto_numbers["winning_numbers"]
+                supplementary_set = winning_lotto_numbers["supplementary_numbers"]
+                for username, winning_numbers, supplementary_numbers in user_lotto_numbers:
+                    user_name = username
+                    user_winning_set = winning_numbers
+                    user_supplementary_set = supplementary_numbers
                     match_main = len(user_winning_set & winning_set)
                     match_supplementary = len(user_supplementary_set & supplementary_set)
                     if match_main == 6:
@@ -4966,14 +4969,14 @@ class TwitchBot(commands.Bot):
                         division = None
                     if division:
                         prize = prize_pool.get(division, 0)
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
                         user_points = await cursor.fetchone()
                         if user_points:
                             current_points = user_points["points"]
                             new_points = current_points + prize
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
+                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_name = %s", (new_points, user_name))
                             await sqldb.commit()
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
                         total_points_data = await cursor.fetchone()
                         if total_points_data:
                             total_points = total_points_data["points"]
@@ -4981,11 +4984,12 @@ class TwitchBot(commands.Bot):
                             total_points = prize
                         message = f"@{user_name} you've won {division} and got {prize} points! Total points: {total_points}"
                         await ctx.send(message)
-                    del user_lotto_numbers[user_id]
-                del lotto_numbers["winning_numbers"]
-                del lotto_numbers["supplementary_numbers"]
-                if not results:
-                    await ctx.send(f"No winners this time! The winning numbers were: {', '.join(map(str, lotto_numbers['winning_numbers']))} and Supplementary: {', '.join(map(str, lotto_numbers['supplementary_numbers']))}")
+                    await cursor.execute('DELETE * FROM lotto_numbers WHERE username = %s', (user_name,))
+                    await sqldb.commit()
+                await cursor.execute('TRUNCATE TABLE stream_lotto_winning_numbers')
+                await sqldb.commit()
+                if not user_lotto_numbers:
+                    await ctx.send(f"No winners this time! The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await ctx.send("Sorry, there is an error in drawing the lotto winners.")
@@ -5680,7 +5684,7 @@ async def process_stream_offline_websocket():
 
 # Function to clear both tables if the stream remains offline after 5 minutes
 async def delayed_clear_tables():
-    global stream_online, user_lotto_numbers, lotto_numbers
+    global stream_online
     for _ in range(30):  # Check every 10 seconds for 5 minutes
         await asyncio.sleep(10)
         if stream_online:
@@ -5690,8 +5694,7 @@ async def delayed_clear_tables():
     await clear_seen_today()
     await clear_credits_data()
     await clear_per_stream_deaths()
-    user_lotto_numbers.clear()
-    lotto_numbers.clear()
+    await clear_lotto_numbers()
     bot_logger.info("Tables and lotto entries cleared after stream remained offline.")
 
 # Function to clear the seen users table at the end of stream
@@ -5730,6 +5733,20 @@ async def clear_per_stream_deaths():
             bot_logger.info('Per Stream Death Count cleared successfully.')
     except aiomysql.Error as err:
         bot_logger.error(f'Failed to clear Per Stream Death Count: {err}')
+    finally:
+        await sqldb.ensure_closed()
+
+async def clear_lotto_numbers():
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute('TRUNCATE TABLE lotto_numbers')
+            await sqldb.commit()
+            await cursor.execute('TRUNCATE TABLE stream_lotto_winning_numbers')
+            await sqldb.commit()
+            bot_logger.info('Lotto Numbers cleared successfully.')
+    except aiomysql.Error as err:
+        bot_logger.error(f'Failed to clear Lotto Numbers: {err}')
     finally:
         await sqldb.ensure_closed()
 
@@ -6803,7 +6820,6 @@ async def process_channel_point_rewards(event_data, event_type):
         try:
             user_name = event_data["user_name"]
             user_id = event_data["user_id"]
-            event_id = event_data["id"]
             reward_data = event_data.get("reward", {})
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
@@ -6812,25 +6828,24 @@ async def process_channel_point_rewards(event_data, event_type):
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
                 asyncio.create_task(websocket_notice(event="TTS", text=tts_message))
-                return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
                 lotto_result = await generate_user_lotto_numbers(user_name, user_id)
                 if 'error' in lotto_result:
                     await channel.send(f"@{user_name}, {lotto_result['error']}")
-                winning = ', '.join(map(str, lotto_result['winning_numbers']))
-                supplementary = ', '.join(map(str, lotto_result['supplementary_numbers']))
+                winning_numbers = lotto_result['winning_numbers']
+                supplementary_numbers = lotto_result['supplementary_numbers']
+                winning = ', '.join(map(str, winning_numbers))
+                supplementary = ', '.join(map(str, supplementary_numbers))
                 lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning} Supplementary Numbers: {supplementary}"
                 await channel.send(lotto_message)
-                chat_logger.info(f"Lotto numbers generated: {lotto_message}")
-                return
+                chat_logger.info(f"Lotto numbers generated: {user_name} - Winning: {winning} Supplementary: {supplementary}")
             # Check for Fortune reward
             elif "fortune" in reward_title.lower():
                 fortune_message = await tell_fortune()
                 fortune_message = fortune_message[0].lower() + fortune_message[1:]
                 await channel.send(f"{user_name}, {fortune_message}")
                 chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
-                return
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
@@ -6951,35 +6966,48 @@ async def channel_point_rewards():
             await sqldb.ensure_closed()
 
 async def generate_winning_lotto_numbers():
-    global lotto_numbers
-    # Draw 7 winning numbers and 3 supplementary numbers from 1-47
-    all_numbers = random.sample(range(1, 48), 9)
-    winning_numbers = all_numbers[:6]
-    supplementary_numbers = all_numbers[6:]
-    lotto_numbers = {
-        "winning_numbers": winning_numbers,
-        "supplementary_numbers": supplementary_numbers
-    }
-    return True
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+        await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+        result = await cursor.fetchone()
+        if result:
+            winning_numbers = result.get("winning_numbers")
+            supplementary_numbers = result.get("supplementary_numbers")
+            return "exists"
+        # Draw 7 winning numbers and 3 supplementary numbers from 1-47
+        all_numbers = random.sample(range(1, 48), 9)
+        winning_numbers = all_numbers[:6]
+        supplementary_numbers = all_numbers[6:]
+        await cursor.execute(
+            "INSERT INTO stream_lotto_winning_numbers (winning_numbers, supplementary_numbers) VALUES (%s, %s)",
+            (winning_numbers, supplementary_numbers)
+            )
+        await sqldb.commit()
+        await sqldb.close()
+        return True
+    return False
 
 # Function to generate random Lotto numbers
-async def generate_user_lotto_numbers(user_name, user_id):
-    global lotto_numbers, user_lotto_numbers
-    if user_id in user_lotto_numbers:
-        return {"error": "you've already played the lotto, please wait until the next round."}
-    if not lotto_numbers:
-        return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
-    # Draw 7 winning numbers and 3 supplementary numbers from 1-47
-    all_numbers = random.sample(range(1, 48), 9)
-    winning_numbers = all_numbers[:6]
-    supplementary_numbers = all_numbers[6:]
-    user_numbers = {
-        "user_name": user_name,
-        "winning_numbers": winning_numbers,
-        "supplementary_numbers": supplementary_numbers
-    }
-    user_lotto_numbers[user_id] = user_numbers
-    return user_numbers
+async def generate_user_lotto_numbers(user_name):
+    sqldb = await get_mysql_connection()
+    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+        await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+        game_running = await cursor.fetchone()
+        await cursor.execute("SELECT username FROM stream_lotto WHERE username = %s", (user_name,))
+        user_exists = await cursor.fetchone()
+        if user_exists:
+            return {"error": "you've already played the lotto, please wait until the next round."}
+        if not game_running:
+            return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
+        # Draw 7 winning numbers and 3 supplementary numbers from 1-47
+        all_numbers = random.sample(range(1, 48), 9)
+        winning_numbers = all_numbers[:6]
+        supplementary_numbers = all_numbers[6:]
+        await cursor.execute(
+            "INSERT INTO stream_lotto (username, winning_numbers, supplementary_numbers) VALUES (%s, %s, %s)",
+            (user_name, winning_numbers, supplementary_numbers)
+        )
+        return winning_numbers, supplementary_numbers
 
 # Function to fetch a random fortune
 async def tell_fortune():
