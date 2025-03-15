@@ -247,11 +247,10 @@ async def verify_api_key(api_key):
 
 # Verify the ADMIN API Key Given
 async def verify_admin_key(admin_key: str):
+    global ADMIN_KEY
     if admin_key != ADMIN_KEY:
-        raise HTTPException(
-            status_code=403,
-            detail="Forbidden: Invalid Admin API Key",
-        )
+        return False
+    return True
 
 # Function to connect to the websocket server and push a notice
 async def websocket_notice(event, params, api_key):
@@ -437,6 +436,9 @@ class PublicAPIDailyResponse(BaseModel):
     operation_id="process_fourthwall_webhook"
 )
 async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     try:
         webhook_data = await request.json()
         logging.info(f"{webhook_data}")
@@ -471,6 +473,9 @@ async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...))
     operation_id="process_kofi_webhook"
 )
 async def handle_kofi_webhook(api_key: str = Query(...), data: str = Form(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     try:
         # Parse the 'data' field (which is a JSON string)
         kofi_data = json.loads(data)
@@ -504,6 +509,9 @@ async def handle_kofi_webhook(api_key: str = Query(...), data: str = Form(...)):
     operation_id="process_patreon_webhook"
 )
 async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     try:
         webhook_data = await request.json()
         logging.info(f"Received Patreon Webhook data: {webhook_data}") # Log the received webhook data
@@ -1038,7 +1046,9 @@ async def get_game(
     include_in_schema=False
 )
 async def authorized_users(api_key: str = Query(...)):
-    await verify_admin_key(api_key)
+    valid = await verify_admin_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     auth_users_path = "/home/fastapi/authusers.json"
     if not os.path.exists(auth_users_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -1055,6 +1065,9 @@ async def authorized_users(api_key: str = Query(...)):
 async def check_key(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
+        admin_valid = await verify_admin_key(api_key)
+        if not admin_valid:
+            return {"status": "Invalid API Key"}
         return {"status": "Invalid API Key"}
     return {"status": "Valid API Key"}
 
