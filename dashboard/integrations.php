@@ -45,12 +45,17 @@ date_default_timezone_set($timezone);
       </div>
       <div class="column">
         <p><strong>Connect Your Accounts</strong></p>
-        <p>Enhance your stream by integrating Specter with your Fourthwall and Ko-fi accounts. Follow the simple steps below to get started!</p>
+        <p>
+          Boost your stream by connecting your favorite services!<br>
+          Integrate your Fourthwall, Ko‑fi, and Patreon accounts—plus many more on the way.<br>
+          Follow the quick steps below to link your accounts.
+        </p>
       </div>
     </div>
   </div>
-  <div class="columns is-desktop is-multiline box-container">
-    <div class="column bot-box content content-card" id="fourthwall"> 
+  <br>
+  <div class="columns is-desktop is-multiline is-centered box-container">
+    <div class="column is-5 bot-box content content-card" id="fourthwall"> 
       <h2 class="subtitle">Fourthwall Integration</h2>
       <p>Follow the steps below to integrate Specter with your Fourthwall account:</p>
       <ol>
@@ -73,7 +78,7 @@ date_default_timezone_set($timezone);
       </ol>
       <p>That's it! Your Fourthwall account is now integrated with Specter.</p>
     </div>
-    <div class="column bot-box content content-card" id="kofi"> 
+    <div class="column is-5 bot-box content content-card" id="kofi"> 
       <h2 class="subtitle">Ko-Fi Integration</h2>
       <p>Follow the steps below to integrate Specter with your Ko-Fi account:</p>
       <ol>
@@ -87,6 +92,27 @@ date_default_timezone_set($timezone);
         <li>Once you've entered the URL, click the Update button.</li>
       </ol>
       <p>That's it! Your Ko-Fi account is now integrated with Specter.</p>
+    </div>
+    <!-- New Patreon Integration -->
+    <div class="column is-5 bot-box content content-card" id="patreon">
+      <h2 class="subtitle">Patreon Integration</h2>
+      <p><span class="has-text-weight-bold">Note:</span> This integration is available for Specter Version 5.4 and above.</p>
+      <p>Follow the steps below to integrate Specter with your Patreon account:</p>
+      <ol>
+        <li>
+          Visit the Dev Portal and register a new webhook request at:<br>
+          <a href="https://www.patreon.com/portal/registration/register-webhooks" target="_blank">https://www.patreon.com/portal/registration/register-webhooks</a>
+        </li>
+        <li>
+          In your webhook settings, enter the following URL:<br>
+          <code>https://api.botofthespecter.com/patreon?api_key=</code><br>
+          (Make sure to append your API key available on the Profile page.)
+        </li>
+        <li>
+          After saving your API key, when presented with a list of supported options, enable only the "Create Member Pledge: members:pledge:create" option.
+        </li>
+      </ol>
+      <p>That's it! Your Patreon account is now integrated with Specter.</p>
     </div>
   </div>
 </div>
