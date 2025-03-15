@@ -212,7 +212,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def update_version_control(self):
         global VERSION
-        VERSION = "4.3.3"
+        VERSION = "4.3.4"
         try:
             # Define the directory path for Discord bot version control
             directory = "/var/www/logs/version/"
@@ -337,8 +337,9 @@ class WebSocketCog(commands.Cog, name='WebSocket'):
 
         @self.sio.event
         async def connect():
+            global CHANNEL_NAME
             self.logger.info("Connected to WebSocket server")
-            await self.sio.emit('REGISTER', {'code': self.api_token, 'name': f'DiscordBot V{VERSION}'})
+            await self.sio.emit('REGISTER', {'code': self.api_token, 'channel': CHANNEL_NAME, 'name': f'DiscordBot V{VERSION}'})
             self.reconnect_attempts = 0
             self.connected = True
 
@@ -434,25 +435,28 @@ class BOTS_DISCORD_RUNNER:
             self.loop.close()
 
     async def initialize_bot(self):
-        await fetch_api_token(self.channel_name, self.logger)
+        global CHANNEL_NAME
+        await fetch_api_token(CHANNEL_NAME, self.logger)
         if config.api_token is None:
             self.logger.error("API token is None. Exiting.")
             return
-        await fetch_discord_details(self.channel_name, self.logger)
+        await fetch_discord_details(CHANNEL_NAME, self.logger)
         if config.admin_user_id is None or config.live_channel_id is None or config.guild_id is None:
             self.logger.error("Admin user ID, live channel ID, or guild ID is None. Exiting.")
             return
-        self.bot = BotOfTheSpecter(self.discord_token, self.channel_name, self.logger)
+        self.bot = BotOfTheSpecter(self.discord_token, CHANNEL_NAME, self.logger)
         await self.bot.start(self.discord_token)
 
 def main():
+    global CHANNEL_NAME
     parser = argparse.ArgumentParser(description="BotOfTheSpecter Discord Bot")
     parser.add_argument("-channel", dest="channel_name", required=True, help="Target Twitch channel name")
     args = parser.parse_args()
-    bot_log_file = os.path.join(discord_logs, f"{args.channel_name}.txt")
+    CHANNEL_NAME = args.channel_name
+    bot_log_file = os.path.join(discord_logs, f"{CHANNEL_NAME}.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
     discord_token = os.getenv("DISCORD_TOKEN")
-    BOTS_DISCORD_BOT = BOTS_DISCORD_RUNNER(discord_token, args.channel_name, discord_logger)
+    BOTS_DISCORD_BOT = BOTS_DISCORD_RUNNER(discord_token, CHANNEL_NAME, discord_logger)
     BOTS_DISCORD_BOT.run()
 
 if __name__ == "__main__":
