@@ -35,6 +35,10 @@ $permissionsMap = [
     "Tier 3 Subscriber" => "t3-sub"
 ];
 
+// Load command descriptions from JSON file
+$jsonText = file_get_contents(__DIR__ . '../../api/builtin_commands.json');
+$cmdDescriptions = json_decode($jsonText, true)['commands'];
+
 // Update command status or permission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Process permission update
@@ -96,21 +100,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <table class="table is-fullwidth" id="commandsTable">
         <thead>
             <tr>
-                <th style="width: 200px;">Command</th>
-                <th>Usage Level</th>
-                <th style="width: 100px;">Status</th>
-                <th style="width: 100px;">Action</th>
+                <th class="has-text-centered" style="width: 200px;">Command</th>
+                <th class="has-text-centered">Description</th>
+                <th class="has-text-centered" style="width: 200px;">Usage Level</th>
+                <th class="has-text-centered" style="width: 100px;">Status</th>
+                <th class="has-text-centered" style="width: 100px;">Action</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($builtinCommands)): ?>
                 <tr>
-                    <td colspan="4" style="text-align: center; color: red;">No commands found. Please run the Twitch Chat Bot to sync the commands.</td>
+                    <td colspan="5" style="text-align: center; color: red;">No commands found. Please run the Twitch Chat Bot to sync the commands.</td>
                 </tr>
             <?php else: ?>
-                <?php foreach ($builtinCommands as $command): ?>
+                <?php foreach ($builtinCommands as $command): 
+                    $cmdKey = $command['command'];
+                    $desc = isset($cmdDescriptions[$cmdKey]) ? $cmdDescriptions[$cmdKey] : 'No description available';
+                ?>
                 <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
-                    <td>!<?php echo htmlspecialchars($command['command']); ?></td>
+                    <td style="vertical-align: middle;">!<?php echo htmlspecialchars($command['command']); ?></td>
+                    <td style="vertical-align: middle;"><?php echo htmlspecialchars($desc); ?></td>
                     <td>
                         <form method="post">
                             <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
@@ -125,10 +134,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             </div>
                         </form>
                     </td>
-                    <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
+                    <td class="has-text-centered" style="vertical-align: middle; color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
                         <?php echo htmlspecialchars($command['status']); ?>
                     </td>
-                    <td>
+                    <td class="has-text-centered" style="vertical-align: middle;">
                         <label class="switch">
                             <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
                             <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
