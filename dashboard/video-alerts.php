@@ -35,6 +35,11 @@ foreach ($videoAlerts as $alert) {
     $videoAlertMappings[$alert['video_mapping']] = $alert['reward_id'];
 }
 
+// NEW: Query sound alerts to exclude mapped rewards
+$getSoundAlertsForMapping = $db->prepare("SELECT DISTINCT reward_id FROM sound_alerts");
+$getSoundAlertsForMapping->execute();
+$soundMappedRewards = $getSoundAlertsForMapping->fetchAll(PDO::FETCH_COLUMN, 0);
+
 // Create an associative array for reward_id => reward_title for easy lookup
 $rewardIdToTitle = [];
 foreach ($channelPointRewards as $reward) {
@@ -294,7 +299,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
                                         <option value="">-- Select Reward --</option>
                                         <?php 
                                         foreach ($channelPointRewards as $reward): 
-                                            $isMapped = in_array($reward['reward_id'], $videoAlertMappings);
+                                            // Modified: Exclude rewards already mapped in video OR sound alerts unless currently selected
+                                            $isMapped = (in_array($reward['reward_id'], $videoAlertMappings) || in_array($reward['reward_id'], $soundMappedRewards));
                                             $isCurrent = ($current_reward_id === $reward['reward_id']);
                                             // Skip rewards that are already mapped to other videos, unless it's the current mapping
                                             if ($isMapped && !$isCurrent) continue; 
