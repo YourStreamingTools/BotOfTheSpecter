@@ -1,8 +1,6 @@
 <?php
 // User Specter Database
-$mysqlhost = "sql.botofthespecter.com";
-$mysqlusername = ""; // CHANGE TO MAKE THIS WORK
-$mysqlpassword = ""; // CHANGE TO MAKE THIS WORK
+include '/var/www/config/database.php';
 $dbname = $_SESSION['username'];
 
 // Initialize all variables as empty arrays or values
@@ -29,7 +27,7 @@ $todos = [];
 
 try {
     // Connect to MySQL database
-    $db = new PDO("mysql:host=$mysqlhost;dbname=$dbname", $mysqlusername, $mysqlpassword);
+    $db = new PDO("mysql:host=$db_servername;dbname=$dbname", $db_username, $db_password);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Fetch all custom commands
