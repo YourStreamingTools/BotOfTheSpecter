@@ -977,6 +977,14 @@ async def STREAM_OFFLINE(data):
         websocket_logger.error(f"Failed to process stream offline event: {e}")
 
 @specterSocket.event
+async def WEATHER_DATA(data):
+    websocket_logger.info(f"Weather data received: {data}")
+    try:
+        await process_weather_websocket(data)
+    except Exception as e:
+        websocket_logger.error(f"Failed to process weather data: {e}")
+
+@specterSocket.event
 async def FOURTHWALL(data):
     websocket_logger.info(f"FourthWall event received: {data}")
     try:
@@ -993,12 +1001,12 @@ async def KOFI(data):
         websocket_logger.error(f"Failed to process Ko-fi event: {e}")
 
 @specterSocket.event
-async def WEATHER_DATA(data):
-    websocket_logger.info(f"Weather data received: {data}")
+async def PATREON(data):
+    websocket_logger.info(f"Patreon event received: {data}")
     try:
-        await process_weather_websocket(data)
+        await process_patreon_event(data)
     except Exception as e:
-        websocket_logger.error(f"Failed to process weather data: {e}")
+        websocket_logger.error(f"Failed to process Patreon event: {e}")
 
 # Connect and manage reconnection for HypeRate Heart Rate
 async def hyperate_websocket():
@@ -5557,6 +5565,40 @@ async def process_kofi_event(data):
         event_logger.error(f"Error processing event '{event_type}': Missing key {e}")
     except Exception as e:
         event_logger.error(f"Unexpected error processing event '{event_type}': {e}")
+
+async def process_patreon_event(data):
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+    # Extract the data from the event
+    message = data["message", {}]
+    message_data = message.get("data", [])
+    patreon_event = message_data[1]
+    # Extract the event data and attributes
+    event_data = patreon_event.get("data", {}.get(data, {}))
+    event_data_attributes = event_data.get("attributes", {})
+    is_follower = event_data_attributes.get("is_follower", False)
+    is_free_trial = event_data_attributes.get("is_free_trial", False)
+    is_gifted = event_data_attributes.get("is_gifted", False)
+    # Extract the included data to get the pay_per_name
+    included_data = patreon_event.get("data", {}).get("included", [])
+    pay_per_name = "month"
+    for item in included_data:
+        if item.get("attributes", {}) and "pay_per_name" in item["attributes"]:
+            pay_per_name = item["attributes"]["pay_per_name"]
+            break
+    # Process the event based on the data we have received
+    if is_follower and is_gifted:
+        message = f"A patreon follower has been gifted a {pay_per_name} subscription!"
+    elif is_follower and is_free_trial:
+        message = f"A patreon follower has started a free trial!"
+    elif is_follower:
+        message = f"A patreon follower has subscribed for a {pay_per_name} subscription!"
+    elif is_gifted:
+        message = f"A patreon supporter has been gifted a {pay_per_name} subscription!"
+    elif is_free_trial:
+        message = f"A patreon supporter has started a free trial!"
+    else:
+        message = f"A patreon supporter has subscribed for a {pay_per_name} subscription!"
+    await channel.send(message)
 
 async def process_weather_websocket(data):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
