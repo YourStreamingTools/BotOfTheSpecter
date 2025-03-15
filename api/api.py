@@ -383,12 +383,14 @@ class VersionControlResponse(BaseModel):
     alpha_version: str
     beta_version: str
     stable_version: str
+    discord_bot: str
     class Config:
         json_schema_extra = {
             "example": {
-                "stable_version": "5.2",
-                "beta_version": "5.3",
-                "alpha_version": "5.4"
+                "alpha_version": "5.5",
+                "beta_version": "5.4",
+                "stable_version": "5.3",
+                "discord_bot": "4.3.4"
             }
         }
 
