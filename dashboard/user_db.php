@@ -89,7 +89,7 @@ try {
     $userCounts = $getUserCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch reward counts
-    $getRewardCounts = $db->query("SELECT reward_name, count FROM reward_counts ORDER BY count DESC");
+    $getRewardCounts = $db->query("SELECT reward_id, count FROM reward_counts ORDER BY count DESC");
     $rewardCounts = $getRewardCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch seen users data
