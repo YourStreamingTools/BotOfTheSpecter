@@ -228,15 +228,19 @@ function loadData(type) {
       break;
     case 'userCounts':
       data = <?php echo json_encode($userCounts); ?>;
+      countColumnVisible = true;
       title = 'User Counts for Commands';
-      infoColumn = 'Command';
-      dataColumn = 'Count';
+      infoColumn = 'Username';
+      dataColumn = 'Command';
+      additionalColumnName = 'Count';
       break;
     case 'rewardCounts':
       data = <?php echo json_encode($rewardCounts); ?>;
+      countColumnVisible = true;
       title = 'Reward Counts';
       infoColumn = 'Reward Name';
-      dataColumn = 'Count';
+      dataColumn = 'Username';
+      additionalColumnName = 'Count';
       break;
     case 'watchTime': 
       data = <?php echo json_encode($watchTimeData); ?>;
@@ -281,7 +285,7 @@ function loadData(type) {
     } else if (type === 'userCounts') {
       output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'rewardCounts') {
-      output += `<td>${item.reward_id}</td><td><span class='has-text-success'>${item.count}</span></td>`;
+      output += `<td>${item.reward_id}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {
