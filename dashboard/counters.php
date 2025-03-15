@@ -125,6 +125,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     <button class="button is-info" onclick="loadData('highfives')">High-Five Counts</button>
     <button class="button is-info" onclick="loadData('customCounts')">Custom Counts</button>
     <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
+    <button class="button is-info" onclick="loadData('rewardCounts')">Reward Counts</button>
     <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
     <button class="button is-info" onclick="loadData('quotes')">Quotes</button>
   </div>
@@ -231,6 +232,12 @@ function loadData(type) {
       infoColumn = 'Command';
       dataColumn = 'Count';
       break;
+    case 'rewardCounts':
+      data = <?php echo json_encode($rewardCounts); ?>;
+      title = 'Reward Counts';
+      infoColumn = 'Reward Name';
+      dataColumn = 'Count';
+      break;
     case 'watchTime': 
       data = <?php echo json_encode($watchTimeData); ?>;
       title = 'Watch Time';
@@ -273,6 +280,8 @@ function loadData(type) {
       output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'userCounts') {
       output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`;
+    } else if (type === 'rewardCounts') {
+      output += `<td>${item.reward_id}</td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {
