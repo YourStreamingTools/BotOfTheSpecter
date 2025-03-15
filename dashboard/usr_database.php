@@ -396,6 +396,7 @@ try {
             CREATE TABLE IF NOT EXISTS stream_lotto_winning_numbers (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 winning_numbers VARCHAR(255),
+                supplementary_numbers VARCHAR(255),
                 UNIQUE (winning_numbers)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
@@ -438,7 +439,8 @@ try {
         'joke_settings' => ['blacklist' => 'TEXT'],
         'watch_time' => ['user_id' => 'VARCHAR(255) NOT NULL', 'username' => 'VARCHAR(255) NOT NULL', 'total_watch_time_live' => 'INT DEFAULT 0', 'total_watch_time_offline' => 'INT DEFAULT 0', 'last_active' =>'VARCHAR(255)'],
         'watch_time_excluded_users' => ['excluded_users' => 'VARCHAR(255) DEFAULT NULL'],
-        'streamer_preferences' => ['send_welcome_messages' => 'TINYINT(1)', 'default_welcome_message' => 'TEXT', 'new_default_welcome_message' => 'TEXT', 'default_vip_welcome_message' => 'TEXT', 'new_default_vip_welcome_message' => 'TEXT', 'default_mod_welcome_message' => 'TEXT', 'new_default_mod_welcome_message' => 'TEXT']
+        'streamer_preferences' => ['send_welcome_messages' => 'TINYINT(1)', 'default_welcome_message' => 'TEXT', 'new_default_welcome_message' => 'TEXT', 'default_vip_welcome_message' => 'TEXT', 'new_default_vip_welcome_message' => 'TEXT', 'default_mod_welcome_message' => 'TEXT', 'new_default_mod_welcome_message' => 'TEXT'],
+        'stream_lotto_winning_numbers' => ['winning_numbers' => 'VARCHAR(255)', 'supplementary_numbers' => 'VARCHAR(255)']
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
