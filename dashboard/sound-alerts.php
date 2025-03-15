@@ -100,6 +100,7 @@ $max_upload_size = $remaining_storage;
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
+    $status = "";
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
@@ -124,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
 
 // Handle file deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
+    $status = "";
     $db->beginTransaction();
     foreach ($_POST['delete_files'] as $file_to_delete) {
         $filename = basename($file_to_delete);
