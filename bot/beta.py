@@ -4943,18 +4943,28 @@ class TwitchBot(commands.Bot):
                     "Division 5": 1000,
                     "Division 6": 500
                 }
-                await cursor.execute("SELECT username, winning_numbers, supplementary_numbers FROM lotto_numbers")
+                # Retrieve all user lotto numbers and the winning lotto numbers
+                await cursor.execute("SELECT username, winning_numbers, supplementary_numbers FROM stream_lotto")
                 user_lotto_numbers = await cursor.fetchall()
-                await cursor.execute("SELECT * FROM stream_lotto_winning_numbers")
+                await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
                 winning_lotto_numbers = await cursor.fetchone()
-                winning_set = winning_lotto_numbers["winning_numbers"]
-                supplementary_set = winning_lotto_numbers["supplementary_numbers"]
-                for username, winning_numbers, supplementary_numbers in user_lotto_numbers:
-                    user_name = username
-                    user_winning_set = winning_numbers
-                    user_supplementary_set = supplementary_numbers
+                if not winning_lotto_numbers:
+                    await ctx.send("No winning numbers selected. The draw cannot proceed.")
+                    return  # If there are no winning numbers, end the draw
+                # Extract winning numbers and supplementary numbers
+                winning_set = set(map(int, winning_lotto_numbers["winning_numbers"].split(', ')))
+                supplementary_set = set(map(int, winning_lotto_numbers["supplementary_numbers"].split(', ')))
+                if not user_lotto_numbers:
+                    await ctx.send(f"No users have played the lotto yet!")
+                    return  # If no users have played, send a message and exit
+                for user in user_lotto_numbers:
+                    user_name = user["username"]
+                    user_winning_set = set(map(int, user["winning_numbers"].split(', ')))
+                    user_supplementary_set = set(map(int, user["supplementary_numbers"].split(', ')))
+                    # Compare user numbers to winning numbers
                     match_main = len(user_winning_set & winning_set)
                     match_supplementary = len(user_supplementary_set & supplementary_set)
+                    # Determine division based on the match
                     if match_main == 6:
                         division = "Division 1 (Jackpot!)"
                     elif match_main == 5 and match_supplementary >= 1:
@@ -4977,18 +4987,22 @@ class TwitchBot(commands.Bot):
                             current_points = user_points["points"]
                             new_points = current_points + prize
                             await cursor.execute("UPDATE bot_points SET points = %s WHERE user_name = %s", (new_points, user_name))
-                            await sqldb.commit()
+                        else:
+                            # If no points record exists, set to prize
+                            await cursor.execute("INSERT INTO bot_points (user_name, points) VALUES (%s, %s)", (user_name, prize))
+                        await sqldb.commit()
+                        # Retrieve updated points
                         await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
                         total_points_data = await cursor.fetchone()
-                        if total_points_data:
-                            total_points = total_points_data["points"]
-                        else:
-                            total_points = prize
-                        message = f"@{user_name} you've won {division} and got {prize} points! Total points: {total_points}"
+                        total_points = total_points_data["points"] if total_points_data else prize
+                        # Send message about the win
+                        message = f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}"
                         await ctx.send(message)
-                    await cursor.execute('DELETE * FROM lotto_numbers WHERE username = %s', (user_name,))
+                    # Remove user lotto entry after the draw
+                    await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                     await sqldb.commit()
-                await cursor.execute('TRUNCATE TABLE stream_lotto_winning_numbers')
+                # Clear winning numbers after the draw
+                await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await sqldb.commit()
                 if not user_lotto_numbers:
                     await ctx.send(f"No winners this time! The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
