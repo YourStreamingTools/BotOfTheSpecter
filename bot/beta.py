@@ -6987,7 +6987,7 @@ async def generate_winning_lotto_numbers():
             (winning_numbers, supplementary_numbers)
             )
         await sqldb.commit()
-        await sqldb.close()
+        await sqldb.ensure_closed()
     return True
 
 # Function to generate random Lotto numbers
