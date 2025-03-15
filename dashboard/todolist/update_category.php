@@ -15,30 +15,14 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "YourListOnline - Update Objective Category";
 
-// Connect to the primary database
-require_once "db_connect.php";
-
-// Fetch the user's data from the primary database based on the access_token
-$access_token = $_SESSION['access_token'];
-$userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
-$userSTMT->bind_param("s", $access_token);
-$userSTMT->execute();
-$userResult = $userSTMT->get_result();
-$user = $userResult->fetch_assoc();
-$user_id = $user['id'];
-$username = $user['username'];
-$twitchDisplayName = $user['twitch_display_name'];
-$twitch_profile_image_url = $user['profile_image'];
-$is_admin = ($user['is_admin'] == 1);
-$betaAccess = ($user['beta_access'] == 1);
-$twitchUserId = $user['twitch_user_id'];
-$broadcasterID = $twitchUserId;
-$authToken = $access_token;
-$refreshToken = $user['refresh_token'];
-$api_key = $user['api_key'];
-$timezone = 'Australia/Sydney';
+// Include files for database and user data
+require_once "/var/www/config/db_connect.php";
+include '../userdata.php';
+foreach ($profileData as $profile) {
+  $timezone = $profile['timezone'];
+  $weather = $profile['weather_location'];
+}
 date_default_timezone_set($timezone);
-$greeting = 'Hello';
 
 // Include the secondary database connection
 include 'database.php';
