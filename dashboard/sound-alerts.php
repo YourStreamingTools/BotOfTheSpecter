@@ -236,21 +236,19 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                 <form action="" method="POST" class="mapping-form">
                                     <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                     <select name="reward_id" class="mapping-select">
-                                        <option value="">-- Select Reward --</option>
                                         <?php 
+                                        if ($current_reward_id): ?>
+                                            <option value="" class="has-text-danger">-- Remove Mapping --</option>
+                                        <?php endif; ?>
+                                        <option value="">-- Select Reward --</option>
+                                        <?php
                                         foreach ($channelPointRewards as $reward): 
                                             $isMapped = in_array($reward['reward_id'], $soundAlertMappings);
                                             $isCurrent = ($current_reward_id === $reward['reward_id']);
                                             // Skip rewards that are already mapped to other sounds, unless it's the current mapping
                                             if ($isMapped && !$isCurrent) continue; 
                                         ?>
-                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
-                                                <?php 
-                                                if ($isCurrent) {
-                                                    echo 'selected';
-                                                }
-                                                ?>
-                                            >
+                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) { echo ' selected';}?>>
                                                 <?php echo htmlspecialchars($reward['reward_title']); ?>
                                             </option>
                                         <?php endforeach; ?>
