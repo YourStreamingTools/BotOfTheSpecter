@@ -392,6 +392,12 @@ try {
                 ticket_numbers VARCHAR(255),
                 UNIQUE (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'stream_lotto_winning_numbers' => "
+            CREATE TABLE IF NOT EXISTS stream_lotto_winning_numbers (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                winning_numbers VARCHAR(255),
+                UNIQUE (winning_numbers)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
