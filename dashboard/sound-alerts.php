@@ -67,13 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
                 $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
             }
         } else {
-            // Clear the mapping if no reward is selected
-            $clearMapping = $db->prepare("UPDATE sound_alerts SET reward_id = NULL WHERE sound_mapping = :sound_mapping");
-            $clearMapping->bindParam(':sound_mapping', $soundFile);
-            if (!$clearMapping->execute()) {
-                $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
+            // Delete the mapping if no reward is selected (Remove Mapping option)
+            $deleteMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = :sound_mapping");
+            $deleteMapping->bindParam(':sound_mapping', $soundFile);
+            if (!$deleteMapping->execute()) {
+                $status .= "Failed to remove mapping for file '" . $soundFile . "'. Database error: " . print_r($deleteMapping->errorInfo(), true) . "<br>"; 
             } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been cleared.<br>";
+                $status .= "Mapping for file '" . $soundFile . "' has been removed.<br>";
             }
         }
     } else {
