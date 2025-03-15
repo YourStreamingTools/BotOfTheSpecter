@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
 
-$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..'));
+$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..', 'twitch'));
 function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 ?>
 <!DOCTYPE html>
@@ -199,7 +199,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             <?php endif; ?>
         </div>
         <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
-            <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
+            <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..', 'twitch')); if (!empty($walkon_files)) : ?>
             <h1 class="title is-4">Your Sound Alerts</h1>
             <form action="" method="POST" id="deleteForm">
                 <table class="table is-striped" style="width: 100%; text-align: center;">
