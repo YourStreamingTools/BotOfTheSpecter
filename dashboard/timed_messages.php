@@ -191,13 +191,13 @@ if ($displayMessageData) {
                         <div class="control">
                             <div class="select is-fullwidth">
                                 <select name="edit_message" id="edit_message" onchange="showResponse()">
-                                    <option value="">PICK A MESSAGE TO EDIT</option>
+                                    <option value="" selected>PICK A MESSAGE TO EDIT</option>
                                     <?php
                                     usort($timedMessagesData, function($a, $b) {
                                         return $a['id'] - $b['id'];
                                     });
                                     foreach ($timedMessagesData as $message): ?>
-                                        <option value="<?php echo $message['id']; ?>" <?php echo $message['status'] == 'True' ? 'selected' : ''; ?>>
+                                        <option value="<?php echo $message['id']; ?>">
                                             (<?php echo "ID: " . $message['id']; ?>) <?php echo $message['message']; ?>
                                         </option>
                                     <?php endforeach; ?>
