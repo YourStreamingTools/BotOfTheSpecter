@@ -96,7 +96,7 @@ date_default_timezone_set($timezone);
     <!-- New Patreon Integration -->
     <div class="column is-5 bot-box content content-card" id="patreon">
       <h2 class="subtitle">Patreon Integration</h2>
-      <p><span class="has-text-weight-bold">Note:</span> This integration is available for Specter Version 5.4 and above.</p>
+      <p class="has-text-weight-bold">Note: Patreon Integration available for Version 5.4 and above.</p>
       <p>Follow the steps below to integrate Specter with your Patreon account:</p>
       <ol>
         <li>
@@ -104,12 +104,19 @@ date_default_timezone_set($timezone);
           <a href="https://www.patreon.com/portal/registration/register-webhooks" target="_blank">https://www.patreon.com/portal/registration/register-webhooks</a>
         </li>
         <li>
-          In your webhook settings, enter the following URL:<br>
+          On the webhook page, paste your URL in the field labeled "Create a new webhook by pasting your URL here", then click the plus icon to save.<br>
+          Enter the following URL:<br>
           <code>https://api.botofthespecter.com/patreon?api_key=</code><br>
           (Make sure to append your API key available on the Profile page.)
         </li>
         <li>
-          After saving your API key, when presented with a list of supported options, enable only the "Create Member Pledge: members:pledge:create" option.
+          After the webhook is added, remove the outdated options:
+          <ul>
+            <li>"pledges:create"</li>
+            <li>"pledges:delete"</li>
+            <li>"pledges:update"</li>
+          </ul>
+          and enable only the <code>members:pledge:create</code> option.
         </li>
       </ol>
       <p>That's it! Your Patreon account is now integrated with Specter.</p>
