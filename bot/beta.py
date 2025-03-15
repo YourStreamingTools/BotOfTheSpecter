@@ -3205,8 +3205,10 @@ class TwitchBot(commands.Bot):
                         longest_lurk = None
                         longest_lurk_user_id = None
                         now = datetime.now()
-                        for user_id, start_time_str in lurkers:
-                            start_time = datetime.strptime(start_time_str)
+                        for lurker in lurkers:
+                            user_id = lurker['user_id']
+                            start_time_str = lurker['start_time']
+                            start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
                             lurk_duration = now - start_time
                             if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
                                 longest_lurk = lurk_duration
