@@ -235,7 +235,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                 <br>
                                 <form action="" method="POST" class="mapping-form">
                                     <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                    <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
+                                    <select name="reward_id" class="mapping-select">
                                         <option value="">-- Select Reward --</option>
                                         <?php 
                                         foreach ($channelPointRewards as $reward): 
@@ -279,6 +279,15 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
 $(document).ready(function() {
+    // Add event listener for mapping select boxes
+    $('.mapping-select').on('change', function() {
+        // Submit the form via AJAX
+        const form = $(this).closest('form');
+        $.post('', form.serialize(), function(data) {
+            // Reload the page after successful submission
+            location.reload();
+        });
+    });
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
     let fileList = $('#file-list');
