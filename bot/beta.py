@@ -90,7 +90,7 @@ mod_commands = {
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto"
 }
 builtin_aliases = {
-    "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr"
+    "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader"
 }
 
 # Logs
@@ -3182,7 +3182,7 @@ class TwitchBot(commands.Bot):
             await sqldb.ensure_closed()
 
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
-    @commands.command(name='lurklead')
+    @commands.command(name='lurklead', aliases=['lurkleader'])
     async def lurklead_command(self, ctx):
         global bot_owner
         sqldb = await get_mysql_connection()
@@ -6976,16 +6976,17 @@ async def generate_winning_lotto_numbers():
             return "exists"
         # Draw 7 winning numbers and 3 supplementary numbers from 1-47
         all_numbers = random.sample(range(1, 48), 9)
-        winning_numbers = all_numbers[:6]
-        supplementary_numbers = all_numbers[6:]
+        winning_str = ', '.join(map(str, all_numbers[:6]))
+        supplementary_str = ', '.join(map(str, all_numbers[6:]))
+        winning_numbers = winning_str
+        supplementary_numbers = supplementary_str
         await cursor.execute(
             "INSERT INTO stream_lotto_winning_numbers (winning_numbers, supplementary_numbers) VALUES (%s, %s)",
             (winning_numbers, supplementary_numbers)
             )
         await sqldb.commit()
         await sqldb.close()
-        return True
-    return False
+    return True
 
 # Function to generate random Lotto numbers
 async def generate_user_lotto_numbers(user_name):
