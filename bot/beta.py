@@ -6830,24 +6830,27 @@ async def process_channel_point_rewards(event_data, event_type):
             if "tts" in reward_title.lower():
                 tts_message = event_data["user_input"]
                 asyncio.create_task(websocket_notice(event="TTS", text=tts_message))
+                return
             # Check for Lotto Numbers reward
             elif "lotto" in reward_title.lower():
-                lotto_result = await generate_user_lotto_numbers(user_name, user_id)
-                if 'error' in lotto_result:
-                    await channel.send(f"@{user_name}, {lotto_result['error']}")
-                winning_numbers = lotto_result['winning_numbers']
-                supplementary_numbers = lotto_result['supplementary_numbers']
-                winning = ', '.join(map(str, winning_numbers))
-                supplementary = ', '.join(map(str, supplementary_numbers))
-                lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning} Supplementary Numbers: {supplementary}"
+                winning_numbers, supplementary_numbers = await generate_user_lotto_numbers(user_name)
+                # Handling error if any
+                if isinstance(winning_numbers, dict) and 'error' in winning_numbers:
+                    await channel.send(f"Error: {winning_numbers['error']}")
+                    return
+                # Prepare and send the lotto message
+                lotto_message = f"{user_name} here are your Lotto numbers! Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
+                # Send the message to the channel
                 await channel.send(lotto_message)
-                chat_logger.info(f"Lotto numbers generated: {user_name} - Winning: {winning} Supplementary: {supplementary}")
+                chat_logger.info(f"Lotto numbers generated: {user_name} - Winning: {winning_numbers} Supplementary: {supplementary_numbers}")
+                return
             # Check for Fortune reward
             elif "fortune" in reward_title.lower():
                 fortune_message = await tell_fortune()
                 fortune_message = fortune_message[0].lower() + fortune_message[1:]
                 await channel.send(f"{user_name}, {fortune_message}")
                 chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
+                return
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
@@ -7004,13 +7007,14 @@ async def generate_user_lotto_numbers(user_name):
             return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
         # Draw 7 winning numbers and 3 supplementary numbers from 1-47
         all_numbers = random.sample(range(1, 48), 9)
-        winning_numbers = all_numbers[:6]
-        supplementary_numbers = all_numbers[6:]
+        winning_str = ', '.join(map(str, all_numbers[:6]))
+        supplementary_str = ', '.join(map(str, all_numbers[6:]))
         await cursor.execute(
             "INSERT INTO stream_lotto (username, winning_numbers, supplementary_numbers) VALUES (%s, %s, %s)",
-            (user_name, winning_numbers, supplementary_numbers)
+            (user_name, winning_str, supplementary_str)
         )
-        return winning_numbers, supplementary_numbers
+        await sqldb.commit()
+        return winning_str, supplementary_str
 
 # Function to fetch a random fortune
 async def tell_fortune():
