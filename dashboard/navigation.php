@@ -58,10 +58,16 @@
         <div class="navbar-dropdown">
           <a class="navbar-item" href="../discordbot.php">Discord Bot</a>
           <a class="navbar-item" href="../overlays.php">Overlays</a>
-          <a class="navbar-item" href="../integrations.php#fourthwall">Fourthwall Integration</a>
-          <a class="navbar-item" href="../integrations.php#kofi">Ko-fi Integration</a>
           <a class="navbar-item" href="../spotifylink.php">Link Spotify</a>
           <a class="navbar-item" href="../todolist">To Do List</a>
+        </div>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">External Services</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="../integrations.php">Fourthwall</a>
+          <a class="navbar-item" href="../integrations.php">Ko-Fi</a>
+          <a class="navbar-item" href="../integrations.php#patreon">Patreon</a>
         </div>
       </div>
       <a class="navbar-item" href="../premium.php">Premium</a>
