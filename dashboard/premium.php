@@ -133,7 +133,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
         <!-- Free Plan -->
         <div class="card">
             <div class="card-content">
-                <h2 class="card-title subtitle">Free Plan<br>$0 USD</h2>
+                <h2 class="card-title subtitle has-text-centered">Free Plan<br>$0 USD</h2>
                 <ul>
                     <li title="Use basic bot commands in your chat.">Basic Commands</li>
                     <li title="Receive community-based support for basic issues.">Limited Support</li>
@@ -153,7 +153,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
             <?php $trimmedCurrentPlan = trim((string)$currentPlan); $trimmedPlanKey = trim((string)$planKey); ?>
             <div class="card">
                 <div class="card-content">
-                    <h2 class="card-title subtitle"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
+                    <h2 class="card-title subtitle has-text-centered"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
                     <ul>
                         <?php foreach ($planDetails['features'] as $feature): ?>
                             <li title="<?php echo $feature['tip']; ?>"><?php echo $feature['text']; ?></li> 
@@ -183,7 +183,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
         <?php if ($isBetaUser): ?>
             <div class="card">
                 <div class="card-content">
-                    <h2 class="card-title subtitle">Exclusive Beta Plan<br>Free Access Forever!</h2>
+                    <h2 class="card-title subtitle has-text-centered">Exclusive Beta Plan<br>Free Access Forever!</h2>
                     <ul>
                         <li title="Enjoy all bot features for free, forever!">All Features FOREVER</li>
                         <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">500MB of total storage</li> 
