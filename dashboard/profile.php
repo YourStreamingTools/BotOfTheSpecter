@@ -141,6 +141,9 @@ function get_timezones() {
             <input style="width: 350px;" class="input" type="text" id="weather_location" name="weather_location" value="<?php echo $weather; ?>">
             <div class="icon is-small is-left"><i class="fas fa-globe"></i></div>
           </div>
+          <div class="control">
+            <button type="button" class="button is-info" id="check-weather" style="margin-top:5px;">CHECK LOCATION</button>
+          </div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
       </form>
@@ -282,6 +285,36 @@ function get_timezones() {
   // Display the dates in the user's local time zone
   document.getElementById('localSignupDate').innerText = convertUTCToLocalFormatted(signupDateUTC);
   document.getElementById('localLastLogin').innerText = convertUTCToLocalFormatted(lastLoginUTC);
+</script>
+
+<script>
+  document.getElementById('check-weather').addEventListener('click', function() {
+    var locationInput = document.getElementById('weather_location').value;
+    var location = locationInput.replace(/\s+/g, '');
+    var apiKey = "<?php echo $api_key; ?>";
+    var url = "https://api.botofthespecter.com/weather/location?api_key=" + apiKey + "&location=" + encodeURIComponent(location);
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onload = function() {
+      if (xhr.status == 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          var message = response.message;
+          var match = message.match(/Location:\s*([^()]+)\s*\(/);
+          if (match && match[1]) {
+            alert('Location checked and found: "' + match[1].trim() + '"');
+          } else {
+            alert('Location checked: ' + message);
+          }
+        } catch(e) {
+          alert('Error parsing API response.');
+        }
+      } else {
+        alert('Error checking location.');
+      }
+    };
+    xhr.send();
+  });
 </script>
 </body>
 </html>
