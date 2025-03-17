@@ -98,6 +98,7 @@ function get_timezones() {
       </div>
     </div>
   <?php endif; ?>
+  <br>
   <div class="columns is-desktop is-multiline is-centered box-container">
     <div class="column bot-box is-5">
       <ol>Your Username: <?php echo $username; ?></ol>
