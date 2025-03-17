@@ -414,18 +414,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
                     (ticket_id, closer_id, closer_name, "closed", reason)
                 )
-        if channel:
-            # Send closure message in channel
-            embed = discord.Embed(
-                title="Ticket Closing",
-                description=(
-                    "The support team has been notified that you no longer require assistance.\n"
-                    "This ticket will be closed and archived.\n\n"
-                    "If you need further assistance in the future, please create a new ticket."
-                ),
-                color=BOT_COLOR
-            )
-            await channel.send(embed=embed)
+        if ticket_data:
             # Try to send DM to ticket creator with the reason
             try:
                 ticket_creator = channel.guild.get_member(ticket_data['user_id'])
@@ -434,7 +423,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     dm_embed = discord.Embed(
                         title="Support Ticket Closed",
                         description=(
-                            f"Your support ticket (#{ticket_id}) has been closed by the support team. "
+                            f"Your support ticket ({ticket_id}) has been closed by the support team. "
                             f"{f'Reason for closure: {reason}' if reason != 'No reason provided' else ' '}"
                             f"If you need further assistance or if this ticket was closed by mistake, "
                             f"please return to <#{settings['info_channel_id']}> and create a new ticket "
@@ -556,9 +545,18 @@ class TicketCog(commands.Cog, name='Tickets'):
                 # Check if the user has the support role
                 support_role = ctx.guild.get_role(self.SUPPORT_ROLE)
                 if support_role not in ctx.author.roles:
+                    # Send closure message in channel
                     embed = discord.Embed(
                         title="Ticket Closure Error",
-                        description="Only the support team can close tickets.",
+                        description=(
+                            "Only the support team can close tickets.\n"
+                            "If you need further assistance, please provide more details in this ticket channel\n"
+                            "before a support team member closes this ticket for you."
+                            "\n\n"
+                            "The support team has been notified that you wish to close this ticket.\n"
+                            "Wehn we close tickets, this ticket will be marked as closed and archived.\n\n"
+                            "If you need further assistance in the future, please create a new ticket."
+                        ),
                         color=discord.Color.yellow()
                     )
                     await ctx.send(embed=embed)
