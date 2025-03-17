@@ -93,7 +93,7 @@ function get_timezones() {
   <h4 class="title is-3">Your Specter Dashboard Profile</h4>
   <?php if (!empty($status)): ?>
     <div style="text-align: center;">
-      <div class="notification is-primary" style="display: block; margin: 0 auto 20px auto;">
+      <div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">
         <?php echo htmlspecialchars($status); ?>
       </div>
     </div>
