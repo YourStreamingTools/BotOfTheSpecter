@@ -5650,19 +5650,26 @@ async def process_patreon_event(data):
         if "pay_per_name" in attributes:
             pay_per_name = attributes["pay_per_name"]
             break
+    # Determine the correct phrasing based on the pay_per_name
+    if pay_per_name == "month":
+        subscription_type = "monthly"
+    elif pay_per_name == "yearly":
+        subscription_type = "yearly"
+    else:
+        subscription_type = "monthly"
     # Process the event based on the data we have received
     if is_follower and is_gifted:
-        message = f"A patreon follower has been gifted a {pay_per_name} subscription!"
+        message = f"A patreon follower has been gifted a {subscription_type} subscription!"
     elif is_follower and is_free_trial:
         message = f"A patreon follower has started a free trial!"
     elif is_follower:
-        message = f"A patreon follower has subscribed for a {pay_per_name} subscription!"
+        message = f"A patreon follower has subscribed for a {subscription_type} subscription!"
     elif is_gifted:
-        message = f"A patreon supporter has been gifted a {pay_per_name} subscription!"
+        message = f"A patreon supporter has been gifted a {subscription_type} subscription!"
     elif is_free_trial:
         message = f"A patreon supporter has started a free trial!"
     else:
-        message = f"A patreon supporter has subscribed for a {pay_per_name} subscription!"
+        message = f"A patreon supporter just subscribed for a {subscription_type} plan!"
     await channel.send(message)
 
 async def process_weather_websocket(data):
