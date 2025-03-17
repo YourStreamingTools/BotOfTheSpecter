@@ -331,7 +331,7 @@ function get_timezones() {
           var message = response.message;
           var match = message.match(/Location:\s*([^()]+)\s*\(/);
           if (match && match[1]) {
-            var validatedLocation = match[1].trim().replace(/\s+/g, '');
+            var validatedLocation = match[1].trim();
             globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">' +
               'Location checked and found: "' + validatedLocation + '"' +
               '</div>';
