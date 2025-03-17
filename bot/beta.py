@@ -6104,7 +6104,7 @@ async def handle_ad_break_start(duration_seconds):
         formatted_duration = f"{minutes} minutes"
     else:
         formatted_duration = f"{minutes} minutes, {seconds} seconds"
-    await channel.send(f"An ad is running for {formatted_duration}. We'll be right back after these ads.")
+    await channel.send(f"Ads are running for {formatted_duration}. We'll be right back after these ads.")
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end(channel):
         await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
