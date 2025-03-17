@@ -305,7 +305,7 @@ function get_timezones() {
           var match = message.match(/Location:\s*([^()]+)\s*\(/);
           if (match && match[1]) {
             var validatedLocation = match[1].trim();
-            notice.innerHTML = 'Location checked and found: "' + validatedLocation + '" <button class="button is-link is-small" id="use-location">Use Location</button>';
+            notice.innerHTML = 'Location checked and found: "' + validatedLocation + '" <button class="button is-success is-small" id="use-location">Use Location</button>';
             notice.style.display = 'block';
             document.getElementById('use-location').addEventListener('click', function() {
               document.getElementById('weather_location').value = validatedLocation;
