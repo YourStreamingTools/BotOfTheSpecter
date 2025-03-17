@@ -92,11 +92,11 @@ function get_timezones() {
   <br>
   <h4 class="title is-3">Your Specter Dashboard Profile</h4>
   <?php if (!empty($status)): ?>
-    <div style="text-align: center;">
-      <div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">
-        <?php echo htmlspecialchars($status); ?>
-      </div>
+  <div style="text-align: center;" id="global-status" <?php if(empty($status)) echo 'style="display:none;"'; ?>>
+    <div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">
+      <?php echo htmlspecialchars($status); ?>
     </div>
+  </div>
   <?php endif; ?>
   <br>
   <div class="columns is-desktop is-multiline is-centered box-container">
@@ -144,7 +144,6 @@ function get_timezones() {
           <div class="control">
             <button type="button" class="button is-info" id="check-weather" style="margin-top:5px;">CHECK LOCATION</button>
           </div>
-          <div id="weather-notice" class="notification is-info" style="display:none;margin-top:5px;"></div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
       </form>
@@ -297,7 +296,7 @@ function get_timezones() {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
     xhr.onload = function() {
-      var notice = document.getElementById('weather-notice');
+      var globalStatus = document.getElementById('global-status');
       if (xhr.status == 200) {
         try {
           var response = JSON.parse(xhr.responseText);
@@ -305,24 +304,29 @@ function get_timezones() {
           var match = message.match(/Location:\s*([^()]+)\s*\(/);
           if (match && match[1]) {
             var validatedLocation = match[1].trim();
-            notice.innerHTML = 'Location checked and found: "' + validatedLocation + '" <button class="button is-success is-small" id="use-location">Use Location</button>';
-            notice.style.display = 'block';
-            document.getElementById('use-location').addEventListener('click', function() {
-              document.getElementById('weather_location').value = validatedLocation;
+            globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'ton class="button is-success is-small" id="use-location">Use Location</button>';
+              + 'Location checked and found: "' + validatedLocation + '" '
+              + '<button class="button is-success is-small" id="use-location">Use Location</button>'cation').addEventListener('click', function() {
+              + '</div>';
+            globalStatus.style.display = 'block';
+            document.getElementById('use-location').addEventListener('click', function() {e {
+              document.getElementById('weather_location').value = validatedLocation;.textContent = 'Location checked: ' + message;
             });
           } else {
-            notice.textContent = 'Location checked: ' + message;
-            notice.style.display = 'block';
+            globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'atch(e) {
+              + 'Location checked: ' + message + '</div>';tContent = 'Error parsing API response.';
+            globalStatus.style.display = 'block';
           }
-        } catch(e) {
-          notice.textContent = 'Error parsing API response.';
-          notice.style.display = 'block';
+        } catch(e) {lse {
+          globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'.textContent = 'Error checking location.';
+            + 'Error parsing API response.</div>';
+          globalStatus.style.display = 'block';
         }
-      } else {
-        notice.textContent = 'Error checking location.';
-        notice.style.display = 'block';
-      }
-    };
+      } else {r.send();
+        globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'
+          + 'Error checking location.</div>';ipt>
+        globalStatus.style.display = 'block';
+      }    };
     xhr.send();
   });
 </script>
