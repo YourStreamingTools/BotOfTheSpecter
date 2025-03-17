@@ -300,6 +300,13 @@ function get_timezones() {
       if (xhr.status == 200) {
         try {
           var response = JSON.parse(xhr.responseText);
+          if(response.detail) {
+            globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">' +
+              'The location that you enter cannot be found.' +
+              '</div>';
+            globalStatus.style.display = 'block';
+            return;
+          }
           var message = response.message;
           var match = message.match(/Location:\s*([^()]+)\s*\(/);
           if (match && match[1]) {
