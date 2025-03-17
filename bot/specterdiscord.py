@@ -565,13 +565,35 @@ class TicketCog(commands.Cog, name='Tickets'):
                 if not self.pool:
                     await self.init_ticket_database()
                 async with self.pool.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute("UPDATE tickets SET issue = %s WHERE ticket_id = %s", (reason, ticket_id))
-                await ctx.send(f"✅ Ticket #{ticket_id} issue updated.", delete_after=10)
+                    async with conn.cursor(aiomysql.DictCursor) as cur:
+                        # Check if the channel_id in the database is correct
+                        await cur.execute("SELECT channel_id FROM tickets WHERE ticket_id = %s", (ticket_id,))
+                        ticket = await cur.fetchone()
+                        correct_channel = ctx.channel.id
+                        if ticket:
+                            current_channel = ticket.get("channel_id")
+                            if current_channel is None or current_channel != correct_channel:
+                                # Update both issue and channel_id
+                                await cur.execute(
+                                    "UPDATE tickets SET issue = %s, channel_id = %s WHERE ticket_id = %s",
+                                    (reason, correct_channel, ticket_id)
+                                )
+                                self.logger.info(f"Ticket #{ticket_id} channel_id updated from {current_channel} to {correct_channel}")
+                            else:
+                                # Only update the issue as channel_id is correct
+                                await cur.execute(
+                                    "UPDATE tickets SET issue = %s WHERE ticket_id = %s",
+                                    (reason, ticket_id)
+                                )
+                                self.logger.info(f"Ticket #{ticket_id} issue updated with correct channel_id {correct_channel}")
+                        else:
+                            await ctx.send("Ticket not found.")
+                            return
+                await ctx.send(f"✅ Ticket #{ticket_id} issue updated.")
                 self.logger.info(f"Ticket #{ticket_id} issue updated by {ctx.author}")
             except Exception as e:
                 self.logger.error(f"Error updating ticket issue: {e}")
-                await ctx.send("An error occurred while updating the ticket issue.", delete_after=10)
+                await ctx.send("An error occurred while updating the ticket issue.")
         else:
             await ctx.send("Invalid actions. Use `!ticket create` to create a ticket, `!ticket close` to close your ticket, or `!ticket issue` to update your ticket description.")
 
