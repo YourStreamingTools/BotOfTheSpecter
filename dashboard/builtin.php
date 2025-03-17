@@ -184,7 +184,7 @@ function toggleFilter() {
 toggleFilter();
 function toggleStatus(commandName, isChecked, toggleElem) {
     // Change the toggle icon to a spinner wheel to indicate loading
-    var iconElem = toggleElem.nextElementSibling;
+    var iconElem = toggleElem.parentElement.querySelector('i');
     if (iconElem) {
         iconElem.className = "fa-solid fa-spinner fa-spin";
     }
