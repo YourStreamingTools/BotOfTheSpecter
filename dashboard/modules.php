@@ -500,7 +500,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
     <div class="modal-content" style="position: relative;">
         <button class="modal-close is-large" aria-label="close" onclick="closeModal('adNoticesModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
-            <h2 class="title is-3">Ad Notices</h2>
+            <h2 class="title is-3">Ad Notices (BETA v5.4)</h2>
             <div class="notification is-info">
                 You can use the variable (duration) which will be replaced with the ads' duration.
             </div>
