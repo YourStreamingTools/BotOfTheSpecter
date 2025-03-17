@@ -90,6 +90,13 @@ function get_timezones() {
 <div class="container">
   <br>
   <h4 class="title is-3">Your Specter Dashboard Profile</h4>
+  <?php if (!empty($status)): ?>
+    <div style="text-align: center;">
+      <div class="notification is-primary" style="display: inline-block;">
+        <?php echo htmlspecialchars($status); ?>
+      </div>
+    </div>
+  <?php endif; ?>
   <div class="columns is-desktop is-multiline is-centered box-container">
     <div class="column bot-box is-5">
       <ol>Your Username: <?php echo $username; ?></ol>
@@ -104,11 +111,6 @@ function get_timezones() {
       <button type="button" class="button is-primary" id="regen-api-key-open" style="width: 180px;">Regenerate API Key</button>
     </div>
     <div class="column bot-box is-4">
-      <?php if (!empty($status)): ?>
-        <div class="notification is-primary">
-          <?php echo htmlspecialchars($status); ?>
-        </div>
-      <?php endif; ?>
       <h4 class="label is-4">Update Profile</h4>
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <input type="hidden" name="form" value="profile">
