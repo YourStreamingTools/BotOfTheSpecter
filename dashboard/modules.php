@@ -291,7 +291,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             <button class="button is-primary" onclick="openModal('twitchAlertsModal')">Open Settings</button>
         </div>
         <div class="column is-5 bot-box" id="" style="position: relative;">
-            <h1 class="title is-3">Ad Notices (COMING SOON)</h1>
+            <h1 class="title is-3">Ad Notices (BETA v5.4)</h1>
             <h1 class="subtitle is-5">Set what the bot does when an ad plays on your channel</h1>
             <button class="button is-primary" onclick="openModal('adNoticesModal')">Open Settings</button>
         </div>
