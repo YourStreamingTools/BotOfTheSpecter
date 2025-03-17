@@ -240,15 +240,15 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <!-- Joke Blacklist Section -->
-        <div class="column is-4 bot-box" id="stable-bot-status" style="position: relative;">
+        <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-3">Manage Joke Blacklist:</h2>
-            <h2 class="subtitle is-5" style="text-align: center;">Set which category is blocked.</h2>
+            <h2 class="subtitle is-5" style="text-align: center;">Set which category is blocked</h2>
             <button class="button is-primary" onclick="openModal('jokeBlacklistModal')">Open Settings</button>
         </div>
         <!-- New Welcome Message Settings -->
-        <div class="column is-6 bot-box" id="welcome-message-settings" style="position: relative;">
+        <div class="column is-5 bot-box" id="welcome-message-settings" style="position: relative;">
             <h1 class="title is-3">Custom Welcome Messages</h1>
-            <h1 class="subtitle is-5">Set your default welcome messages for users, VIPs, and Mods.</h1>
+            <h1 class="subtitle is-5">Set default welcome messages</h1>
             <button class="button is-primary" onclick="openModal('welcomeMessageModal')">Open Settings</button>
         </div>
         <div class="column is-5 bot-box" id="" style="position: relative;">
@@ -256,13 +256,19 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             <h1 class="subtitle is-5">Twitch Alert sounds: Followers, Cheers, Subs and Raids</h1>
             <button class="button is-primary" onclick="openModal('twitchAlertsModal')">Open Settings</button>
         </div>
+        <div class="column is-5 bot-box" id="" style="position: relative;">
+            <h1 class="title is-3">Ad Notices (COMING SOON)</h1>
+            <h1 class="subtitle is-5">Set what the bot does when an ad plays on your channel</h1>
+            <button class="button is-primary" onclick="openModal('adNoticesModal')">Open Settings</button>
+        </div>
     </div>
 </div>
 
 <!-- Joke Blacklist Modal -->
 <div id="jokeBlacklistModal" class="modal">
     <div class="modal-background"></div>
-    <div class="modal-content">
+    <div class="modal-content" style="position: relative;">
+        <button class="modal-close is-large" aria-label="close" onclick="closeModal('jokeBlacklistModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
             <form method="POST" action="">
                 <h2 class="title is-3">Manage Joke Blacklist:</h2>
@@ -283,14 +289,15 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             </form>
         </div>
     </div>
-    <button class="modal-close is-large" aria-label="close" onclick="closeModal('jokeBlacklistModal')"></button>
 </div>
 
 <!-- Welcome Message Modal -->
 <div id="welcomeMessageModal" class="modal">
     <div class="modal-background"></div>
-    <div class="modal-content">
+    <div class="modal-content" style="position: relative;">
+        <button class="modal-close is-large" aria-label="close" onclick="closeModal('welcomeMessageModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
+            <h2 class="title is-3">Custom Welcome Messages</h2>
             <form method="POST" action="">
                 <div class="notification is-info">
                     <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
@@ -340,13 +347,13 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             </form>
         </div>
     </div>
-    <button class="modal-close is-large" aria-label="close" onclick="closeModal('welcomeMessageModal')"></button>
 </div>
 
 <!-- Twitch Alerts Modal -->
 <div id="twitchAlertsModal" class="modal">
     <div class="modal-background"></div>
-    <div class="modal-content custom-width">
+    <div class="modal-content custom-width" style="position: relative;">
+        <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchAlertsModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
             <h2 class="title is-3">Manage Twitch Event Sound Alerts:</h2>
             <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
@@ -451,7 +458,40 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             </div>
         </div>
     </div>
-    <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchAlertsModal')"></button>
+</div>
+
+<!-- Ad Notices Modal -->
+<div id="adNoticesModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content" style="position: relative;">
+        <button class="modal-close is-large" aria-label="close" onclick="closeModal('adNoticesModal')" style="position: absolute; top: 10px; right: 10px;"></button>
+        <div class="box">
+            <h2 class="title is-3">Ad Notices</h2>
+            <div class="notification is-info">
+                You can use the variable (duration) which will be replaced with the ads' duration.
+            </div>
+            <form method="POST" action="">
+                <div class="field">
+                    <label class="label">Ad Starting Message</label>
+                    <div class="control">
+                        <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="Ads are running for (duration). We'll be right back after these ads.">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Ad Ended Message</label>
+                    <div class="control">
+                        <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="Thanks for sticking with us through the ads! Welcome back, everyone!">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="checkbox">
+                        <input type="checkbox" name="enable_ad_notice" value="1" checked> Enable Ad Notice
+                    </label>
+                </div></button>
+                <button class="button is-primary" type="submit">Save Ad Notice Settings</button>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
