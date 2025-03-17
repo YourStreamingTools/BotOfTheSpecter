@@ -101,7 +101,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </td>
                 <td class="has-text-centered" style="vertical-align: middle;">
                   <label class="checkbox">
-                    <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked)">
+                    <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked, this)">
                     <span class="icon is-small">
                       <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
                     </span>
@@ -123,20 +123,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
-function toggleStatus(command, isChecked) {
+function toggleStatus(command, isChecked, elem) {
+  // Update the icon to show a spinner so the user knows something is happening
+  var icon = elem.parentElement.querySelector('i');
+  icon.className = "fa-solid fa-spinner fa-spin";
   var status = isChecked ? 'Enabled' : 'Disabled';
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(xhr.responseText);
       // Reload the page after the AJAX request is completed
       location.reload();
     }
   };
   xhr.send("command=" + encodeURIComponent(command) + "&status=" + status);
 }
+
+// Remember previously entered search term
+document.addEventListener("DOMContentLoaded", function() {
+  var searchInput = document.getElementById("searchInput");
+  if (searchInput) {
+    // Set saved search value if exists
+    searchInput.value = localStorage.getItem("searchTerm") || "";
+    // Listen for changes to remember the search term and trigger a search
+    searchInput.addEventListener("input", function() {
+      localStorage.setItem("searchTerm", this.value);
+      searchFunction();
+    });
+  }
+});
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/search.js"></script>
