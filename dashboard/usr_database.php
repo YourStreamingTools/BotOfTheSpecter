@@ -405,7 +405,7 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 ad_start_message VARCHAR(255),
                 ad_end_message VARCHAR(255),
-                enable_ad_notice TINYINT(1) DEFAULT 0
+                enable_ad_notice TINYINT(1) DEFAULT 1
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"         
     ];
     // List of columns to check for each table (table_name => columns)
@@ -510,6 +510,7 @@ try {
     foreach ($group_names as $group_name) {
         $usrDBconn->query("INSERT INTO `groups` (name) SELECT '$group_name' WHERE NOT EXISTS (SELECT 1 FROM `groups` WHERE name = '$group_name')");
     }
+    $usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, enable_ad_notice) SELECT 'Ads are running for (duration). We'll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)");
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
