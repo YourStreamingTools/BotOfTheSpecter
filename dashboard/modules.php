@@ -157,6 +157,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $db->commit();
         $_SESSION['update_message'] = $status;
     }
+    // Handle Ad Notices Update
+    elseif (isset($_POST['ad_start_message'])) {
+        $ad_start_message = $_POST['ad_start_message'];
+        $ad_end_message = $_POST['ad_end_message'];
+        $enable_ad_notice = isset($_POST['enable_ad_notice']) ? 1 : 0;
+        $update_sql = "
+            INSERT INTO ad_notice_settings 
+            (id, ad_start_message, ad_end_message, enable_ad_notice)
+            VALUES 
+            (1, :ad_start_message, :ad_end_message, :enable_ad_notice)
+            ON DUPLICATE KEY UPDATE 
+                ad_start_message = :ad_start_message,
+                ad_end_message = :ad_end_message,
+                enable_ad_notice = :enable_ad_notice";
+        $update_stmt = $db->prepare($update_sql);
+        $update_stmt->bindParam(':ad_start_message', $ad_start_message, PDO::PARAM_STR);
+        $update_stmt->bindParam(':ad_end_message', $ad_end_message, PDO::PARAM_STR);
+        $update_stmt->bindParam(':enable_ad_notice', $enable_ad_notice, PDO::PARAM_INT);
+        $update_stmt->execute();
+        $_SESSION['update_message'] = "Ad notice settings updated successfully.";
+    }
     // Refresh the page to show updated settings
     header("Location: " . $_SERVER['PHP_SELF']);
 }
