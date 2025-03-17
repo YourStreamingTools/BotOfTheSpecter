@@ -510,7 +510,7 @@ try {
     foreach ($group_names as $group_name) {
         $usrDBconn->query("INSERT INTO `groups` (name) SELECT '$group_name' WHERE NOT EXISTS (SELECT 1 FROM `groups` WHERE name = '$group_name')");
     }
-    $usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, enable_ad_notice) SELECT 'Ads are running for (duration). We'll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)");
+    $usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)");
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
