@@ -5633,21 +5633,22 @@ async def process_kofi_event(data):
 async def process_patreon_event(data):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Extract the data from the event
-    message = data["message", {}]
-    message_data = message.get("data", [])
-    patreon_event = message_data[1]
+    message = data.get("message", {})
+    message_data = message.get("data", {})
+    patreon_event = message_data.get("event", {})
     # Extract the event data and attributes
-    event_data = patreon_event.get("data", {}.get(data, {}))
+    event_data = patreon_event.get("data", {})
     event_data_attributes = event_data.get("attributes", {})
     is_follower = event_data_attributes.get("is_follower", False)
     is_free_trial = event_data_attributes.get("is_free_trial", False)
     is_gifted = event_data_attributes.get("is_gifted", False)
     # Extract the included data to get the pay_per_name
-    included_data = patreon_event.get("data", {}).get("included", [])
+    included_data = patreon_event.get("included", [])
     pay_per_name = "month"
     for item in included_data:
-        if item.get("attributes", {}) and "pay_per_name" in item["attributes"]:
-            pay_per_name = item["attributes"]["pay_per_name"]
+        attributes = item.get("attributes", {})
+        if "pay_per_name" in attributes:
+            pay_per_name = attributes["pay_per_name"]
             break
     # Process the event based on the data we have received
     if is_follower and is_gifted:
