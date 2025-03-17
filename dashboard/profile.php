@@ -144,6 +144,7 @@ function get_timezones() {
           <div class="control">
             <button type="button" class="button is-info" id="check-weather" style="margin-top:5px;">CHECK LOCATION</button>
           </div>
+          <div id="weather-notice" class="notification is-info" style="display:none;margin-top:5px;"></div>
         </div>
         <div class="control"><button type="submit" class="button is-primary">Submit</button></div>
       </form>
@@ -296,21 +297,25 @@ function get_timezones() {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
     xhr.onload = function() {
+      var notice = document.getElementById('weather-notice');
       if (xhr.status == 200) {
         try {
           var response = JSON.parse(xhr.responseText);
           var message = response.message;
           var match = message.match(/Location:\s*([^()]+)\s*\(/);
           if (match && match[1]) {
-            alert('Location checked and found: "' + match[1].trim() + '"');
+            notice.textContent = 'Location checked and found: "' + match[1].trim() + '"';
           } else {
-            alert('Location checked: ' + message);
+            notice.textContent = 'Location checked: ' + message;
           }
+          notice.style.display = 'block';
         } catch(e) {
-          alert('Error parsing API response.');
+          notice.textContent = 'Error parsing API response.';
+          notice.style.display = 'block';
         }
       } else {
-        alert('Error checking location.');
+        notice.textContent = 'Error checking location.';
+        notice.style.display = 'block';
       }
     };
     xhr.send();
