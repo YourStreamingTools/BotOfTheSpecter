@@ -31,8 +31,19 @@ $dbHyperateCode = $profile['heartrate_code'];
 // Convert the stored date and time to UTC using Sydney time zone (AEST/AEDT)
 $signup_date = isset($user['signup_date']) ? $user['signup_date'] : null;
 $last_login = isset($user['last_login']) ? $user['last_login'] : null;
-$signup_date_utc = isset($signup_date) && $signup_date ? date_create_from_format('Y-m-d H:i:s', $signup_date)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A') : 'Not Available';
-$last_login_utc = isset($last_login) && $last_login ? date_create_from_format('Y-m-d H:i:s', $last_login)->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A') : 'Not Available';
+if ($signup_date) {
+    $signup_date_obj = date_create_from_format('Y-m-d H:i:s', $signup_date);
+    $signup_date_utc = $signup_date_obj ? $signup_date_obj->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A') : 'Not Available';
+} else {
+    $signup_date_utc = 'Not Available';
+}
+
+if ($last_login) {
+    $last_login_obj = date_create_from_format('Y-m-d H:i:s', $last_login);
+    $last_login_utc = $last_login_obj ? $last_login_obj->setTimezone(new DateTimeZone('UTC'))->format('F j, Y g:i A') : 'Not Available';
+} else {
+    $last_login_utc = 'Not Available';
+}
 
 // Check if form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
