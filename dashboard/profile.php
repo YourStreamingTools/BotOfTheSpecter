@@ -304,11 +304,16 @@ function get_timezones() {
           var message = response.message;
           var match = message.match(/Location:\s*([^()]+)\s*\(/);
           if (match && match[1]) {
-            notice.textContent = 'Location checked and found: "' + match[1].trim() + '"';
+            var validatedLocation = match[1].trim();
+            notice.innerHTML = 'Location checked and found: "' + validatedLocation + '" <button class="button is-small" id="use-location" style="margin-left:10px;">Use</button>';
+            notice.style.display = 'block';
+            document.getElementById('use-location').addEventListener('click', function() {
+              document.getElementById('weather_location').value = validatedLocation;
+            });
           } else {
             notice.textContent = 'Location checked: ' + message;
+            notice.style.display = 'block';
           }
-          notice.style.display = 'block';
         } catch(e) {
           notice.textContent = 'Error parsing API response.';
           notice.style.display = 'block';
