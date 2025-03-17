@@ -36,42 +36,43 @@ $last_login_utc = isset($last_login) && $last_login ? date_create_from_format('Y
 
 // Check if form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-  // Check if timezone and weather_location are set
-  if (isset($_POST["timezone"]) && isset($_POST["weather_location"])) {
-    // Update the database with the new values, using id = 1
-    $timezone = $_POST["timezone"];
-    $weather_location = $_POST["weather_location"];
-    // Insert or update the row where id is 1
-    $updateQuery = $db->prepare("INSERT INTO profile (id, timezone, weather_location) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE timezone = VALUES(timezone), weather_location = VALUES(weather_location)");
-    $updateQuery->execute([$timezone, $weather_location]);
-    $status = "Profile updated successfully!";
-  } else {
-    $status = "Error: Please provide both timezone and weather location.";
-  }
-  // Check if HypeRate Code is here.
-  if (isset($_POST["hyperate_code"])) {
-    $hyperateCode = $_POST["hyperate_code"];
-    $updateQuery = $db->prepare("INSERT INTO profile (id, heartrate_code) VALUES (1, ?) ON DUPLICATE KEY UPDATE heartrate_code = VALUES(heartrate_code)");
-    $updateQuery->execute([$hyperateCode]);
-    $status = "Profile updated successfully!";
-  } else {
-    $status = "Error: Please provide the connection code before submitting.";
+  if (isset($_POST['form']) && $_POST['form'] == "profile") {
+    // Update profile details (timezone and weather_location)
+    if (isset($_POST["timezone"]) && isset($_POST["weather_location"])) {
+      $timezone = $_POST["timezone"];
+      $weather_location = $_POST["weather_location"];
+      $updateQuery = $db->prepare("INSERT INTO profile (id, timezone, weather_location) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE timezone = VALUES(timezone), weather_location = VALUES(weather_location)");
+      $updateQuery->execute([$timezone, $weather_location]);
+      $status = "Profile updated successfully!";
+    } else {
+      $status = "Error: Please provide both timezone and weather location.";
+      }
+  } elseif (isset($_POST['form']) && $_POST['form'] == "hyperate") {
+    // Update hyperate code
+    if (isset($_POST["hyperate_code"]) && $_POST["hyperate_code"] !== '') {
+      $hyperateCode = $_POST["hyperate_code"];
+      $updateQuery = $db->prepare("INSERT INTO profile (id, heartrate_code) VALUES (1, ?) ON DUPLICATE KEY UPDATE heartrate_code = VALUES(heartrate_code)");
+      $updateQuery->execute([$hyperateCode]);
+      $status = "Profile updated successfully!";
+    } else {
+      $status = "Error: Please provide the connection code before submitting.";
+    }
   }
 }
 
 // Function to get all PHP timezones
 $timezones = get_timezones();
 function get_timezones() {
-    $timezones = DateTimeZone::listIdentifiers();
-    $timezone_offsets = [];
-    foreach($timezones as $timezone) {
-        $datetime = new DateTime(null, new DateTimeZone($timezone));
-        $offset = $datetime->getOffset();
-        $timezone_offsets[$timezone] = $offset;
-    }
-    // Sort timezones by offset
-    asort($timezone_offsets);
-    return $timezone_offsets;
+  $timezones = DateTimeZone::listIdentifiers();
+  $timezone_offsets = [];
+  foreach($timezones as $timezone) {
+    $datetime = new DateTime(null, new DateTimeZone($timezone));
+    $offset = $datetime->getOffset();
+    $timezone_offsets[$timezone] = $offset;
+  }
+  // Sort timezones by offset
+  asort($timezone_offsets);
+  return $timezone_offsets;
 }
 ?>
 <!DOCTYPE html>
@@ -110,6 +111,7 @@ function get_timezones() {
       <?php endif; ?>
       <h4 class="label is-4">Update Profile</h4>
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
+        <input type="hidden" name="form" value="profile">
         <div class="field">
           <label class="is-4" for="timezone">Timezone:</label>
           <div class="control has-icons-left">
@@ -141,6 +143,7 @@ function get_timezones() {
     </div>
     <div class="column bot-box is-5">
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
+        <input type="hidden" name="form" value="hyperate">
         <div class="field">
           <label class="is-4">Heart Rate Code:</label><br>
           <div class="control has-icons-left">
