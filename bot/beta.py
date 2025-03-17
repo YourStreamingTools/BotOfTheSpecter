@@ -5681,10 +5681,14 @@ async def process_weather_websocket(data):
     wind_speed_mph = weather_data.get('wind', 'Unknown').split('mph')[0].split('|')[-1].strip()
     wind_direction = weather_data.get('wind', 'Unknown').split()[-1]
     humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip()
-    # Format the message to be sent to the chat
-    message = (f"The weather in {location} is {status} with a temperature of {temperature_c}°C ({temperature_f}°F). "
-               f"Wind is blowing from the {wind_direction} at {wind_speed_kph} kph ({wind_speed_mph} mph) with {humidity}%.")
-    # Get the channel and send the message
+    # Get the current UTC time using timezone-aware datetime
+    now = datetime.now(pytz.timezone("UTC"))
+    minutes_ago = now.minute  # Get current minutes (0-59)
+    # Format the message
+    message = (f"The weather as of {minutes_ago} min ago in {location} is {status} with a temperature of "
+               f"{temperature_c}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at "
+               f"{wind_speed_kph} kph ({wind_speed_mph} mph) with {humidity}% humidity.")
+    # Log and send message
     event_logger.info(f"Sending weather update: {message}")
     await channel.send(message)
 
