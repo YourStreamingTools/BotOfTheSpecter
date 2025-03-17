@@ -51,6 +51,20 @@ $new_default_vip_welcome_message = isset($preferences['new_default_vip_welcome_m
 $default_mod_welcome_message = isset($preferences['default_mod_welcome_message']) ? $preferences['default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
 $new_default_mod_welcome_message = isset($preferences['new_default_mod_welcome_message']) ? $preferences['new_default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
 
+// Fetch ad notice settings from the database
+$stmt = $db->prepare("SELECT ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
+$stmt->execute();
+$ad_notice_settings = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($ad_notice_settings) {
+    $ad_start_message = $ad_notice_settings['ad_start_message'];
+    $ad_end_message = $ad_notice_settings['ad_end_message'];
+    $enable_ad_notice = (int)$ad_notice_settings['enable_ad_notice'];
+} else {
+    $ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
+    $ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
+    $enable_ad_notice = 1;
+}
+
 // If form is submitted, update the blacklist
 $update_success = false;
 $update_message = '';
@@ -495,21 +509,21 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 <div class="field">
                     <label class="label">Ad Starting Message</label>
                     <div class="control">
-                        <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="Ads are running for (duration). We'll be right back after these ads.">
+                        <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="<?php echo htmlspecialchars($ad_start_message); ?>">
                     </div>
                 </div>
                 <div class="field">
                     <label class="label">Ad Ended Message</label>
                     <div class="control">
-                        <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="Thanks for sticking with us through the ads! Welcome back, everyone!">
+                        <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="<?php echo htmlspecialchars($ad_end_message); ?>">
                     </div>
                 </div>
                 <div class="field">
                     <label class="checkbox">
-                        <input type="checkbox" name="enable_ad_notice" value="1" checked> Enable Ad Notice
+                        <input type="checkbox" name="enable_ad_notice" value="1" <?php echo $enable_ad_notice ? 'checked' : ''; ?>> Enable Ad Notice
                     </label>
-                </div></button>
-                <button class="button is-primary" type="submit">Save Ad Notice Settings</button>
+                </div>
+                <button class="button is-primary" type="submit" disabled>Save Ad Notice Settings</button>
             </form>
         </div>
     </div>
