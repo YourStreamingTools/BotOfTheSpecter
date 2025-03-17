@@ -91,13 +91,13 @@ function get_timezones() {
 <div class="container">
   <br>
   <h4 class="title is-3">Your Specter Dashboard Profile</h4>
-  <?php if (!empty($status)): ?>
-  <div style="text-align: center;" id="global-status" <?php if(empty($status)) echo 'style="display:none;"'; ?>>
-    <div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">
-      <?php echo htmlspecialchars($status); ?>
-    </div>
+  <div style="text-align: center; display: none;" id="global-status">
+    <?php if (!empty($status)): ?>
+      <div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">
+        <?php echo htmlspecialchars($status); ?>
+      </div>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
   <br>
   <div class="columns is-desktop is-multiline is-centered box-container">
     <div class="column bot-box is-5">
