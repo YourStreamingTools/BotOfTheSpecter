@@ -477,6 +477,13 @@ class TicketCog(commands.Cog, name='Tickets'):
                 # Update channel topic to indicate it's closed
                 new_topic = f"{channel.topic} [CLOSED]" if channel.topic else "[CLOSED]"
                 await channel.edit(topic=new_topic)
+                # Replace plain text closure message with an embed
+                embed_closed = discord.Embed(
+                    title="Ticket Closed",
+                    description="This ticket is now closed. Further replies in this chat are disabled.",
+                    color=discord.Color.red()
+                )
+                await channel.send(embed=embed_closed)
                 self.logger.info(f"Ticket #{ticket_id} closed and archived successfully")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to modify channel for ticket #{ticket_id}")
