@@ -21,13 +21,13 @@ date_default_timezone_set($timezone);
 // Define plans with features
 $plans = [
     '1000' => [
-        'name' => 'Twitch Tier 1',
+        'name' => 'Twitch Tier 1/Prime',
         'price' => '$5.99 USD',
         'features' => [
             ['text' => '!song Command', 'tip' => 'Use this command to view what song is playing in chat. (NOT REQUIRED FOR SPOTIFY)'],
             ['text' => 'Full Support', 'tip' => 'Get priority assistance and support for any bot-related issues.'],
             ['text' => 'Exclusive Beta Features', 'tip' => 'Early access to new and experimental bot features.'],
-            ['text' => '5MB of total storage', 'tip' => 'Store your own sound effects and music files for alerts and walk-on sounds.'],
+            ['text' => '50MB of total storage', 'tip' => 'Store your own sound effects and music files for alerts and walk-on sounds.'],
             ['text' => 'Shared Bot (BotOfTheSpecter)', 'tip' => 'The bot\'s username will be the same across all channels.'] 
         ],
     ],
@@ -38,7 +38,7 @@ $plans = [
             ['text' => 'Everything From Tier 1', 'tip' => 'Includes all the benefits of the Tier 1 subscription.'],
             ['text' => 'Personalized Support', 'tip' => 'Receive dedicated one-on-one support for your bot needs.'],
             ['text' => 'AI Features & Conversations', 'tip' => 'Enjoy advanced AI-powered features and interactive conversations in chat.'],
-            ['text' => '10MB of total storage', 'tip' => 'Store more of your own sound effects and music files for alerts and walk-on sounds.'],
+            ['text' => '100MB of total storage', 'tip' => 'Store more of your own sound effects and music files for alerts and walk-on sounds.'],
             ['text' => 'Shared Bot (BotOfTheSpecter)', 'tip' => 'The bot\'s username will be the same across all channels.'] 
         ],
     ],
@@ -47,7 +47,7 @@ $plans = [
         'price' => '$24.99 USD',
         'features' => [
             ['text' => 'Everything from Tier 2', 'tip' => 'Includes all the benefits of the Tier 2 subscription.'],
-            ['text' => '20MB of total storage', 'tip' => 'Store an even larger collection of custom sound effects and music files.'],
+            ['text' => '200MB of total storage', 'tip' => 'Store an even larger collection of custom sound effects and music files.'],
             ['text' => 'Dedicated bot (custom bot name) [feature coming soon]', 'tip' => 'Get a dedicated bot instance with a custom name for your channel (coming soon).'] 
         ],
     ],
@@ -137,7 +137,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                 <ul>
                     <li title="Use basic bot commands in your chat.">Basic Commands</li>
                     <li title="Receive community-based support for basic issues.">Limited Support</li>
-                    <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">2MB of total storage</li> 
+                    <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">20MB of total storage</li> 
                     <li title="The bot's username will be the same across all channels.">Shared Bot (BotOfTheSpecter)</li>
                 </ul>
             </div>
@@ -186,7 +186,7 @@ $isBetaUser = in_array($twitchDisplayName, $betaUsers);
                     <h2 class="card-title subtitle">Exclusive Beta Plan<br>Free Access Forever!</h2>
                     <ul>
                         <li title="Enjoy all bot features for free, forever!">All Features FOREVER</li>
-                        <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">50MB of total storage</li> 
+                        <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">500MB of total storage</li> 
                     </ul>
                 </div>
                 <div class="card-footer">
