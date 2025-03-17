@@ -15,6 +15,12 @@ $timezone = "";
 $weather = "";
 $dbHyperateCode = "";
 
+// Retrieve status from the session instead of GET parameters
+if(isset($_SESSION['status'])) { 
+    $status = $_SESSION['status'];
+    unset($_SESSION['status']);
+}
+
 // Include all the information
 require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
@@ -55,17 +61,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       $weather_location = preg_replace('/\s+/', '', $_POST["weather_location"]);
       $updateQuery = $db->prepare("INSERT INTO profile (id, timezone, weather_location) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE timezone = VALUES(timezone), weather_location = VALUES(weather_location)");
       $updateQuery->execute([$timezone, $weather_location]);
-      $status = "Profile updated successfully!";
+      $_SESSION['status'] = "Profile updated successfully!";
+      header("Location: profile.php");
+      exit();
     } else {
       $status = "Error: Please provide both timezone and weather location.";
-      }
+    }
   } elseif (isset($_POST['form']) && $_POST['form'] == "hyperate") {
     // Update hyperate code
     if (isset($_POST["hyperate_code"]) && $_POST["hyperate_code"] !== '') {
       $hyperateCode = $_POST["hyperate_code"];
       $updateQuery = $db->prepare("INSERT INTO profile (id, heartrate_code) VALUES (1, ?) ON DUPLICATE KEY UPDATE heartrate_code = VALUES(heartrate_code)");
       $updateQuery->execute([$hyperateCode]);
-      $status = "Profile updated successfully!";
+      $_SESSION['status'] = "Profile updated successfully!";
+      header("Location: profile.php");
+      exit();
     } else {
       $status = "Error: Please provide the connection code before submitting.";
     }
