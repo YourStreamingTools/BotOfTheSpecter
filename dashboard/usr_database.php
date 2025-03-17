@@ -399,7 +399,14 @@ try {
                 winning_numbers VARCHAR(255),
                 supplementary_numbers VARCHAR(255),
                 UNIQUE (winning_numbers)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'ad_notice_settings' => "
+            CREATE TABLE IF NOT EXISTS ad_notice_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                ad_start_message VARCHAR(255),
+                ad_end_message VARCHAR(255),
+                enable_ad_notice TINYINT(1) DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"         
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
