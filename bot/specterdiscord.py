@@ -527,38 +527,62 @@ class TicketCog(commands.Cog, name='Tickets'):
         elif action.lower() == "close":
             # Check if the command is used in a ticket channel
             if not ctx.channel.name.startswith("ticket-"):
-                await ctx.send(
-                    "This command can only be used in a ticket channel.",
-                    delete_after=10
+                embed = discord.Embed(
+                    title="Ticket Closure Error",
+                    description="This command can only be used in a ticket channel.",
+                    color=discord.Color.yellow()
                 )
+                await ctx.send(embed=embed, delete_after=10)
                 return
             try:
                 # Fetch ticket id from the channel name
                 ticket_id = int(ctx.channel.name.split("-")[1])
                 ticket = await self.get_ticket(ticket_id)
                 if not ticket:
-                    await ctx.send("It seems there is an issue: you're in a ticket channel, but I can't find the associated ticket number for this channel.")
+                    embed = discord.Embed(
+                        title="Ticket Closure Error",
+                        description="It seems there is an issue: you're in a ticket channel, but I can't find the associated ticket ID number for this channel.",
+                        color=discord.Color.yellow()
+                    )
+                    await ctx.send(embed=embed)
                     return
                 # Check if the user has the support role
                 support_role = ctx.guild.get_role(self.SUPPORT_ROLE)
                 if support_role not in ctx.author.roles:
-                    await ctx.send("Only the support team can close tickets.")
+                    embed = discord.Embed(
+                        title="Ticket Closure Error",
+                        description="Only the support team can close tickets.",
+                        color=discord.Color.yellow()
+                    )
+                    await ctx.send(embed=embed)
                     return
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
             except Exception as e:
                 self.logger.error(f"Error closing ticket: {e}")
-                await ctx.send(
-                    "An error occurred while closing the ticket.",
-                    delete_after=10
+                embed = discord.Embed(
+                    title="Ticket Closure Error",
+                    description="An error occurred while closing the ticket.",
+                    color=discord.Color.yellow()
                 )
+                await ctx.send(embed=embed, delete_after=10)
         elif action.lower() == "issue":
             # Update ticket issue description logic:
             if not ctx.channel.name.startswith("ticket-"):
-                await ctx.send("This command can only be used in a ticket channel.", delete_after=10)
+                embed = discord.Embed(
+                    title="Ticket Update Error",
+                    description="This command can only be used in a ticket channel.",
+                    color=discord.Color.yellow()
+                )
+                await ctx.send(embed=embed, delete_after=10)
                 return
             if not reason:
-                await ctx.send("Please provide the new issue description.", delete_after=10)
+                embed = discord.Embed(
+                    title="Ticket Update Error",
+                    description="Please provide the new issue description.",
+                    color=discord.Color.yellow()
+                )
+                await ctx.send(embed=embed, delete_after=10)
                 return
             try:
                 ticket_id = int(ctx.channel.name.split("-")[1])
@@ -587,13 +611,28 @@ class TicketCog(commands.Cog, name='Tickets'):
                                 )
                                 self.logger.info(f"Ticket #{ticket_id} issue updated with correct channel_id {correct_channel}")
                         else:
-                            await ctx.send("Ticket not found.")
+                            embed = discord.Embed(
+                                title="Ticket Update Error",
+                                description="Ticket not found.",
+                                color=discord.Color.yellow()
+                            )
+                            await ctx.send(embed=embed)
                             return
-                await ctx.send(f"✅ Ticket #{ticket_id} issue updated.")
+                embed = discord.Embed(
+                    title="Ticket Updated",
+                    description=f"✅ Ticket #{ticket_id} issue updated.",
+                    color=discord.Color.yellow()
+                )
+                await ctx.send(embed=embed)
                 self.logger.info(f"Ticket #{ticket_id} issue updated by {ctx.author}")
             except Exception as e:
                 self.logger.error(f"Error updating ticket issue: {e}")
-                await ctx.send("An error occurred while updating the ticket issue.")
+                embed = discord.Embed(
+                    title="Ticket Update Error",
+                    description="An error occurred while updating the ticket issue.",
+                    color=discord.Color.yellow()
+                )
+                await ctx.send(embed=embed)
         else:
             await ctx.send("Invalid actions. Use `!ticket create` to create a ticket, `!ticket close` to close your ticket, or `!ticket issue` to update your ticket description.")
 
