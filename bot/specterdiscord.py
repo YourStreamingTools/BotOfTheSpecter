@@ -541,6 +541,9 @@ class TicketCog(commands.Cog, name='Tickets'):
                         color=discord.Color.yellow()
                     )
                     await ctx.send(embed=embed)
+                    # Tag support team with a plain text message notifying closure request
+                    support_role = channel.guild.get_role(self.SUPPORT_ROLE)
+                    await channel.send(f"{support_role.mention} requested ticket closure.")
                     return
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
