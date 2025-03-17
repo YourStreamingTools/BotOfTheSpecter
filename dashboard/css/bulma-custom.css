@@ -574,3 +574,19 @@ input[type="submit"]:hover {
 .navbar a.navbar-item:focus {
 	background-color: transparent !important;
 }
+
+.custom-width {
+    width: 90vw; max-width: none;
+}
+
+label.checkbox:hover,
+label.checkbox:hover * {
+    background-color: transparent !important;
+    border-color: inherit !important;
+    box-shadow: none !important;
+}
+
+input[type="checkbox"]:hover {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
