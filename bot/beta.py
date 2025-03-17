@@ -185,6 +185,7 @@ HEARTRATE = None                                        # Current heart rate val
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
+shoutout_user = None                                    # Tracks the last shoutout user
 bot_owner = "gfaundead"                                 # Bot owner's username
 
 # Function to handle termination signals
@@ -396,7 +397,9 @@ async def subscribe_to_events(session_id):
         "channel.poll.begin",
         "channel.poll.end",
         "automod.message.hold",
-        "channel.suspicious_user.message"
+        "channel.suspicious_user.message",
+        "channel.shoutout.create",
+        "channel.shoutout.receive"
     ]
     v2topics = [
         "channel.follow",
@@ -444,6 +447,19 @@ async def subscribe_to_events(session_id):
                     }
                 }
             elif v1topic == "channel.chat.user_message_hold":
+                payload = {
+                    "type": v1topic,
+                    "version": "1",
+                    "condition": {
+                        "broadcaster_user_id": CHANNEL_ID,
+                        "moderator_user_id": CHANNEL_ID
+                    },
+                    "transport": {
+                        "method": "websocket",
+                        "session_id": session_id
+                    }
+                }
+            elif v1topic == "channel.shoutout.create" or v1topic == "channel.shoutout.receive":
                 payload = {
                     "type": v1topic,
                     "version": "1",
@@ -908,6 +924,31 @@ async def process_twitch_eventsub_message(message):
                     if lowTrustStatus == "active_monitoring":
                         bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
                         asyncio.create_task(ban_user(messageAuthor, messageAuthorID))
+                elif event_type == "channel.shoutout.create" or event_type == "channel.shoutout.receive":
+                    if event_type == "channel.shoutout.create":
+                        global shoutout_user
+                        user_id = event_data['event']['to_broadcaster_user_id']
+                        user_to_shoutout = event_data['event']['to_broadcaster_user_name']
+                        if shoutout_user.lower() == user_to_shoutout.lower():
+                            return
+                        game = await get_latest_stream_game(user_id, user_to_shoutout)
+                        if not game:
+                            shoutout_message = (
+                                f"Hey, huge shoutout to @{user_to_shoutout}! "
+                                f"You should go give them a follow over at "
+                                f"https://www.twitch.tv/{user_to_shoutout}"
+                            )
+                        else:
+                            shoutout_message = (
+                                f"Hey, huge shoutout to @{user_to_shoutout}! "
+                                f"You should go give them a follow over at "
+                                f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+                            )
+                    elif event_type == "channel.shoutout.receive":
+                        shoutout_message = f"@{event_data['event']['from_broadcaster_user_name']} has given @{CHANNEL_NAME} a shoutout."
+                    else:
+                        shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct inforamtion from twitch to process the request."
+                    await channel.send(shoutout_message)
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -4133,7 +4174,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=15, bucket=commands.Bucket.default)
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx, user_to_shoutout: str = None):
-        global bot_owner
+        global bot_owner, shoutout_user
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -4147,44 +4188,44 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
-                chat_logger.info(f"Shoutout command running from {ctx.author.name}")
-                if not user_to_shoutout:
-                    chat_logger.error(f"Shoutout command missing username parameter.")
-                    await ctx.send(f"Usage: !so @username")
+            chat_logger.info(f"Shoutout command running from {ctx.author.name}")
+            if not user_to_shoutout:
+                chat_logger.error(f"Shoutout command missing username parameter.")
+                await ctx.send(f"Usage: !so @username")
+                return
+            try:
+                chat_logger.info(f"Shoutout command trying to run.")
+                user_to_shoutout = user_to_shoutout.lstrip('@')
+                is_valid_user = await is_valid_twitch_user(user_to_shoutout)
+                if not is_valid_user:
+                    chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch.")
+                    await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
                     return
-                try:
-                    chat_logger.info(f"Shoutout command trying to run.")
-                    user_to_shoutout = user_to_shoutout.lstrip('@')
-                    is_valid_user = await is_valid_twitch_user(user_to_shoutout)
-                    if not is_valid_user:
-                        chat_logger.error(f"User {user_to_shoutout} does not exist on Twitch. You yelled the shoutout to only air.")
-                        await ctx.send(f"The user @{user_to_shoutout} does not exist on Twitch.")
-                        return
-                    chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
-                    user_info = await self.fetch_users(names=[user_to_shoutout])
-                    if not user_info:
-                        await ctx.send("Failed to fetch user information.")
-                        return
-                    user_id = user_info[0].id
-                    game = await get_latest_stream_game(user_id, user_to_shoutout)
-                    if not game:
-                        shoutout_message = (
-                            f"Hey, huge shoutout to @{user_to_shoutout}! "
-                            f"You should go give them a follow over at "
-                            f"https://www.twitch.tv/{user_to_shoutout}"
-                        )
-                    else:
-                        shoutout_message = (
-                            f"Hey, huge shoutout to @{user_to_shoutout}! "
-                            f"You should go give them a follow over at "
-                            f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-                        )
-                    chat_logger.info(shoutout_message)
-                    await ctx.send(shoutout_message)
-                    await add_shoutout(user_to_shoutout, user_id)
-                except Exception as e:
-                    chat_logger.error(f"Error in shoutout_command: {e}")
-                    await ctx.send("An error occurred while processing the shoutout command.")
+                chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
+                user_info = await self.fetch_users(names=[user_to_shoutout])
+                if not user_info:
+                    await ctx.send("Failed to fetch user information.")
+                    return
+                user_id = user_info[0].id
+                game = await get_latest_stream_game(user_id, user_to_shoutout)
+                if not game:
+                    shoutout_message = (
+                        f"Hey, huge shoutout to @{user_to_shoutout}! "
+                        f"You should go give them a follow over at "
+                        f"https://www.twitch.tv/{user_to_shoutout}"
+                    )
+                else:
+                    shoutout_message = (
+                        f"Hey, huge shoutout to @{user_to_shoutout}! "
+                        f"You should go give them a follow over at "
+                        f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
+                    )
+                chat_logger.info(shoutout_message)
+                await ctx.send(shoutout_message)
+                await add_shoutout(user_to_shoutout, user_id)
+            except Exception as e:
+                chat_logger.error(f"Error in shoutout_command: {e}")
+                await ctx.send("An error occurred while processing the shoutout command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
@@ -5362,6 +5403,9 @@ async def shoutout_worker():
                 continue
         # Trigger the shoutout
         await trigger_twitch_shoutout(user_to_shoutout, user_id)
+        twitch_logger.info(f"Shoutout sent for {user_to_shoutout}.")
+        shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
+        asyncio.create_task(remove_shoutout_user(user_to_shoutout, 60))
         # Update cooldown trackers
         last_shoutout_time = datetime.now()
         shoutout_tracker[user_id] = last_shoutout_time
@@ -7721,6 +7765,14 @@ async def return_the_action_back(ctx, author, action):
     await sqldb.ensure_closed()
     if count is not None:
         await ctx.send(f"Thanks for the {action}, {author}! I've given you a {action} too, you have been {action} {count} times!")
+
+# Function to remove the temp user from the shoutout_user dict
+async def remove_shoutout_user(username: str, delay: int):
+    global shoutout_user
+    await asyncio.sleep(delay)
+    if shoutout_user:
+        chat_logger.info(f"Removed temporary shoutout data for {username}")
+        shoutout_user = None
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
