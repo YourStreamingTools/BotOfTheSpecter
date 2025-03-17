@@ -304,29 +304,30 @@ function get_timezones() {
           var match = message.match(/Location:\s*([^()]+)\s*\(/);
           if (match && match[1]) {
             var validatedLocation = match[1].trim();
-            globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'ton class="button is-success is-small" id="use-location">Use Location</button>';
-              + 'Location checked and found: "' + validatedLocation + '" '
-              + '<button class="button is-success is-small" id="use-location">Use Location</button>'cation').addEventListener('click', function() {
-              + '</div>';
+            globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">' +
+              'Location checked and found: "' + validatedLocation + '" ' +
+              '<button class="button is-success is-small is-rounded" id="use-location">Use Location</button>' +
+              '</div>';
             globalStatus.style.display = 'block';
-            document.getElementById('use-location').addEventListener('click', function() {e {
-              document.getElementById('weather_location').value = validatedLocation;.textContent = 'Location checked: ' + message;
+            document.getElementById('use-location').addEventListener('click', function() {
+              document.getElementById('weather_location').value = validatedLocation;
             });
           } else {
-            globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'atch(e) {
-              + 'Location checked: ' + message + '</div>';tContent = 'Error parsing API response.';
+            globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">' +
+              'Location checked: ' + message + '</div>';
             globalStatus.style.display = 'block';
           }
-        } catch(e) {lse {
-          globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'.textContent = 'Error checking location.';
-            + 'Error parsing API response.</div>';
+        } catch(e) {
+          globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">' +
+            'Error parsing API response.</div>';
           globalStatus.style.display = 'block';
         }
-      } else {r.send();
-        globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">'
-          + 'Error checking location.</div>';ipt>
+      } else {
+        globalStatus.innerHTML = '<div class="notification is-primary" style="display: inline-block; margin-bottom: 20px;">' +
+          'Error checking location.</div>';
         globalStatus.style.display = 'block';
-      }    };
+      }
+    };
     xhr.send();
   });
 </script>
