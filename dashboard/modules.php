@@ -260,7 +260,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
     <head>
         <!-- Header -->
         <?php include('header.php'); ?>
-        <style>.custom-width { width: 90vw; max-width: none; }</style>
         <!-- /Header -->
     </head>
 <body>
@@ -523,7 +522,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                         <input type="checkbox" name="enable_ad_notice" value="1" <?php echo $enable_ad_notice ? 'checked' : ''; ?>> Enable Ad Notice
                     </label>
                 </div>
-                <button class="button is-primary" type="submit" disabled>Save Ad Notice Settings</button>
+                <button class="button is-primary" type="submit" disabled title="This feature is coming soon">Save Ad Notice Settings</button>
             </form>
         </div>
     </div>
