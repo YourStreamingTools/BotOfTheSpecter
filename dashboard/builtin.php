@@ -136,7 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </td>
                     <td class="has-text-centered" style="vertical-align: middle;">
                         <label class="switch">
-                            <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked)">
+                            <input type="checkbox" class="toggle-checkbox" <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked, this)">
                             <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
                         </label>
                     </td>
@@ -179,9 +179,15 @@ function toggleFilter() {
         }
     });
 }
+
 // Initial call to set the correct visibility
 toggleFilter();
-function toggleStatus(commandName, isChecked) {
+function toggleStatus(commandName, isChecked, toggleElem) {
+    // Change the toggle icon to a spinner wheel to indicate loading
+    var iconElem = toggleElem.nextElementSibling;
+    if (iconElem) {
+        iconElem.className = "fa-solid fa-spinner fa-spin";
+    }
     var status = isChecked ? 'Enabled' : 'Disabled';
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '', true);
