@@ -242,9 +242,8 @@ class BotOfTheSpecter(commands.Bot):
             return
         # Process the message
         try:
-            # Store the current typing state
-            async with message.channel.typing():
-                await self.process_commands(message)
+            # Removed typing indicator
+            await self.process_commands(message)
         except Exception as e:
             self.logger.error(f"Error processing command: {e}")
             try:
