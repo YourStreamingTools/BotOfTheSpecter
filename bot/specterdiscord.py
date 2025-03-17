@@ -375,15 +375,11 @@ class TicketCog(commands.Cog, name='Tickets'):
             await self.init_ticket_database()
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO tickets (user_id, username, issue) VALUES (%s, %s, %s)",
-                    (user_id, username, "Awaiting user's issue description")
-                )
+                await cur.execute("INSERT INTO tickets (user_id, username, issue) VALUES (%s, %s, %s)",
+                    (user_id, username, "Awaiting user's issue description"))
                 ticket_id = cur.lastrowid
-                await cur.execute(
-                    "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
-                    (ticket_id, user_id, username, "created", "Ticket channel created")
-                )
+                await cur.execute("INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
+                    (ticket_id, user_id, username, "created", "Ticket channel created"))
                 return ticket_id
 
     async def close_ticket(self, ticket_id: int, channel_id: int, closer_id: int, closer_name: str, reason: str = "No reason provided"):
@@ -401,19 +397,10 @@ class TicketCog(commands.Cog, name='Tickets'):
                 if not ticket_data:
                     raise ValueError("Ticket not found in database")
                 # Update ticket status and store channel_id
-                await cur.execute(
-                    """UPDATE tickets 
-                       SET status = 'closed', 
-                           closed_at = NOW(), 
-                           channel_id = %s 
-                       WHERE ticket_id = %s""",
-                    (channel_id, ticket_id)
-                )
+                await cur.execute("UPDATE tickets SET status = 'closed', closed_at = NOW(), channel_id = %s WHERE ticket_id = %s",(channel_id, ticket_id))
                 # Log the closure in history with the reason
-                await cur.execute(
-                    "INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
-                    (ticket_id, closer_id, closer_name, "closed", reason)
-                )
+                await cur.execute("INSERT INTO ticket_history (ticket_id, user_id, username, action, details) VALUES (%s, %s, %s, %s, %s)",
+                    (ticket_id, closer_id, closer_name, "closed", reason))
         if ticket_data:
             # Try to send DM to ticket creator with the reason
             try:
@@ -452,7 +439,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     await closed_category.set_permissions(
                         channel.guild.get_member(self.OWNER_ID),
                         read_messages=True,
-                        send_messages=True
+                        send_messages=False
                     )
                 # Remove ticket creator's access
                 if ticket_creator:
@@ -486,16 +473,10 @@ class TicketCog(commands.Cog, name='Tickets'):
         """Ticket system commands"""
         # Check if the command is used in the correct server
         if ctx.guild.id != self.SUPPORT_GUILD_ID:
-            await ctx.send(
-                "❌ This command can only be used in the support server.",
-                delete_after=10
-            )
+            await ctx.send("❌ This command can only be used in the support server.", delete_after=10)
             return
         if action is None:
-            await ctx.send(
-                "Please specify an action: `create` to create a ticket or `close` to close your ticket.",
-                delete_after=10
-            )
+            await ctx.send("Please specify an action: `create` to create a ticket or `close` to close your ticket.", delete_after=10)
             return
         if action.lower() == "create":
             try:
