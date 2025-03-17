@@ -1000,6 +1000,27 @@ async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
 # Hidden Endpoints
+# Function to verify the location of the user for weather
+@app.get(
+    "/web/weather",
+    summary="Get website-specific weather location",
+    description="Retrieve the correct location information for a given query from the website.",
+    operation_id="get_web_weather_location",
+    include_in_schema=False
+)
+async def web_weather(api_key: str = Query(...), location: str = Query(...)):
+    # Validate the API key
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    try:
+        location_data, lat, lon = await get_weather_lat_lon(location)
+        if lat is None or lon is None:
+            raise HTTPException(status_code=404, detail=f"Location '{location}' not found.")
+        return {"location_data": location_data, "latitude": lat, "longitude": lon}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 # Games endpoint
 @app.get(
     "/games",
