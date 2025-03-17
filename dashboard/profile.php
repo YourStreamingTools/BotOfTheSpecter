@@ -40,7 +40,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Update profile details (timezone and weather_location)
     if (isset($_POST["timezone"]) && isset($_POST["weather_location"])) {
       $timezone = $_POST["timezone"];
-      $weather_location = $_POST["weather_location"];
+      // Remove spaces from weather location
+      $weather_location = preg_replace('/\s+/', '', $_POST["weather_location"]);
       $updateQuery = $db->prepare("INSERT INTO profile (id, timezone, weather_location) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE timezone = VALUES(timezone), weather_location = VALUES(weather_location)");
       $updateQuery->execute([$timezone, $weather_location]);
       $status = "Profile updated successfully!";
