@@ -1,7 +1,4 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 // Initialize the session
 session_start();
 
@@ -151,40 +148,55 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
-    // Toggle visibility of commands based on status
-    document.getElementById('showEnabled').addEventListener('change', toggleFilter);
-    document.getElementById('showDisabled').addEventListener('change', toggleFilter);
-    function toggleFilter() {
-        const showEnabled = document.getElementById('showEnabled').checked;
-        const showDisabled = document.getElementById('showDisabled').checked;
-        const rows = document.querySelectorAll('.commandRow');
-        rows.forEach(row => {
-            const status = row.getAttribute('data-status');
-            if ((showEnabled && status === 'Enabled') || (showDisabled && status === 'Disabled')) {
-                row.style.display = '';  // Show the row
-            } else {
-                row.style.display = 'none';  // Hide the row
-            }
+// Remember search query using localStorage
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        var query = localStorage.getItem('searchQuery') || '';
+        searchInput.value = query;
+        if (typeof searchFunction === "function") {
+            searchFunction();
+        }
+        searchInput.addEventListener('input', function() {
+            localStorage.setItem('searchQuery', this.value);
         });
     }
-    // Initial call to set the correct visibility
-    toggleFilter();
-    function toggleStatus(commandName, isChecked) {
-        var status = isChecked ? 'Enabled' : 'Disabled';
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '', true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    location.reload();
-                } else {
-                    console.error('Error updating status:', xhr.responseText);
-                }
+});
+
+// Toggle visibility of commands based on status
+document.getElementById('showEnabled').addEventListener('change', toggleFilter);
+document.getElementById('showDisabled').addEventListener('change', toggleFilter);
+function toggleFilter() {
+    const showEnabled = document.getElementById('showEnabled').checked;
+    const showDisabled = document.getElementById('showDisabled').checked;
+    const rows = document.querySelectorAll('.commandRow');
+    rows.forEach(row => {
+        const status = row.getAttribute('data-status');
+        if ((showEnabled && status === 'Enabled') || (showDisabled && status === 'Disabled')) {
+            row.style.display = '';  // Show the row
+        } else {
+            row.style.display = 'none';  // Hide the row
+        }
+    });
+}
+// Initial call to set the correct visibility
+toggleFilter();
+function toggleStatus(commandName, isChecked) {
+    var status = isChecked ? 'Enabled' : 'Disabled';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            if (xhr.status === 200) {
+                location.reload();
+            } else {
+                console.error('Error updating status:', xhr.responseText);
             }
-        };
-        xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
-    }
+        }
+    };
+    xhr.send('command_name=' + encodeURIComponent(commandName) + '&status=' + encodeURIComponent(status));
+}
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/search.js"></script>
