@@ -794,8 +794,14 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         weather_data_imperial = await fetch_weather_data(lat, lon, units='imperial')
         if not weather_data_metric or not weather_data_imperial:
             raise HTTPException(status_code=500, detail="Error fetching weather data.")
-        # Format weather data & include location data
-        formatted_weather_data = format_weather_data(weather_data_metric, weather_data_imperial, location_data['name'])
+        # Build full location string including state and country if available
+        full_location = location_data.get("name", "")
+        if location_data.get("state"):
+            full_location += f", {location_data.get('state')}"
+        if location_data.get("country"):
+            full_location += f", {location_data.get('country')}"
+        # Format weather data & include full location data
+        formatted_weather_data = format_weather_data(weather_data_metric, weather_data_imperial, full_location)
         # Get current weather API count from database and decrement by 2
         count, _ = await get_api_count("weather")
         new_count = count - 3  # Decrease by 3 for both metric and imperial requests and location data
@@ -1002,7 +1008,7 @@ async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)
 # Hidden Endpoints
 # Function to verify the location of the user for weather
 @app.get(
-    "/web/weather",
+    "/weather/location",
     summary="Get website-specific weather location",
     description="Retrieve the correct location information for a given query from the website.",
     operation_id="get_web_weather_location",
@@ -1017,7 +1023,18 @@ async def web_weather(api_key: str = Query(...), location: str = Query(...)):
         location_data, lat, lon = await get_weather_lat_lon(location)
         if lat is None or lon is None:
             raise HTTPException(status_code=404, detail=f"Location '{location}' not found.")
-        return {"location_data": location_data, "latitude": lat, "longitude": lon}
+        count, _ = await get_api_count("weather")
+        new_count = count - 1  # Decrease by 1 for location data
+        await update_api_count("weather", new_count)
+        # Format output in a human-readable format
+        name = location_data.get("name", "Unknown")
+        country = location_data.get("country", "Unknown")
+        state = location_data.get("state", "")
+        formatted = f"Location: {name}"
+        if state:
+            formatted += f", {state}"
+        formatted += f", {country} (Latitude: {lat}, Longitude: {lon})"
+        return {"message": formatted}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
