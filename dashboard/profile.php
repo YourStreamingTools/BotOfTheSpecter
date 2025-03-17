@@ -78,7 +78,7 @@ function get_timezones() {
   $timezones = DateTimeZone::listIdentifiers();
   $timezone_offsets = [];
   foreach($timezones as $timezone) {
-    $datetime = new DateTime(null, new DateTimeZone($timezone));
+    $datetime = new DateTime('now', new DateTimeZone($timezone));
     $offset = $datetime->getOffset();
     $timezone_offsets[$timezone] = $offset;
   }
