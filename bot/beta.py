@@ -6096,19 +6096,36 @@ async def delete_recorded_files():
 # Function for AD BREAK
 async def handle_ad_break_start(duration_seconds):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    minutes = duration_seconds // 60
-    seconds = duration_seconds % 60
-    if minutes == 0:
-        formatted_duration = f"{seconds} seconds"
-    elif seconds == 0:
-        formatted_duration = f"{minutes} minutes"
-    else:
-        formatted_duration = f"{minutes} minutes, {seconds} seconds"
-    await channel.send(f"Ads are running for {formatted_duration}. We'll be right back after these ads.")
-    @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
-    async def handle_ad_break_end(channel):
-        await channel.send("Thanks for sticking with us through the ads! Welcome back, everyone!")
-    handle_ad_break_end.start(channel)
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT * FROM ad_notice_settings WHERE id = %s", (1,))
+            settings = await cursor.fetchone()
+            if settings:
+                ad_start_message = settings["ad_start_message"]
+                ad_end_message = settings["ad_end_message"]
+                enable_ad_notice = settings["enable_ad_notice"]
+            else:
+                ad_start_message = "Ads are running for (duration). We'll be right back after these ads."
+                ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!"
+                enable_ad_notice = True
+    finally:
+        await sqldb.ensure_closed()
+    if enable_ad_notice:
+        minutes = duration_seconds // 60
+        seconds = duration_seconds % 60
+        if minutes == 0:
+            formatted_duration = f"{seconds} seconds"
+        elif seconds == 0:
+            formatted_duration = f"{minutes} minutes"
+        else:
+            formatted_duration = f"{minutes} minutes, {seconds} seconds"
+        ad_start_message = ad_start_message.replace("(duration)", formatted_duration)
+        await channel.send(ad_start_message)
+        @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
+        async def handle_ad_break_end(channel):
+            await channel.send(ad_end_message)
+        handle_ad_break_end.start(channel)
 
 # Fcuntion for POLLS
 async def send_poll_halfway_notification(half_time, poll_title):
