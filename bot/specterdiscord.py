@@ -358,7 +358,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                 "2. What you've tried so far (if applicable)\n"
                 "3. Any relevant screenshots or files\n\n"
                 "Our support team will assist you as soon as possible.\n"
-                "Please be patient and remain respectful throughout the process."
+                "Please be patient and remain respectful throughout the process.\n\n"
+                "If you wish to close the ticket at any time, use '!ticket close' to notify the support team."
             ),
             color=BOT_COLOR
         )
@@ -543,15 +544,14 @@ class TicketCog(commands.Cog, name='Tickets'):
                             "before a support team member closes this ticket for you."
                             "\n\n"
                             "The support team has been notified that you wish to close this ticket.\n"
-                            "Wehn we close tickets, this ticket will be marked as closed and archived.\n\n"
+                            "When we close tickets, this ticket will be marked as closed and archived.\n\n"
                             "If you need further assistance in the future, please create a new ticket."
                         ),
                         color=discord.Color.yellow()
                     )
                     await ctx.send(embed=embed)
-                    # Tag support team with a plain text message notifying closure request
-                    support_role = channel.guild.get_role(self.SUPPORT_ROLE)
-                    await channel.send(f"{support_role.mention} requested ticket closure.")
+                    # Notify support team with a plain text message
+                    await ctx.channel.send(f"{support_role.mention} requested ticket closure.")
                     return
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
