@@ -6869,6 +6869,7 @@ async def check_stream_online():
     return
 
 async def convert_currency(amount, from_currency, to_currency):
+    global EXCHANGE_RATE_API_KEY
     url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/pair/{from_currency}/{to_currency}/{amount}"
     try:
         async with aiohttp.ClientSession() as session:
