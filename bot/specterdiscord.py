@@ -537,7 +537,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 if support_role not in ctx.author.roles:
                     # Send closure message in channel
                     embed = discord.Embed(
-                        title="Ticket Closure Error",
+                        title="Ticket Closure Notice",
                         description=(
                             "Only the support team can close tickets.\n"
                             "If you need further assistance, please provide more details in this ticket channel\n"
