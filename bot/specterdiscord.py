@@ -437,14 +437,12 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
                     # Set permissions for Closed Tickets category
                     await closed_category.set_permissions(channel.guild.default_role, read_messages=False)
-                    await closed_category.set_permissions(
-                        channel.guild.get_member(self.OWNER_ID),
-                        read_messages=True,
-                        send_messages=False
-                    )
+                    owner = channel.guild.get_member(self.OWNER_ID)
+                    if owner:
+                        await closed_category.set_permissions(owner, read_messages=True, send_messages=False)
                 # Remove ticket creator's access
                 if ticket_creator:
-                    await channel.set_permissions(ticket_creator, overwrite=None)
+                    await channel.set_permissions(ticket_creator, overwrite=discord.PermissionOverwrite())
                 # Move channel to Closed Tickets category
                 await channel.edit(
                     category=closed_category,
