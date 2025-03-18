@@ -468,6 +468,14 @@ class TicketCog(commands.Cog, name='Tickets'):
                 self.logger.error(f"Error archiving ticket #{ticket_id}: {e}")
                 raise
 
+    async def get_ticket(self, ticket_id: int):
+        if not self.pool:
+            await self.init_ticket_database()
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT * FROM tickets WHERE ticket_id = %s", (ticket_id,))
+                return await cur.fetchone()
+
     @commands.command(name="ticket")
     async def ticket_command(self, ctx, action: str = None, *, reason: str = None):
         """Ticket system commands"""
@@ -554,7 +562,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     description="An error occurred while closing the ticket.",
                     color=discord.Color.yellow()
                 )
-                await ctx.send(embed=embed, delete_after=10)
+                await ctx.send(embed=embed)
         elif action.lower() == "issue":
             # Update ticket issue description logic:
             if not ctx.channel.name.startswith("ticket-"):
