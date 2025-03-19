@@ -511,6 +511,10 @@ try {
         $usrDBconn->query("INSERT INTO `groups` (name) SELECT '$group_name' WHERE NOT EXISTS (SELECT 1 FROM `groups` WHERE name = '$group_name')");
     }
     $usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)");
+    // Ensure default options for streamer_preferences exist
+    $usrDBconn->query("INSERT INTO streamer_preferences (send_welcome_messages, default_welcome_message, new_default_welcome_message, default_vip_welcome_message, new_default_vip_welcome_message, default_mod_welcome_message, new_default_mod_welcome_message) 
+    SELECT 1, 'Welcome back, (user)! It''s great to see you again!', '(user) is new to the community, let''s give them a warm welcome!', 'ATTENTION! A very important person has entered the chat, welcome back (user)', 'ATTENTION! A very important person has entered the chat, welcome (user)', 'MOD ON DUTY! Welcome back (user), the power of the sword has increased!', 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!' 
+    WHERE NOT EXISTS (SELECT 1 FROM streamer_preferences)");
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
