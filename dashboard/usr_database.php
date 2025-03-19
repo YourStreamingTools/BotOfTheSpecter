@@ -489,32 +489,57 @@ try {
             }
         }
     }
+    // Function to log messages asynchronously
+    function async_log($message) {
+        echo "<script>setTimeout(function() { console.log('$message'); }, 0);</script>
+        ";
+    }
     // Ensure 'Default' category exists
-    $usrDBconn->query("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')");
+    if ($usrDBconn->query("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default category ensured.');
+    }
     // Ensure default options for showobs exist
-    $usrDBconn->query("INSERT INTO showobs (font, color, list, shadow, bold, font_size) SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22 WHERE NOT EXISTS (SELECT 1 FROM showobs)");
+    if ($usrDBconn->query("INSERT INTO showobs (font, color, list, shadow, bold, font_size) SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22 WHERE NOT EXISTS (SELECT 1 FROM showobs)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default showobs options ensured.');
+    }
     // Ensure default options for bot_settings exist
-    $usrDBconn->query("INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users) SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM bot_settings)");
+    if ($usrDBconn->query("INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users) SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM bot_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default bot_settings options ensured.');
+    }
     // Ensure default options for subathon_settings exist
-    $usrDBconn->query("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) SELECT 60, 5, 10, 20, 30 WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)");
+    if ($usrDBconn->query("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) SELECT 60, 5, 10, 20, 30 WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default subathon_settings options ensured.');
+    }
     // Ensure default options for chat protection
-    $usrDBconn->query("INSERT INTO protection (url_blocking) SELECT 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)");
+    if ($usrDBconn->query("INSERT INTO protection (url_blocking) SELECT 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default protection options ensured.');
+    }
     // Ensure default options for joke command
     $jokeBlacklist = '["nsfw", "religious", "political", "racist", "sexist"]';
     $jokeInsertQuery = "INSERT INTO joke_settings (id, blacklist) SELECT 1, '$jokeBlacklist' WHERE NOT EXISTS (SELECT 1 FROM joke_settings LIMIT 1);";
-    $usrDBconn->query($jokeInsertQuery);
+    if ($usrDBconn->query($jokeInsertQuery) === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default joke_settings options ensured.');
+    }
     // Ensure default options for watch_time
-    $usrDBconn->query("INSERT INTO watch_time_excluded_users (excluded_users) SELECT CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM watch_time_excluded_users)");
+    if ($usrDBconn->query("INSERT INTO watch_time_excluded_users (excluded_users) SELECT CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM watch_time_excluded_users)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default watch_time_excluded_users options ensured.');
+    }
     // Ensure default groups exist
     $group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3", "Normal"];
     foreach ($group_names as $group_name) {
-        $usrDBconn->query("INSERT INTO `groups` (name) SELECT '$group_name' WHERE NOT EXISTS (SELECT 1 FROM `groups` WHERE name = '$group_name')");
+        if ($usrDBconn->query("INSERT INTO `groups` (name) SELECT '$group_name' WHERE NOT EXISTS (SELECT 1 FROM `groups` WHERE name = '$group_name')") === TRUE && $usrDBconn->affected_rows > 0) {
+            async_log("Default group $group_name ensured.");
+        }
     }
-    $usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)");
+    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default ad_notice_settings options ensured.');
+    }
     // Ensure default options for streamer_preferences exist
-    $usrDBconn->query("INSERT INTO streamer_preferences (send_welcome_messages, default_welcome_message, new_default_welcome_message, default_vip_welcome_message, new_default_vip_welcome_message, default_mod_welcome_message, new_default_mod_welcome_message) 
+    if ($usrDBconn->query("INSERT INTO streamer_preferences (send_welcome_messages, default_welcome_message, new_default_welcome_message, default_vip_welcome_message, new_default_vip_welcome_message, default_mod_welcome_message, new_default_mod_welcome_message) 
     SELECT 1, 'Welcome back, (user)! It''s great to see you again!', '(user) is new to the community, let''s give them a warm welcome!', 'ATTENTION! A very important person has entered the chat, welcome back (user)', 'ATTENTION! A very important person has entered the chat, welcome (user)', 'MOD ON DUTY! Welcome back (user), the power of the sword has increased!', 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!' 
-    WHERE NOT EXISTS (SELECT 1 FROM streamer_preferences)");
+    WHERE NOT EXISTS (SELECT 1 FROM streamer_preferences)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default streamer_preferences options ensured.');
+    }
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
