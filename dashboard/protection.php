@@ -110,8 +110,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </form>
         </div>
         <!-- Whitelist and Blacklist Tables -->
-        <div class="column is-5 bot-box" style="position: relative;">
-            <i class="fas fa-question-circle" id="whitelist-links-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <div class="column is-5" style="position: relative;">
             <h2 class="subtitle">Whitelist Links</h2>
             <table class="table is-fullwidth is-bordered">
                 <tbody>
@@ -123,8 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </tbody>
             </table>
         </div>
-        <div class="column is-5 bot-box" style="position: relative;">
-            <i class="fas fa-question-circle" id="blacklist-links-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <div class="column is-5" style="position: relative;">
             <h2 class="subtitle">Blacklist Links</h2>
             <table class="table is-fullwidth is-bordered">
                 <tbody>
@@ -138,56 +136,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 </div>
-
-<div class="modal" id="whitelist-links-modal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white">Whitelist Links</p>
-            <button class="delete" aria-label="close" id="whitelist-links-modal-close"></button>
-        </header>
-        <section class="modal-card-body has-background-dark has-text-white">
-            <p>Adding links to the whitelist allows them to be shared freely in your Twitch chat, regardless of any URL-blocking settings enabled for general link sharing. Whitelisted links are exempt from any automatic deletion, ensuring that trusted sources or specific links you approve can always appear in chat.</p>
-            <br>
-            <p>This is particularly useful for allowing links to community resources, your own websites, or trusted external platforms, providing your viewers with easy access to valuable information while maintaining strict control over unapproved content.</p>
-        </section>
-    </div>
-</div>
-
-<div class="modal" id="blacklist-links-modal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white">Blacklist Links</p>
-            <button class="delete" aria-label="close" id="blacklist-links-modal-close"></button>
-        </header>
-        <section class="modal-card-body has-background-dark has-text-white">
-            <p>Any link added to the blacklist will be permanently banned from appearing in your Twitch chat. Blacklisted links will be automatically detected and deleted by the Twitch bot without further intervention. This feature is invaluable for blocking spam, harmful, or distracting links that might detract from the viewer experience or violate chat guidelines.</p>
-            <br>
-            <p>Blacklisting provides an additional layer of security, helping to prevent phishing attempts, unwanted advertisements, or disruptive content from appearing. By curating this list, you maintain a safe, respectful, and distraction-free environment for your community.</p>
-        </section>
-    </div>
-</div>
-
-<script>
-const modalIds = [
-    { open: "whitelist-links-modal-open", close: "whitelist-links-modal-close" },
-    { open: "blacklist-links-modal-open", close: "blacklist-links-modal-close" }
-];
-
-modalIds.forEach(modal => {
-    const openButton = document.getElementById(modal.open);
-    const closeButton = document.getElementById(modal.close);
-    if (openButton) {
-        openButton.addEventListener("click", function() {
-            document.getElementById(modal.close.replace('-close', '')).classList.add("is-active");
-        });
-    }
-    if (closeButton) {
-        closeButton.addEventListener("click", function() {
-            document.getElementById(modal.close.replace('-close', '')).classList.remove("is-active");
-        });
-    }
-});
-</script>
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
