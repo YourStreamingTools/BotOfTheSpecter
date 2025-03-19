@@ -72,11 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   <head>
     <!-- Header -->
     <?php include('header.php'); ?>
-    <style>
-        .custom-width { width: 90vw; max-width: none; }
-        .variable-item { margin-bottom: 1.5rem; }
-        .variable-title { color: #ffdd57; }
-    </style>
     <!-- /Header -->
   </head>
 <body>
@@ -230,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"There are 75 days until Christmas."</code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold" style="color: red;">(timeuntil.DATE-TIME)</span><br>This shows the exact time remaining until a specific date and time.
+                    <span class="has-text-weight-bold variable-title">(timeuntil.DATE-TIME)</span><br>This shows the exact time remaining until a specific date and time.
                     <br><span class="has-text-weight-bold">Example:</span><br><code>There are (timeuntil.2025-12-25-12-00) until Christmas.</code>
                     <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"There are 365 days, 12 hours, 30 minutes until Christmas."</code>
                 </div>
