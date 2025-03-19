@@ -173,7 +173,7 @@ $status = '';
 
 // Fetch sound alert mappings for the current user
 $getTwitchAlerts = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
-$getTitchAlerts->execute();
+$getTwitchAlerts->execute();
 $soundAlerts = $getTwitchAlerts->fetchAll(PDO::FETCH_ASSOC);
 
 // Create an associative array for easy lookup: sound_mapping => twitch_alert_id
