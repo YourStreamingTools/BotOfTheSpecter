@@ -22,7 +22,6 @@ include 'bot_control.php';
 include 'user_db.php';
 include 'storage_used.php';
 include 'module_data_post.php';
-include 'protection.php';
 
 foreach ($profileData as $profile) {
     $timezone = $profile['timezone'];
@@ -396,10 +395,9 @@ date_default_timezone_set($timezone);
 <!-- Chat Protection Modal -->
 <div id="chatProtectionModal" class="modal">
     <div class="modal-background"></div>
-    <div class="modal-content" style="position: relative;">
+    <div class="modal-content custom-width" style="position: relative;">
         <button class="modal-close is-large" aria-label="close" onclick="closeModal('chatProtectionModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
-            <h2 class="title is-3">Chat Protection Settings:</h2>
             <?php include('protection.php'); ?>
         </div>
     </div>
