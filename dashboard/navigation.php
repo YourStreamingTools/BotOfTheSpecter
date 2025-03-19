@@ -51,7 +51,6 @@
 				<div class="navbar-dropdown">
 					<a class="navbar-item" href="../builtin.php">Built-in Commands</a>
 					<a class="navbar-item" href="../modules.php">Module Settings</a>
-					<a class="navbar-item" href="../protection.php">Chat Protection</a>
 					<a class="navbar-item" href="../subathon.php">Subathon Settings</a>
 				</div>
 			</div>
