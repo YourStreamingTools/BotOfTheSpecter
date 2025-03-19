@@ -4717,7 +4717,7 @@ class TwitchBot(commands.Bot):
                         to_currency = args[2].upper()
                         converted_amount = await convert_currency(amount, from_currency, to_currency)
                         formatted_converted_amount = f"{converted_amount:,.2f}"
-                        await ctx.send(f"The currency exchange for {amount_str} {from_currency} is ${formatted_converted_amount} {to_currency}")
+                        await ctx.send(f"The currency exchange for {amount_str} {from_currency} is {formatted_converted_amount} {to_currency}")
                     elif len(args) == 3:
                         # Handle unit conversion
                         amount_str = args[0]
