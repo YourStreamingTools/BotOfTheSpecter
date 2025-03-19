@@ -81,7 +81,7 @@ date_default_timezone_set($timezone);
     <div class="modal-content" style="position: relative;">
         <button class="modal-close is-large" aria-label="close" onclick="closeModal('jokeBlacklistModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
-            <form method="POST" action="">
+            <form method="POST" action="module_data_post.php">
                 <h2 class="title is-3">Manage Joke Blacklist:</h2>
                 <h2 class="subtitle is-4 has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h2>
                 <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Miscellaneous"<?php echo in_array("Miscellaneous", $current_blacklist) ? " checked" : ""; ?>> Miscellaneous</label></div>
@@ -109,7 +109,7 @@ date_default_timezone_set($timezone);
         <button class="modal-close is-large" aria-label="close" onclick="closeModal('welcomeMessageModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
             <h2 class="title is-3 has-text-white">Custom Welcome Messages</h2>
-            <form method="POST" action="">
+            <form method="POST" action="module_data_post.php">
                 <div class="notification is-info">
                     <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
                 </div>
@@ -182,7 +182,7 @@ date_default_timezone_set($timezone);
             <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
                 <div class="column is-4" id="walkon-upload" style="position: relative;">
                     <h1 class="title is-4">Upload MP3 Files:</h1>
-                    <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <form action="module_data_post.php" method="POST" enctype="multipart/form-data" id="uploadForm">
                         <label for="filesToUpload" class="drag-area" id="drag-area">
                             <span>Drag & Drop files here or</span>
                             <span>Browse Files</span>
@@ -205,7 +205,7 @@ date_default_timezone_set($timezone);
                 <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
                     <?php $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
                     <h1 class="title is-4">Your Twitch Sound Alerts</h1>
-                    <form action="" method="POST" id="deleteForm">
+                    <form action="module_data_post.php" method="POST" id="deleteForm">
                         <table class="table is-striped" style="width: 100%; text-align: center;">
                             <thead>
                                 <tr>
@@ -245,7 +245,7 @@ date_default_timezone_set($timezone);
                                         <?php endif; ?>
                                         <br>
                                         <?php if (!empty($availableEvents) || !$current_reward_id): ?>
-                                            <form action="" method="POST" class="mapping-form">
+                                            <form action="module_data_post.php" method="POST" class="mapping-form">
                                                 <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                                 <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
                                                     <option value="">-- Select Event --</option>
@@ -296,7 +296,7 @@ date_default_timezone_set($timezone);
                     <div class="notification is-info">
                         <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
                     </div>
-                    <form action="" method="POST" id="chatAlertsForm">
+                    <form action="module_data_post.php" method="POST" id="chatAlertsForm">
                         <div class="field">
                             <label class="has-text-white has-text-left">
                                 Follower Alert
@@ -363,7 +363,7 @@ date_default_timezone_set($timezone);
             <div class="notification is-info">
                 You can use the variable (duration) which will be replaced with the ads' duration.
             </div>
-            <form method="POST" action="">
+            <form method="POST" action="module_data_post.php">
                 <div class="field">
                     <label class="label">Ad Starting Message</label>
                     <div class="control">
