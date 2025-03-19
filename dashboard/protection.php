@@ -53,7 +53,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 ?>
 <div class="container">
-    <br>
     <h1 class="title">Chat Protection Settings:</h1>
     <?php if (!empty($message)): ?>
         <div class="notification is-primary has-text-black has-text-weight-bold">
