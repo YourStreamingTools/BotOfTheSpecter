@@ -22,6 +22,7 @@ include 'bot_control.php';
 include 'user_db.php';
 include 'storage_used.php';
 include 'module_data_post.php';
+include 'protection.php';
 
 foreach ($profileData as $profile) {
     $timezone = $profile['timezone'];
@@ -47,6 +48,11 @@ date_default_timezone_set($timezone);
     <br>
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
+        <div class="column is-5 bot-box" id="chat-protection-settings" style="position: relative;">
+            <h1 class="title is-3 has-text-centered">Chat Protection</h1>
+            <h1 class="subtitle is-5 has-text-centered">Manage chat protection settings</h1>
+            <button class="button is-primary" onclick="openModal('chatProtectionModal')">Open Settings</button>
+        </div>
         <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-3 has-text-centered">Manage Joke Blacklist</h2>
             <h2 class="subtitle is-5 has-text-centered" style="text-align: center;">Set which category is blocked</h2>
@@ -383,6 +389,18 @@ date_default_timezone_set($timezone);
                 </div>
                 <button class="button is-primary" type="submit">Save Ad Notice Settings</button>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Chat Protection Modal -->
+<div id="chatProtectionModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content" style="position: relative;">
+        <button class="modal-close is-large" aria-label="close" onclick="closeModal('chatProtectionModal')" style="position: absolute; top: 10px; right: 10px;"></button>
+        <div class="box">
+            <h2 class="title is-3">Chat Protection Settings:</h2>
+            <?php include('protection.php'); ?>
         </div>
     </div>
 </div>
