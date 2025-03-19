@@ -50,6 +50,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             error_log("Error inserting blacklist link: " . implode(", ", $stmt->errorInfo()));
         }
     }
+
+    // Remove Whitelist Link
+    if (isset($_POST['remove_whitelist_link'])) {
+        $remove_whitelist_link = $_POST['remove_whitelist_link'];
+        $stmt = $db->prepare("DELETE FROM link_whitelist WHERE link = ?");
+        $stmt->bindParam(1, $remove_whitelist_link, PDO::PARAM_STR);
+        if ($stmt->execute()) {
+            $message .= "Link removed from the whitelist.<br>";
+        } else {
+            $message .= "Failed to remove the link from the whitelist.<br>";
+            error_log("Error deleting whitelist link: " . implode(", ", $stmt->errorInfo()));
+        }
+    }
+
+    // Remove Blacklist Link
+    if (isset($_POST['remove_blacklist_link'])) {
+        $remove_blacklist_link = $_POST['remove_blacklist_link'];
+        $stmt = $db->prepare("DELETE FROM link_blacklisting WHERE link = ?");
+        $stmt->bindParam(1, $remove_blacklist_link, PDO::PARAM_STR);
+        if ($stmt->execute()) {
+            $message .= "Link removed from the blacklist.<br>";
+        } else {
+            $message .= "Failed to remove the link from the blacklist.<br>";
+            error_log("Error deleting blacklist link: " . implode(", ", $stmt->errorInfo()));
+        }
+    }
 }
 ?>
 <div class="container">
@@ -117,6 +143,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <?php foreach ($whitelistLinks as $link): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($link['link']); ?></td>
+                            <td>
+                                <form action="" method="post" style="display:inline;">
+                                    <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                    <button type="submit" class="button is-danger">Remove</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -129,6 +161,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <?php foreach ($blacklistLinks as $link): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($link['link']); ?></td>
+                            <td>
+                                <form action="" method="post" style="display:inline;">
+                                    <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                    <button type="submit" class="button is-danger">Remove</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
