@@ -273,27 +273,30 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
     <br>
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
-        <!-- Joke Blacklist Section -->
         <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
-            <h2 class="title is-3">Manage Joke Blacklist:</h2>
-            <h2 class="subtitle is-5" style="text-align: center;">Set which category is blocked</h2>
+            <h2 class="title is-3 has-text-centered">Manage Joke Blacklist</h2>
+            <h2 class="subtitle is-5 has-text-centered" style="text-align: center;">Set which category is blocked</h2>
             <button class="button is-primary" onclick="openModal('jokeBlacklistModal')">Open Settings</button>
         </div>
-        <!-- New Welcome Message Settings -->
         <div class="column is-5 bot-box" id="welcome-message-settings" style="position: relative;">
-            <h1 class="title is-3">Custom Welcome Messages</h1>
-            <h1 class="subtitle is-5">Set default welcome messages</h1>
+            <h1 class="title is-3 has-text-centered">Custom Welcome Messages</h1>
+            <h1 class="subtitle is-5 has-text-centered">Set default welcome messages</h1>
             <button class="button is-primary" onclick="openModal('welcomeMessageModal')">Open Settings</button>
         </div>
         <div class="column is-5 bot-box" id="" style="position: relative;">
-            <h1 class="title is-3">Ad Notices (BETA v5.4)</h1>
-            <h1 class="subtitle is-5">Set what the bot does when an ad plays on your channel</h1>
+            <h1 class="title is-3 has-text-centered">Ad Notices (BETA v5.4)</h1>
+            <h1 class="subtitle is-5 has-text-centered">Set what the bot does when an ad plays on your channel</h1>
             <button class="button is-primary" onclick="openModal('adNoticesModal')">Open Settings</button>
         </div>
         <div class="column is-5 bot-box" id="" style="position: relative;">
-            <h1 class="title is-3">Twitch Alerts (COMMING SOON)</h1>
-            <h1 class="subtitle is-5">Twitch Alert sounds: Followers, Cheers, Subs and Raids</h1>
-            <button class="button is-primary" onclick="openModal('twitchAlertsModal')">Open Settings</button>
+            <h1 class="title is-3 has-text-centered">Twitch Audio Alerts<br>(Under Development)</h1>
+            <h1 class="subtitle is-5 has-text-centered">Twitch Sound Alerts: Followers, Cheers, Subs and Raids</h1>
+            <button class="button is-primary" onclick="openModal('twitchAudioAlertsModal')">Open Settings</button>
+        </div>
+        <div class="column is-5 bot-box" id="" style="position: relative;">
+            <h1 class="title is-3 has-text-centered">Twitch Chat Alerts<br>(Under Development)</h1>
+            <h1 class="subtitle is-5 has-text-centered">Twitch Chat alerts: Followers, Cheers, Subs and Raids</h1>
+            <button class="button is-primary" onclick="openModal('twitchChatAlertsModal')">Open Settings</button>
         </div>
     </div>
 </div>
@@ -331,43 +334,55 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
     <div class="modal-content" style="position: relative;">
         <button class="modal-close is-large" aria-label="close" onclick="closeModal('welcomeMessageModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
-            <h2 class="title is-3">Custom Welcome Messages</h2>
+            <h2 class="title is-3 has-text-white">Custom Welcome Messages</h2>
             <form method="POST" action="">
                 <div class="notification is-info">
                     <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
                 </div>
                 <div class="field">
-                    <label class="label">Default New Member Welcome Message</label>
+                    <label class="has-text-white has-text-left">
+                        Default New Member Welcome Message
+                    </label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_welcome_message" value="<?php echo $new_default_welcome_message ? $new_default_welcome_message : '(user) is new to the community, let\'s give them a warm welcome!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default Returning Member Welcome Message</label>
+                    <label class="has-text-white has-text-left">
+                        Default Returning Member Welcome Message
+                    </label>
                     <div class="control">
                         <input class="input" type="text" name="default_welcome_message" value="<?php echo $default_welcome_message ? $default_welcome_message : 'Welcome back (user), glad to see you again!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default New VIP Welcome Message</label>
+                    <label class="has-text-white has-text-left">
+                        Default New VIP Welcome Message
+                    </label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_vip_welcome_message" value="<?php echo $new_default_vip_welcome_message ? $new_default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default Returning VIP Welcome Message</label>
+                    <label class="has-text-white has-text-left">
+                        Default Returning VIP Welcome Message
+                    </label>
                     <div class="control">
                         <input class="input" type="text" name="default_vip_welcome_message" value="<?php echo $default_vip_welcome_message ? $default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default New Mod Welcome Message</label>
+                    <label class="has-text-white has-text-left">
+                        Default New Mod Welcome Message
+                    </label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_mod_welcome_message" value="<?php echo $new_default_mod_welcome_message ? $new_default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default Returning Mod Welcome Message</label>
+                    <label class="has-text-white has-text-left">
+                        Default Returning Mod Welcome Message
+                    </label>
                     <div class="control">
                         <input class="input" type="text" name="default_mod_welcome_message" value="<?php echo $default_mod_welcome_message ? $default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
                     </div>
@@ -383,11 +398,11 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
     </div>
 </div>
 
-<!-- Twitch Alerts Modal -->
-<div id="twitchAlertsModal" class="modal">
+<!-- Twitch Audio Alerts Modal -->
+<div id="twitchAudioAlertsModal" class="modal">
     <div class="modal-background"></div>
     <div class="modal-content custom-width" style="position: relative;">
-        <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchAlertsModal')" style="position: absolute; top: 10px; right: 10px;"></button>
+        <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchAudioAlertsModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
             <h2 class="title is-3">Manage Twitch Event Sound Alerts:</h2>
             <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
@@ -488,6 +503,76 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                     <?php else: ?>
                         <h1 class="title is-4">No sound alert files uploaded.</h1>
                     <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Twitch Chat Alerts Modal -->
+<div id="twitchChatAlertsModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-content" style="position: relative;">
+        <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchChatAlertsModal')" style="position: absolute; top: 10px; right: 10px;"></button>
+        <div class="box">
+            <h2 class="title is-3">Manage Twitch Chat Alerts:</h2>
+            <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
+                <div class="column is-12" id="chat-alerts-settings" style="position: relative;">
+                    <h1 class="title is-4">Configure Chat Alerts:</h1>
+                    <div class="notification is-info">
+                        <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
+                    </div>
+                    <form action="" method="POST" id="chatAlertsForm">
+                        <div class="field">
+                            <label class="has-text-white has-text-left">
+                                Follower Alert
+                            </label>
+                            <div class="control">
+                                <input class="input" type="text" name="message_alert" placeholder="Message alert text">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="has-text-white has-text-left">
+                                Cheer Alert
+                            </label>
+                            <div class="control">
+                                <input class="input" type="text" name="command_alert" placeholder="Command alert text">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="has-text-white has-text-left">
+                                Raid Alert
+                            </label>
+                            <div class="control">
+                                <input class="input" type="text" name="mention_alert" placeholder="Mention alert text">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="has-text-white has-text-left">
+                                Subscription Alert
+                            </label>
+                            <div class="control">
+                                <input class="input" type="text" name="mention_alert" placeholder="Mention alert text">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="has-text-white has-text-left">
+                                Hype Train Start
+                            </label>
+                            <div class="control">
+                                <input class="input" type="text" name="hype_train_start" placeholder="Hype train start message">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="has-text-white has-text-left">
+                                Hype Train End
+                            </label>
+                            <div class="control">
+                                <input class="input" type="text" name="hype_train_end" placeholder="Hype train end message">
+                            </div>
+                        </div>
+                        <button class="button is-primary" type="submit" disabled>Save Chat Alert Settings</button>
+                    </form>
                 </div>
             </div>
         </div>
