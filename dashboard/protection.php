@@ -2,27 +2,6 @@
 // Initialize the session
 session_start();
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
-}
-
-// Page Title
-$title = "Chat Protection";
-
-// Include all the information
-require_once "/var/www/config/db_connect.php";
-include 'userdata.php';
-include 'bot_control.php';
-include 'user_db.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
-date_default_timezone_set($timezone);
-$message = '';
-
 // Fetch protection settings
 $getProtection = $db->query("SELECT * FROM protection LIMIT 1");
 $settings = $getProtection->fetchAll(PDO::FETCH_ASSOC);
@@ -76,18 +55,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
 <div class="container">
     <br>
     <h1 class="title">Chat Protection</h1>
@@ -228,5 +195,3 @@ modalIds.forEach(modal => {
 });
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
