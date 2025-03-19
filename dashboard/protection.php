@@ -1,7 +1,4 @@
 <?php 
-// Initialize the session
-session_start();
-
 // Fetch protection settings
 $getProtection = $db->query("SELECT * FROM protection LIMIT 1");
 $settings = $getProtection->fetchAll(PDO::FETCH_ASSOC);
@@ -57,7 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 ?>
 <div class="container">
     <br>
-    <h1 class="title">Chat Protection</h1>
+    <h1 class="title">Chat Protection Settings:</h1>
     <?php if (!empty($message)): ?>
         <div class="notification is-primary has-text-black has-text-weight-bold">
             <?php echo $message; ?>
