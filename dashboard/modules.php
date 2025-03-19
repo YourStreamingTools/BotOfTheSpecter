@@ -299,7 +299,7 @@ date_default_timezone_set($timezone);
                 <div class="column is-12" id="chat-alerts-settings" style="position: relative;">
                     <h1 class="title is-4">Configure Chat Alerts:</h1>
                     <div class="notification is-info">
-                        <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
+                        <strong>Info:</strong> You can use the <code>(user)</code> for the username of the user.
                     </div>
                     <form action="module_data_post.php" method="POST" id="chatAlertsForm">
                         <div class="field">
