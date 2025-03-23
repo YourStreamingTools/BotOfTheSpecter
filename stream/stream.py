@@ -82,8 +82,8 @@ async def get_valid_stream_keys():
         await sqldb.close()
         return keys
 
-def validate_api_key(api_key):
-    valid_keys = asyncio.run(get_valid_stream_keys())
+async def validate_api_key(api_key):
+    valid_keys = await get_valid_stream_keys()
     return valid_keys.get(api_key, None)
 
 async def get_streaming_settings(username):
@@ -124,7 +124,7 @@ class RTMP2FLVController(SimpleRTMPController):
     async def on_ns_publish(self, session, message) -> None:
         # Validate API Key
         publishing_name = message.publishing_name
-        username = validate_api_key(publishing_name)
+        username = await validate_api_key(publishing_name)
         if not username:
             logger.warning(f"Unauthorized API key: {publishing_name}")
             session.writer.close()
@@ -213,7 +213,7 @@ class RTMP2FLVController(SimpleRTMPController):
         # Remove the original FLV file after conversion
         os.remove(flv_file_path)
         # Move the converted file to the user's directory
-        username = await get_username_from_api_key({session.publishing_name})
+        username = await get_username_from_api_key(session.publishing_name)
         user_dir = os.path.join(self.output_directory, username)
         os.makedirs(user_dir, exist_ok=True)
         user_mp4_file_path = os.path.join(user_dir, os.path.basename(mp4_file_path))
