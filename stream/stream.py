@@ -35,7 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 # RTMP(S) Server Settings
-RTMPS_PORT = 1935
+RTMPS_PORT = 443
 RTMPS_HOST = "0.0.0.0"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
