@@ -104,7 +104,22 @@ class RTMP2FLVController(SimpleRTMPController):
         super().__init__()
 
     async def on_connect(self, session, message):
+        # Record the connection start time
+        session.connection_start_time = datetime.datetime.now()
+        # Schedule monitoring to disconnect after 48 hours
+        asyncio.create_task(self.monitor_connection_duration(session))
         await super().on_connect(session, message)
+
+    async def monitor_connection_duration(self, session):
+        max_duration = 48 * 3600  # 48 hours in seconds
+        await asyncio.sleep(max_duration)
+        if session.writer and not session.writer.is_closing():
+            logger.info(f"Disconnecting session {session.publishing_name} after 48 hours.")
+            session.writer.close()
+            try:
+                await session.writer.wait_closed()
+            except Exception as e:
+                logger.warning(f"Error during disconnection: {e}")
 
     async def on_ns_publish(self, session, message) -> None:
         # Validate API Key
