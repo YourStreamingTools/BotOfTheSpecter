@@ -7,7 +7,6 @@ error_reporting(E_ALL);
 // Initialize the session
 session_start();
 $today = new DateTime();
-$backup_system = false;
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -45,6 +44,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         die('Execute failed: ' . htmlspecialchars($stmt->errorInfo()[2]));
     }
     $stmt->closeCursor();
+    // Set session variable to indicate success
+    $_SESSION['settings_saved'] = true;
+    header('Location: streaming.php');
+    exit();
 }
 
 // Fetch current settings
@@ -71,6 +74,12 @@ $forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
 <div class="container">
     <br>
     <h1 class="title">Streaming Settings</h1>
+    <?php if (isset($_SESSION['settings_saved'])): ?>
+        <?php unset($_SESSION['settings_saved']); ?>
+        <div class="notification is-success">
+            Settings have been successfully saved.
+        </div>
+    <?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-5" style="position: relative;">
             <div class="notification is-info">
