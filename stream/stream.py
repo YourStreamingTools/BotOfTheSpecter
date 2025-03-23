@@ -153,7 +153,16 @@ class RTMP2FLVController(SimpleRTMPController):
         command = [
             "ffmpeg",
             "-i", session.flv_file_path,
-            "-c", "copy",
+            "-c:v", "libx264",
+            "-b:v", "6000k",
+            "-maxrate", "6000k",
+            "-bufsize", "12000k",
+            "-preset", "veryfast",
+            "-profile:v", "high",
+            "-r", "60",
+            "-g", "120",
+            "-c:a", "aac",
+            "-b:a", "192k",
             "-f", "flv",
             twitch_url
         ]
