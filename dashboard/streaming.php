@@ -39,11 +39,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($stmt === false) {
         die('Prepare failed: ' . htmlspecialchars($db->error));
     }
-    $stmt->bind_param("si", $twitch_key, $forward_to_twitch);
+    $stmt->bindValue(1, $twitch_key, PDO::PARAM_STR);
+    $stmt->bindValue(2, $forward_to_twitch, PDO::PARAM_INT);
     if ($stmt->execute() === false) {
-        die('Execute failed: ' . htmlspecialchars($stmt->error));
+        die('Execute failed: ' . htmlspecialchars($stmt->errorInfo()[2]));
     }
-    $stmt->close();
+    $stmt->closeCursor();
 }
 
 // Fetch current settings
