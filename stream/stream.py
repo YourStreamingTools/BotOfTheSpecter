@@ -50,6 +50,27 @@ async def access_website_database():
         db="website",
     )
 
+async def userdb_conenct(username):
+    # Connect to the user's database
+    return await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db=username,
+    )
+
+async def get_username_from_api_key(api_key):
+    # Connect to the website database
+    sqldb = await access_website_database()
+    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+        await cursor.execute("SELECT username FROM users WHERE api_key = %s", (api_key,))
+        row = await cursor.fetchone()
+        # Close the database connection
+        await sqldb.close()
+        if row:
+            return row['username']
+        return None
+
 async def get_valid_stream_keys():
     # Connect to the website database
     sqldb = await access_website_database()
@@ -67,17 +88,12 @@ def validate_api_key(api_key):
 
 async def get_streaming_settings(username):
     # Connect to the user's database
-    user_db = await aiomysql.connect(
-        host=SQL_HOST,
-        user=SQL_USER,
-        password=SQL_PASSWORD,
-        db=username,
-    )
-    async with user_db.cursor(aiomysql.DictCursor) as cursor:
+    userdb = await userdb_conenct(username)
+    async with userdb.cursor(aiomysql.DictCursor) as cursor:
         await cursor.execute("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1")
         row = await cursor.fetchone()
         # Close the database connection
-        await user_db.close()
+        await userdb.close()
         if row:
             return row['twitch_key'], row['forward_to_twitch']
         return None, False
@@ -151,11 +167,11 @@ class RTMP2FLVController(SimpleRTMPController):
         base_name = os.path.basename(flv_file_path)
         date_part = base_name.split('_')[0]
         mp4_file_path = os.path.join(self.output_directory, f"{date_part}.mp4")
-        asyncio.create_task(self.convert_flv_to_mp4_background(flv_file_path, mp4_file_path))
+        asyncio.create_task(self.convert_flv_to_mp4_background(session, flv_file_path, mp4_file_path))
         logger.info(f"Started background conversion for {session.publishing_name}.")
         await super().on_stream_closed(session, exception)
 
-    async def convert_flv_to_mp4_background(self, flv_file_path: str, mp4_file_path: str):
+    async def convert_flv_to_mp4_background(self, session, flv_file_path: str, mp4_file_path: str):
         # Check if the MP4 file already exists, and append a part number if it does
         if os.path.exists(mp4_file_path):
             # Increment the part number (p2, p3, etc.)
@@ -164,14 +180,21 @@ class RTMP2FLVController(SimpleRTMPController):
             while os.path.exists(f"{base}-p{part}{ext}"):
                 part += 1
             mp4_file_path = f"{base}-p{part}{ext}"
-
         # Run FFmpeg to convert the FLV file to MP4
         command = ["ffmpeg", "-i", flv_file_path, "-c", "copy", mp4_file_path]
         logger.info(f"Running FFmpeg process in async for {flv_file_path}...")
         process = await asyncio.create_subprocess_exec(*command)
         await process.communicate()
         logger.info("FFmpeg process finished.")
-        os.remove(flv_file_path)  # Remove the original FLV file after conversion
+        # Remove the original FLV file after conversion
+        os.remove(flv_file_path)
+        # Move the converted file to the user's directory
+        username = await get_username_from_api_key({session.publishing_name})
+        user_dir = os.path.join(self.output_directory, username)
+        os.makedirs(user_dir, exist_ok=True)
+        user_mp4_file_path = os.path.join(user_dir, os.path.basename(mp4_file_path))
+        os.rename(mp4_file_path, user_mp4_file_path)
+        logger.info(f"Moved converted file to {user_mp4_file_path}")
 
     async def on_command_message(self, session, message):
         if message.command in ["releaseStream", "FCPublish", "FCUnpublish"]:
