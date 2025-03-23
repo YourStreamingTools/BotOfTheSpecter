@@ -66,7 +66,7 @@ async def get_username_from_api_key(api_key):
         await cursor.execute("SELECT username FROM users WHERE api_key = %s", (api_key,))
         row = await cursor.fetchone()
         # Close the database connection
-        await sqldb.close()
+        sqldb.close()
         if row:
             return row['username']
         return None
@@ -79,7 +79,7 @@ async def get_valid_stream_keys():
         rows = await cursor.fetchall()
         keys = {row['api_key']: row['username'] for row in rows}
         # Close the database connection
-        await sqldb.close()
+        sqldb.close()
         return keys
 
 async def validate_api_key(api_key):
@@ -93,7 +93,7 @@ async def get_streaming_settings(username):
         await cursor.execute("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1")
         row = await cursor.fetchone()
         # Close the database connection
-        await userdb.close()
+        userdb.close()
         if row:
             return row['twitch_key'], row['forward_to_twitch']
         return None, False
