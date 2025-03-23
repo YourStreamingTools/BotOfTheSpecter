@@ -51,20 +51,36 @@ async def access_website_database():
     )
 
 async def get_valid_stream_keys():
-    # Connect to the database
+    # Connect to the website database
     sqldb = await access_website_database()
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-        await cursor.execute("SELECT api_key FROM users")
+        await cursor.execute("SELECT api_key, username FROM users")
         rows = await cursor.fetchall()
-        keys = [row['stream_key'] for row in rows]
-        keys = ",".join(keys)
+        keys = {row['api_key']: row['username'] for row in rows}
         # Close the database connection
         await sqldb.close()
-        # Split keys by comma and return as a set
-        return set(keys.split(",")) if keys else set()
+        return keys
 
-def validate_stream_key(stream_key):
-    return stream_key in get_valid_stream_keys()
+def validate_api_key(api_key):
+    valid_keys = asyncio.run(get_valid_stream_keys())
+    return valid_keys.get(api_key, None)
+
+async def get_streaming_settings(username):
+    # Connect to the user's database
+    user_db = await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db=username,
+    )
+    async with user_db.cursor(aiomysql.DictCursor) as cursor:
+        await cursor.execute("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1")
+        row = await cursor.fetchone()
+        # Close the database connection
+        await user_db.close()
+        if row:
+            return row['twitch_key'], row['forward_to_twitch']
+        return None, False
 
 class RTMP2FLVController(SimpleRTMPController):
     def __init__(self, output_directory: str):
@@ -75,16 +91,19 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_connect(session, message)
 
     async def on_ns_publish(self, session, message) -> None:
-        # Validate Stream Key
+        # Validate API Key
         publishing_name = message.publishing_name
-        if not validate_stream_key(publishing_name):
-            logger.warning(f"Unauthorized stream key: {publishing_name}")
+        username = validate_api_key(publishing_name)
+        if not username:
+            logger.warning(f"Unauthorized API key: {publishing_name}")
             session.writer.close()
             try:
                 await session.writer.wait_closed()
             except ssl.SSLError as e:
                 logger.warning(f"Ignored SSL error after close notify: {e}")
             return
+        # Fetch streaming settings
+        twitch_key, forward_to_twitch = await get_streaming_settings(username)
         # Assign publishing_name to session for later use
         session.publishing_name = publishing_name
         start_date = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
@@ -93,7 +112,24 @@ class RTMP2FLVController(SimpleRTMPController):
         session.flv_file_path = file_path
         session.state = FLVFileWriter(output=file_path)
         logger.info(f"Started recording stream {publishing_name} to {file_path}")
+        # Forward to Twitch if enabled
+        if forward_to_twitch:
+            twitch_url = f"rtmp://live.twitch.tv/app/{twitch_key}"
+            asyncio.create_task(self.forward_to_twitch(session, twitch_url))
         await super().on_ns_publish(session, message)
+
+    async def forward_to_twitch(self, session, twitch_url):
+        command = [
+            "ffmpeg",
+            "-i", session.flv_file_path,
+            "-c", "copy",
+            "-f", "flv",
+            twitch_url
+        ]
+        logger.info(f"Forwarding stream to Twitch: {twitch_url}")
+        process = await asyncio.create_subprocess_exec(*command)
+        await process.communicate()
+        logger.info("Finished forwarding stream to Twitch.")
 
     async def on_metadata(self, session, message) -> None:
         session.state.write(0, message.to_raw_meta(), FLVMediaType.OBJECT)
