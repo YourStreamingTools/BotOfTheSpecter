@@ -90,7 +90,7 @@ $forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
                 <br>
                 <span class="has-text-weight-bold">Server Settings:</span>
                 <p>We use RTMPS which is a secure connection to stream.</p>
-                <p>You can stream to either <code>au.stream.botofthespecter.com</code> or use <code>stream.botofthespecter.com</code> for auto server select. Currently, we only have one server in Australia. Let us know if you'd like to use this service and where you are located in the world.</p>
+                <p>You can stream to <code>rtmps://stream.botofthespecter.com:1935</code> for auto server select. Currently, we only have one server in Australia. Let us know if you'd like to use this service and where you are located in the world.</p>
                 <p>The stream key to use in your streaming software for our server is your API key, which is found on the profile page of the Specter Dashboard.</p>
                 <p>By default, the "Forward to Twitch" option is enabled until you decide otherwise by unchecking it. However, we always record what is sent to our server for download later by yourself.</p>
             </div>
