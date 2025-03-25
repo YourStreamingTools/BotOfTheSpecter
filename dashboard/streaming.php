@@ -157,6 +157,14 @@ if ($selected_server == 'au-syd-1') {
             <li class="has-text-black">Use our service as a secondary output for your streams via multi-streaming for recording only.</li>
         </ul>
         <p class="has-text-black">The choice is yours on how to utilize this feature to enhance your streaming experience.</p>
+        <hr>
+        <p class="has-text-weight-bold has-text-black">Important Storage Information:</p>
+        <ul>
+            <li class="has-text-black">Currently, we offer one server location in Sydney, Australia. More servers coming soon!</li>
+            <li class="has-text-black">Recorded streams are kept for 24 hours only after the stream ends.</li>
+            <li class="has-text-black">After 24 hours, files are automatically removed due to storage restrictions.</li>
+            <li class="has-text-black">Coming soon: An option to keep your streams longer, with billing only for the storage space used.</li>
+        </ul>
     </div>
     <h1 class="title">Streaming Settings</h1>
     <?php if (isset($_SESSION['settings_saved'])): ?>
