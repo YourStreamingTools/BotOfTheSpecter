@@ -171,6 +171,10 @@ $notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OF
 $databasePingStatus = pingServer('10.240.0.40', 3306);
 $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
 
+// Add Streaming Service Ping
+$streamingPingStatus = pingServer('10.240.0.211', 80);
+$streamingServiceStatus = ['status' => $streamingPingStatus >= 0 ? 'OK' : 'OFF'];
+
 if ($backup_system == true) {
   $showButtons = true;
 };
@@ -309,13 +313,23 @@ if ($backup_system == true) {
             </span>
           </div>
         </div>
-        <div class="column is-12">
+        <div class="column is-6">
           <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
             <span class="subtitle">
               <span id="heartbeatIcon">
                 <i id="heartbeat" class="fas fa-heartbeat" style="color: green;"></i>
               </span>
               <span style="margin-left: 3px">Notification Service</span>
+            </span>
+          </div>
+        </div>
+        <div class="column is-6">
+          <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+            <span class="subtitle">
+              <span id="streamingServiceIcon">
+                <i id="streamingService" class="fas fa-heartbeat" style="color: <?php echo $streamingServiceStatus['status'] === 'OK' ? 'green' : 'red'; ?>;"></i>
+              </span>
+              <span style="margin-left: 3px">Streaming Service</span>
             </span>
           </div>
         </div>
@@ -681,6 +695,25 @@ function checkAllServices() {
       databaseServiceIcon.className = 'fas fa-heart-broken';
       databaseServiceIcon.style.color = 'red';
     });
+
+  // Fetch the latest status for Streaming service
+  fetch('/api_status.php?service=streaming')
+    .then(response => response.json())
+    .then(data => {
+      const streamingServiceIcon = document.getElementById('streamingService');
+      if (data.status === 'OK') {
+        streamingServiceIcon.className = 'fas fa-heartbeat beating';
+        streamingServiceIcon.style.color = 'green';
+      } else {
+        streamingServiceIcon.className = 'fas fa-heart-broken';
+        streamingServiceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const streamingServiceIcon = document.getElementById('streamingService');
+      streamingServiceIcon.className = 'fas fa-heart-broken';
+      streamingServiceIcon.style.color = 'red';
+    });
 }
 
 function updateApiLimits() {
@@ -814,6 +847,25 @@ function checkAllServices() {
       const databaseServiceIcon = document.getElementById('databaseService');
       databaseServiceIcon.className = 'fas fa-heart-broken';
       databaseServiceIcon.style.color = 'red';
+    });
+
+  // Fetch the latest status for Streaming service
+  fetch('/api_status.php?service=streaming')
+    .then(response => response.json())
+    .then(data => {
+      const streamingServiceIcon = document.getElementById('streamingService');
+      if (data.status === 'OK') {
+        streamingServiceIcon.className = 'fas fa-heartbeat beating';
+        streamingServiceIcon.style.color = 'green';
+      } else {
+        streamingServiceIcon.className = 'fas fa-heart-broken';
+        streamingServiceIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const streamingServiceIcon = document.getElementById('streamingService');
+      streamingServiceIcon.className = 'fas fa-heart-broken';
+      streamingServiceIcon.style.color = 'red';
     });
 }
 
