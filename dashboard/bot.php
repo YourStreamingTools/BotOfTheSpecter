@@ -144,37 +144,6 @@ if (file_exists($restartLog)) {
   $lastRestartOutput = 'Never'; // Message if restart log file does not exist
 }
 
-// Function to ping server
-function pingServer($host, $port) {
-    $starttime = microtime(true);
-    $file = @fsockopen($host, $port, $errno, $errstr, 2);
-    $stoptime = microtime(true);
-    $status = 0;
-
-    if (!$file) {
-        $status = -1;  // Site is down
-    } else {
-        fclose($file);
-        $status = ($stoptime - $starttime) * 1000;
-        $status = floor($status);
-    }
-    return $status;
-}
-
-// Directly ping the servers
-$apiPingStatus = pingServer('10.240.0.120', 443);
-$apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF'];
-
-$websocketPingStatus = pingServer('10.240.0.254', 443);
-$notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF'];
-
-$databasePingStatus = pingServer('10.240.0.40', 3306);
-$databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF'];
-
-// Add Streaming Service Ping
-$streamingPingStatus = pingServer('10.240.0.211', 80);
-$streamingServiceStatus = ['status' => $streamingPingStatus >= 0 ? 'OK' : 'OFF'];
-
 if ($backup_system == true) {
   $showButtons = true;
 };
