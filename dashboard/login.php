@@ -91,6 +91,7 @@ if (isset($_GET['code'])) {
         $twitchUsername = $userInfo['data'][0]['login'];
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
         $twitchUserId = $userInfo['data'][0]['id'];
+        $email = $userInfo['data'][0]['email'] ?? '';
         $_SESSION['username'] = $twitchUsername;
         $_SESSION['twitch_user_id'] = $twitchUserId;
         // Database connect
@@ -103,10 +104,10 @@ if (isset($_GET['code'])) {
         mysqli_stmt_store_result($stmt);
         if (mysqli_stmt_num_rows($stmt) > 0) {
             // User exists, update their information
-            $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, twitch_user_id = ?, twitch_display_name = ?, last_login = ? WHERE username = ?";
+            $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, twitch_user_id = ?, twitch_display_name = ?, last_login = ?, email = ? WHERE username = ?";
             $stmt = mysqli_prepare($conn, $updateQuery);
             $last_login = date('Y-m-d H:i:s');
-            mysqli_stmt_bind_param($stmt, 'sssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName, $last_login, $twitchUsername);
+            mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName, $last_login, $email, $twitchUsername);
             if (mysqli_stmt_execute($stmt)) {
                 // Redirect the user to the dashboard
                 header('Location: bot.php');
@@ -118,10 +119,10 @@ if (isset($_GET['code'])) {
             }
         } else {
             // User does not exist, insert them as a new user
-            $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, is_admin) 
-            VALUES (?, ?, ?, '" . bin2hex(random_bytes(16)) . "', ?, ?, ?, 0)";
+            $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin) 
+            VALUES (?, ?, ?, '" . bin2hex(random_bytes(16)) . "', ?, ?, ?, ?, 0)";
             $stmt = mysqli_prepare($conn, $insertQuery);
-            mysqli_stmt_bind_param($stmt, 'ssssss', $twitchUsername, $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName);
+            mysqli_stmt_bind_param($stmt, 'sssssss', $twitchUsername, $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName, $email);
             if (mysqli_stmt_execute($stmt)) {
                 // Redirect the user to the dashboard
                 header('Location: bot.php');
