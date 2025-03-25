@@ -188,29 +188,28 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_stream_closed(session, exception)
 
     async def convert_flv_to_mp4_background(self, session, flv_file_path: str, mp4_file_path: str):
-        # Check if the MP4 file already exists, and append a part number if it does
-        if os.path.exists(mp4_file_path):
-            # Increment the part number (p2, p3, etc.)
-            base, ext = os.path.splitext(mp4_file_path)
+        # Get username and set user folder as destination
+        username = await get_username_from_api_key(session.publishing_name)
+        user_dir = os.path.join(self.output_directory, username)
+        os.makedirs(user_dir, exist_ok=True)
+        date_part = os.path.basename(flv_file_path).split('_')[0]
+        final_mp4_path = os.path.join(user_dir, f"{date_part}.mp4")
+        # Check if file exists inside user folder and append a part number if needed
+        if os.path.exists(final_mp4_path):
+            base, ext = os.path.splitext(final_mp4_path)
             part = 2
             while os.path.exists(f"{base}-p{part}{ext}"):
                 part += 1
-            mp4_file_path = f"{base}-p{part}{ext}"
+            final_mp4_path = f"{base}-p{part}{ext}"
         # Run FFmpeg to convert the FLV file to MP4
-        command = ["ffmpeg", "-i", flv_file_path, "-c", "copy", mp4_file_path]
+        command = ["ffmpeg", "-i", flv_file_path, "-c", "copy", final_mp4_path]
         logger.info(f"Running FFmpeg process in async for {flv_file_path}...")
         process = await asyncio.create_subprocess_exec(*command)
         await process.communicate()
         logger.info("FFmpeg process finished.")
         # Remove the original FLV file after conversion
         os.remove(flv_file_path)
-        # Move the converted file to the user's directory
-        username = await get_username_from_api_key(session.publishing_name)
-        user_dir = os.path.join(self.output_directory, username)
-        os.makedirs(user_dir, exist_ok=True)
-        user_mp4_file_path = os.path.join(user_dir, os.path.basename(mp4_file_path))
-        os.rename(mp4_file_path, user_mp4_file_path)
-        logger.info(f"Moved converted file to {user_mp4_file_path}")
+        logger.info(f"Converted file saved to {final_mp4_path}")
 
     async def on_command_message(self, session, message):
         if message.command in ["releaseStream", "FCPublish", "FCUnpublish"]:
