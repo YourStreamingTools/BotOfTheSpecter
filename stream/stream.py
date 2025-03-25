@@ -155,58 +155,81 @@ class RTMP2FLVController(SimpleRTMPController):
         logger.info(f"Started recording stream {publishing_name} to {file_path}")
         # Forward to Twitch if enabled
         session.twitch_key = twitch_key
+        session.ffmpeg_process = None
         if forward_to_twitch:
             twitch_url = f"rtmp://syd03.contribute.live-video.net/app/{twitch_key}"
             asyncio.create_task(self.forward_to_twitch(session, twitch_url))
         await super().on_ns_publish(session, message)
 
     async def forward_to_twitch(self, session, twitch_url):
-        # Add initial delay to allow the FLV file to receive data
-        logger.info(f"Waiting 1 seconds for FLV file to receive initial data...")
-        await asyncio.sleep(1)
-        # Check if the FLV file exists and has content
-        if not os.path.exists(session.flv_file_path):
-            logger.warning(f"FLV file {session.flv_file_path} does not exist. Skipping forwarding to Twitch.")
-            return
-        # Wait for the file to reach a minimum size
-        min_file_size = 100 * 1024  # 100KB
-        max_wait_time = 10  # 10 seconds
-        start_time = datetime.datetime.now()
-        while os.path.getsize(session.flv_file_path) < min_file_size:
-            if (datetime.datetime.now() - start_time).total_seconds() > max_wait_time:
-                logger.warning(f"Timeout waiting for FLV file to reach minimum size. Current size: {os.path.getsize(session.flv_file_path)} bytes")
-                if os.path.getsize(session.flv_file_path) == 0:
-                    logger.error("FLV file is empty. Skipping forwarding to Twitch.")
-                    return
-                # Continue with forwarding even if minimum size isn't reached but file has some data
-                logger.info("Continuing with forwarding despite not reaching ideal minimum size")
-                break
-            
-            await asyncio.sleep(1)  # Check every second
-        logger.info(f"FLV file has reached adequate size ({os.path.getsize(session.flv_file_path)} bytes). Starting forwarding to Twitch.")
-        command = [
-            "ffmpeg",
-            "-re",
-            "-i", session.flv_file_path,
-            "-c", "copy",
-            "-f", "flv",
-            twitch_url
-        ]
-        logger.info(f"Forwarding stream to Twitch: {twitch_url}")
         try:
-            process = await asyncio.create_subprocess_exec(
+            # Add initial delay to allow the FLV file to receive data
+            logger.info(f"Waiting 1 seconds for FLV file to receive initial data...")
+            await asyncio.sleep(1)
+            # Check if the FLV file exists and has content
+            if not os.path.exists(session.flv_file_path):
+                logger.warning(f"FLV file {session.flv_file_path} does not exist. Skipping forwarding to Twitch.")
+                return
+            # Wait for the file to reach a minimum size
+            min_file_size = 100 * 1024  # 100KB
+            max_wait_time = 10  # 10 seconds
+            start_time = datetime.datetime.now()
+            while os.path.getsize(session.flv_file_path) < min_file_size:
+                if (datetime.datetime.now() - start_time).total_seconds() > max_wait_time:
+                    logger.warning(f"Timeout waiting for FLV file to reach minimum size. Current size: {os.path.getsize(session.flv_file_path)} bytes")
+                    if os.path.getsize(session.flv_file_path) == 0:
+                        logger.error("FLV file is empty. Skipping forwarding to Twitch.")
+                        return
+                    # Continue with forwarding even if minimum size isn't reached but file has some data
+                    logger.info("Continuing with forwarding despite not reaching ideal minimum size")
+                    break
+                await asyncio.sleep(1)  # Check every second
+            logger.info(f"FLV file has reached adequate size ({os.path.getsize(session.flv_file_path)} bytes). Starting forwarding to Twitch.")
+            command = [
+                "ffmpeg",
+                "-re",
+                "-i", session.flv_file_path,
+                "-c", "copy",
+                "-f", "flv",
+                twitch_url
+            ]
+            logger.info(f"Forwarding stream to Twitch: {twitch_url}")
+            # Start the FFmpeg process and store in session for cleanup
+            session.ffmpeg_process = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            stdout, stderr = await process.communicate()
-            if process.returncode != 0:
-                logger.error(f"FFmpeg error (code {process.returncode}):\n{stderr.decode()}")
+            # Wait for the process to complete
+            stdout, stderr = await session.ffmpeg_process.communicate()
+            if session.ffmpeg_process.returncode != 0:
+                logger.error(f"FFmpeg error (code {session.ffmpeg_process.returncode}):\n{stderr.decode()}")
             else:
                 logger.info(f"FFmpeg output:\n{stdout.decode()}")
                 logger.info("Finished forwarding stream to Twitch.")
+        except asyncio.CancelledError:
+            logger.info("Twitch forwarding task was cancelled")
+            await self.terminate_ffmpeg(session)
         except Exception as e:
             logger.error(f"Exception while running FFmpeg: {e}")
+            await self.terminate_ffmpeg(session)
+
+    async def terminate_ffmpeg(self, session):
+        if hasattr(session, 'ffmpeg_process') and session.ffmpeg_process:
+            try:
+                if session.ffmpeg_process.returncode is None:  # Process is still running
+                    logger.info("Terminating FFmpeg process...")
+                    session.ffmpeg_process.terminate()
+                    try:
+                        # Wait for a short time for graceful termination
+                        await asyncio.wait_for(session.ffmpeg_process.wait(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        logger.warning("FFmpeg didn't terminate gracefully, killing it")
+                        session.ffmpeg_process.kill()
+                    finally:
+                        logger.info("FFmpeg process terminated")
+            except Exception as e:
+                logger.error(f"Error while terminating FFmpeg: {e}")
 
     async def on_metadata(self, session, message) -> None:
         session.state.write(0, message.to_raw_meta(), FLVMediaType.OBJECT)
@@ -221,18 +244,17 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_audio_message(session, message)
 
     async def on_stream_closed(self, session: SessionManager, exception: StreamClosedException) -> None:
+        # Terminate FFmpeg process if it exists
+        await self.terminate_ffmpeg(session)
         # Close the FLV file after the stream ends
         session.state.close()
         # Convert FLV to MP4 using FFmpeg
         flv_file_path = session.flv_file_path
-        base_name = os.path.basename(flv_file_path)
-        date_part = base_name.split('_')[0]
-        mp4_file_path = os.path.join(self.output_directory, f"{date_part}.mp4")
-        asyncio.create_task(self.convert_flv_to_mp4_background(session, flv_file_path, mp4_file_path))
+        asyncio.create_task(self.convert_flv_to_mp4_background(session, flv_file_path))
         logger.info(f"Started background conversion for {session.publishing_name}.")
         await super().on_stream_closed(session, exception)
 
-    async def convert_flv_to_mp4_background(self, session, flv_file_path: str, mp4_file_path: str):
+    async def convert_flv_to_mp4_background(self, session, flv_file_path: str):
         # Get username and set user folder as destination
         username = await get_username_from_api_key(session.publishing_name)
         user_dir = os.path.join(self.output_directory, username)
