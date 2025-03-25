@@ -98,7 +98,7 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
                    ($size_bytes < 1024*1024*1024 ? round($size_bytes/(1024*1024), 2).' MB' : 
                    round($size_bytes/(1024*1024*1024), 2).' GB');
             // Format date
-            $date = date('Y-m-d', $stat['mtime']);
+            $date = date('d-m-Y', $stat['mtime']);
             // We can't easily get video duration via SSH, so leaving as placeholder
             $duration = "N/A"; // Would require specific tools on the server
             $files[] = [
@@ -214,7 +214,6 @@ if ($selected_server == 'au-syd-1') {
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-10 bot-box">
             <h2 class="subtitle has-text-white">Your Recorded Streams</h2>
-            
             <!-- Server selection form -->
             <div class="field is-horizontal mb-4">
                 <div class="field-label is-normal">
