@@ -34,6 +34,10 @@ switch ($service) {
         $pingStatus = pingServer('10.240.0.40', 3306);
         $status = $pingStatus >= 0 ? 'OK' : 'OFF';
         break;
+    case 'streaming':
+        $pingStatus = pingServer('10.240.0.211', 80);
+        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
+        break;
 }
 
 echo json_encode(['status' => $status]);
