@@ -105,6 +105,8 @@ if (isset($_GET['code'])) {
         if (mysqli_stmt_num_rows($stmt) > 0) {
             // User is in the restricted list
             $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at questions@botofthespecter.com.";
+            // Render the page with the message
+            include 'restricted.php';
             exit;
         }
         // Check if the user already exists
