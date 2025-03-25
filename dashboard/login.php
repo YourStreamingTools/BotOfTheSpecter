@@ -103,6 +103,8 @@ if (isset($_GET['code'])) {
         mysqli_stmt_execute($stmt);
         mysqli_stmt_store_result($stmt);
         if (mysqli_stmt_num_rows($stmt) > 0) {
+            $_SESSION = array();
+            session_destroy();
             // User is in the restricted list
             $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at questions@botofthespecter.com.";
             // Render the page with the message
