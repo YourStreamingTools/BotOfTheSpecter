@@ -96,6 +96,17 @@ if (isset($_GET['code'])) {
         $_SESSION['twitch_user_id'] = $twitchUserId;
         // Database connect
         require_once "/var/www/config/db_connect.php";
+        // Check if the user is not in the restricted list
+        $restrictedQuery = "SELECT id FROM restricted_users WHERE username = ?";
+        $stmt = mysqli_prepare($conn, $restrictedQuery);
+        mysqli_stmt_bind_param($stmt, 's', $twitchUsername);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_store_result($stmt);
+        if (mysqli_stmt_num_rows($stmt) > 0) {
+            // User is in the restricted list
+            $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at questions@botofthespecter.com.";
+            exit;
+        }
         // Check if the user already exists
         $checkQuery = "SELECT id FROM users WHERE username = ?";
         $stmt = mysqli_prepare($conn, $checkQuery);
