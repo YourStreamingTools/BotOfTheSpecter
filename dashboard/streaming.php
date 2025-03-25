@@ -80,7 +80,7 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
     $dir_path = "/root/$user_dir/";
     $sftp_stream = @opendir("ssh2.sftp://" . intval($sftp) . $dir_path);
     if (!$sftp_stream) {
-        return ['error' => "Directory $dir_path not found or not accessible."];
+        return ['error' => "Directory not found or not accessible at this time."];
     }
     // List files
     while (($file = readdir($sftp_stream)) !== false) {
