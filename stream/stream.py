@@ -62,14 +62,23 @@ async def userdb_conenct(username):
 
 async def get_username_from_api_key(api_key):
     # Connect to the website database
-    sqldb = await access_website_database()
-    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-        await cursor.execute("SELECT username FROM users WHERE api_key = %s", (api_key,))
-        row = await cursor.fetchone()
+    try:
+        sqldb = await access_website_database()
+        if sqldb is None:
+            logger.error(f"Failed to connect to database when looking up API key: {api_key}")
+            return None
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT username FROM users WHERE api_key = %s", (api_key,))
+            row = await cursor.fetchone()
+            if row:
+                username = row['username']
+            else:
+                username = None
         # Close the database connection
         await sqldb.close()
-        if row:
-            return row['username']
+        return username
+    except Exception as e:
+        logger.error(f"Error in get_username_from_api_key: {e}")
         return None
 
 async def get_valid_stream_keys():
@@ -152,6 +161,10 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_ns_publish(session, message)
 
     async def forward_to_twitch(self, session, twitch_url):
+        # Check if the FLV file exists and has content
+        if not os.path.exists(session.flv_file_path) or os.path.getsize(session.flv_file_path) == 0:
+            logger.warning(f"FLV file {session.flv_file_path} is empty or does not exist. Skipping forwarding to Twitch.")
+            return
         command = [
             "ffmpeg",
             "-re",
@@ -161,17 +174,21 @@ class RTMP2FLVController(SimpleRTMPController):
             twitch_url
         ]
         logger.info(f"Forwarding stream to Twitch: {twitch_url}")
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            logger.error(f"FFmpeg error (code {process.returncode}):\n{stderr.decode()}")
-        else:
-            logger.info(f"FFmpeg output:\n{stdout.decode()}")
-            logger.info("Finished forwarding stream to Twitch.")
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                logger.error(f"FFmpeg error (code {process.returncode}):\n{stderr.decode()}")
+            else:
+                logger.info(f"FFmpeg output:\n{stdout.decode()}")
+                logger.info("Finished forwarding stream to Twitch.")
+        except Exception as e:
+            logger.error(f"Exception while running FFmpeg: {e}")
+
     async def on_metadata(self, session, message) -> None:
         session.state.write(0, message.to_raw_meta(), FLVMediaType.OBJECT)
         await super().on_metadata(session, message)
