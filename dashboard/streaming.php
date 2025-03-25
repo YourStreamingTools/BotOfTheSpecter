@@ -19,6 +19,7 @@ $title = "Streaming Settings";
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include "/var/www/config/ssh.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
@@ -58,6 +59,86 @@ if ($result === false) {
 $current_settings = $result->fetch(PDO::FETCH_ASSOC);
 $twitch_key = $current_settings['twitch_key'] ?? '';
 $forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
+
+// Function to get files from the storage server
+function getStorageFiles($server_host, $server_username, $server_password, $user_dir) {
+    $files = [];
+    // Check if SSH2 extension is available
+    if (!function_exists('ssh2_connect')) {
+        return ['error' => 'SSH2 extension not installed on the server.'];
+    }
+    // Connect to the server
+    $connection = @ssh2_connect($server_host, 22);
+    if (!$connection) {
+        return ['error' => 'Could not connect to the storage server.'];
+    }
+    // Authenticate
+    if (!@ssh2_auth_password($connection, $server_username, $server_password)) {
+        return ['error' => 'Authentication failed.'];
+    }
+    // Create SFTP session
+    $sftp = @ssh2_sftp($connection);
+    if (!$sftp) {
+        return ['error' => 'Could not initialize SFTP subsystem.'];
+    }
+    // Check if the directory exists
+    $dir_path = "/root/$user_dir/";
+    $sftp_stream = @opendir("ssh2.sftp://" . intval($sftp) . $dir_path);
+    if (!$sftp_stream) {
+        return ['error' => "Directory $dir_path not found or not accessible."];
+    }
+    // List files
+    while (($file = readdir($sftp_stream)) !== false) {
+        if ($file != '.' && $file != '..' && pathinfo($file, PATHINFO_EXTENSION) == 'mp4') {
+            // Get file stats
+            $stat = ssh2_sftp_stat($sftp, $dir_path . $file);
+            // Format file size
+            $size_bytes = $stat['size'];
+            $size = $size_bytes < 1024*1024 ? round($size_bytes/1024, 2).' KB' : 
+                   ($size_bytes < 1024*1024*1024 ? round($size_bytes/(1024*1024), 2).' MB' : 
+                   round($size_bytes/(1024*1024*1024), 2).' GB');
+            // Format date
+            $date = date('Y-m-d', $stat['mtime']);
+            // We can't easily get video duration via SSH, so leaving as placeholder
+            $duration = "N/A"; // Would require specific tools on the server
+            $files[] = [
+                'name' => $file,
+                'date' => $date,
+                'size' => $size,
+                'duration' => $duration,
+                'path' => $dir_path . $file
+            ];
+        }
+    }
+    closedir($sftp_stream);
+    return $files;
+}
+
+// Get files when the server is selected
+$storage_files = [];
+$storage_error = null;
+
+// Server selection handling (default to AU SYD 1)
+$selected_server = isset($_GET['server']) ? $_GET['server'] : 'au-syd-1';
+
+if ($selected_server == 'au-syd-1') {
+    // Only try to fetch files if the credentials are set
+    if (!empty($storage_server_au_syd1_host) && !empty($storage_server_au_syd1_username) && !empty($storage_server_au_syd1_password)) {
+        $result = getStorageFiles(
+            $storage_server_au_syd1_host, 
+            $storage_server_au_syd1_username, 
+            $storage_server_au_syd1_password, 
+            $username
+        );
+        if (isset($result['error'])) {
+            $storage_error = $result['error'];
+        } else {
+            $storage_files = $result;
+        }
+    } else {
+        $storage_error = "Server connection information not configured.";
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -126,6 +207,81 @@ $forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- Downloads section -->
+    <div class="columns is-desktop is-multiline is-centered box-container">
+        <div class="column is-10 bot-box">
+            <h2 class="subtitle has-text-white">Your Recorded Streams</h2>
+            
+            <!-- Server selection form -->
+            <div class="field is-horizontal mb-4">
+                <div class="field-label is-normal">
+                    <label class="label has-text-white">Server Location:</label>
+                </div>
+                <div class="field-body">
+                    <div class="field">
+                        <div class="control">
+                            <div class="select">
+                                <select id="server-location" name="server-location">
+                                    <option value="au-syd-1" selected>AU SYD 1</option>
+                                    <!-- Additional server options can be added in the future -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <form method="get">
+                                <input type="hidden" name="server" id="server-input" value="au-syd-1">
+                                <button type="submit" class="button is-info">Load Files</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table class="table is-fullwidth">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Date Recorded</th>
+                            <th>Size</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        if ($storage_error) {
+                            echo '<tr><td colspan="4" class="has-text-centered has-text-danger">' . htmlspecialchars($storage_error) . '</td></tr>';
+                        } elseif (empty($storage_files)) {
+                            echo '<tr><td colspan="4" class="has-text-centered">No recorded streams available.</td></tr>';
+                        } else {
+                            foreach ($storage_files as $file) {
+                                echo '<tr>';
+                                echo '<td>' . htmlspecialchars($file['name']) . '</td>';
+                                echo '<td>' . htmlspecialchars($file['date']) . '</td>';
+                                echo '<td>' . htmlspecialchars($file['size']) . '</td>';
+                                echo '<td>
+                                        <a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="button is-small is-primary">Download</a>
+                                        <a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="button is-small is-danger" onclick="return confirm(\'Are you sure you want to delete this file?\');">Delete</a>
+                                      </td>';
+                                echo '</tr>';
+                            }
+                        }
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <script>
+                // Update hidden input when dropdown changes
+                document.getElementById('server-location').addEventListener('change', function() {
+                    document.getElementById('server-input').value = this.value;
+                });
+            </script>
         </div>
     </div>
 </div>
