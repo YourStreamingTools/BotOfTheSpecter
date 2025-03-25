@@ -153,8 +153,8 @@ if ($selected_server == 'au-syd-1') {
         <p class="has-text-weight-bold has-text-black">Complementary Streaming Service</p>
         <p class="has-text-black">This streaming feature is provided as a complementary service for all Specter users. You have multiple options:</p>
         <ul>
-            <li class="has-text-black">Record your streams and simultaneously forward them to Twitch</li>
-            <li class="has-text-black">Use our service as a secondary output for your streams via multi-streaming</li>
+            <li class="has-text-black">Record your streams and simultaneously forward them to Twitch.</li>
+            <li class="has-text-black">Use our service as a secondary output for your streams via multi-streaming for recording only.</li>
         </ul>
         <p class="has-text-black">The choice is yours on how to utilize this feature to enhance your streaming experience.</p>
     </div>
