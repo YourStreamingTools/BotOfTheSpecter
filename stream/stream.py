@@ -72,11 +72,11 @@ async def get_username_from_api_key(api_key):
             row = await cursor.fetchone()
             if row:
                 username = row['username']
+                return username
             else:
-                username = None
+                return f"Unknown-{api_key}"
         # Close the database connection
         await sqldb.close()
-        return username
     except Exception as e:
         logger.error(f"Error in get_username_from_api_key: {e}")
         return None
@@ -161,10 +161,29 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_ns_publish(session, message)
 
     async def forward_to_twitch(self, session, twitch_url):
+        # Add initial delay to allow the FLV file to receive data
+        logger.info(f"Waiting 1 seconds for FLV file to receive initial data...")
+        await asyncio.sleep(1)
         # Check if the FLV file exists and has content
-        if not os.path.exists(session.flv_file_path) or os.path.getsize(session.flv_file_path) == 0:
-            logger.warning(f"FLV file {session.flv_file_path} is empty or does not exist. Skipping forwarding to Twitch.")
+        if not os.path.exists(session.flv_file_path):
+            logger.warning(f"FLV file {session.flv_file_path} does not exist. Skipping forwarding to Twitch.")
             return
+        # Wait for the file to reach a minimum size
+        min_file_size = 100 * 1024  # 100KB
+        max_wait_time = 10  # 10 seconds
+        start_time = datetime.datetime.now()
+        while os.path.getsize(session.flv_file_path) < min_file_size:
+            if (datetime.datetime.now() - start_time).total_seconds() > max_wait_time:
+                logger.warning(f"Timeout waiting for FLV file to reach minimum size. Current size: {os.path.getsize(session.flv_file_path)} bytes")
+                if os.path.getsize(session.flv_file_path) == 0:
+                    logger.error("FLV file is empty. Skipping forwarding to Twitch.")
+                    return
+                # Continue with forwarding even if minimum size isn't reached but file has some data
+                logger.info("Continuing with forwarding despite not reaching ideal minimum size")
+                break
+            
+            await asyncio.sleep(1)  # Check every second
+        logger.info(f"FLV file has reached adequate size ({os.path.getsize(session.flv_file_path)} bytes). Starting forwarding to Twitch.")
         command = [
             "ffmpeg",
             "-re",
