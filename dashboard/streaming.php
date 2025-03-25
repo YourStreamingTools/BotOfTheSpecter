@@ -73,6 +73,15 @@ $forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
 
 <div class="container">
     <br>
+    <div class="notification is-primary">
+        <p class="has-text-weight-bold has-text-black">Complementary Streaming Service</p>
+        <p class="has-text-black">This streaming feature is provided as a complementary service for all Specter users. You have multiple options:</p>
+        <ul>
+            <li class="has-text-black">Record your streams and simultaneously forward them to Twitch</li>
+            <li class="has-text-black">Use our service as a secondary output for your streams via multi-streaming</li>
+        </ul>
+        <p class="has-text-black">The choice is yours on how to utilize this feature to enhance your streaming experience.</p>
+    </div>
     <h1 class="title">Streaming Settings</h1>
     <?php if (isset($_SESSION['settings_saved'])): ?>
         <?php unset($_SESSION['settings_saved']); ?>
