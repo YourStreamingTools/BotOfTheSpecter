@@ -60,6 +60,7 @@
 					<a class="navbar-item" href="../discordbot.php">Discord Bot</a>
 					<a class="navbar-item" href="../overlays.php">Overlays</a>
 					<a class="navbar-item" href="../spotifylink.php">Link Spotify</a>
+					<a class="navbar-item" href="../streaming.php">Specter Streaming</a>
 					<a class="navbar-item" href="../todolist">To Do List</a>
 				</div>
 			</div>
