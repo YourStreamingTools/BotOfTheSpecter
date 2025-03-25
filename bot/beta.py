@@ -5878,7 +5878,7 @@ async def handle_chat_message(messageAuthor):
             interval = trigger_info["interval"]
             if interval and int(interval) > 0:
                 wait_time = int(interval) * 60
-                chat_logger.info(f"Delaying Timed Message ID: {message_id} - '{message}' for {interval} minutes.")
+                chat_logger.info(f"Delaying Timed Message ID: {message_id} for {interval} minutes.")
                 asyncio.create_task(send_timed_message(message_id, message, wait_time))
 
 async def send_timed_message(message_id, message, delay):
@@ -5889,7 +5889,7 @@ async def send_timed_message(message_id, message, delay):
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         await channel.send(message)
     else:
-        chat_logger.info(f'Stream is offline. Message ID: {message_id} - "{message}" not sent.')
+        chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
@@ -7073,6 +7073,7 @@ async def generate_winning_lotto_numbers():
 
 # Function to generate random Lotto numbers
 async def generate_user_lotto_numbers(user_name):
+    user_name = user_name.lower()
     sqldb = await get_mysql_connection()
     async with sqldb.cursor(aiomysql.DictCursor) as cursor:
         # Check if there are winning numbers in the database
@@ -7088,9 +7089,9 @@ async def generate_user_lotto_numbers(user_name):
             return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
         # Draw the numbers if the game is running
         all_numbers = random.sample(range(1, 48), 9)
-        winning_numbers = ', '.join(map(str, all_numbers[:6]))  # Winning numbers as a string
-        supplementary_numbers = ', '.join(map(str, all_numbers[6:]))  # Supplementary numbers as a string
         # Combine both sets of numbers into one string
+        winning_numbers = ', '.join(map(str, all_numbers[:6]))
+        supplementary_numbers = ', '.join(map(str, all_numbers[6:]))
         all_numbers_str = f"Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
         # Insert the user's numbers into the database
         await cursor.execute(
