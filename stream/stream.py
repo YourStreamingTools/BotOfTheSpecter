@@ -3,6 +3,7 @@ import datetime
 import logging
 import ssl
 import asyncio
+from asyncio import subprocess
 import aiomysql
 from dotenv import load_dotenv
 from pyrtmp import StreamClosedException
@@ -66,7 +67,7 @@ async def get_username_from_api_key(api_key):
         await cursor.execute("SELECT username FROM users WHERE api_key = %s", (api_key,))
         row = await cursor.fetchone()
         # Close the database connection
-        sqldb.close()
+        await sqldb.close()
         if row:
             return row['username']
         return None
@@ -144,6 +145,7 @@ class RTMP2FLVController(SimpleRTMPController):
         session.state = FLVFileWriter(output=file_path)
         logger.info(f"Started recording stream {publishing_name} to {file_path}")
         # Forward to Twitch if enabled
+        session.twitch_key = twitch_key
         if forward_to_twitch:
             twitch_url = f"rtmp://syd03.contribute.live-video.net/app/{twitch_key}"
             asyncio.create_task(self.forward_to_twitch(session, twitch_url))
@@ -159,10 +161,17 @@ class RTMP2FLVController(SimpleRTMPController):
             twitch_url
         ]
         logger.info(f"Forwarding stream to Twitch: {twitch_url}")
-        process = await asyncio.create_subprocess_exec(*command)
-        await process.communicate()
-        logger.info("Finished forwarding stream to Twitch.")
-
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            logger.error(f"FFmpeg error (code {process.returncode}):\n{stderr.decode()}")
+        else:
+            logger.info(f"FFmpeg output:\n{stdout.decode()}")
+            logger.info("Finished forwarding stream to Twitch.")
     async def on_metadata(self, session, message) -> None:
         session.state.write(0, message.to_raw_meta(), FLVMediaType.OBJECT)
         await super().on_metadata(session, message)
@@ -205,7 +214,8 @@ class RTMP2FLVController(SimpleRTMPController):
         command = ["ffmpeg", "-i", flv_file_path, "-c", "copy", final_mp4_path]
         logger.info(f"Running FFmpeg process in async for {flv_file_path}...")
         process = await asyncio.create_subprocess_exec(*command)
-        await process.communicate()
+        if process:
+            await process.communicate()
         logger.info("FFmpeg process finished.")
         # Remove the original FLV file after conversion
         os.remove(flv_file_path)
