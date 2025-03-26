@@ -193,7 +193,7 @@ if ($selected_server == 'au-east-1') {
                 <span class="has-text-weight-bold">Note: Your API Key (found on your profile) serves as the stream key for our servers.</span>
                 <span class="has-text-weight-bold">RTMPS URL for Selected Server:</span>
                 <br>
-                <code>rtmps://<?php echo htmlspecialchars($server_rtmps_url); ?></code>
+                <code>rtmps://<?php echo htmlspecialchars($server_rtmps_url); ?>:1935</code>
             </div>
         </div>
         <div class="column is-5 bot-box" style="position: relative;">
