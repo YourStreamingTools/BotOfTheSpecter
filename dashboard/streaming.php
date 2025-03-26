@@ -251,14 +251,6 @@ if ($selected_server == 'au-east-1') {
                             </div>
                         </div>
                     </div>
-                    <div class="field">
-                        <div class="control">
-                            <form method="get">
-                                <input type="hidden" name="server" id="server-input" value="au-east-1">
-                                <button type="submit" class="button is-info">Load Files</button>
-                            </form>
-                        </div>
-                    </div>
                 </div>
             </div>
             
@@ -299,9 +291,9 @@ if ($selected_server == 'au-east-1') {
             </div>
             
             <script>
-                // Update hidden input when dropdown changes
+                // Remove the script for updating the hidden input since the button is removed
                 document.getElementById('server-location').addEventListener('change', function() {
-                    document.getElementById('server-input').value = this.value;
+                    // Logic for handling server selection can be added here if needed
                 });
             </script>
         </div>
