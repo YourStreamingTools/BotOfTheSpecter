@@ -115,6 +115,13 @@ $storage_error = null;
 
 // Server selection handling (default to AU SYD 1)
 $selected_server = isset($_GET['server']) ? $_GET['server'] : 'au-east-1';
+$server_info = [
+    'au-east-1' => [
+        'name' => 'AU-EAST-1',
+        'rtmps_url' => 'au-east-1.stream.botofthespecter.com'
+    ]
+];
+$server_rtmps_url = $server_info[$selected_server]['rtmps_url'] ?? 'Unknown';
 
 if ($selected_server == 'au-east-1') {
     // Only try to fetch files if the credentials are set
@@ -183,9 +190,10 @@ if ($selected_server == 'au-east-1') {
                     <li>Click "Save Settings".</li>
                 </ul>
                 <br>
-                <span class="has-text-weight-bold">Server Information:</span>
-                <p>Stream securely via RTMPS at <code>rtmps://stream.botofthespecter.com:1935</code>.</p>
-                <p>Your API key (found on your profile) serves as the stream key.</p>
+                <span class="has-text-weight-bold">Note: Your API Key (found on your profile) serves as the stream key for our servers.</span>
+                <span class="has-text-weight-bold">RTMPS URL for Selected Server:</span>
+                <br>
+                <code>rtmps://<?php echo htmlspecialchars($server_rtmps_url); ?></code>
             </div>
         </div>
         <div class="column is-5 bot-box" style="position: relative;">
@@ -212,7 +220,6 @@ if ($selected_server == 'au-east-1') {
             </form>
         </div>
     </div>
-    
     <!-- Downloads section -->
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-10 bot-box">
