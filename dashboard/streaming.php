@@ -114,15 +114,15 @@ $storage_files = [];
 $storage_error = null;
 
 // Server selection handling (default to AU SYD 1)
-$selected_server = isset($_GET['server']) ? $_GET['server'] : 'au-syd-1';
+$selected_server = isset($_GET['server']) ? $_GET['server'] : 'au-east-1';
 
-if ($selected_server == 'au-syd-1') {
+if ($selected_server == 'au-east-1') {
     // Only try to fetch files if the credentials are set
-    if (!empty($storage_server_au_syd1_host) && !empty($storage_server_au_syd1_username) && !empty($storage_server_au_syd1_password)) {
+    if (!empty($storage_server_au_east_1_host) && !empty($storage_server_au_east_1_username) && !empty($storage_server_au_east_1_password)) {
         $result = getStorageFiles(
-            $storage_server_au_syd1_host, 
-            $storage_server_au_syd1_username, 
-            $storage_server_au_syd1_password, 
+            $storage_server_au_east_1_host, 
+            $storage_server_au_east_1_username, 
+            $storage_server_au_east_1_password, 
             $username
         );
         if (isset($result['error'])) {
@@ -227,7 +227,7 @@ if ($selected_server == 'au-syd-1') {
                         <div class="control">
                             <div class="select">
                                 <select id="server-location" name="server-location">
-                                    <option value="au-syd-1" selected>AU SYD 1</option>
+                                    <option value="au-east-1" selected>AU-EAST-1</option>
                                     <!-- Additional server options can be added in the future -->
                                 </select>
                             </div>
@@ -236,7 +236,7 @@ if ($selected_server == 'au-syd-1') {
                     <div class="field">
                         <div class="control">
                             <form method="get">
-                                <input type="hidden" name="server" id="server-input" value="au-syd-1">
+                                <input type="hidden" name="server" id="server-input" value="au-east-1">
                                 <button type="submit" class="button is-info">Load Files</button>
                             </form>
                         </div>
