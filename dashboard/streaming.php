@@ -243,12 +243,14 @@ if ($selected_server == 'au-east-1') {
                 <div class="field-body">
                     <div class="field">
                         <div class="control">
-                            <div class="select">
-                                <select id="server-location" name="server-location">
-                                    <option value="au-east-1" selected>AU-EAST-1</option>
-                                    <!-- Additional server options can be added in the future -->
-                                </select>
-                            </div>
+                            <form method="get" id="server-selection-form">
+                                <div class="select">
+                                    <select id="server-location" name="server" onchange="document.getElementById('server-selection-form').submit();">
+                                        <option value="au-east-1" <?php echo $selected_server == 'au-east-1' ? 'selected' : ''; ?>>AU-EAST-1</option>
+                                        <!-- Additional server options can be added in the future -->
+                                    </select>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -289,15 +291,9 @@ if ($selected_server == 'au-east-1') {
                     </tbody>
                 </table>
             </div>
-            
-            <script>
-                // Remove the script for updating the hidden input since the button is removed
-                document.getElementById('server-location').addEventListener('change', function() {
-                    // Logic for handling server selection can be added here if needed
-                });
-            </script>
         </div>
     </div>
 </div>
+<script>document.getElementById('server-location').addEventListener('change', function() { });</script>
 </body>
 </html>
