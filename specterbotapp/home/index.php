@@ -2,13 +2,10 @@
 // Start the session
 session_start();
 
-// Database connection
+// Database connection & Twitch API credentials
 require '/var/www/specterbotapp/database.php';
-
-// Twitch OAuth API credentials
-$clientId = '';
-$clientSecret = '';
-$redirectUri = 'https://specterbot.app/index.php';
+require_once "/var/www/config/twitch.php";
+$redirectURI = 'https://specterbot.app/index.php';
 
 // Twitch OAuth API URLs
 $tokenURL = 'https://id.twitch.tv/oauth2/token';
@@ -33,11 +30,11 @@ if (isset($_GET['code'])) {
     $code = $_GET['code'];
     // Exchange the authorization code for an access token and refresh token
     $postData = array(
-        'client_id' => $clientId,
+        'client_id' => $clientID,
         'client_secret' => $clientSecret,
         'code' => $code,
         'grant_type' => 'authorization_code',
-        'redirect_uri' => $redirectUri
+        'redirect_uri' => $redirectURI
     );
     $curl = curl_init($tokenURL);
     curl_setopt($curl, CURLOPT_POST, true);
@@ -65,7 +62,7 @@ if (isset($_GET['code'])) {
     $curl = curl_init($userInfoURL);
     curl_setopt($curl, CURLOPT_HTTPHEADER, [
         'Authorization: Bearer ' . $accessToken,
-        'Client-ID: ' . $clientId
+        'Client-ID: ' . $clientID
     ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     $userInfoResponse = curl_exec($curl);
@@ -90,7 +87,7 @@ if (isset($_GET['code'])) {
         if (!is_dir($userFolder)) {
             mkdir($userFolder, 0775, true);
         }
-        header('Location: ' . strtok($redirectUri, '?'));
+        header('Location: ' . strtok($redirectURI, '?'));
         exit;
     } else {
         $twitchUsername = 'guest_user';
@@ -101,7 +98,7 @@ if (isset($_GET['code'])) {
     $userDatabaseExists = userDatabaseExists($twitchUsername) ? "User database exists" : "User database does not exist";
 }
 
-$loginURL = $authUrl . '?client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=user:read:email';
+$loginURL = $authUrl . '?client_id=' . $clientID . '&redirect_uri=' . urlencode($redirectURI) . '&response_type=code&scope=user:read:email';
 ?>
 <!DOCTYPE html>
 <html lang="en">
