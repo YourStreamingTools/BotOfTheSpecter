@@ -94,8 +94,19 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
                    round($size_bytes/(1024*1024*1024), 2).' GB');
             // Format date
             $date = date('d-m-Y', $stat['mtime']);
-            // We can't easily get video duration via SSH, so leaving as placeholder
-            $duration = "N/A"; // Would require specific tools on the server
+            // Get video duration using ffprobe
+            $duration = "N/A";
+            $command = "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " . escapeshellarg($dir_path . $file);
+            $stream = ssh2_exec($connection, $command);
+            if ($stream) {
+                stream_set_blocking($stream, true);
+                $output = stream_get_contents($stream);
+                fclose($stream);
+                if (is_numeric(trim($output))) {
+                    $seconds = (int)trim($output);
+                    $duration = sprintf('%02d:%02d:%02d', ($seconds / 3600), ($seconds / 60 % 60), $seconds % 60);
+                }
+            }
             $files[] = [
                 'name' => $file,
                 'date' => $date,
@@ -255,8 +266,9 @@ if ($selected_server == 'au-east-1') {
                 <table class="table is-fullwidth">
                     <thead>
                         <tr>
-                            <th>Filename</th>
-                            <th>Date Recorded</th>
+                            <th>Title</th>
+                            <th>Duration</th>
+                            <th>Date</th>
                             <th>Size</th>
                             <th>Actions</th>
                         </tr>
@@ -264,13 +276,14 @@ if ($selected_server == 'au-east-1') {
                     <tbody>
                         <?php
                         if ($storage_error) {
-                            echo '<tr><td colspan="4" class="has-text-centered has-text-danger">' . htmlspecialchars($storage_error) . '</td></tr>';
+                            echo '<tr><td colspan="5" class="has-text-centered has-text-danger">' . htmlspecialchars($storage_error) . '</td></tr>';
                         } elseif (empty($storage_files)) {
-                            echo '<tr><td colspan="4" class="has-text-centered">No recorded streams available.</td></tr>';
+                            echo '<tr><td colspan="5" class="has-text-centered">No recorded streams available.</td></tr>';
                         } else {
                             foreach ($storage_files as $file) {
-                                echo '<tr>';
-                                echo '<td>' . htmlspecialchars($file['name']) . '</td>';
+                                echo '<tr>';$title = pathinfo($file['name'], PATHINFO_FILENAME);
+                                echo '<td>' . htmlspecialchars($title) . '</td>';
+                                echo '<td>' . htmlspecialchars($file['duration']) . '</td>';
                                 echo '<td>' . htmlspecialchars($file['date']) . '</td>';
                                 echo '<td>' . htmlspecialchars($file['size']) . '</td>';
                                 echo '<td>
