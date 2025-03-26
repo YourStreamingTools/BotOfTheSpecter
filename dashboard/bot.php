@@ -304,7 +304,6 @@ if ($backup_system == true) {
         </div>
       </div>
       <br>
-      <!-- Buttons in 1x2 layout -->
       <div class="columns is-mobile">
         <div class="column">
           <div style="position: relative; text-align: center;">
@@ -472,6 +471,10 @@ if ($backup_system == true) {
         This service ensures that notifications are sent out properly. The service is operational if the green heartbeat icon is visible. A red icon means the notification service is currently unavailable.
       </p>
       <br>
+      <p>
+        <span class="has-text-weight-bold variable-title">Streaming Service</span>:<br>
+        The streaming service is responsible for our streaming server. The green heartbeat icon indicates that the service is active. If the icon turns red, it means the streaming service is currently offline.
+      </p>
       <p>
         <span class="has-text-weight-bold variable-title">Force Online Status</span>:<br>
         Clicking this button will force the system to display you as online, even if your stream is not active. This will notify both the Twitch Chat Bot and the Discord Bot that you wish to appear online.
