@@ -304,7 +304,7 @@ if ($backup_system == true) {
       </div>
       <div class="column is-12">
         <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
-          <button class="button is-link bot-button is-fullwidth" onclick="window.open('https://uptime.botofthespecter.com/', '_blank')">Uptime Monitors</button>
+          <button class="button is-link bot-button is-fullwidth no-working-spinner" onclick="window.open('https://uptime.botofthespecter.com/', '_blank')">Uptime Monitors</button>
         </div>
       </div>
       <div class="columns is-mobile">
@@ -904,7 +904,7 @@ checkLastModified();
 // Attach a submit handler on each form so that after submission all bot buttons are disabled
 document.addEventListener('DOMContentLoaded', function() {
   // Reset all bot buttons on page load
-  const buttons = document.querySelectorAll('.bot-button');
+  const buttons = document.querySelectorAll('.bot-button:not(.no-working-spinner)');
   buttons.forEach(btn => {
     // Store original text if not already stored
     if (!btn.dataset.originalText) {
