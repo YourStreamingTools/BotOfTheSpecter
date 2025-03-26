@@ -30,11 +30,14 @@ async def get_all_usernames():
     if not conn:
         logger.error("Database connection is None. Cannot fetch usernames.")
         return []
-    async with conn.cursor() as cursor:
-        await cursor.execute("SELECT username FROM users")
-        rows = await cursor.fetchall()
-    await conn.close()
-    return [row[0] for row in rows]
+    try:
+        async with conn.cursor() as cursor:
+            await cursor.execute("SELECT username FROM users")
+            rows = await cursor.fetchall()
+        return [row[0] for row in rows]
+    finally:
+        if conn:
+            await conn.close()
 
 async def remove_old_videos():
     base_dir = os.path.dirname(os.path.abspath(__file__))
