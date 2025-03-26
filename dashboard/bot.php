@@ -260,7 +260,7 @@ if ($backup_system == true) {
     <div class="column is-5 bot-box" style="position: relative;">
       <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
       <h4 class="title is-4 bot-box-title" style="text-align: center;">System Status</h4>
-      <!-- Status indicators in 2x2 layout -->
+      <p style="text-align: center;"><a href="https://uptime.botofthespecter.com/" target="_blank">View more info</a></p>
       <div class="columns is-mobile is-multiline">
         <div class="column is-6">
           <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
