@@ -35,9 +35,12 @@ async def get_all_usernames():
             await cursor.execute("SELECT username FROM users")
             rows = await cursor.fetchall()
         return [row[0] for row in rows]
+    except Exception as e:
+        logger.error(f"Error while fetching usernames: {e}")
+        return []
     finally:
-        if conn:
-            await conn.close()
+        if conn and not conn.closed:
+            await conn.ensure_closed()
 
 async def remove_old_videos():
     base_dir = os.path.dirname(os.path.abspath(__file__))
