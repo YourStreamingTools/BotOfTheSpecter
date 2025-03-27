@@ -128,9 +128,11 @@ function get_timezones() {
       <ol>Your Last Login: <span id="localLastLogin"></span></ol>
       <ol>Time Zone: <?php echo $timezone; ?></ol>
       <ol>Weather Location: <?php echo $weather; ?></ol>
-      <p>Your API Key: <span class="api-key-wrapper api-text-black" style="display: none;" id="api-key"><?php echo $api_key; ?></span></p>
-      <button type="button" class="button is-primary" id="show-api-key" style="width: 130px;">Show API Key</button>
-      <button type="button" class="button is-primary" id="hide-api-key" style="display:none; width: 130px;">Hide API Key</button>
+      <p>Your API Key: <span class="is-dark" id="api-key" data-key="<?php echo $api_key; ?>">••••••••••••••••••••••••••••••••••••••••••••••••</span></p>
+      <br>
+      <button type="button" id="toggle-api-key" class="button is-info is-outlined is-rounded" style="width: 180px; margin-right: 10px;">
+        <span class="icon"><i class="fas fa-eye"></i></span><span>Show API Key</span>
+      </button>
       <button type="button" class="button is-primary" id="regen-api-key-open" style="width: 180px;">Regenerate API Key</button>
     </div>
     <div class="column bot-box is-4">
@@ -236,8 +238,6 @@ function get_timezones() {
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/profile.js"></script>
 <script src="/js/timezone.js"></script>
-
-<!-- Warning Modal JavaScript -->
 <script>
   // Modal handling: Open and close modals
   const modalIds = [
@@ -247,7 +247,6 @@ function get_timezones() {
   modalIds.forEach(modal => {
     const openButton = document.getElementById(modal.open);
     const closeButton = document.getElementById(modal.close);
-
     if (openButton) {
       openButton.addEventListener("click", function() {
         document.getElementById(modal.close.replace('-close', '')).classList.add("is-active");
@@ -278,10 +277,7 @@ function get_timezones() {
     // Send the AJAX request to regenerate the API key
     xhr.send("action=regen_api_key");
   });
-</script>
 
-<!-- JavaScript code to convert and display the dates -->
-<script>
   // Function to convert UTC date to local date in the desired format
   function convertUTCToLocalFormatted(utcDateStr) {
     const options = {
@@ -298,17 +294,13 @@ function get_timezones() {
     const dateTimeFormatter = new Intl.DateTimeFormat('en-US', options);
     return dateTimeFormatter.format(localDate);
   }
-
   // PHP variables holding the UTC date and time
   const signupDateUTC = "<?php echo $signup_date_utc; ?>";
   const lastLoginUTC = "<?php echo $last_login_utc; ?>";
-
   // Display the dates in the user's local time zone
   document.getElementById('localSignupDate').innerText = convertUTCToLocalFormatted(signupDateUTC);
   document.getElementById('localLastLogin').innerText = convertUTCToLocalFormatted(lastLoginUTC);
-</script>
 
-<script>
   document.getElementById('check-weather').addEventListener('click', function() {
     var locationInput = document.getElementById('weather_location').value;
     var location = locationInput.replace(/\s+/g, '');
@@ -354,6 +346,32 @@ function get_timezones() {
     };
     xhr.send();
   });
+
+document.addEventListener('DOMContentLoaded', function() {
+    var toggleApiKeyBtn = document.getElementById('toggle-api-key');
+    var apiKeyTag = document.getElementById('api-key');
+    var masked = "••••••••••••••••••••••••••••••••••••••••••••••••"; // standard mask
+    toggleApiKeyBtn.addEventListener('click', function() {
+        if (apiKeyTag.textContent === masked) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'Warning: Revealing your API Key can be a security risk. Do you want to proceed?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, show it',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if(result.isConfirmed){
+                    apiKeyTag.textContent = apiKeyTag.getAttribute("data-key");
+                    toggleApiKeyBtn.innerHTML = '<span class="icon"><i class="fas fa-eye-slash"></i></span><span>Hide API Key</span>';
+                }
+            });
+        } else {
+            apiKeyTag.textContent = masked;
+            toggleApiKeyBtn.innerHTML = '<span class="icon"><i class="fas fa-eye"></i></span><span>Show API Key</span>';
+        }
+    });
+});
 </script>
 </body>
 </html>
