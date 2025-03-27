@@ -5,8 +5,8 @@ $today = new DateTime();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-  header('Location: login.php');
-  exit();
+    header('Location: login.php');
+    exit();
 }
 
 // Page Title and Initial Variables
@@ -56,8 +56,9 @@ $twitch_key = $current_settings['twitch_key'] ?? '';
 $forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
 
 // Function to get files from the storage server
-function getStorageFiles($server_host, $server_username, $server_password, $user_dir) {
+function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key) {
     $files = [];
+    $recording_active = false;
     // Check if SSH2 extension is available
     if (!function_exists('ssh2_connect')) {
         return ['error' => 'SSH2 extension not installed on the server.'];
@@ -76,10 +77,37 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
     if (!$sftp) {
         return ['error' => 'Could not initialize SFTP subsystem.'];
     }
+    // Check for active recording files using API key
+    if (!empty($api_key)) {
+        $root_files = @scandir("ssh2.sftp://" . intval($sftp) . "/root/");
+        if ($root_files) {
+            foreach ($root_files as $root_file) {
+                if (strpos($root_file, $api_key) !== false) {
+                    $recording_active = true;
+                    $recording_file = "/root/" . $root_file;
+                    $files[] = [
+                        'name' => 'Live Recording',
+                        'date' => date('d-m-Y'),
+                        'created_at' => date('d-m-Y H:i:s'),
+                        'deletion_countdown' => 'N/A',
+                        'size' => 'Recording...',
+                        'duration' => 'Live',
+                        'path' => $recording_file,
+                        'deletion_timestamp' => 0,
+                        'is_recording' => true
+                    ];
+                }
+            }
+        }
+    }
     // Check if the directory exists
     $dir_path = "/root/$user_dir/";
     $sftp_stream = @opendir("ssh2.sftp://" . intval($sftp) . $dir_path);
     if (!$sftp_stream) {
+        // If we found a recording, return that even if user directory doesn't exist
+        if ($recording_active) {
+            return $files;
+        }
         return ['error' => "Directory not found or not accessible at this time."];
     }
     // List files
@@ -87,11 +115,14 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
         if ($file != '.' && $file != '..' && pathinfo($file, PATHINFO_EXTENSION) == 'mp4') {
             // Get file stats
             $stat = ssh2_sftp_stat($sftp, $dir_path . $file);
+            if (!$stat) {
+                continue; // Skip if stat retrieval fails
+            }
             // Format file size
             $size_bytes = $stat['size'];
             $size = $size_bytes < 1024*1024 ? round($size_bytes/1024, 2).' KB' : 
-                   ($size_bytes < 1024*1024*1024 ? round($size_bytes/(1024*1024), 2).' MB' : 
-                   round($size_bytes/(1024*1024*1024), 2).' GB');
+                ($size_bytes < 1024*1024*1024 ? round($size_bytes/(1024*1024), 2).' MB' : 
+                round($size_bytes/(1024*1024*1024), 2).' GB');
             // Format creation date and deletion countdown
             $created_at = date('d-m-Y H:i:s', $stat['mtime']);
             $date = date('d-m-Y', $stat['mtime']);
@@ -119,7 +150,8 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
                 'size' => $size,
                 'duration' => $duration,
                 'path' => $dir_path . $file,
-                'deletion_timestamp' => $deletionTime
+                'deletion_timestamp' => $deletionTime,
+                'is_recording' => false
             ];
         }
     }
@@ -148,7 +180,8 @@ if ($selected_server == 'au-east-1') {
             $storage_server_au_east_1_host, 
             $storage_server_au_east_1_username, 
             $storage_server_au_east_1_password, 
-            $username
+            $username,
+            $api_key
         );
         if (isset($result['error'])) {
             $storage_error = $result['error'];
@@ -283,18 +316,29 @@ if ($selected_server == 'au-east-1') {
                             echo '<tr><td colspan="6" class="has-text-centered">No recorded streams available.</td></tr>';
                         } else {
                             foreach ($storage_files as $file) {
-                                echo '<tr>';$title = pathinfo($file['name'], PATHINFO_FILENAME);
-                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($title) . '</td>';
-                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
-                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
-                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
-                                echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
-                                echo '<td class="has-text-centered" style="vertical-align: middle;">';
-                                echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
-                                echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Download the video file"><i class="fas fa-download"></i></a> ';
-                                echo '<a href="#" class="edit-video action-icon" data-file="' . htmlspecialchars($file['name']) . '" data-title="' . htmlspecialchars($title) . '" data-server="' . $selected_server . '" title="Edit the title"><i class="fas fa-edit"></i></a> ';
-                                echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a>';
-                                echo '</td>';
+                                echo '<tr>';
+                                // Check if this is a recording in progress
+                                if (isset($file['is_recording']) && $file['is_recording']) {
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="has-text-weight-bold has-text-danger">RECORDING IN PROGRESS</span></td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">N/A</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="has-text-grey">No actions available</span></td>';
+                                } else {
+                                    $title = pathinfo($file['name'], PATHINFO_FILENAME);
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($title) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">';
+                                    echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
+                                    echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Download the video file"><i class="fas fa-download"></i></a> ';
+                                    echo '<a href="#" class="edit-video action-icon" data-file="' . htmlspecialchars($file['name']) . '" data-title="' . htmlspecialchars($title) . '" data-server="' . $selected_server . '" title="Edit the title"><i class="fas fa-edit"></i></a> ';
+                                    echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a>';
+                                    echo '</td>';
+                                }
                                 echo '</tr>';
                             }
                         }
