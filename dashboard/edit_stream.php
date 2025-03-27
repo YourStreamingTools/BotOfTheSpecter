@@ -31,11 +31,6 @@ switch ($selected_server) {
         $server_username = $storage_server_au_east_1_username;
         $server_password = $storage_server_au_east_1_password;
         break;
-    case 'au-syd-1':
-        $server_host = $storage_server_au_syd1_host;
-        $server_username = $storage_server_au_syd1_username;
-        $server_password = $storage_server_au_syd1_password;
-        break;
     default:
         header('HTTP/1.1 400 Bad Request');
         echo json_encode(['success' => false, 'message' => 'Invalid server selection']);
@@ -79,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['new_title'])) {
     exit();
 } else {
     $currentTitle = pathinfo($oldFilename, PATHINFO_FILENAME);
-    echo json_encode(['success' => true, 'currentTitle' => $currentTitle]);
+    echo json_encode(['success' => true, 'currentTitle' => $currentTitle, 'filename' => $oldFilename]);
     exit();
 }
 ?>
