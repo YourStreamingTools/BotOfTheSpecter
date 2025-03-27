@@ -92,8 +92,12 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
             $size = $size_bytes < 1024*1024 ? round($size_bytes/1024, 2).' KB' : 
                    ($size_bytes < 1024*1024*1024 ? round($size_bytes/(1024*1024), 2).' MB' : 
                    round($size_bytes/(1024*1024*1024), 2).' GB');
-            // Format date
+            // Format creation date and deletion countdown
+            $created_at = date('d-m-Y H:i:s', $stat['mtime']);
             $date = date('d-m-Y', $stat['mtime']);
+            $deletionTime = $stat['mtime'] + 86400; // 24 hours later
+            $remaining = $deletionTime - time();
+            $countdown = $remaining > 0 ? sprintf('%02d:%02d:%02d', floor($remaining/3600), floor(($remaining % 3600) / 60), $remaining % 60) : 'Expired';
             // Get video duration using ffprobe
             $duration = "N/A";
             $command = "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " . escapeshellarg($dir_path . $file);
@@ -110,9 +114,12 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
             $files[] = [
                 'name' => $file,
                 'date' => $date,
+                'created_at' => $created_at,
+                'deletion_countdown' => $countdown,
                 'size' => $size,
                 'duration' => $duration,
-                'path' => $dir_path . $file
+                'path' => $dir_path . $file,
+                'deletion_timestamp' => $deletionTime
             ];
         }
     }
@@ -260,30 +267,32 @@ if ($selected_server == 'au-east-1') {
                 <table class="table is-fullwidth">
                     <thead>
                         <tr>
-                            <th>Title</th>
-                            <th>Duration</th>
-                            <th>Date</th>
-                            <th>Size</th>
-                            <th>Actions</th>
+                            <th class="has-text-centered" style="width: 120px;">Title</th>
+                            <th class="has-text-centered" style="width: 90px;">Duration</th>
+                            <th class="has-text-centered">Archive Creation Time</th>
+                            <th class="has-text-centered">File Size</th>
+                            <th class="has-text-centered">Deletion Countdown</th>
+                            <th class="has-text-centered">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
                         if ($storage_error) {
-                            echo '<tr><td colspan="5" class="has-text-centered has-text-danger">' . htmlspecialchars($storage_error) . '</td></tr>';
+                            echo '<tr><td colspan="6" class="has-text-centered has-text-danger">' . htmlspecialchars($storage_error) . '</td></tr>';
                         } elseif (empty($storage_files)) {
-                            echo '<tr><td colspan="5" class="has-text-centered">No recorded streams available.</td></tr>';
+                            echo '<tr><td colspan="6" class="has-text-centered">No recorded streams available.</td></tr>';
                         } else {
                             foreach ($storage_files as $file) {
                                 echo '<tr>';$title = pathinfo($file['name'], PATHINFO_FILENAME);
-                                echo '<td>' . htmlspecialchars($title) . '</td>';
-                                echo '<td>' . htmlspecialchars($file['duration']) . '</td>';
-                                echo '<td>' . htmlspecialchars($file['date']) . '</td>';
-                                echo '<td>' . htmlspecialchars($file['size']) . '</td>';
-                                echo '<td>
+                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($title) . '</td>';
+                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
+                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
+                                echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
+                                echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
+                                echo '<td class="has-text-centered" style="vertical-align: middle;">
                                         <a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="button is-small is-primary">Download</a>
                                         <a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="button is-small is-danger" onclick="return confirm(\'Are you sure you want to delete this file?\');">Delete</a>
-                                      </td>';
+                                    </td>';
                                 echo '</tr>';
                             }
                         }
@@ -295,5 +304,32 @@ if ($selected_server == 'au-east-1') {
     </div>
 </div>
 <script>document.getElementById('server-location').addEventListener('change', function() { });</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function updateCountdown(element) {
+        var deadline = parseInt(element.getAttribute('data-deletion-timestamp')) * 1000;
+        var now = Date.now();
+        var remaining = Math.floor((deadline - now) / 1000);
+        if (remaining > 0) {
+            var hours = Math.floor(remaining / 3600);
+            var minutes = Math.floor((remaining % 3600) / 60);
+            var seconds = remaining % 60;
+            element.textContent =
+                ("0" + hours).slice(-2) + ":" +
+                ("0" + minutes).slice(-2) + ":" +
+                ("0" + seconds).slice(-2);
+        } else {
+            element.textContent = 'Expired';
+        }
+    }
+    function updateAllCountdowns() {
+        document.querySelectorAll('.countdown').forEach(function(el) {
+            updateCountdown(el);
+        });
+    }
+    updateAllCountdowns();
+    setInterval(updateAllCountdowns, 1000);
+});
+</script>
 </body>
 </html>
