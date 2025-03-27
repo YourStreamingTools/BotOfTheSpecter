@@ -220,8 +220,13 @@ if ($selected_server == 'au-east-1') {
             <li class="has-text-black">Currently, we offer one server location in Sydney, Australia. More servers coming soon!</li>
             <li class="has-text-black">Recorded streams are kept for 24 hours only after the stream ends.</li>
             <li class="has-text-black">After 24 hours, files are automatically removed due to storage restrictions.</li>
-            <li class="has-text-black">Coming soon: An option to keep your streams longer, with billing only for the storage space used.</li>
         </ul>
+        <hr>
+        <span class="has-text-weight-bold has-text-black">
+            Coming soon:<br>
+            We're introducing a new option to store your recorded streams for longer, with billing based solely on the storage space used.<br>
+            The cost will be $7 USD per month for each terabyte of storage, with a minimum of 1TB per month.
+        </span>
     </div>
     <h1 class="title">Streaming Settings</h1>
     <?php if (isset($_SESSION['settings_saved'])): ?>
