@@ -290,10 +290,10 @@ if ($selected_server == 'au-east-1') {
                                 echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
                                 echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
                                 echo '<td class="has-text-centered" style="vertical-align: middle;">';
-                                echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Download the video file"><i class="fas fa-download"></i></a> ';
-                                echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a> ';
-                                echo '<a href="#" class="play-video" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
-                                echo '<a href="edit_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Edit the title"><i class="fas fa-edit"></i></a>';
+                                echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
+                                echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Download the video file"><i class="fas fa-download"></i></a> ';
+                                echo '<a href="#" class="edit-video action-icon" data-file="' . htmlspecialchars($file['name']) . '" data-title="' . htmlspecialchars($title) . '" data-server="' . $selected_server . '" title="Edit the title"><i class="fas fa-edit"></i></a> ';
+                                echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a>';
                                 echo '</td>';
                                 echo '</tr>';
                             }
@@ -305,9 +305,55 @@ if ($selected_server == 'au-east-1') {
         </div>
     </div>
 </div>
-<script>document.getElementById('server-location').addEventListener('change', function() { });</script>
+<style>
+    .action-icon {
+        margin: 0 8px;
+        display: inline-block;
+    }
+    .action-icon:first-child {
+        margin-left: 0;
+    }
+    .action-icon:last-child {
+        margin-right: 0;
+    }
+</style>
+
+<div id="videoModal" class="modal">
+    <div class="modal-background"></div>
+    <button class="modal-close is-large" aria-label="close"></button>
+    <div class="modal-content" style="width:1280px; height:720px;">
+        <iframe id="videoFrame" style="width:100%; height:100%;" frameborder="0" allowfullscreen></iframe>
+    </div>
+</div>
+
+<!-- Add Edit Modal -->
+<div id="editModal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <p class="modal-card-title">Rename Video</p>
+            <button class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <div class="field">
+                <label class="label">New Title</label>
+                <div class="control">
+                    <input class="input" type="text" id="edit-title-input">
+                    <input type="hidden" id="edit-file-input">
+                    <input type="hidden" id="edit-server-input">
+                </div>
+            </div>
+        </section>
+        <footer class="modal-card-foot">
+            <button class="button is-success" id="save-edit-btn">Rename</button>
+            <button class="button" id="cancel-edit-btn">Cancel</button>
+        </footer>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Existing countdown code
     function updateCountdown(element) {
         var deadline = parseInt(element.getAttribute('data-deletion-timestamp')) * 1000;
         var now = Date.now();
@@ -331,34 +377,87 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateAllCountdowns();
     setInterval(updateAllCountdowns, 1000);
-});
-</script>
-<div id="videoModal" class="modal">
-    <div class="modal-background"></div>
-    <button class="modal-close is-large" aria-label="close"></button>
-    <div class="modal-content" style="width:1280px; height:720px;">
-        <iframe id="videoFrame" style="width:100%; height:100%;" frameborder="0" allowfullscreen></iframe>
-    </div>
-</div>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var modal = document.getElementById('videoModal');
+    
+    // Video modal functionality
+    var videoModal = document.getElementById('videoModal');
     var videoFrame = document.getElementById('videoFrame');
     document.querySelectorAll('.play-video').forEach(function(el) {
         el.addEventListener('click', function(e) {
             e.preventDefault();
             var url = this.getAttribute('data-video-url');
             videoFrame.src = url;
-            modal.classList.add('is-active');
+            videoModal.classList.add('is-active');
         });
     });
-    document.querySelector('.modal-background').addEventListener('click', function() {
-        modal.classList.remove('is-active');
+    document.querySelector('#videoModal .modal-background').addEventListener('click', function() {
+        videoModal.classList.remove('is-active');
         videoFrame.src = '';
     });
-    document.querySelector('.modal-close').addEventListener('click', function() {
-        modal.classList.remove('is-active');
+    document.querySelector('#videoModal .modal-close').addEventListener('click', function() {
+        videoModal.classList.remove('is-active');
         videoFrame.src = '';
+    });
+    
+    // Edit modal functionality
+    var editModal = document.getElementById('editModal');
+    var titleInput = document.getElementById('edit-title-input');
+    var fileInput = document.getElementById('edit-file-input');
+    var serverInput = document.getElementById('edit-server-input');
+    
+    // Open edit modal when clicking edit icon
+    document.querySelectorAll('.edit-video').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            titleInput.value = this.getAttribute('data-title');
+            fileInput.value = this.getAttribute('data-file');
+            serverInput.value = this.getAttribute('data-server');
+            editModal.classList.add('is-active');
+        });
+    });
+    
+    // Close edit modal
+    function closeEditModal() {
+        editModal.classList.remove('is-active');
+    }
+    
+    document.querySelector('#editModal .delete').addEventListener('click', closeEditModal);
+    document.getElementById('cancel-edit-btn').addEventListener('click', closeEditModal);
+    document.querySelector('#editModal .modal-background').addEventListener('click', closeEditModal);
+    
+    // Handle rename form submission
+    document.getElementById('save-edit-btn').addEventListener('click', function() {
+        var newTitle = titleInput.value.trim();
+        var oldFile = fileInput.value;
+        var server = serverInput.value;
+        
+        if (newTitle === '') {
+            alert('Please enter a valid title');
+            return;
+        }
+        
+        // AJAX request to rename the file
+        fetch('edit_stream.php?server=' + encodeURIComponent(server) + '&file=' + encodeURIComponent(oldFile), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'new_title=' + encodeURIComponent(newTitle)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('File renamed successfully!');
+                location.reload(); // Reload the page to see changes
+            } else {
+                alert('Error: ' + data.message);
+            }
+            closeEditModal();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while renaming the file.');
+            closeEditModal();
+        });
     });
 });
 </script>
