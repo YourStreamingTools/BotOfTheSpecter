@@ -32,10 +32,10 @@ if (strpos($filename, '/') !== false || strpos($filename, '\\') !== false || $fi
 
 // Set server details based on selection
 switch ($selected_server) {
-    case 'au-syd-1':
-        $server_host = $storage_server_au_syd1_host;
-        $server_username = $storage_server_au_syd1_username;
-        $server_password = $storage_server_au_syd1_password;
+    case 'au-east-1':
+        $server_host = $storage_server_au_east_1_host;
+        $server_username = $storage_server_au_east_1_username;
+        $server_password = $storage_server_au_east_1_password;
         break;
     // Add more server locations as needed
     default:
