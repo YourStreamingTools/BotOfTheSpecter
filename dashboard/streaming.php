@@ -254,7 +254,7 @@ if ($selected_server == 'au-east-1') {
                 <div class="field">
                     <label class="has-text-white has-text-left" for="twitch_key">Twitch Stream Key</label>
                     <div class="control">
-                        <input type="text" class="input" id="twitch_key" name="twitch_key" value="<?php echo htmlspecialchars($twitch_key); ?>" required>
+                        <input type="password" class="input" id="twitch_key" name="twitch_key" value="<?php echo htmlspecialchars($twitch_key); ?>" required readonly>
                     </div>
                 </div>
                 <div class="field">
@@ -267,7 +267,11 @@ if ($selected_server == 'au-east-1') {
                 </div>
                 <div class="field">
                     <div class="control">
-                        <button type="submit" class="button is-primary">Save Settings</button>
+                        <button type="submit" class="button is-primary" id="save-settings" disabled>Save Settings</button>
+                        <button type="button" id="toggle-twitch_btn" class="button is-info is-outlined is-rounded" style="margin-left: 10px;">
+                            <span class="icon"><i class="fas fa-eye"></i></span>
+                            <span>Show Key</span>
+                        </button>
                     </div>
                 </div>
             </form>
@@ -527,6 +531,48 @@ function refreshTable() {
 }
 // Set an interval to refresh the table every 60 seconds (60000 ms)
 setInterval(refreshTable, 60000);
+
+function togglePasswordVisibility(el) {
+    var input = document.getElementById("twitch_key");
+    if (input.type === "password") {
+        input.type = "text";
+        el.innerHTML = '<i class="fas fa-eye-slash"></i>';
+    } else {
+        input.type = "password";
+        el.innerHTML = '<i class="fas fa-eye"></i>';
+    }
+}
+
+// Attach event listener to the toggle button after DOM load
+document.addEventListener('DOMContentLoaded', function() {
+    var toggleBtn = document.getElementById('toggle-twitch_btn');
+    var twitchInput = document.getElementById('twitch_key');
+    var saveBtn = document.getElementById('save-settings');
+    toggleBtn.addEventListener('click', function() {
+        if (twitchInput.type === "password") {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'Warning: Revealing your Twitch Stream Key can be a security risk. Do you want to proceed?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, show it',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if(result.isConfirmed){
+                    twitchInput.type = "text";
+                    twitchInput.removeAttribute("readonly");
+                    toggleBtn.innerHTML = '<span class="icon"><i class="fas fa-eye-slash"></i></span><span>Hide Key</span>';
+                    saveBtn.disabled = false;
+                }
+            });
+        } else {
+            twitchInput.type = "password";
+            twitchInput.setAttribute("readonly", "readonly");
+            toggleBtn.innerHTML = '<span class="icon"><i class="fas fa-eye"></i></span><span>Show Key</span>';
+            saveBtn.disabled = true;
+        }
+    });
+});
 </script>
 </body>
 </html>
