@@ -289,10 +289,12 @@ if ($selected_server == 'au-east-1') {
                                 echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
                                 echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
                                 echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
-                                echo '<td class="has-text-centered" style="vertical-align: middle;">
-                                        <a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="button is-small is-primary">Download</a>
-                                        <a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="button is-small is-danger" onclick="return confirm(\'Are you sure you want to delete this file?\');">Delete</a>
-                                    </td>';
+                                echo '<td class="has-text-centered" style="vertical-align: middle;">';
+                                echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Download the video file"><i class="fas fa-download"></i></a> ';
+                                echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a> ';
+                                echo '<a href="#" class="play-video" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
+                                echo '<a href="edit_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Edit the title"><i class="fas fa-edit"></i></a>';
+                                echo '</td>';
                                 echo '</tr>';
                             }
                         }
@@ -329,6 +331,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateAllCountdowns();
     setInterval(updateAllCountdowns, 1000);
+});
+</script>
+<div id="videoModal" class="modal">
+    <div class="modal-background"></div>
+    <button class="modal-close is-large" aria-label="close"></button>
+    <div class="modal-content" style="width:1280px; height:720px;">
+        <iframe id="videoFrame" style="width:100%; height:100%;" frameborder="0" allowfullscreen></iframe>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('videoModal');
+    var videoFrame = document.getElementById('videoFrame');
+    document.querySelectorAll('.play-video').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            var url = this.getAttribute('data-video-url');
+            videoFrame.src = url;
+            modal.classList.add('is-active');
+        });
+    });
+    document.querySelector('.modal-background').addEventListener('click', function() {
+        modal.classList.remove('is-active');
+        videoFrame.src = '';
+    });
+    document.querySelector('.modal-close').addEventListener('click', function() {
+        modal.classList.remove('is-active');
+        videoFrame.src = '';
+    });
 });
 </script>
 </body>
