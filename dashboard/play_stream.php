@@ -27,11 +27,6 @@ switch ($selected_server) {
         $server_username = $storage_server_au_east_1_username;
         $server_password = $storage_server_au_east_1_password;
         break;
-    case 'au-syd-1':
-        $server_host = $storage_server_au_syd1_host;
-        $server_username = $storage_server_au_syd1_username;
-        $server_password = $storage_server_au_syd1_password;
-        break;
     default:
         header('Location: streaming.php');
         exit();
