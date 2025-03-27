@@ -16,7 +16,6 @@ $title = "Streaming Settings";
 require_once "/var/www/config/db_connect.php";
 include "/var/www/config/ssh.php";
 include 'userdata.php';
-include 'bot_control.php';
 include 'user_db.php';
 foreach ($profileData as $profile) {
     $timezone = $profile['timezone'];
@@ -308,7 +307,7 @@ if ($selected_server == 'au-east-1') {
                             <th class="has-text-centered">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="filesTableBody">
                         <?php
                         if ($storage_error) {
                             echo '<tr><td colspan="6" class="has-text-centered has-text-danger">' . htmlspecialchars($storage_error) . '</td></tr>';
@@ -504,6 +503,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Function to fetch updated table content and refresh
+function refreshTable() {
+    // Define the URL to get the updated data
+    var url = 'get_stream_files.php?server=' + encodeURIComponent('<?= $selected_server ?>');
+    // Fetch updated data using AJAX
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            // Check if the response has HTML content
+            if (data.html) {
+                // Update the table body with the new HTML
+                document.getElementById('filesTableBody').innerHTML = data.html;
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching updated stream data:', error);
+        });
+}
+// Set an interval to refresh the table every 60 seconds (60000 ms)
+setInterval(refreshTable, 60000);
 </script>
 </body>
 </html>
