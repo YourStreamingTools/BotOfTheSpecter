@@ -167,7 +167,7 @@ $selected_server = isset($_GET['server']) ? $_GET['server'] : 'au-east-1';
 $server_info = [
     'au-east-1' => [
         'name' => 'AU-EAST-1',
-        'rtmps_url' => 'au-east-1.stream.botofthespecter.com'
+        'rtmps_url' => 'rtmps://au-east-1.stream.botofthespecter.com:1935'
     ]
 ];
 $server_rtmps_url = $server_info[$selected_server]['rtmps_url'] ?? 'Unknown';
@@ -208,25 +208,23 @@ if ($selected_server == 'au-east-1') {
     <br>
     <div class="notification is-primary">
         <p class="has-text-weight-bold has-text-black">Complementary Streaming Service</p>
-        <p class="has-text-black">This streaming feature is provided as a complementary service for all Specter users. You have multiple options:</p>
-        <ul>
+        <p class="has-text-black">We’re excited to offer this streaming feature as a complimentary service for all Specter users. You have several options to make the most of this feature:</p>
+        <ul style="list-style-type: disc; padding-left: 20px;">
             <li class="has-text-black">Record your streams and simultaneously forward them to Twitch.</li>
-            <li class="has-text-black">Use our service as a secondary output for your streams via multi-streaming for recording only.</li>
+            <li class="has-text-black">Use our service as a secondary output for your streams via multi-streaming, specifically for recording only.</li>
         </ul>
-        <p class="has-text-black">The choice is yours on how to utilize this feature to enhance your streaming experience.</p>
+        <p class="has-text-black">You can choose the option that best fits your streaming needs and enhance your experience.</p>
         <hr>
         <p class="has-text-weight-bold has-text-black">Important Storage Information:</p>
-        <ul>
-            <li class="has-text-black">Currently, we offer one server location in Sydney, Australia. More servers coming soon!</li>
-            <li class="has-text-black">Recorded streams are kept for 24 hours only after the stream ends.</li>
-            <li class="has-text-black">After 24 hours, files are automatically removed due to storage restrictions.</li>
+        <ul style="list-style-type: disc; padding-left: 20px;">
+            <li class="has-text-black">Currently, we offer a server location in Sydney, Australia. Additional servers will be available soon!</li>
+            <li class="has-text-black">Recorded streams are stored for 24 hours after the stream ends.</li>
+            <li class="has-text-black">After 24 hours, recorded files will be automatically removed due to storage limitations.</li>
         </ul>
         <hr>
-        <span class="has-text-weight-bold has-text-black">
-            Coming soon:<br>
-            We're introducing a new option to store your recorded streams for longer, with billing based solely on the storage space used.<br>
-            The cost will be $7 USD per month for each terabyte of storage, with a minimum of 1TB per month.
-        </span>
+        <p class="has-text-weight-bold has-text-black">Coming soon:</p>
+        <p class="has-text-black">We’re introducing a new option to store your recorded streams for a longer period, with billing based on the storage space used.</p>
+        <p class="has-text-black">The cost will be $7 USD per month for each terabyte of storage, with a minimum of 1TB per month.</p>
     </div>
     <h1 class="title">Streaming Settings</h1>
     <?php if (isset($_SESSION['settings_saved'])): ?>
@@ -248,7 +246,7 @@ if ($selected_server == 'au-east-1') {
                 <span class="has-text-weight-bold">Note: Your API Key (found on your profile) serves as the stream key for our servers.</span>
                 <span class="has-text-weight-bold">RTMPS URL for Selected Server:</span>
                 <br>
-                <code>rtmps://<?php echo htmlspecialchars($server_rtmps_url); ?>:1935</code>
+                <code><?php echo htmlspecialchars($server_rtmps_url); ?></code>
             </div>
         </div>
         <div class="column is-5 bot-box" style="position: relative;">
