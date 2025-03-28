@@ -291,64 +291,52 @@ date_default_timezone_set($timezone);
 <!-- Twitch Chat Alerts Modal -->
 <div id="twitchChatAlertsModal" class="modal">
     <div class="modal-background"></div>
-    <div class="modal-content" style="position: relative;">
+    <div class="modal-content custom-width" style="position: relative;">
         <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchChatAlertsModal')" style="position: absolute; top: 10px; right: 10px;"></button>
         <div class="box">
-            <h2 class="title is-3">Manage Twitch Chat Alerts:</h2>
+            <h2 class="title is-3">Configure Chat Alerts:</h2>
             <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
                 <div class="column is-12" id="chat-alerts-settings" style="position: relative;">
-                    <h1 class="title is-4">Configure Chat Alerts:</h1>
                     <div class="notification is-info">
-                        <strong>Info:</strong> You can use the <code>(user)</code> for the username of the user.
+                        <span class="has-text-weight-bold">Variables:</span><br>
+                        <ul>
+                            <li><span class="has-text-weight-bold">(user)</span> for the username of the user.</li>
+                            <li><span class="has-text-weight-bold">(bits)</span> for the number of bits for the cheer message.</li>
+                            <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
+                            <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
+                            <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.</li>
+                            <li><span class="has-text-weight-bold">(count)</span> for the number of gifted subscriptions.</li>
+                            <li><span class="has-text-weight-bold">(level)</span> for the hype train level.</li>
+                        </ul>
                     </div>
                     <form action="module_data_post.php" method="POST" id="chatAlertsForm">
                         <div class="field">
-                            <label class="has-text-white has-text-left">
-                                Follower Alert
-                            </label>
-                            <div class="control">
-                                <input class="input" type="text" name="message_alert" placeholder="Message alert text">
-                            </div>
+                            <label class="has-text-white has-text-left">Follower Alert</label>
+                            <div class="control"><input class="input" type="text" name="message_alert" value="Thank you (user) for following! Welcome to the channel!"></div>
                         </div>
                         <div class="field">
-                            <label class="has-text-white has-text-left">
-                                Cheer Alert
-                            </label>
-                            <div class="control">
-                                <input class="input" type="text" name="command_alert" placeholder="Command alert text">
-                            </div>
+                            <label class="has-text-white has-text-left">Cheer Alert</label>
+                            <div class="control"><input class="input" type="text" name="command_alert" value="Thank you (user) for (bits) bits!"></div>
                         </div>
                         <div class="field">
-                            <label class="has-text-white has-text-left">
-                                Raid Alert
-                            </label>
-                            <div class="control">
-                                <input class="input" type="text" name="mention_alert" placeholder="Mention alert text">
-                            </div>
+                            <label class="has-text-white has-text-left">Raid Alert</label>
+                            <div class="control"><input class="input" type="text" name="mention_alert" value="Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!"></div>
                         </div>
                         <div class="field">
-                            <label class="has-text-white has-text-left">
-                                Subscription Alert
-                            </label>
-                            <div class="control">
-                                <input class="input" type="text" name="mention_alert" placeholder="Mention alert text">
-                            </div>
+                            <label class="has-text-white has-text-left">Subscription Alert</label>
+                            <div class="control"><input class="input" type="text" name="mention_alert" value="Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"></div>
                         </div>
                         <div class="field">
-                            <label class="has-text-white has-text-left">
-                                Hype Train Start
-                            </label>
-                            <div class="control">
-                                <input class="input" type="text" name="hype_train_start" placeholder="Hype train start message">
-                            </div>
+                            <label class="has-text-white has-text-left">Gift Subscription Alert</label>
+                            <div class="control"><input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members!"></div>
                         </div>
                         <div class="field">
-                            <label class="has-text-white has-text-left">
-                                Hype Train End
-                            </label>
-                            <div class="control">
-                                <input class="input" type="text" name="hype_train_end" placeholder="Hype train end message">
-                            </div>
+                            <label class="has-text-white has-text-left">Hype Train Start</label>
+                            <div class="control"><input class="input" type="text" name="hype_train_start" value="The Hype Train has started! Starting at level: (level)"></div>
+                        </div>
+                        <div class="field">
+                            <label class="has-text-white has-text-left">Hype Train End</label>
+                            <div class="control"><input class="input" type="text" name="hype_train_end" value="The Hype Train has ended at level (level)!"></div>
                         </div>
                         <button class="button is-primary" type="submit" disabled>Save Chat Alert Settings</button>
                     </form>
