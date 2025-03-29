@@ -89,6 +89,8 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
             $deletionTime = $stat['mtime'] + 86400; // 24 hours later
             $remaining = $deletionTime - time();
             $countdown = $remaining > 0 ? sprintf('%02d:%02d:%02d', floor($remaining/3600), floor(($remaining % 3600) / 60), $remaining % 60) : 'Expired';
+            // Check if this file was recently converted
+            $recently_converted = (time() - $stat['mtime']) < 600;
             // Get video duration using ffprobe
             $duration = "N/A";
             $command = "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " . escapeshellarg($dir_path . $file);
@@ -111,7 +113,8 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
                 'duration' => $duration,
                 'path' => $dir_path . $file,
                 'deletion_timestamp' => $deletionTime,
-                'is_recording' => false
+                'is_recording' => false,
+                'recently_converted' => $recently_converted
             ];
         }
     }
@@ -163,7 +166,12 @@ if ($storage_error) {
             echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="has-text-grey">No actions available</span></td>';
         } else {
             $title = pathinfo($file['name'], PATHINFO_FILENAME);
-            echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($title) . '</td>';
+            echo '<td class="has-text-centered" style="vertical-align: middle;">';
+            echo htmlspecialchars($title);
+            if (isset($file['recently_converted']) && $file['recently_converted']) {
+                echo ' <span class="tag is-success is-light conversion-tag">Recently Converted</span>';
+            }
+            echo '</td>';
             echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
             echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
             echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
