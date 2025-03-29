@@ -128,6 +128,8 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
             $deletionTime = $stat['mtime'] + 86400; // 24 hours later
             $remaining = $deletionTime - time();
             $countdown = $remaining > 0 ? sprintf('%02d:%02d:%02d', floor($remaining/3600), floor(($remaining % 3600) / 60), $remaining % 60) : 'Expired';
+            // Check if this file was recently converted
+            $recently_converted = (time() - $stat['mtime']) < 600;
             // Get video duration using ffprobe
             $duration = "N/A";
             $command = "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " . escapeshellarg($dir_path . $file);
@@ -150,7 +152,8 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
                 'duration' => $duration,
                 'path' => $dir_path . $file,
                 'deletion_timestamp' => $deletionTime,
-                'is_recording' => false
+                'is_recording' => false,
+                'recently_converted' => $recently_converted
             ];
         }
     }
@@ -308,7 +311,7 @@ if ($selected_server == 'au-east-1') {
                 <table class="table is-fullwidth">
                     <thead>
                         <tr>
-                            <th class="has-text-centered" style="width: 120px;">Title</th>
+                            <th class="has-text-centered" style="width: 150px;">Title</th>
                             <th class="has-text-centered" style="width: 90px;">Duration</th>
                             <th class="has-text-centered">Archive Creation Time</th>
                             <th class="has-text-centered">File Size</th>
@@ -327,7 +330,9 @@ if ($selected_server == 'au-east-1') {
                                 echo '<tr>';
                                 // Check if this is a recording in progress
                                 if (isset($file['is_recording']) && $file['is_recording']) {
-                                    echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="has-text-weight-bold has-text-danger">RECORDING IN PROGRESS</span></td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">';
+                                    echo '<span class="has-text-weight-bold has-text-danger">RECORDING IN PROGRESS</span>';
+                                    echo '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
@@ -335,7 +340,12 @@ if ($selected_server == 'au-east-1') {
                                     echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="has-text-grey">No actions available</span></td>';
                                 } else {
                                     $title = pathinfo($file['name'], PATHINFO_FILENAME);
-                                    echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($title) . '</td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;">';
+                                    echo htmlspecialchars($title);
+                                    if (isset($file['recently_converted']) && $file['recently_converted']) {
+                                        echo ' <span class="tag is-success is-light conversion-tag">Recently Converted</span>';
+                                    }
+                                    echo '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
@@ -357,18 +367,6 @@ if ($selected_server == 'au-east-1') {
         </div>
     </div>
 </div>
-<style>
-    .action-icon {
-        margin: 0 8px;
-        display: inline-block;
-    }
-    .action-icon:first-child {
-        margin-left: 0;
-    }
-    .action-icon:last-child {
-        margin-right: 0;
-    }
-</style>
 
 <div id="videoModal" class="modal">
     <div class="modal-background"></div>
@@ -511,6 +509,15 @@ document.addEventListener('DOMContentLoaded', function() {
             closeEditModal();
         });
     });
+    // Store references to modal elements outside of event handlers
+    window.videoModal = document.getElementById('videoModal');
+    window.videoFrame = document.getElementById('videoFrame');
+    window.editModal = document.getElementById('editModal');
+    window.titleInput = document.getElementById('edit-title-input');
+    window.fileInput = document.getElementById('edit-file-input');
+    window.serverInput = document.getElementById('edit-server-input');
+    // Initialize event handlers for the first time
+    reattachEventHandlers();
 });
 
 // Function to fetch updated table content and refresh
@@ -525,12 +532,42 @@ function refreshTable() {
             if (data.html) {
                 // Update the table body with the new HTML
                 document.getElementById('filesTableBody').innerHTML = data.html;
+                // Re-initialize event handlers for the newly added elements
+                reattachEventHandlers();
+                // Update conversion tags
+                updateConversionTags();
+                // Update countdowns
+                updateAllCountdowns();
             }
         })
         .catch(error => {
             console.error('Error fetching updated stream data:', error);
         });
 }
+
+// Function to reattach event handlers after table refresh
+function reattachEventHandlers() {
+    // Re-attach play video modal handlers
+    document.querySelectorAll('.play-video').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            var url = this.getAttribute('data-video-url');
+            videoFrame.src = url;
+            videoModal.classList.add('is-active');
+        });
+    });
+    // Re-attach edit video handlers (if uncommented/enabled)
+    document.querySelectorAll('.edit-video').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            titleInput.value = this.getAttribute('data-title');
+            fileInput.value = this.getAttribute('data-file');
+            serverInput.value = this.getAttribute('data-server');
+            editModal.classList.add('is-active');
+        });
+    });
+}
+
 // Set an interval to refresh the table every 60 seconds (60000 ms)
 setInterval(refreshTable, 60000);
 
@@ -577,6 +614,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Function to remove the conversion tags after 10 minutes
+function updateConversionTags() {
+    var tags = document.querySelectorAll('.conversion-tag');
+    tags.forEach(function(tag) {
+        var row = tag.closest('tr');
+        var timeCell = row.querySelector('td:nth-child(3)');
+        if (timeCell) {
+            var creationTime = new Date(timeCell.textContent.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1'));
+            var now = new Date();
+            var timeDiff = (now - creationTime) / 1000 / 60;
+            // If it's been more than 10 minutes since creation, remove the tag
+            if (timeDiff > 10) {
+                tag.remove();
+            }
+        }
+    });
+}
+// Update conversion tags every minute
+setInterval(updateConversionTags, 60000);
 </script>
 </body>
 </html>
