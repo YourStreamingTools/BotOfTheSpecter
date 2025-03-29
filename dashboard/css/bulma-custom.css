@@ -590,3 +590,24 @@ input[type="checkbox"]:hover {
     background-color: transparent !important;
     box-shadow: none !important;
 }
+
+.action-icon {
+    margin: 0 8px;
+    display: inline-block;
+}
+.action-icon:first-child {
+    margin-left: 0;
+}
+.action-icon:last-child {
+    margin-right: 0;
+}
+.conversion-tag {
+    margin-left: 6px;
+    font-size: 0.8rem;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
