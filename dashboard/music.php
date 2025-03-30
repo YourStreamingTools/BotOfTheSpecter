@@ -148,6 +148,16 @@ $musicFiles = getR2MusicFiles();
                             </span>
                         </div>
                         <div class="column has-text-centered">
+                            <span id="repeat-btn" class="icon is-large has-text-info" style="cursor: pointer;">
+                                <i class="fas fa-redo fa-2x"></i>
+                            </span>
+                        </div>
+                        <div class="column has-text-centered">
+                            <span id="shuffle-btn" class="icon is-large has-text-primary" style="cursor: pointer;">
+                                <i class="fas fa-random fa-2x"></i>
+                            </span>
+                        </div>
+                        <div class="column has-text-centered">
                             <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
                         </div>
                     </div>
@@ -166,7 +176,7 @@ $musicFiles = getR2MusicFiles();
             </thead>
             <tbody>
                 <?php foreach ($musicFiles as $index => $file): ?>
-                    <tr>
+                    <tr data-file="<?php echo htmlspecialchars($file); ?>">
                         <td><?php echo $index + 1; ?></td>
                         <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
                     </tr>
@@ -184,6 +194,68 @@ $musicFiles = getR2MusicFiles();
     const retryInterval = 5000;
     let reconnectAttempts = 0;
 
+    function initializeSocketListeners() {
+        // Event listeners to send commands via WebSocket
+        document.getElementById('play-btn').addEventListener('click', function() {
+            console.log('Play clicked');
+            playSong(currentIndex);
+            socket.emit('COMMAND', { command: 'play' });
+        });
+
+        document.getElementById('pause-btn').addEventListener('click', function() {
+            console.log('Pause clicked');
+            socket.emit('COMMAND', { command: 'pause' });
+        });
+
+        document.getElementById('prev-btn').addEventListener('click', function() {
+            console.log('Previous clicked');
+            currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+            playSong(currentIndex);
+        });
+
+        document.getElementById('next-btn').addEventListener('click', function() {
+            console.log('Next clicked');
+            if (shuffle) {
+                currentIndex = Math.floor(Math.random() * playlist.length);
+            } else {
+                currentIndex = (currentIndex + 1) % playlist.length;
+            }
+            playSong(currentIndex);
+        });
+
+        document.getElementById('repeat-btn').addEventListener('click', function() {
+            repeat = !repeat;
+            console.log('Repeat:', repeat);
+            this.classList.toggle('has-text-danger', repeat);
+        });
+
+        document.getElementById('shuffle-btn').addEventListener('click', function() {
+            shuffle = !shuffle;
+            console.log('Shuffle:', shuffle);
+            this.classList.toggle('has-text-danger', shuffle);
+        });
+
+        document.getElementById('volume-range').addEventListener('input', function() {
+            console.log('Volume: ' + this.value);
+            socket.emit('COMMAND', { command: 'volume', value: this.value });
+        });
+
+        socket.on('NOW_PLAYING', (data) => {
+            if (data && data.song) {
+                console.log('Server updated now playing:', data.song);
+            }
+        });
+
+        // Automatically play the next song when the current one ends
+        socket.on('SONG_ENDED', () => {
+            if (repeat) {
+                playSong(currentIndex);
+            } else {
+                document.getElementById('next-btn').click();
+            }
+        });
+    }
+
     function connectWebSocket() {
         socket = io('wss://websocket.botofthespecter.com', {
             reconnection: false
@@ -199,6 +271,9 @@ $musicFiles = getR2MusicFiles();
                 channel: 'Dashboard', 
                 name: 'Music Controller' 
             });
+
+            // Initialize event listeners after connection
+            initializeSocketListeners();
         });
 
         // Log all events
@@ -244,26 +319,19 @@ $musicFiles = getR2MusicFiles();
         }, delay);
     }
     // Event listeners to send commands via WebSocket
-    document.getElementById('play-btn').addEventListener('click', function() {
-        console.log('Play clicked');
-        socket.emit('COMMAND', { command: 'play' });
-    });
-    document.getElementById('pause-btn').addEventListener('click', function() {
-        console.log('Pause clicked');
-        socket.emit('COMMAND', { command: 'pause' });
-    });
-    document.getElementById('prev-btn').addEventListener('click', function() {
-        console.log('Previous clicked');
-        socket.emit('COMMAND', { command: 'previous' });
-    });
-    document.getElementById('next-btn').addEventListener('click', function() {
-        console.log('Next clicked');
-        socket.emit('COMMAND', { command: 'next' });
-    });
-    document.getElementById('volume-range').addEventListener('input', function() {
-        console.log('Volume: ' + this.value);
-        socket.emit('COMMAND', { command: 'volume', value: this.value });
-    });
+    let repeat = false;
+    let shuffle = false;
+    let playlist = <?php echo json_encode($musicFiles); ?>;
+    let currentIndex = 0;
+
+    function playSong(index) {
+        currentIndex = index;
+        const nowPlayingElement = document.getElementById('now-playing');
+        const song = playlist[currentIndex];
+        nowPlayingElement.textContent = `🎵 ${song}`;
+        socket.emit('NOW_PLAYING', { song: song });
+    }
+
     // Start initial connection
     connectWebSocket();
 </script>
