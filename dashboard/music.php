@@ -66,22 +66,22 @@ date_default_timezone_set($timezone);
                 <div class="column is-half">
                     <div class="columns is-mobile is-centered is-vcentered">
                         <div class="column has-text-centered">
-                            <span id="play-btn" class="icon is-large has-text-success" style="cursor: pointer;" disabled>
+                            <span id="play-btn" class="icon is-large has-text-success" style="cursor: pointer;">
                                 <i class="fas fa-play-circle fa-2x"></i>
                             </span>
                         </div>
                         <div class="column has-text-centered">
-                            <span id="pause-btn" class="icon is-large has-text-warning" style="cursor: pointer;" disabled>
+                            <span id="pause-btn" class="icon is-large has-text-warning" style="cursor: pointer;">
                                 <i class="fas fa-pause-circle fa-2x"></i>
                             </span>
                         </div>
                         <div class="column has-text-centered">
-                            <span id="prev-btn" class="icon is-large has-text-link" style="cursor: pointer;" disabled>
+                            <span id="prev-btn" class="icon is-large has-text-link" style="cursor: pointer;">
                                 <i class="fas fa-step-backward fa-2x"></i>
                             </span>
                         </div>
                         <div class="column has-text-centered">
-                            <span id="next-btn" class="icon is-large has-text-link" style="cursor: pointer;" disabled>
+                            <span id="next-btn" class="icon is-large has-text-link" style="cursor: pointer;">
                                 <i class="fas fa-step-forward fa-2x"></i>
                             </span>
                         </div>
@@ -106,12 +106,6 @@ date_default_timezone_set($timezone);
 <!-- Music control scripts -->
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
-    // Disable buttons initially
-    document.getElementById('play-btn').setAttribute('disabled', true);
-    document.getElementById('pause-btn').setAttribute('disabled', true);
-    document.getElementById('prev-btn').setAttribute('disabled', true);
-    document.getElementById('next-btn').setAttribute('disabled', true);
-    
     // Establish WebSocket connection
     let socket;
     const retryInterval = 5000;
@@ -126,11 +120,6 @@ date_default_timezone_set($timezone);
         socket.on('connect', () => {
             console.log('Connected to WebSocket server');
             reconnectAttempts = 0;
-            // Enable buttons after connection
-            // document.getElementById('play-btn').removeAttribute('disabled');
-            // document.getElementById('pause-btn').removeAttribute('disabled');
-            // document.getElementById('prev-btn').removeAttribute('disabled');
-            // document.getElementById('next-btn').removeAttribute('disabled');
 
             socket.emit('REGISTER', {
                 code: '<?php echo $api_key; ?>',
@@ -174,12 +163,6 @@ date_default_timezone_set($timezone);
 
     // Handle reconnection attempts
     function attemptReconnect() {
-        // Disable buttons during reconnection
-        document.getElementById('play-btn').setAttribute('disabled', true);
-        document.getElementById('pause-btn').setAttribute('disabled', true);
-        document.getElementById('prev-btn').setAttribute('disabled', true);
-        document.getElementById('next-btn').setAttribute('disabled', true);
-
         reconnectAttempts++;
         const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
         console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
@@ -187,7 +170,7 @@ date_default_timezone_set($timezone);
             connectWebSocket();
         }, delay);
     }
-    // Updated event listeners to send commands via WebSocket
+    // Event listeners to send commands via WebSocket
     document.getElementById('play-btn').addEventListener('click', function() {
         console.log('Play clicked');
         socket.emit('COMMAND', { command: 'play' });
