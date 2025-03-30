@@ -159,7 +159,7 @@ $musicFiles = getR2MusicFiles();
         <h2 class="title is-4">Playlist</h2>
         <ul>
             <?php foreach ($musicFiles as $file): ?>
-                <li><?php echo htmlspecialchars($file); ?></li>
+                <li><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></li>
             <?php endforeach; ?>
         </ul>
     </div>
