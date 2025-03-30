@@ -66,16 +66,16 @@ date_default_timezone_set($timezone);
                 <div class="column is-half">
                     <div class="columns is-mobile is-centered is-vcentered">
                         <div class="column has-text-centered">
-                            <button id="play-btn" class="button is-success is-small" disabled>Play</button>
+                            <button id="play-btn" class="button is-success is-small is-rounded" disabled>Play</button>
                         </div>
                         <div class="column has-text-centered">
-                            <button id="pause-btn" class="button is-warning is-small" disabled>Pause</button>
+                            <button id="pause-btn" class="button is-warning is-small is-rounded" disabled>Pause</button>
                         </div>
                         <div class="column has-text-centered">
-                            <button id="prev-btn" class="button is-link is-small" disabled>Previous</button>
+                            <button id="prev-btn" class="button is-link is-small is-rounded" disabled>Previous</button>
                         </div>
                         <div class="column has-text-centered">
-                            <button id="next-btn" class="button is-link is-small" disabled>Next</button>
+                            <button id="next-btn" class="button is-link is-small is-rounded" disabled>Next</button>
                         </div>
                         <div class="column has-text-centered">
                             <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
