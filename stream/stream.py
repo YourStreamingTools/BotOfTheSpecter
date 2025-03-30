@@ -301,8 +301,9 @@ class SimpleServer(SimpleRTMPServer):
 
 def create_ssl_context():
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    cert_path = "/etc/letsencrypt/live/stream.botofthespecter.com/fullchain.pem"
-    key_path = "/etc/letsencrypt/live/stream.botofthespecter.com/privkey.pem"
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    cert_path = f"{current_dir}/ssl/fullchain.pem"
+    key_path = f"{current_dir}/ssl/privkey.pem"
     context.load_cert_chain(certfile=cert_path, keyfile=key_path)
     return context
 
