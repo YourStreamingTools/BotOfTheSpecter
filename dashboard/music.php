@@ -181,6 +181,9 @@ $musicFiles = getR2MusicFiles();
     </div>
 </div>
 
+<!-- Audio element for music playback -->
+<audio id="audio-player" style="display: none;"></audio>
+
 <!-- Music control scripts -->
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
@@ -331,8 +334,24 @@ $musicFiles = getR2MusicFiles();
         const nowPlayingElement = document.getElementById('now-playing');
         const song = playlist[currentIndex];
         nowPlayingElement.textContent = `🎵 ${song}`;
-        socket.emit('NOW_PLAYING', { song: song });
+        const audioPlayer = document.getElementById('audio-player');
+        audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
+        audioPlayer.play().then(() => {
+            console.log(`Playing: ${song}`);
+            socket.emit('NOW_PLAYING', { song: song });
+        }).catch(error => {
+            console.error('Error playing audio:', error);
+        });
     }
+
+    // Automatically play the next song when the current one ends
+    document.getElementById('audio-player').addEventListener('ended', () => {
+        if (repeat) {
+            playSong(currentIndex);
+        } else {
+            document.getElementById('next-btn').click();
+        }
+    });
 
     // Start initial connection
     connectWebSocket();
