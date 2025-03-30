@@ -128,13 +128,8 @@ $musicFiles = getR2MusicFiles();
                 <div class="column is-half">
                     <div class="columns is-mobile is-centered is-vcentered">
                         <div class="column has-text-centered">
-                            <span id="play-btn" class="icon is-large has-text-success" style="cursor: pointer;">
-                                <i class="fas fa-play-circle fa-2x"></i>
-                            </span>
-                        </div>
-                        <div class="column has-text-centered">
-                            <span id="pause-btn" class="icon is-large has-text-warning" style="cursor: pointer;">
-                                <i class="fas fa-pause-circle fa-2x"></i>
+                            <span id="play-pause-btn" class="icon is-large has-text-success" style="cursor: pointer;">
+                                <i id="play-pause-icon" class="fas fa-play-circle fa-2x"></i>
                             </span>
                         </div>
                         <div class="column has-text-centered">
@@ -193,18 +188,25 @@ $musicFiles = getR2MusicFiles();
     let socket;
     const retryInterval = 5000;
     let reconnectAttempts = 0;
+    let isPlaying = false;
 
     function initializeSocketListeners() {
-        // Event listeners to send commands via WebSocket
-        document.getElementById('play-btn').addEventListener('click', function() {
-            console.log('Play clicked');
-            playSong(currentIndex);
-            socket.emit('COMMAND', { command: 'play' });
-        });
-
-        document.getElementById('pause-btn').addEventListener('click', function() {
-            console.log('Pause clicked');
-            socket.emit('COMMAND', { command: 'pause' });
+        // Event listener for play/pause toggle
+        document.getElementById('play-pause-btn').addEventListener('click', function() {
+            isPlaying = !isPlaying;
+            const icon = document.getElementById('play-pause-icon');
+            if (isPlaying) {
+                console.log('Play clicked');
+                playSong(currentIndex);
+                socket.emit('COMMAND', { command: 'play' });
+                icon.classList.remove('fa-play-circle');
+                icon.classList.add('fa-pause-circle');
+            } else {
+                console.log('Pause clicked');
+                socket.emit('COMMAND', { command: 'pause' });
+                icon.classList.remove('fa-pause-circle');
+                icon.classList.add('fa-play-circle');
+            }
         });
 
         document.getElementById('prev-btn').addEventListener('click', function() {
