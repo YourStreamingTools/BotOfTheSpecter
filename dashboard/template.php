@@ -2,7 +2,6 @@
 // Initialize the session
 session_start();
 $today = new DateTime();
-$backup_system = false;
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
