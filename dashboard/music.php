@@ -58,16 +58,16 @@ date_default_timezone_set($timezone);
         <div class="card-content">
             <div class="columns is-mobile is-multiline is-centered">
                 <div class="column is-half has-text-centered">
-                    <button id="prev-btn" class="button is-link is-fullwidth">Previous</button>
+                    <button id="prev-btn" class="button is-link is-fullwidth is-small" disabled>Previous</button>
                 </div>
                 <div class="column is-half has-text-centered">
-                    <button id="play-btn" class="button is-success is-fullwidth">Play</button>
+                    <button id="play-btn" class="button is-success is-fullwidth is-small" disabled>Play</button>
                 </div>
                 <div class="column is-half has-text-centered" style="margin-top:10px;">
-                    <button id="pause-btn" class="button is-warning is-fullwidth">Pause</button>
+                    <button id="pause-btn" class="button is-warning is-fullwidth is-small" disabled>Pause</button>
                 </div>
                 <div class="column is-half has-text-centered" style="margin-top:10px;">
-                    <button id="next-btn" class="button is-link is-fullwidth">Next</button>
+                    <button id="next-btn" class="button is-link is-fullwidth is-small" disabled>Next</button>
                 </div>
             </div>
             <div class="field" style="margin-top:15px;">
@@ -87,44 +87,75 @@ date_default_timezone_set($timezone);
 </div>
 
 <!-- Music control scripts -->
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
     // Establish WebSocket connection
-    const ws = new WebSocket('ws://yourwebsocketserver:port');
-    ws.addEventListener('open', function() {
-        console.log('WebSocket connection established');
-    });
-    ws.addEventListener('message', function(event) {
-        console.log('WebSocket message:', event.data);
-        // Process notifications from server (e.g., track status updates)
-    });
-    ws.addEventListener('close', function() {
-        console.log('WebSocket connection closed');
-    });
-    ws.addEventListener('error', function(error) {
-        console.error('WebSocket error:', error);
-    });
-    
+    let socket;
+    const retryInterval = 5000;
+    let reconnectAttempts = 0;
+
+    function connectWebSocket() {
+        socket = io('wss://websocket.botofthespecter.com', {
+            reconnection: false
+        });
+
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket server');
+            reconnectAttempts = 0;
+            socket.emit('REGISTER', { code: 'MusicPage', channel: 'MusicControl', name: 'MusicDashboard' });
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from WebSocket server');
+            attemptReconnect();
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            attemptReconnect();
+        });
+
+        socket.on('WELCOME', (data) => {
+            console.log('Server says:', data.message);
+        });
+
+        // Log all events
+        socket.onAny((event, ...args) => {
+            console.log(`Event: ${event}`, args);
+        });
+    }
+
+    function attemptReconnect() {
+        reconnectAttempts++;
+        const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
+        console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
+        setTimeout(() => {
+            connectWebSocket();
+        }, delay);
+    }
     // Updated event listeners to send commands via WebSocket
     document.getElementById('play-btn').addEventListener('click', function() {
         console.log('Play clicked');
-        ws.send(JSON.stringify({ command: 'play' }));
+        socket.emit('COMMAND', { command: 'play' });
     });
     document.getElementById('pause-btn').addEventListener('click', function() {
         console.log('Pause clicked');
-        ws.send(JSON.stringify({ command: 'pause' }));
+        socket.emit('COMMAND', { command: 'pause' });
     });
     document.getElementById('prev-btn').addEventListener('click', function() {
         console.log('Previous clicked');
-        ws.send(JSON.stringify({ command: 'previous' }));
+        socket.emit('COMMAND', { command: 'previous' });
     });
     document.getElementById('next-btn').addEventListener('click', function() {
         console.log('Next clicked');
-        ws.send(JSON.stringify({ command: 'next' }));
+        socket.emit('COMMAND', { command: 'next' });
     });
     document.getElementById('volume-range').addEventListener('input', function() {
         console.log('Volume: ' + this.value);
-        ws.send(JSON.stringify({ command: 'volume', value: this.value }));
+        socket.emit('COMMAND', { command: 'volume', value: this.value });
     });
+    // Start initial connection
+    connectWebSocket();
 </script>
 </body>
 </html>
