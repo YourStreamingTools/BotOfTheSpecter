@@ -71,3 +71,4 @@ bot/__pycache__/
 *.pyd
 *.pyw
 *.pyz
+/stream/ssl
