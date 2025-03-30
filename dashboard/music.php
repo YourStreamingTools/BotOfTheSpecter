@@ -157,11 +157,22 @@ $musicFiles = getR2MusicFiles();
     </div>
     <div class="box" style="margin-top:20px;">
         <h2 class="title is-4">Playlist</h2>
-        <ul>
-            <?php foreach ($musicFiles as $file): ?>
-                <li><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></li>
-            <?php endforeach; ?>
-        </ul>
+        <table class="table is-striped is-hoverable is-fullwidth">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">#</th>
+                    <th>Title</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($musicFiles as $index => $file): ?>
+                    <tr>
+                        <td><?php echo $index + 1; ?></td>
+                        <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 
