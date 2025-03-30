@@ -15,6 +15,7 @@ $title = "Streaming Settings";
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include "/var/www/config/ssh.php";
+include "/var/www/config/object_storage.php";
 include 'userdata.php';
 include 'user_db.php';
 foreach ($profileData as $profile) {
@@ -395,23 +396,113 @@ if ($selected_server == 'au-east-1') {
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-10 bot-box">
             <h2 class="subtitle has-text-white">Persistent Storage Subscription</h2>
-            <div class="notification is-warning">
-                <p class="has-text-weight-bold has-text-black">Extended Storage Option</p>
-                <p class="has-text-black">Keep your recorded streams beyond the standard 24-hour period with our persistent storage option:</p>
-                <ul style="list-style-type: disc; padding-left: 20px;">
-                    <li class="has-text-black">Store your streams for as long as your subscription is active</li>
-                    <li class="has-text-black">Easily organize and access your past broadcasts</li>
-                    <li class="has-text-black">$7 USD per month for each terabyte of storage (minimum 1TB)</li>
-                </ul>
-                <p class="has-text-black mt-3">Your current subscription status: <span class="tag is-medium is-danger">Not Subscribed</span></p>
-                <div class="buttons mt-3">
-                    <button class="button is-primary is-medium" disabled>
-                        <span class="icon"><i class="fas fa-archive"></i></span>
-                        <span>Subscribe to Persistent Storage</span>
-                    </button>
+
+            <?php if (!isset($is_admin) || !$is_admin): ?>
+                <!-- General information for non-admin users -->
+                <div class="notification is-warning">
+                    <p class="has-text-weight-bold has-text-black">Extended Storage Option</p>
+                    <p class="has-text-black">Keep your recorded streams beyond the standard 24-hour period with our persistent storage option:</p>
+                    <ul style="list-style-type: disc; padding-left: 20px;">
+                        <li class="has-text-black">Store your streams for as long as your subscription is active</li>
+                        <li class="has-text-black">Easily organize and access your past broadcasts</li>
+                        <li class="has-text-black">$7 USD per month for each terabyte of storage (minimum 1TB)</li>
+                    </ul>
+                    <p class="has-text-black is-size-7 mt-2"><i class="fas fa-info-circle"></i> Note: This feature is coming soon. The subscription link will be active when the service launches.</p>
                 </div>
-                <p class="has-text-black is-size-7 mt-2"><i class="fas fa-info-circle"></i> Note: This feature is coming soon. The subscription link will be active when the service launches.</p>
-            </div>
+            <?php endif; ?>
+
+            <?php if (isset($is_admin) && $is_admin): ?>
+                <!-- Admin-specific details -->
+                <?php
+                $is_subscribed = true; // Placeholder: Replace with actual subscription check logic
+                $total_used_storage = 4.8; // Placeholder: Replace with actual storage usage in GB
+                $object_storage_files = [
+                    [
+                        'name' => 'example_stream_2023-09-15.mp4',
+                        'size' => '1.25 GB',
+                        'created_at' => '15-09-2023 14:30:22',
+                        'path' => 'example_stream_2023-09-15.mp4',
+                        'duration' => '01:45:22'
+                    ],
+                    [
+                        'name' => 'gaming_session_2023-09-16.mp4',
+                        'size' => '2.7 GB',
+                        'created_at' => '16-09-2023 20:15:10',
+                        'path' => 'gaming_session_2023-09-16.mp4',
+                        'duration' => '02:32:18'
+                    ]
+                ];
+                ?>
+
+                <div class="columns is-vcentered">
+                    <div class="column is-half">
+                        <p class="has-text-white">
+                            <span class="has-text-weight-bold has-text-white">Subscription Status:</span> 
+                            <span class="tag is-medium <?php echo $is_subscribed ? 'is-success' : 'is-danger'; ?>">
+                                <?php echo $is_subscribed ? 'Subscribed' : 'Not Subscribed'; ?>
+                            </span>
+                        </p>
+                    </div>
+                    <div class="column is-half has-text-right">
+                        <?php if ($is_subscribed): ?>
+                            <p class="has-text-white">
+                                <span class="has-text-weight-bold has-text-white">Total Used Storage:</span> <?php echo $total_used_storage; ?> GB
+                            </p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="buttons is-centered mt-3">
+                    <?php if (!$is_subscribed): ?>
+                        <button class="button is-primary is-medium">
+                            <span class="icon"><i class="fas fa-archive"></i></span>
+                            <span>Subscribe to Persistent Storage</span>
+                        </button>
+                    <?php endif; ?>
+                </div>
+
+                <?php if ($is_subscribed): ?>
+                    <div class="table-container">
+                        <table class="table is-fullwidth is-striped is-hoverable">
+                            <thead>
+                                <tr>
+                                    <th class="has-text-centered">File Name</th>
+                                    <th class="has-text-centered">Duration</th>
+                                    <th class="has-text-centered">Upload Date</th>
+                                    <th class="has-text-centered">Size</th>
+                                    <th class="has-text-centered">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($object_storage_files)): ?>
+                                    <tr>
+                                        <td colspan="5" class="has-text-centered">No files found in persistent storage</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($object_storage_files as $file): ?>
+                                    <tr>
+                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
+                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['duration']); ?></td>
+                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
+                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
+                                        <td class="has-text-centered">
+                                            <a href="#" class="play-video action-icon" data-video-url="play_persistent.php?file=<?php echo urlencode($file['path']); ?>" title="Watch the video">
+                                                <i class="fas fa-play"></i>
+                                            </a>
+                                            <a href="download_persistent.php?file=<?php echo urlencode($file['path']); ?>" class="action-icon" title="Download the video file">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            <a href="delete_persistent.php?file=<?php echo urlencode($file['path']); ?>" class="action-icon" title="Delete the video file" onclick="return confirm('Are you sure you want to delete this file? This action cannot be undone.');">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            <?php endif; ?>
         </div>
     </div>
 </div>
