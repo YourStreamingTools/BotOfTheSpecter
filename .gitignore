@@ -72,3 +72,4 @@ bot/__pycache__/
 *.pyw
 *.pyz
 /stream/ssl
+stream/.env
