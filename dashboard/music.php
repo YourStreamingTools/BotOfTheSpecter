@@ -119,6 +119,11 @@ date_default_timezone_set($timezone);
             });
         });
 
+        // Log all events
+        socket.onAny((event, ...args) => {
+            console.log(`Event: ${event}`, args);
+        });
+
         // Handle disconnection event
         socket.on('disconnect', () => {
             console.log('Disconnected from WebSocket server');
@@ -146,11 +151,6 @@ date_default_timezone_set($timezone);
             }
         });
     }
-
-    // Log all events
-    socket.onAny((event, ...args) => {
-            console.log(`Event: ${event}`, args);
-        });
 
     // Handle reconnection attempts
     function attemptReconnect() {
