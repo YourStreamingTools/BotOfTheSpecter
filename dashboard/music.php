@@ -73,6 +73,10 @@ date_default_timezone_set($timezone);
                     <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
                 </div>
             </div>
+            <div class="has-text-centered" style="margin-top:20px;">
+                <h2 class="title is-5">Now Playing</h2>
+                <p id="now-playing" class="subtitle is-6">No song is currently playing</p>
+            </div>
         </div>
     </div>
     <div class="box" style="margin-top:20px;">
@@ -98,6 +102,7 @@ date_default_timezone_set($timezone);
             reconnection: false
         });
 
+        // Handle connection event
         socket.on('connect', () => {
             console.log('Connected to WebSocket server');
             reconnectAttempts = 0;
@@ -108,26 +113,40 @@ date_default_timezone_set($timezone);
             });
         });
 
+        // Handle disconnection event
         socket.on('disconnect', () => {
             console.log('Disconnected from WebSocket server');
             attemptReconnect();
         });
 
+        // Handle connection error event
         socket.on('connect_error', (error) => {
             console.error('Connection error:', error);
             attemptReconnect();
         });
 
+        // Handle server WELCOME event
         socket.on('WELCOME', (data) => {
             console.log('Server says:', data.message);
         });
 
-        // Log all events
-        socket.onAny((event, ...args) => {
-            console.log(`Event: ${event}`, args);
+        // Handle NOW_PLAYING event
+        socket.on('NOW_PLAYING', (data) => {
+            const nowPlayingElement = document.getElementById('now-playing');
+            if (data && data.song) {
+                nowPlayingElement.textContent = `🎵 ${data.song.title} by ${data.song.artist}`;
+            } else {
+                nowPlayingElement.textContent = 'No song is currently playing';
+            }
         });
     }
 
+    // Log all events
+    socket.onAny((event, ...args) => {
+            console.log(`Event: ${event}`, args);
+        });
+
+    // Handle reconnection attempts
     function attemptReconnect() {
         reconnectAttempts++;
         const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
