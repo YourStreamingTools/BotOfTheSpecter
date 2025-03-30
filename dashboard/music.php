@@ -56,26 +56,32 @@ date_default_timezone_set($timezone);
     </div>
     <div class="card has-background-dark has-text-white" style="margin-top:20px;">
         <div class="card-content">
-            <div class="columns is-mobile is-centered is-vcentered">
-                <div class="column has-text-centered">
-                    <button id="play-btn" class="button is-success is-small" disabled>Play</button>
+            <div class="columns is-mobile is-vcentered">
+                <!-- Now Playing Section -->
+                <div class="column is-half has-text-left">
+                    <h2 class="title is-5">Now Playing</h2>
+                    <p id="now-playing" class="subtitle is-6">No song is currently playing</p>
                 </div>
-                <div class="column has-text-centered">
-                    <button id="pause-btn" class="button is-warning is-small" disabled>Pause</button>
+                <!-- Controls Section -->
+                <div class="column is-half">
+                    <div class="columns is-mobile is-centered is-vcentered">
+                        <div class="column has-text-centered">
+                            <button id="play-btn" class="button is-success is-small" disabled>Play</button>
+                        </div>
+                        <div class="column has-text-centered">
+                            <button id="pause-btn" class="button is-warning is-small" disabled>Pause</button>
+                        </div>
+                        <div class="column has-text-centered">
+                            <button id="prev-btn" class="button is-link is-small" disabled>Previous</button>
+                        </div>
+                        <div class="column has-text-centered">
+                            <button id="next-btn" class="button is-link is-small" disabled>Next</button>
+                        </div>
+                        <div class="column has-text-centered">
+                            <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
+                        </div>
+                    </div>
                 </div>
-                <div class="column has-text-centered">
-                    <button id="prev-btn" class="button is-link is-small" disabled>Previous</button>
-                </div>
-                <div class="column has-text-centered">
-                    <button id="next-btn" class="button is-link is-small" disabled>Next</button>
-                </div>
-                <div class="column has-text-centered">
-                    <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
-                </div>
-            </div>
-            <div class="has-text-centered" style="margin-top:20px;">
-                <h2 class="title is-5">Now Playing</h2>
-                <p id="now-playing" class="subtitle is-6">No song is currently playing</p>
             </div>
         </div>
     </div>
