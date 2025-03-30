@@ -106,6 +106,12 @@ date_default_timezone_set($timezone);
 <!-- Music control scripts -->
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
+    // Disable buttons initially
+    document.getElementById('play-btn').setAttribute('disabled', true);
+    document.getElementById('pause-btn').setAttribute('disabled', true);
+    document.getElementById('prev-btn').setAttribute('disabled', true);
+    document.getElementById('next-btn').setAttribute('disabled', true);
+    
     // Establish WebSocket connection
     let socket;
     const retryInterval = 5000;
@@ -121,10 +127,10 @@ date_default_timezone_set($timezone);
             console.log('Connected to WebSocket server');
             reconnectAttempts = 0;
             // Enable buttons after connection
-            document.getElementById('play-btn').removeAttribute('disabled');
-            document.getElementById('pause-btn').removeAttribute('disabled');
-            document.getElementById('prev-btn').removeAttribute('disabled');
-            document.getElementById('next-btn').removeAttribute('disabled');
+            // document.getElementById('play-btn').removeAttribute('disabled');
+            // document.getElementById('pause-btn').removeAttribute('disabled');
+            // document.getElementById('prev-btn').removeAttribute('disabled');
+            // document.getElementById('next-btn').removeAttribute('disabled');
 
             socket.emit('REGISTER', {
                 code: '<?php echo $api_key; ?>',
