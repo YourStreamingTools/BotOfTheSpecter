@@ -61,7 +61,7 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
         }
     }
     // Check if the directory exists
-    $dir_path = "/root/$user_dir/";
+    $dir_path = $user_dir . "/";
     $sftp_stream = @opendir("ssh2.sftp://" . intval($sftp) . $dir_path);
     if (!$sftp_stream) {
         // If we found a recording, return that even if user directory doesn't exist
