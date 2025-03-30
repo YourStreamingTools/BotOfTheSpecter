@@ -66,16 +66,24 @@ date_default_timezone_set($timezone);
                 <div class="column is-half">
                     <div class="columns is-mobile is-centered is-vcentered">
                         <div class="column has-text-centered">
-                            <button id="play-btn" class="button is-success is-small is-rounded" disabled>Play</button>
+                            <span id="play-btn" class="icon is-large has-text-success" style="cursor: pointer;" disabled>
+                                <i class="fas fa-play-circle fa-2x"></i>
+                            </span>
                         </div>
                         <div class="column has-text-centered">
-                            <button id="pause-btn" class="button is-warning is-small is-rounded" disabled>Pause</button>
+                            <span id="pause-btn" class="icon is-large has-text-warning" style="cursor: pointer;" disabled>
+                                <i class="fas fa-pause-circle fa-2x"></i>
+                            </span>
                         </div>
                         <div class="column has-text-centered">
-                            <button id="prev-btn" class="button is-link is-small is-rounded" disabled>Previous</button>
+                            <span id="prev-btn" class="icon is-large has-text-link" style="cursor: pointer;" disabled>
+                                <i class="fas fa-step-backward fa-2x"></i>
+                            </span>
                         </div>
                         <div class="column has-text-centered">
-                            <button id="next-btn" class="button is-link is-small is-rounded" disabled>Next</button>
+                            <span id="next-btn" class="icon is-large has-text-link" style="cursor: pointer;" disabled>
+                                <i class="fas fa-step-forward fa-2x"></i>
+                            </span>
                         </div>
                         <div class="column has-text-centered">
                             <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
