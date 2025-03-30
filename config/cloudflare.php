@@ -1,11 +1,12 @@
 <?php
 // Cloudflare API configuration
 $api_key = '';
+$api_token = '';
 $email = '';
 $zone_id = '';
+$account_id = '';
 
 // Cloudflare R2 bucket configuration
-$account_id = '';
 $access_key_id = '';
 $secret_access_key = '';
 $bucket_name = '';
