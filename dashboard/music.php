@@ -120,6 +120,12 @@ date_default_timezone_set($timezone);
         socket.on('connect', () => {
             console.log('Connected to WebSocket server');
             reconnectAttempts = 0;
+            // Enable buttons after connection
+            document.getElementById('play-btn').removeAttribute('disabled');
+            document.getElementById('pause-btn').removeAttribute('disabled');
+            document.getElementById('prev-btn').removeAttribute('disabled');
+            document.getElementById('next-btn').removeAttribute('disabled');
+
             socket.emit('REGISTER', {
                 code: '<?php echo $api_key; ?>',
                 channel: 'Dashboard', 
@@ -162,6 +168,12 @@ date_default_timezone_set($timezone);
 
     // Handle reconnection attempts
     function attemptReconnect() {
+        // Disable buttons during reconnection
+        document.getElementById('play-btn').setAttribute('disabled', true);
+        document.getElementById('pause-btn').setAttribute('disabled', true);
+        document.getElementById('prev-btn').setAttribute('disabled', true);
+        document.getElementById('next-btn').setAttribute('disabled', true);
+
         reconnectAttempts++;
         const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
         console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
