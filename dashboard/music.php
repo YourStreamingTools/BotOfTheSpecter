@@ -102,7 +102,11 @@ date_default_timezone_set($timezone);
         socket.on('connect', () => {
             console.log('Connected to WebSocket server');
             reconnectAttempts = 0;
-            socket.emit('REGISTER', { code: 'MusicPage', channel: 'MusicControl', name: 'MusicDashboard' });
+            socket.emit('REGISTER', {
+                code: '<?php echo $api_key; ?>',
+                channel: 'Dashboard', 
+                name: 'Music Controller' 
+            });
         });
 
         socket.on('disconnect', () => {
