@@ -171,12 +171,16 @@ $server_info = [
     'au-east-1' => [
         'name' => 'AU-EAST-1',
         'rtmps_url' => 'rtmps://au-east-1.stream.botofthespecter.com:1935'
+    ],
+    'us-west-1' => [
+        'name' => 'US-WEST-1',
+        'rtmps_url' => 'rtmps://us-west-1.stream.botofthespecter.com:1935'
     ]
 ];
 $server_rtmps_url = $server_info[$selected_server]['rtmps_url'] ?? 'Unknown';
 
 if ($selected_server == 'au-east-1') {
-    // Only try to fetch files if the credentials are set
+    // Use AU-EAST-1 credentials
     if (!empty($storage_server_au_east_1_host) && !empty($storage_server_au_east_1_username) && !empty($storage_server_au_east_1_password)) {
         $result = getStorageFiles(
             $storage_server_au_east_1_host, 
@@ -191,7 +195,25 @@ if ($selected_server == 'au-east-1') {
             $storage_files = $result;
         }
     } else {
-        $storage_error = "Server connection information not configured.";
+        $storage_error = "AU-EAST-1 server connection information not configured.";
+    }
+} elseif ($selected_server == 'us-west-1') {
+    // Use US-WEST-1 credentials
+    if (!empty($storage_server_us_west_1_host) && !empty($storage_server_us_west_1_username) && !empty($storage_server_us_west_1_password)) {
+        $result = getStorageFiles(
+            $storage_server_us_west_1_host, 
+            $storage_server_us_west_1_username, 
+            $storage_server_us_west_1_password, 
+            $username,
+            $api_key
+        );
+        if (isset($result['error'])) {
+            $storage_error = $result['error'];
+        } else {
+            $storage_files = $result;
+        }
+    } else {
+        $storage_error = "US-WEST-1 server connection information not configured.";
     }
 }
 ?>
@@ -298,6 +320,7 @@ if ($selected_server == 'au-east-1') {
                                 <div class="select">
                                     <select id="server-location" name="server" onchange="document.getElementById('server-selection-form').submit();">
                                         <option value="au-east-1" <?php echo $selected_server == 'au-east-1' ? 'selected' : ''; ?>>AU-EAST-1</option>
+                                        <option value="us-west-1" <?php echo $selected_server == 'us-west-1' ? 'selected' : ''; ?>>US-WEST-1</option>
                                         <!-- Additional server options can be added in the future -->
                                     </select>
                                 </div>
