@@ -180,14 +180,14 @@ $server_info = [
 $server_rtmps_url = $server_info[$selected_server]['rtmps_url'] ?? 'Unknown';
 
 if ($selected_server == 'au-east-1') {
-    $recording_dir = "/root/";
-    // Use AU-EAST-1 credentials
+    $recording_dir = "/root/"; // Base directory for AU-EAST-1
+    $user_dir = "/root/$username";  // User-specific directory for AU-EAST-1
     if (!empty($storage_server_au_east_1_host) && !empty($storage_server_au_east_1_username) && !empty($storage_server_au_east_1_password)) {
         $result = getStorageFiles(
             $storage_server_au_east_1_host, 
             $storage_server_au_east_1_username, 
             $storage_server_au_east_1_password, 
-            $username,
+            $user_dir,
             $api_key,
             $recording_dir
         );
@@ -200,14 +200,14 @@ if ($selected_server == 'au-east-1') {
         $storage_error = "AU-EAST-1 server connection information not configured.";
     }
 } elseif ($selected_server == 'us-west-1') {
-    $recording_dir = "/mnt/stream-us-west-1/";
-    // Use US-WEST-1 credentials
+    $recording_dir = "/mnt/stream-us-west-1/"; // Base directory for US-WEST-1
+    $user_dir = "/mnt/stream-us-west-1/$username";  // User-specific directory for US-WEST-1
     if (!empty($storage_server_us_west_1_host) && !empty($storage_server_us_west_1_username) && !empty($storage_server_us_west_1_password)) {
         $result = getStorageFiles(
             $storage_server_us_west_1_host, 
             $storage_server_us_west_1_username, 
             $storage_server_us_west_1_password, 
-            $username,
+            $user_dir,
             $api_key,
             $recording_dir
         );
