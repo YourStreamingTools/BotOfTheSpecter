@@ -100,7 +100,7 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
         }
     }
     // Check if the directory exists
-    $dir_path = $recording_dir . "/" . $user_dir;
+    $dir_path = $user_dir . "/";
     $sftp_stream = @opendir("ssh2.sftp://" . intval($sftp) . $dir_path);
     if (!$sftp_stream) {
         // If we found a recording, return that even if user directory doesn't exist
@@ -246,7 +246,8 @@ if ($selected_server == 'au-east-1') {
         <hr>
         <p class="has-text-weight-bold has-text-black">Important Storage Information:</p>
         <ul style="list-style-type: disc; padding-left: 20px;">
-            <li class="has-text-black">Currently, we offer a server location in Sydney, Australia. Additional servers will be available soon!</li>
+            <li class="has-text-black">We currently offer server locations in AU EAST (Sydney, Australia) and US WEST (Hillsboro, Oregon).</li>
+            <li class="has-text-black">Coming soon: EU CENTRAL (Nuremberg, Germany) server!</li>
             <li class="has-text-black">Recorded streams are stored for 24 hours after the stream ends.</li>
             <li class="has-text-black">After 24 hours, recorded files will be automatically removed due to storage limitations.</li>
         </ul>
