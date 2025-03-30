@@ -55,7 +55,7 @@ $twitch_key = $current_settings['twitch_key'] ?? '';
 $forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
 
 // Function to get files from the storage server
-function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key) {
+function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key, $recording_dir) {
     $files = [];
     $recording_active = false;
     // Check if SSH2 extension is available
@@ -76,14 +76,14 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
     if (!$sftp) {
         return ['error' => 'Could not initialize SFTP subsystem.'];
     }
-    // Check for active recording files using API key
+    // Check for active recording files using API key in the specified recording directory
     if (!empty($api_key)) {
-        $root_files = @scandir("ssh2.sftp://" . intval($sftp) . "/root/");
+        $root_files = @scandir("ssh2.sftp://" . intval($sftp) . $recording_dir);
         if ($root_files) {
             foreach ($root_files as $root_file) {
                 if (strpos($root_file, $api_key) !== false) {
                     $recording_active = true;
-                    $recording_file = "/root/" . $root_file;
+                    $recording_file = $recording_dir . $root_file;
                     $files[] = [
                         'name' => 'Live Recording',
                         'date' => date('d-m-Y'),
@@ -100,7 +100,7 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
         }
     }
     // Check if the directory exists
-    $dir_path = "/root/$user_dir/";
+    $dir_path = $recording_dir . "/" . $user_dir;
     $sftp_stream = @opendir("ssh2.sftp://" . intval($sftp) . $dir_path);
     if (!$sftp_stream) {
         // If we found a recording, return that even if user directory doesn't exist
@@ -180,6 +180,7 @@ $server_info = [
 $server_rtmps_url = $server_info[$selected_server]['rtmps_url'] ?? 'Unknown';
 
 if ($selected_server == 'au-east-1') {
+    $recording_dir = "/root/";
     // Use AU-EAST-1 credentials
     if (!empty($storage_server_au_east_1_host) && !empty($storage_server_au_east_1_username) && !empty($storage_server_au_east_1_password)) {
         $result = getStorageFiles(
@@ -187,7 +188,8 @@ if ($selected_server == 'au-east-1') {
             $storage_server_au_east_1_username, 
             $storage_server_au_east_1_password, 
             $username,
-            $api_key
+            $api_key,
+            $recording_dir
         );
         if (isset($result['error'])) {
             $storage_error = $result['error'];
@@ -198,6 +200,7 @@ if ($selected_server == 'au-east-1') {
         $storage_error = "AU-EAST-1 server connection information not configured.";
     }
 } elseif ($selected_server == 'us-west-1') {
+    $recording_dir = "/mnt/stream-us-west-1/";
     // Use US-WEST-1 credentials
     if (!empty($storage_server_us_west_1_host) && !empty($storage_server_us_west_1_username) && !empty($storage_server_us_west_1_password)) {
         $result = getStorageFiles(
@@ -205,7 +208,8 @@ if ($selected_server == 'au-east-1') {
             $storage_server_us_west_1_username, 
             $storage_server_us_west_1_password, 
             $username,
-            $api_key
+            $api_key,
+            $recording_dir
         );
         if (isset($result['error'])) {
             $storage_error = $result['error'];
