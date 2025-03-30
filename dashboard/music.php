@@ -196,20 +196,30 @@ $musicFiles = getR2MusicFiles();
     function initializeSocketListeners() {
         // Event listener for play/pause toggle
         document.getElementById('play-pause-btn').addEventListener('click', function() {
-            isPlaying = !isPlaying;
+            const audioPlayer = document.getElementById('audio-player');
             const icon = document.getElementById('play-pause-icon');
             if (isPlaying) {
+                console.log('Pause clicked');
+                audioPlayer.pause();
+                socket.emit('COMMAND', { command: 'pause' });
+                icon.classList.remove('fa-pause-circle');
+                icon.classList.add('fa-play-circle');
+            } else {
                 console.log('Play clicked');
                 playSong(currentIndex);
                 socket.emit('COMMAND', { command: 'play' });
                 icon.classList.remove('fa-play-circle');
                 icon.classList.add('fa-pause-circle');
-            } else {
-                console.log('Pause clicked');
-                socket.emit('COMMAND', { command: 'pause' });
-                icon.classList.remove('fa-pause-circle');
-                icon.classList.add('fa-play-circle');
             }
+            isPlaying = !isPlaying;
+        });
+
+        // Event listener for volume control
+        document.getElementById('volume-range').addEventListener('input', function() {
+            const audioPlayer = document.getElementById('audio-player');
+            audioPlayer.volume = this.value / 100; // Set volume (0.0 to 1.0)
+            console.log('Volume set to:', this.value);
+            socket.emit('COMMAND', { command: 'volume', value: this.value });
         });
 
         document.getElementById('prev-btn').addEventListener('click', function() {
@@ -238,11 +248,6 @@ $musicFiles = getR2MusicFiles();
             shuffle = !shuffle;
             console.log('Shuffle:', shuffle);
             this.classList.toggle('has-text-danger', shuffle);
-        });
-
-        document.getElementById('volume-range').addEventListener('input', function() {
-            console.log('Volume: ' + this.value);
-            socket.emit('COMMAND', { command: 'volume', value: this.value });
         });
 
         socket.on('NOW_PLAYING', (data) => {
