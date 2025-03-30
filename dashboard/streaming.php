@@ -251,10 +251,6 @@ if ($selected_server == 'au-east-1') {
             <li class="has-text-black">Recorded streams are stored for 24 hours after the stream ends.</li>
             <li class="has-text-black">After 24 hours, recorded files will be automatically removed due to storage limitations.</li>
         </ul>
-        <hr>
-        <p class="has-text-weight-bold has-text-black">Coming soon:</p>
-        <p class="has-text-black">We’re introducing a new option to store your recorded streams for a longer period, with billing based on the storage space used.</p>
-        <p class="has-text-black">The cost will be $7 USD per month for each terabyte of storage, with a minimum of 1TB per month.</p>
     </div>
     <h1 class="title">Streaming Settings</h1>
     <?php if (isset($_SESSION['settings_saved'])): ?>
@@ -391,6 +387,30 @@ if ($selected_server == 'au-east-1') {
                         ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Persistent Storage Subscription section -->
+    <div class="columns is-desktop is-multiline is-centered box-container">
+        <div class="column is-10 bot-box">
+            <h2 class="subtitle has-text-white">Persistent Storage Subscription</h2>
+            <div class="notification is-warning">
+                <p class="has-text-weight-bold has-text-black">Extended Storage Option</p>
+                <p class="has-text-black">Keep your recorded streams beyond the standard 24-hour period with our persistent storage option:</p>
+                <ul style="list-style-type: disc; padding-left: 20px;">
+                    <li class="has-text-black">Store your streams for as long as your subscription is active</li>
+                    <li class="has-text-black">Easily organize and access your past broadcasts</li>
+                    <li class="has-text-black">$7 USD per month for each terabyte of storage (minimum 1TB)</li>
+                </ul>
+                <p class="has-text-black mt-3">Your current subscription status: <span class="tag is-medium is-danger">Not Subscribed</span></p>
+                <div class="buttons mt-3">
+                    <button class="button is-primary is-medium" disabled>
+                        <span class="icon"><i class="fas fa-archive"></i></span>
+                        <span>Subscribe to Persistent Storage</span>
+                    </button>
+                </div>
+                <p class="has-text-black is-size-7 mt-2"><i class="fas fa-info-circle"></i> Note: This feature is coming soon. The subscription link will be active when the service launches.</p>
             </div>
         </div>
     </div>
