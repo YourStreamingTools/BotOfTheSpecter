@@ -193,6 +193,12 @@ $musicFiles = getR2MusicFiles();
     let reconnectAttempts = 0;
     let isPlaying = false;
 
+    // Set default volume to 50% on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        const audioPlayer = document.getElementById('audio-player');
+        audioPlayer.volume = 0.5;
+    });
+
     function initializeSocketListeners() {
         // Event listener for play/pause toggle
         document.getElementById('play-pause-btn').addEventListener('click', function() {
@@ -338,12 +344,13 @@ $musicFiles = getR2MusicFiles();
         currentIndex = index;
         const nowPlayingElement = document.getElementById('now-playing');
         const song = playlist[currentIndex];
-        nowPlayingElement.textContent = `🎵 ${song}`;
+        const formattedTitle = song.replace('.mp3', '').replace(/_/g, ' ');
+        nowPlayingElement.textContent = `🎵 ${formattedTitle}`;
         const audioPlayer = document.getElementById('audio-player');
         audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
         audioPlayer.play().then(() => {
-            console.log(`Playing: ${song}`);
-            socket.emit('NOW_PLAYING', { song: song });
+            console.log(`Playing: ${formattedTitle}`);
+            socket.emit('NOW_PLAYING', { song: formattedTitle });
         }).catch(error => {
             console.error('Error playing audio:', error);
         });
