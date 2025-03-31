@@ -153,7 +153,8 @@ $musicFiles = getR2MusicFiles();
                             </span>
                         </div>
                         <div class="column has-text-centered">
-                            <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
+                            <input id="volume-range" type="range" min="0" max="100" value="10" class="slider is-small">
+                            <p id="volume-percentage" class="has-text-white">Volume: 10%</p>
                         </div>
                     </div>
                 </div>
@@ -193,10 +194,12 @@ $musicFiles = getR2MusicFiles();
     let reconnectAttempts = 0;
     let isPlaying = false;
 
-    // Set default volume to 50% on page load
+    // Set default volume to 10% on page load
     document.addEventListener('DOMContentLoaded', () => {
         const audioPlayer = document.getElementById('audio-player');
-        audioPlayer.volume = 0.5;
+        const volumePercentage = document.getElementById('volume-percentage');
+        audioPlayer.volume = 0.1;
+        volumePercentage.textContent = "Volume: 10%";
     });
 
     function initializeSocketListeners() {
@@ -223,7 +226,9 @@ $musicFiles = getR2MusicFiles();
         // Event listener for volume control
         document.getElementById('volume-range').addEventListener('input', function() {
             const audioPlayer = document.getElementById('audio-player');
+            const volumePercentage = document.getElementById('volume-percentage');
             audioPlayer.volume = this.value / 100; // Set volume (0.0 to 1.0)
+            volumePercentage.textContent = `Volume: ${this.value}%`; // Update volume text
             console.log('Volume set to:', this.value);
             socket.emit('COMMAND', { command: 'volume', value: this.value });
         });
