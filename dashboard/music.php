@@ -114,7 +114,7 @@ $musicFiles = getR2MusicFiles();
     <br>
     <div class="has-text-centered" style="margin-bottom:20px;">
         <h1 class="title">Music Dashboard</h1>
-        <p class="subtitle">Control the music stream for your broadcast</p>
+        <p class="subtitle">Stream DMCA-free music for your Twitch broadcasts and VODs</p>
     </div>
     <div class="card has-background-dark has-text-white" style="margin-top:20px;">
         <div class="card-content">
@@ -162,7 +162,7 @@ $musicFiles = getR2MusicFiles();
     </div>
     <div class="box" style="margin-top:20px;">
         <h2 class="title is-4">Playlist</h2>
-        <table class="table is-striped is-hoverable is-fullwidth">
+        <table class="table is-striped is-fullwidth">
             <thead>
                 <tr>
                     <th style="width: 60px;">#</th>
@@ -269,6 +269,19 @@ $musicFiles = getR2MusicFiles();
             } else {
                 document.getElementById('next-btn').click();
             }
+        });
+
+        // Add click event listener to playlist rows
+        document.querySelectorAll('tbody tr').forEach((row, index) => {
+            row.addEventListener('click', () => {
+                console.log(`Playing file from playlist: ${row.dataset.file}`);
+                playSong(index); // Play the clicked file
+                // Update play button to "pause" state
+                const icon = document.getElementById('play-pause-icon');
+                icon.classList.remove('fa-play-circle');
+                icon.classList.add('fa-pause-circle');
+                isPlaying = true;
+            });
         });
     }
 
