@@ -193,6 +193,7 @@ $musicFiles = getR2MusicFiles();
     const retryInterval = 5000;
     let reconnectAttempts = 0;
     let isPlaying = false;
+    let audioContext, gainNode;
 
     // Set default volume to 10% on page load
     document.addEventListener('DOMContentLoaded', () => {
@@ -200,6 +201,11 @@ $musicFiles = getR2MusicFiles();
         const volumePercentage = document.getElementById('volume-percentage');
         audioPlayer.volume = 0.1;
         volumePercentage.textContent = "Volume: 10%";
+        // Initialize Web Audio API for normalization
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaElementSource(audioPlayer);
+        gainNode = audioContext.createGain();
+        source.connect(gainNode).connect(audioContext.destination);
     });
 
     function initializeSocketListeners() {
@@ -358,6 +364,19 @@ $musicFiles = getR2MusicFiles();
     let playlist = <?php echo json_encode($musicFiles); ?>;
     let currentIndex = 0;
 
+    function normalizeAudio() {
+        const audioPlayer = document.getElementById('audio-player');
+        const analyser = audioContext.createAnalyser();
+        const source = audioContext.createMediaElementSource(audioPlayer);
+        source.connect(analyser);
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        const gainValue = 1 / (average / 255); // Normalize gain based on average loudness
+        gainNode.gain.value = Math.min(gainValue, 2); // Cap gain to avoid distortion
+        console.log('Normalized gain:', gainNode.gain.value);
+    }
+
     function playSong(index) {
         currentIndex = index;
         const nowPlayingElement = document.getElementById('now-playing');
@@ -368,6 +387,7 @@ $musicFiles = getR2MusicFiles();
         audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
         audioPlayer.play().then(() => {
             console.log(`Playing: ${formattedTitle}`);
+            normalizeAudio(); // Normalize audio when playback starts
             socket.emit('NOW_PLAYING', { song: formattedTitle });
         }).catch(error => {
             console.error('Error playing audio:', error);
