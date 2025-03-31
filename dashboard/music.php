@@ -90,16 +90,6 @@ $musicFiles = getR2MusicFiles();
         <!-- Header -->
         <?php include('header.php'); ?>
         <!-- /Header -->
-        <style>
-            .music-hero { text-align: center; margin-bottom: 30px; }
-            .music-card { background: #2a2a2a; border-radius: 8px; padding: 20px; }
-            .album-cover { width: 100%; max-width: 300px; margin: 0 auto 20px; }
-            .album-cover img { width: 100%; border-radius: 8px; }
-            .music-controls { text-align: center; }
-            .music-controls button { margin: 5px; }
-            .volume-control { width: 80%; margin: 20px auto; }
-            .playlist { margin-top: 30px; }
-        </style>
     </head>
 <body>
 <!-- Navigation -->
@@ -174,7 +164,7 @@ $musicFiles = getR2MusicFiles();
                 <?php foreach ($musicFiles as $index => $file): ?>
                     <tr data-file="<?php echo htmlspecialchars($file); ?>">
                         <td><?php echo $index + 1; ?></td>
-                        <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
+                        <td style="cursor: pointer;"><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
