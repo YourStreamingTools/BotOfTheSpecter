@@ -90,16 +90,6 @@ $musicFiles = getR2MusicFiles();
         <!-- Header -->
         <?php include('header.php'); ?>
         <!-- /Header -->
-        <style>
-            .music-hero { text-align: center; margin-bottom: 30px; }
-            .music-card { background: #2a2a2a; border-radius: 8px; padding: 20px; }
-            .album-cover { width: 100%; max-width: 300px; margin: 0 auto 20px; }
-            .album-cover img { width: 100%; border-radius: 8px; }
-            .music-controls { text-align: center; }
-            .music-controls button { margin: 5px; }
-            .volume-control { width: 80%; margin: 20px auto; }
-            .playlist { margin-top: 30px; }
-        </style>
     </head>
 <body>
 <!-- Navigation -->
@@ -114,7 +104,7 @@ $musicFiles = getR2MusicFiles();
     <br>
     <div class="has-text-centered" style="margin-bottom:20px;">
         <h1 class="title">Music Dashboard</h1>
-        <p class="subtitle">Control the music stream for your broadcast</p>
+        <p class="subtitle">Stream DMCA-free music for your Twitch broadcasts and VODs</p>
     </div>
     <div class="card has-background-dark has-text-white" style="margin-top:20px;">
         <div class="card-content">
@@ -153,7 +143,8 @@ $musicFiles = getR2MusicFiles();
                             </span>
                         </div>
                         <div class="column has-text-centered">
-                            <input id="volume-range" type="range" min="0" max="100" value="50" class="slider is-small">
+                            <input id="volume-range" type="range" min="0" max="100" value="10" class="slider is-small">
+                            <p id="volume-percentage" class="has-text-white">Volume: 10%</p>
                         </div>
                     </div>
                 </div>
@@ -162,7 +153,7 @@ $musicFiles = getR2MusicFiles();
     </div>
     <div class="box" style="margin-top:20px;">
         <h2 class="title is-4">Playlist</h2>
-        <table class="table is-striped is-hoverable is-fullwidth">
+        <table class="table is-striped is-fullwidth">
             <thead>
                 <tr>
                     <th style="width: 60px;">#</th>
@@ -173,7 +164,7 @@ $musicFiles = getR2MusicFiles();
                 <?php foreach ($musicFiles as $index => $file): ?>
                     <tr data-file="<?php echo htmlspecialchars($file); ?>">
                         <td><?php echo $index + 1; ?></td>
-                        <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
+                        <td style="cursor: pointer;"><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -192,11 +183,19 @@ $musicFiles = getR2MusicFiles();
     const retryInterval = 5000;
     let reconnectAttempts = 0;
     let isPlaying = false;
+    let audioContext, gainNode;
 
-    // Set default volume to 50% on page load
+    // Set default volume to 10% on page load
     document.addEventListener('DOMContentLoaded', () => {
         const audioPlayer = document.getElementById('audio-player');
-        audioPlayer.volume = 0.5;
+        const volumePercentage = document.getElementById('volume-percentage');
+        audioPlayer.volume = 0.1;
+        volumePercentage.textContent = "Volume: 10%";
+        // Initialize Web Audio API for normalization
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaElementSource(audioPlayer);
+        gainNode = audioContext.createGain();
+        source.connect(gainNode).connect(audioContext.destination);
     });
 
     function initializeSocketListeners() {
@@ -223,7 +222,9 @@ $musicFiles = getR2MusicFiles();
         // Event listener for volume control
         document.getElementById('volume-range').addEventListener('input', function() {
             const audioPlayer = document.getElementById('audio-player');
+            const volumePercentage = document.getElementById('volume-percentage');
             audioPlayer.volume = this.value / 100; // Set volume (0.0 to 1.0)
+            volumePercentage.textContent = `Volume: ${this.value}%`; // Update volume text
             console.log('Volume set to:', this.value);
             socket.emit('COMMAND', { command: 'volume', value: this.value });
         });
@@ -269,6 +270,19 @@ $musicFiles = getR2MusicFiles();
             } else {
                 document.getElementById('next-btn').click();
             }
+        });
+
+        // Add click event listener to playlist rows
+        document.querySelectorAll('tbody tr').forEach((row, index) => {
+            row.addEventListener('click', () => {
+                console.log(`Playing file from playlist: ${row.dataset.file}`);
+                playSong(index); // Play the clicked file
+                // Update play button to "pause" state
+                const icon = document.getElementById('play-pause-icon');
+                icon.classList.remove('fa-play-circle');
+                icon.classList.add('fa-pause-circle');
+                isPlaying = true;
+            });
         });
     }
 
@@ -340,6 +354,19 @@ $musicFiles = getR2MusicFiles();
     let playlist = <?php echo json_encode($musicFiles); ?>;
     let currentIndex = 0;
 
+    function normalizeAudio() {
+        const audioPlayer = document.getElementById('audio-player');
+        const analyser = audioContext.createAnalyser();
+        const source = audioContext.createMediaElementSource(audioPlayer);
+        source.connect(analyser);
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        const gainValue = 1 / (average / 255); // Normalize gain based on average loudness
+        gainNode.gain.value = Math.min(gainValue, 2); // Cap gain to avoid distortion
+        console.log('Normalized gain:', gainNode.gain.value);
+    }
+
     function playSong(index) {
         currentIndex = index;
         const nowPlayingElement = document.getElementById('now-playing');
@@ -350,6 +377,7 @@ $musicFiles = getR2MusicFiles();
         audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
         audioPlayer.play().then(() => {
             console.log(`Playing: ${formattedTitle}`);
+            normalizeAudio(); // Normalize audio when playback starts
             socket.emit('NOW_PLAYING', { song: formattedTitle });
         }).catch(error => {
             console.error('Error playing audio:', error);

@@ -10,7 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="../css/bulma-custom.css?v=5.4">
+    <link rel="stylesheet" href="../css/bulma-custom.css?v=5.5">
     <script src="../js/about.js?v=1.0"></script>
     <script src="../js/navbar.js?v=1.4"></script>
     <!-- <?php echo "User: $username | $twitchUserId | $authToken"; ?> -->
