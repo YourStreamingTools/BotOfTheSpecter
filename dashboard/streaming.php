@@ -459,7 +459,9 @@ if (isset($is_admin) && $is_admin) {
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">';
                                     echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
                                     echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Download the video file"><i class="fas fa-download"></i></a> ';
-                                    //echo '<a href="#" class="edit-video action-icon" data-file="' . htmlspecialchars($file['name']) . '" data-title="' . htmlspecialchars($title) . '" data-server="' . $selected_server . '" title="Edit the title"><i class="fas fa-edit"></i></a> ';
+                                    if (isset($is_admin) && $is_admin): ?>
+                                        <a class="upload-to-s3 action-icon" data-server="<?php echo $selected_server; ?>" data-file="<?php echo urlencode($file['name']); ?>" title="Upload to Persistent Storage"><i class="fas fa-cloud-upload-alt"></i></a>
+                                    <?php endif;
                                     echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a>';
                                     echo '</td>';
                                 }
@@ -721,6 +723,46 @@ document.addEventListener('DOMContentLoaded', function() {
     window.serverInput = document.getElementById('edit-server-input');
     // Initialize event handlers for the first time
     reattachEventHandlers();
+
+    // Handle upload to S3
+    document.querySelectorAll('.upload-to-s3').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            var server = this.getAttribute('data-server');
+            var file = this.getAttribute('data-file');
+            Swal.fire({
+                title: 'Upload to Persistent Storage',
+                text: 'Are you sure you want to upload this file to persistent storage?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, upload it',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch('upload_to_s3.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'server=' + encodeURIComponent(server) + '&file=' + encodeURIComponent(file)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('Success', 'File uploaded successfully!', 'success');
+                            refreshTable(); // Refresh the table to reflect changes
+                        } else {
+                            Swal.fire('Error', data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        Swal.fire('Error', 'An error occurred while uploading the file.', 'error');
+                    });
+                }
+            });
+        });
+    });
 });
 
 // Function to fetch updated table content and refresh
