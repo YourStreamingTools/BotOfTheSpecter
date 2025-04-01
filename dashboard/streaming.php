@@ -744,7 +744,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
                         },
-                        body: 'server=' + encodeURIComponent(server) + '&file=' + encodeURIComponent(file)
+                        body: 'server=' + encodeURIComponent(server) + '&file=' + encodeURIComponent(file) + '&username=' + encodeURIComponent('<?php echo $username; ?>')
                     })
                     .then(response => response.json())
                     .then(data => {
