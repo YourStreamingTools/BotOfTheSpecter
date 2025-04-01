@@ -70,7 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (strpos($output, 'Success') !== false) {
         echo json_encode(['success' => true]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Upload script failed: ' . $output]);
+        $fileName = basename($file);
+        echo json_encode(['success' => false, 'message' => "Upload script failed for file '{$fileName}'."]);
     }
 }
 ?>
