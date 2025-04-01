@@ -840,7 +840,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (twitchInput.type === "password") {
                 Swal.fire({
                     title: 'Are you sure?',
-                    text: 'Warning: Revealing your Twitch Stream Key can be a security risk. Do you want to proceed?',
+                    text: 'Warning: Revealing your Twitch Stream Key on stream can be a security risk. Be sure this screen is not shared before you continue.',
                     icon: 'warning',
                     showCancelButton: true,
                     confirmButtonText: 'Yes, show it',
