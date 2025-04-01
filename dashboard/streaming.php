@@ -162,6 +162,57 @@ function getStorageFiles($server_host, $server_username, $server_password, $user
     return $files;
 }
 
+// Include S3-compatible API library
+require_once '/var/www/vendor/aws-autoloader.php';
+
+use Aws\S3\S3Client;
+use Aws\Exception\AwsException;
+
+// Initialize S3 client for AWS
+$s3Client = new S3Client([
+    'version' => 'latest',
+    'region' => 'us-east-1',
+    'endpoint' => "https://" . $bucket_url,
+    'credentials' => [
+        'key' => $access_key,
+        'secret' => $secret_key
+    ]
+]);
+
+// Function to fetch files from S3 bucket
+function getS3Files($bucketName) {
+    global $s3Client;
+    $files = [];
+    try {
+        $result = $s3Client->listObjectsV2([
+            'Bucket' => $bucketName
+        ]);
+        if (!empty($result['Contents'])) {
+            foreach ($result['Contents'] as $object) {
+                $key = $object['Key'];
+                $sizeBytes = $object['Size'];
+                $lastModified = $object['LastModified']->getTimestamp();
+                // Format file size
+                $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
+                    ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
+                    round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
+                // Format creation date
+                $createdAt = date('d-m-Y H:i:s', $lastModified);
+                $files[] = [
+                    'name' => basename($key),
+                    'size' => $size,
+                    'created_at' => $createdAt,
+                    'path' => $key,
+                    'duration' => 'N/A'
+                ];
+            }
+        }
+    } catch (AwsException $e) {
+        return ['error' => $e->getMessage()];
+    }
+    return $files;
+}
+
 // Get files when the server is selected
 $storage_files = [];
 $storage_error = null;
@@ -219,6 +270,36 @@ if ($selected_server == 'au-east-1') {
         }
     } else {
         $storage_error = "US-WEST-1 server connection information not configured.";
+    }
+}
+
+// Fetch persistent storage files
+$persistent_storage_files = [];
+$persistent_storage_error = null;
+$total_used_storage = 0; // Initialize total used storage
+
+if (isset($is_admin) && $is_admin) {
+    $result = getS3Files($username);
+    if (isset($result['error'])) {
+        $persistent_storage_error = "Persistent storage is not available at the moment. Please try again later.";
+    } else {
+        $persistent_storage_files = $result;
+        // Calculate total used storage
+        foreach ($persistent_storage_files as $file) {
+            if (isset($file['size'])) {
+                // Convert size to bytes for calculation
+                $size = $file['size'];
+                if (strpos($size, 'KB') !== false) {
+                    $total_used_storage += floatval($size) * 1024;
+                } elseif (strpos($size, 'MB') !== false) {
+                    $total_used_storage += floatval($size) * 1024 * 1024;
+                } elseif (strpos($size, 'GB') !== false) {
+                    $total_used_storage += floatval($size) * 1024 * 1024 * 1024;
+                }
+            }
+        }
+        // Convert total used storage to GB for display
+        $total_used_storage = round($total_used_storage / (1024 * 1024 * 1024), 2);
     }
 }
 ?>
@@ -415,25 +496,7 @@ if ($selected_server == 'au-east-1') {
                 <!-- Admin-specific details -->
                 <?php
                 $is_subscribed = true; // Placeholder: Replace with actual subscription check logic
-                $total_used_storage = 4.8; // Placeholder: Replace with actual storage usage in GB
-                $object_storage_files = [
-                    [
-                        'name' => 'example_stream_2023-09-15.mp4',
-                        'size' => '1.25 GB',
-                        'created_at' => '15-09-2023 14:30:22',
-                        'path' => 'example_stream_2023-09-15.mp4',
-                        'duration' => '01:45:22'
-                    ],
-                    [
-                        'name' => 'gaming_session_2023-09-16.mp4',
-                        'size' => '2.7 GB',
-                        'created_at' => '16-09-2023 20:15:10',
-                        'path' => 'gaming_session_2023-09-16.mp4',
-                        'duration' => '02:32:18'
-                    ]
-                ];
                 ?>
-
                 <div class="columns is-vcentered">
                     <div class="column is-half">
                         <p class="has-text-white">
@@ -473,22 +536,23 @@ if ($selected_server == 'au-east-1') {
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (empty($object_storage_files)): ?>
+                                <?php if ($persistent_storage_error): ?>
+                                    <tr>
+                                        <td colspan="5" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
+                                    </tr>
+                                <?php elseif (empty($persistent_storage_files)): ?>
                                     <tr>
                                         <td colspan="5" class="has-text-centered">No files found in persistent storage</td>
                                     </tr>
                                 <?php else: ?>
-                                    <?php foreach ($object_storage_files as $file): ?>
+                                    <?php foreach ($persistent_storage_files as $file): ?>
                                     <tr>
                                         <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
                                         <td class="has-text-centered"><?php echo htmlspecialchars($file['duration']); ?></td>
                                         <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
                                         <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
                                         <td class="has-text-centered">
-                                            <a href="#" class="play-video action-icon" data-video-url="play_persistent.php?file=<?php echo urlencode($file['path']); ?>" title="Watch the video">
-                                                <i class="fas fa-play"></i>
-                                            </a>
-                                            <a href="download_persistent.php?file=<?php echo urlencode($file['path']); ?>" class="action-icon" title="Download the video file">
+                                            <a href="<?php echo $s3Client->getObjectUrl($bucketName, $file['path']); ?>" class="action-icon" title="Download the video file">
                                                 <i class="fas fa-download"></i>
                                             </a>
                                             <a href="delete_persistent.php?file=<?php echo urlencode($file['path']); ?>" class="action-icon" title="Delete the video file" onclick="return confirm('Are you sure you want to delete this file? This action cannot be undone.');">
