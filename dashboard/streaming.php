@@ -560,6 +560,9 @@ if (isset($is_admin) && $is_admin) {
                                             <a href="delete_persistent.php?file=<?php echo urlencode($file['path']); ?>" class="action-icon" title="Delete the video file" onclick="return confirm('Are you sure you want to delete this file? This action cannot be undone.');">
                                                 <i class="fas fa-trash"></i>
                                             </a>
+                                            <a href="#" class="play-video action-icon" data-video-url="play_stream.php?persistent=true&file=<?php echo urlencode($file['path']); ?>" title="Watch the video">
+                                                <i class="fas fa-play"></i>
+                                            </a>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
