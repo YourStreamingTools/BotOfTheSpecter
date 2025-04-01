@@ -71,6 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success' => true]);
     } else {
         $fileName = basename($file);
+        // Log the output of the Python script for debugging
+        error_log("Upload script failed for file '{$fileName}'. Script output: {$output}");
         echo json_encode(['success' => false, 'message' => "Upload script failed for file '{$fileName}'."]);
     }
 }
