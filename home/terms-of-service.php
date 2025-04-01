@@ -57,7 +57,7 @@
             <p>The Site provides information about our Twitch and Discord bot functionalities and related Services. We also facilitate the purchase of these Services through our integrated payment processing system.</p>
             <p class="has-text-weight-bold">3. User Obligations</p>
             <p><span class="has-text-weight-bold">3.1. Accurate Information:</span> You agree to provide accurate, current, and complete information during any registration or purchase process on the Site.</p>
-            <p><span class="has-text-weight-bold">3.2. Compliance with Laws:</span> You agree to comply with all applicable local, state, national, and international laws, statutes, ordinances, and regulations regarding your use of the Site and Services.</p>
+            <p><span class="has-text-weight-bold">3.2. Compliance with Laws:</span> You agree to comply with all applicable local, state, national, and international laws, statutes, ordinances, and regulations regarding your use of the Site and Services, including but not limited to GDPR and other data protection legislation.</p>
             <p><span class="has-text-weight-bold">3.3. Prohibited Conduct:</span> You agree not to:</p>
             <ul>
                 <li>Disrupt or interfere with the Site or Services, or any servers or networks connected to the Site.</li>
@@ -73,7 +73,7 @@
             <p><span class="has-text-weight-bold">4.4. Non-Payment:</span> Failure to pay may result in suspension or termination of your Services and/or account.</p>
             <p><span class="has-text-weight-bold">4.5. Refunds:</span> Refunds are subject to our refund policy, which is available on the Site.</p>
             <p class="has-text-weight-bold">5. Privacy</p>
-            <p>Your privacy is important to us. Please review our <span class="has-text-weight-bold">Privacy Policy</span>, which is incorporated into these Terms by reference, for information about how we collect, use, and protect your personal and payment information.</p>
+            <p>Your privacy is important to us. Please review our <span class="has-text-weight-bold">Privacy Policy</span>, which is incorporated into these Terms by reference, for information about how we collect, use, and protect your personal and payment information, in accordance with GDPR and other applicable data protection legislation.</p>
             <p class="has-text-weight-bold">6. Intellectual Property</p>
             <p>All content on the Site, including but not limited to text, graphics, logos, images, software, and other materials, is the property of <span class="has-text-weight-bold">BotOfTheSpecter</span> or its licensors and is protected by intellectual property laws. You may not reproduce, distribute, or create derivative works without our express written consent.</p>
             <p class="has-text-weight-bold">7. Termination</p>
