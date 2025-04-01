@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (apiKeyTag.textContent === masked) {
             Swal.fire({
                 title: 'Are you sure?',
-                text: 'Warning: Revealing your API Key can be a security risk. Do you want to proceed?',
+                text: 'Warning: Revealing your API Key on a shared screen (e.g., during a stream) can be a security risk. Ensure this screen is not visible to others before proceeding.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Yes, show it',
