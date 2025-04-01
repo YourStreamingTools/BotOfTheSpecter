@@ -19,6 +19,15 @@ def upload_to_s3(file_path, bucket_name, s3_key, aws_access_key, aws_secret_key,
         # Upload file
         s3_client.upload_file(file_path, bucket_name, s3_key)
         print(f"File '{file_path}' successfully uploaded to bucket '{bucket_name}' with key '{s3_key}'.")
+        # Verify the file exists in S3
+        response = s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+        if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+            # Remove the file after successful upload and verification
+            os.remove(file_path)
+            print(f"File '{file_path}' has been removed from the server.")
+        else:
+            print(f"Error: Unable to verify the upload of file '{file_path}' to S3.")
+            sys.exit(1)
     except FileNotFoundError:
         print(f"Error: File '{file_path}' not found.")
         sys.exit(1)
