@@ -1,17 +1,28 @@
 <?php
+// Initialize the session
 session_start();
-if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized access.']);
-    exit();
-}
+
+require_once "/var/www/config/db_connect.php";
+include "/var/www/config/ssh.php";
+include "/var/www/config/object_storage.php";
+include 'userdata.php';
+include 'user_db.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $server = $_POST['server'] ?? '';
     $file = $_POST['file'] ?? '';
     $username = $_POST['username'] ?? '';
 
-    if (empty($server) || empty($file) || empty($username)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid parameters.']);
+    if (empty($server)) {
+        echo json_encode(['success' => false, 'message' => 'Server parameter is missing.']);
+        exit();
+    }
+    if (empty($file)) {
+        echo json_encode(['success' => false, 'message' => 'File parameter is missing.']);
+        exit();
+    }
+    if (empty($username)) {
+        echo json_encode(['success' => false, 'message' => 'Username parameter is missing.']);
         exit();
     }
 
