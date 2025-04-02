@@ -198,7 +198,7 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                         <span class="has-text-weight-bold has-text-white">Subscription Status:</span> 
                         <span class="tag is-medium 
                             <?php if ($subscription_status === 'Active'): ?>
-                                is-success
+                                is-success has-text-black
                             <?php elseif ($subscription_status === 'Suspended'): ?>
                                 is-warning
                             <?php else: ?>
@@ -279,11 +279,13 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
             </div>
             <?php else: ?>
             <div class="notification is-danger">
-                <p class="has-text-weight-bold">Subscription <?php echo htmlspecialchars($subscription_status); ?></p>
-                <?php if (!empty($suspend_reason)): ?>
-                    <p>Reason: <?php echo htmlspecialchars($suspend_reason); ?></p>
-                <?php endif; ?>
-                <p>Please activate your subscription to access persistent storage files.</p>
+                <span class="is-size-4">
+                    <p class="has-text-weight-bold has-text-black">Subscription <?php echo htmlspecialchars($subscription_status); ?></p>
+                    <?php if (!empty($suspend_reason)): ?>
+                        <p class="has-text-black">Reason: <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                    <?php endif; ?>
+                    <p class="has-text-black">Please activate your subscription to access persistent storage files.</p>
+                </span>
             </div>
             <?php endif; ?>
         </div>
