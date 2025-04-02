@@ -36,6 +36,7 @@ $subscription_status = 'Inactive';
 $suspend_reason = null;
 $canceled_at = null;
 $deletion_time = null;
+$has_billing_account = false;
 
 // Get user email from the profile data
 if (isset($email)) {
@@ -46,6 +47,7 @@ if (isset($email)) {
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
         $client_id = $row['id'];
+        $has_billing_account = true;
         // Check if the client has an active Persistent Storage Membership
         $stmt = $billing_conn->prepare("
             SELECT co.status, co.reason, co.canceled_at
@@ -331,6 +333,11 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                                 <span>Subscribe to Persistent Storage</span>
                             </a>
                         </p>
+                        <?php if (!$has_billing_account): ?>
+                        <div class="mt-3 has-text-black">
+                            <p><strong>Important:</strong> When signing up for our billing platform, please ensure you use the same email address that you used to register on Twitch. If you wish to know what that email is, please check your Twitch Security and Privacy settings <a href="https://www.twitch.tv/settings/security" target="_blank">here</a>. This will ensure that your Twitch Account is both linked to Specter and the billing panel as we check this information for the Persistent Storage.</p>
+                        </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </span>
             </div>
