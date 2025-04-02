@@ -284,7 +284,13 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                     <?php if (!empty($suspend_reason)): ?>
                         <p class="has-text-black">Reason: <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
                     <?php endif; ?>
-                    <p class="has-text-black">Please activate your subscription to access persistent storage files.</p>
+                    <p class="has-text-black">Access to persistent storage files requires an active subscription.</p>
+                    <p class="mt-3">
+                        <a href="https://billing.botofthespecter.com" class="button is-primary">
+                            <span class="icon"><i class="fas fa-credit-card"></i></span>
+                            <span>Manage Subscription</span>
+                        </a>
+                    </p>
                 </span>
             </div>
             <?php endif; ?>
