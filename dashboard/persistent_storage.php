@@ -13,6 +13,7 @@ $title = "Persistent Storage";
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+$billing_conn = new mysqli($servername, $username, $password, "fossbilling");
 include "/var/www/config/object_storage.php";
 include 'userdata.php';
 include 'user_db.php';
@@ -23,6 +24,47 @@ date_default_timezone_set($timezone);
 
 // Include S3-compatible API library
 require_once '/var/www/vendor/aws-autoloader.php';
+
+// Check connection
+if ($billing_conn->connect_error) {
+    die("Billing connection failed: " . $billing_conn->connect_error);
+}
+
+// Check subscription status
+$is_subscribed = false;
+$subscription_status = 'Inactive';
+$suspend_reason = '';
+
+// Get user email from the profile data
+if (isset($email)) {
+    // First, get the client ID from the client table
+    $stmt = $billing_conn->prepare("SELECT id FROM client WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($row = $result->fetch_assoc()) {
+        $client_id = $row['id'];
+        // Check if the client has an active Persistent Storage Membership
+        $stmt = $billing_conn->prepare("
+            SELECT co.status, co.reason
+            FROM client_order co
+            WHERE co.client_id = ? 
+            AND co.title LIKE '%Persistent Storage%'
+            ORDER BY co.id DESC
+            LIMIT 1
+        ");
+        $stmt->bind_param("i", $client_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($row = $result->fetch_assoc()) {
+            $subscription_status = ucfirst($row['status']);
+            $is_subscribed = ($row['status'] === 'active');
+            $suspend_reason = $row['reason'] ?? '';
+        }
+    }
+    $stmt->close();
+}
+$billing_conn->close();
 
 use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
@@ -115,9 +157,6 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
         $delete_error = "Error deleting file: " . $e->getMessage();
     }
 }
-
-// Check the subscription status
-$is_subscribed = false;
 ?>
 <!doctype html>
 <html lang="en">
@@ -157,8 +196,15 @@ $is_subscribed = false;
                 <div class="column is-half has-text-right">
                     <p class="has-text-white">
                         <span class="has-text-weight-bold has-text-white">Subscription Status:</span> 
-                        <span class="tag is-medium <?php echo $is_subscribed ? 'is-success' : 'is-danger'; ?>">
-                            <?php echo $is_subscribed ? 'Active' : 'Inactive'; ?>
+                        <span class="tag is-medium 
+                            <?php if ($subscription_status === 'Active'): ?>
+                                is-success
+                            <?php elseif ($subscription_status === 'Suspended'): ?>
+                                is-warning
+                            <?php else: ?>
+                                is-danger
+                            <?php endif; ?>">
+                            <?php echo htmlspecialchars($subscription_status); ?>
                         </span>
                     </p>
                     <?php if ($is_subscribed): ?>
@@ -178,10 +224,12 @@ $is_subscribed = false;
                     <li class="has-text-black">Manage your content with options to download, watch, or delete files.</li>
                 </ul>
                 <p class="has-text-black">Need to upload a new file from the streaming page? You can do so directly from your recorded streams.</p>
-                <p class="has-text-black mt-2"><a href="streaming.php" class="button is-small is-primary is-outlined">
-                    <span class="icon"><i class="fas fa-video"></i></span>
-                    <span>Go to Streaming</span>
-                </a></p>
+                <p class="has-text-black mt-2">
+                    <a href="streaming.php" class="button is-primary">
+                        <span class="icon"><i class="fas fa-video"></i></span>
+                        <span>Go to Streaming</span>
+                    </a>
+                </p>
             </div>
 
             <?php if ($is_subscribed): ?>
@@ -231,8 +279,11 @@ $is_subscribed = false;
             </div>
             <?php else: ?>
             <div class="notification is-danger">
-                <p class="has-text-weight-bold">Subscription Inactive</p>
-                <p>Your subscription is currently inactive. Please activate your subscription to access persistent storage files.</p>
+                <p class="has-text-weight-bold">Subscription <?php echo htmlspecialchars($subscription_status); ?></p>
+                <?php if (!empty($suspend_reason)): ?>
+                    <p>Reason: <?php echo htmlspecialchars($suspend_reason); ?></p>
+                <?php endif; ?>
+                <p>Please activate your subscription to access persistent storage files.</p>
             </div>
             <?php endif; ?>
         </div>
