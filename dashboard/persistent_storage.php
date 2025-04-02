@@ -307,7 +307,7 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                             <p class="has-text-black">Your files will be permanently deleted <span id="deletion-countdown" class="has-text-weight-bold" data-deletion-time="<?php echo $deletion_time; ?>">in 24 hours</span></p>
                         <?php endif; ?>
                         <p class="mt-3">
-                            <a href="https://billing.botofthespecter.com" class="button is-warning">
+                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
                                 <span class="icon"><i class="fas fa-undo"></i></span>
                                 <span>Reactivate Subscription</span>
                             </a>
@@ -318,7 +318,7 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                         <?php endif; ?>
                         <p class="has-text-black">Your account has been suspended. Please pay your overdue invoice to restore access.</p>
                         <p class="mt-3">
-                            <a href="https://billing.botofthespecter.com" class="button is-warning">
+                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
                                 <span class="icon"><i class="fas fa-credit-card"></i></span>
                                 <span>Pay Overdue Invoice</span>
                             </a>
@@ -326,7 +326,7 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                     <?php else: ?>
                         <p class="has-text-black">Access to persistent storage files requires an active subscription.</p>
                         <p class="mt-3">
-                            <a href="https://billing.botofthespecter.com" class="button is-primary">
+                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary">
                                 <span class="icon"><i class="fas fa-shopping-cart"></i></span>
                                 <span>Subscribe to Persistent Storage</span>
                             </a>
