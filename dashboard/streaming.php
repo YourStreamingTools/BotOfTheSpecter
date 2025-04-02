@@ -14,6 +14,7 @@ $title = "Streaming Settings";
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+$billing_conn = new mysqli($servername, $username, $password, "fossbilling");
 include "/var/www/config/ssh.php";
 include "/var/www/config/object_storage.php";
 include 'userdata.php';
@@ -23,6 +24,44 @@ foreach ($profileData as $profile) {
     $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
+
+// Check connection
+if ($billing_conn->connect_error) {
+    die("Billing connection failed: " . $billing_conn->connect_error);
+}
+
+// Check subscription status
+$is_subscribed = false;
+$subscription_status = 'Inactive';
+
+// Get user email from the profile data
+if (isset($email)) {
+    // First, get the client ID from the client table
+    $stmt = $billing_conn->prepare("SELECT id FROM client WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($row = $result->fetch_assoc()) {
+        $client_id = $row['id'];
+        // Check if the client has an active Persistent Storage Membership
+        $stmt = $billing_conn->prepare("
+            SELECT co.status FROM client_order co
+            WHERE co.client_id = ? 
+            AND co.title LIKE '%Persistent Storage%'
+            ORDER BY co.id DESC
+            LIMIT 1
+        ");
+        $stmt->bind_param("i", $client_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($row = $result->fetch_assoc()) {
+            $subscription_status = ucfirst($row['status']);
+            $is_subscribed = ($row['status'] === 'active');
+        }
+    }
+    $stmt->close();
+}
+$billing_conn->close();
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -395,7 +434,7 @@ if ($selected_server == 'au-east-1') {
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">';
                                     echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
                                     echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Download the video file"><i class="fas fa-download"></i></a> ';
-                                    if (isset($is_admin) && $is_admin): ?>
+                                    if ($is_subscribed): ?>
                                         <a class="upload-to-s3 action-icon" data-server="<?php echo $selected_server; ?>" data-file="<?php echo urlencode($file['name']); ?>" title="Upload to Persistent Storage"><i class="fas fa-cloud-upload-alt"></i></a>
                                     <?php endif;
                                     echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a>';
@@ -411,8 +450,8 @@ if ($selected_server == 'au-east-1') {
         </div>
     </div>
     
-    <!-- Add a link to the persistent storage page for admin users -->
-    <?php if (isset($is_admin) && $is_admin): ?>
+    <!-- Add a link to the persistent storage page for subscribers -->
+    <?php if ($is_subscribed): ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-10">
             <div class="notification is-info">
