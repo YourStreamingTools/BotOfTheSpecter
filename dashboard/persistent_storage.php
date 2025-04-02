@@ -33,7 +33,9 @@ if ($billing_conn->connect_error) {
 // Check subscription status
 $is_subscribed = false;
 $subscription_status = 'Inactive';
-$suspend_reason = '';
+$suspend_reason = null;
+$canceled_at = null;
+$deletion_time = null;
 
 // Get user email from the profile data
 if (isset($email)) {
@@ -46,7 +48,7 @@ if (isset($email)) {
         $client_id = $row['id'];
         // Check if the client has an active Persistent Storage Membership
         $stmt = $billing_conn->prepare("
-            SELECT co.status, co.reason
+            SELECT co.status, co.reason, co.canceled_at
             FROM client_order co
             WHERE co.client_id = ? 
             AND co.title LIKE '%Persistent Storage%'
@@ -60,6 +62,15 @@ if (isset($email)) {
             $subscription_status = ucfirst($row['status']);
             $is_subscribed = ($row['status'] === 'active');
             $suspend_reason = $row['reason'] ?? '';
+            // Handle canceled status and set deletion time
+            if ($row['status'] === 'canceled' && !empty($row['canceled_at'])) {
+                // Convert UTC canceled_at time to user's timezone
+                $utc_canceled_at = new DateTime($row['canceled_at'], new DateTimeZone('UTC'));
+                $utc_canceled_at->setTimezone(new DateTimeZone($timezone));
+                $canceled_at = $utc_canceled_at->getTimestamp();
+                // Set deletion time to 24 hours after cancellation
+                $deletion_time = $utc_canceled_at->modify('+24 hours')->getTimestamp();
+            }
         }
     }
     $stmt->close();
@@ -281,16 +292,39 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
             <div class="notification is-danger">
                 <span class="is-size-4">
                     <p class="has-text-weight-bold has-text-black">Subscription <?php echo htmlspecialchars($subscription_status); ?></p>
-                    <?php if (!empty($suspend_reason)): ?>
-                        <p class="has-text-black">Reason: <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                    <?php if (strtolower($subscription_status) === 'canceled'): ?>
+                        <?php if (!empty($suspend_reason)): ?>
+                            <p class="has-text-black">Cancellation reason: <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                        <?php endif; ?>
+                        <?php if ($deletion_time): ?>
+                            <p class="has-text-black">Your files will be permanently deleted <span id="deletion-countdown" class="has-text-weight-bold" data-deletion-time="<?php echo $deletion_time; ?>">in 24 hours</span></p>
+                        <?php endif; ?>
+                        <p class="mt-3">
+                            <a href="https://billing.botofthespecter.com" class="button is-warning">
+                                <span class="icon"><i class="fas fa-undo"></i></span>
+                                <span>Reactivate Subscription</span>
+                            </a>
+                        </p>
+                    <?php elseif (strtolower($subscription_status) === 'suspended'): ?>
+                        <?php if (!empty($suspend_reason)): ?>
+                            <p class="has-text-black">Reason: <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                        <?php endif; ?>
+                        <p class="has-text-black">Your account has been suspended. Please pay your overdue invoice to restore access.</p>
+                        <p class="mt-3">
+                            <a href="https://billing.botofthespecter.com" class="button is-warning">
+                                <span class="icon"><i class="fas fa-credit-card"></i></span>
+                                <span>Pay Overdue Invoice</span>
+                            </a>
+                        </p>
+                    <?php else: ?>
+                        <p class="has-text-black">Access to persistent storage files requires an active subscription.</p>
+                        <p class="mt-3">
+                            <a href="https://billing.botofthespecter.com" class="button is-primary">
+                                <span class="icon"><i class="fas fa-shopping-cart"></i></span>
+                                <span>Subscribe to Persistent Storage</span>
+                            </a>
+                        </p>
                     <?php endif; ?>
-                    <p class="has-text-black">Access to persistent storage files requires an active subscription.</p>
-                    <p class="mt-3">
-                        <a href="https://billing.botofthespecter.com" class="button is-primary">
-                            <span class="icon"><i class="fas fa-credit-card"></i></span>
-                            <span>Manage Subscription</span>
-                        </a>
-                    </p>
                 </span>
             </div>
             <?php endif; ?>
@@ -331,6 +365,35 @@ document.addEventListener('DOMContentLoaded', function() {
         videoModal.classList.remove('is-active');
         videoFrame.src = '';
     });
+    
+    // Deletion countdown timer functionality
+    var countdownElement = document.getElementById('deletion-countdown');
+    if (countdownElement) {
+        var deletionTime = parseInt(countdownElement.getAttribute('data-deletion-time')) * 1000;
+        function updateCountdown() {
+            var now = new Date().getTime();
+            var timeLeft = deletionTime - now;
+            if (timeLeft <= 0) {
+                countdownElement.innerHTML = "imminent";
+                return;
+            }
+            // Calculate time units
+            var hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            var minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            var seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+            // Create countdown string
+            var countdownStr = "";
+            if (hours > 0) {
+                countdownStr += hours + " hour" + (hours > 1 ? "s" : "") + " ";
+            }
+            countdownStr += minutes + " minute" + (minutes > 1 ? "s" : "") + " ";
+            countdownStr += seconds + " second" + (seconds > 1 ? "s" : "");
+            countdownElement.innerHTML = "in " + countdownStr;
+        }
+        // Update countdown immediately and then every second
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    }
 });
 </script>
 </body>
