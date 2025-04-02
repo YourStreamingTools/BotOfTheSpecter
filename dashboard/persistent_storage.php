@@ -64,12 +64,19 @@ if (isset($email)) {
             $suspend_reason = $row['reason'] ?? '';
             // Handle canceled status and set deletion time
             if ($row['status'] === 'canceled' && !empty($row['canceled_at'])) {
-                // Convert UTC canceled_at time to user's timezone
-                $utc_canceled_at = new DateTime($row['canceled_at'], new DateTimeZone('UTC'));
-                $utc_canceled_at->setTimezone(new DateTimeZone($timezone));
-                $canceled_at = $utc_canceled_at->getTimestamp();
-                // Set deletion time to 24 hours after cancellation
-                $deletion_time = $utc_canceled_at->modify('+24 hours')->getTimestamp();
+                // The canceled_at time from billing system is in UTC
+                $billing_utc_time = new DateTime($row['canceled_at'], new DateTimeZone('UTC'));
+                // Convert UTC time to user's local timezone for display purposes
+                $local_canceled_time = clone $billing_utc_time;
+                $local_canceled_time->setTimezone(new DateTimeZone($timezone));
+                $canceled_at = $local_canceled_time->getTimestamp();
+                // Calculate deletion time (24 hours after cancellation), maintaining UTC for consistency
+                $deletion_utc_time = clone $billing_utc_time;
+                $deletion_utc_time->modify('+24 hours');
+                // Convert deletion time to user's local timezone for display countdown
+                $local_deletion_time = clone $deletion_utc_time;
+                $local_deletion_time->setTimezone(new DateTimeZone($timezone));
+                $deletion_time = $local_deletion_time->getTimestamp();
             }
         }
     }
