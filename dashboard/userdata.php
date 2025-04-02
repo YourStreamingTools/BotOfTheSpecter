@@ -29,6 +29,7 @@ $user_id = $user['id'];
 $username = $user['username'];
 $twitchDisplayName = $user['twitch_display_name'];
 $twitch_profile_image_url = $user['profile_image'];
+$email = $user['email'];
 $is_admin = ($user['is_admin'] == 1);
 $betaAccess = ($user['beta_access'] == 1);
 $twitchUserId = $user['twitch_user_id'];
