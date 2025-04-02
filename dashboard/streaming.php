@@ -179,40 +179,6 @@ $s3Client = new S3Client([
     ]
 ]);
 
-// Function to fetch files from S3 bucket
-function getS3Files($bucketName) {
-    global $s3Client;
-    $files = [];
-    try {
-        $result = $s3Client->listObjectsV2([
-            'Bucket' => $bucketName
-        ]);
-        if (!empty($result['Contents'])) {
-            foreach ($result['Contents'] as $object) {
-                $key = $object['Key'];
-                $sizeBytes = $object['Size'];
-                $lastModified = $object['LastModified']->getTimestamp();
-                // Format file size
-                $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
-                    ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
-                    round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
-                // Format creation date
-                $createdAt = date('d-m-Y H:i:s', $lastModified);
-                $files[] = [
-                    'name' => basename($key),
-                    'size' => $size,
-                    'created_at' => $createdAt,
-                    'path' => $key,
-                    'duration' => 'N/A'
-                ];
-            }
-        }
-    } catch (AwsException $e) {
-        return ['error' => $e->getMessage()];
-    }
-    return $files;
-}
-
 // Get files when the server is selected
 $storage_files = [];
 $storage_error = null;
@@ -270,36 +236,6 @@ if ($selected_server == 'au-east-1') {
         }
     } else {
         $storage_error = "US-WEST-1 server connection information not configured.";
-    }
-}
-
-// Fetch persistent storage files
-$persistent_storage_files = [];
-$persistent_storage_error = null;
-$total_used_storage = 0; // Initialize total used storage
-
-if (isset($is_admin) && $is_admin) {
-    $result = getS3Files($username);
-    if (isset($result['error'])) {
-        $persistent_storage_error = "Persistent storage is not available at the moment. Please try again later.";
-    } else {
-        $persistent_storage_files = $result;
-        // Calculate total used storage
-        foreach ($persistent_storage_files as $file) {
-            if (isset($file['size'])) {
-                // Convert size to bytes for calculation
-                $size = $file['size'];
-                if (strpos($size, 'KB') !== false) {
-                    $total_used_storage += floatval($size) * 1024;
-                } elseif (strpos($size, 'MB') !== false) {
-                    $total_used_storage += floatval($size) * 1024 * 1024;
-                } elseif (strpos($size, 'GB') !== false) {
-                    $total_used_storage += floatval($size) * 1024 * 1024 * 1024;
-                }
-            }
-        }
-        // Convert total used storage to GB for display
-        $total_used_storage = round($total_used_storage / (1024 * 1024 * 1024), 2);
     }
 }
 ?>
@@ -475,105 +411,21 @@ if (isset($is_admin) && $is_admin) {
         </div>
     </div>
     
-    <!-- Persistent Storage Subscription section -->
+    <!-- Add a link to the persistent storage page for admin users -->
+    <?php if (isset($is_admin) && $is_admin): ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
-        <div class="column is-10 bot-box">
-            <h2 class="subtitle has-text-white">Persistent Storage Subscription</h2>
-
-            <?php if (!isset($is_admin) || !$is_admin): ?>
-                <!-- General information for non-admin users -->
-                <div class="notification is-warning">
-                    <p class="has-text-weight-bold has-text-black">Extended Storage Option</p>
-                    <p class="has-text-black">Keep your recorded streams beyond the standard 24-hour period with our persistent storage option:</p>
-                    <ul style="list-style-type: disc; padding-left: 20px;">
-                        <li class="has-text-black">Store your streams for as long as your subscription is active</li>
-                        <li class="has-text-black">Easily organize and access your past broadcasts</li>
-                        <li class="has-text-black">$7 USD per month for each terabyte of storage (minimum 1TB)</li>
-                    </ul>
-                    <p class="has-text-black is-size-7 mt-2"><i class="fas fa-info-circle"></i> Note: This feature is coming soon. The subscription link will be active when the service launches.</p>
-                </div>
-            <?php endif; ?>
-
-            <?php if (isset($is_admin) && $is_admin): ?>
-                <!-- Admin-specific details -->
-                <?php
-                $is_subscribed = true; // Placeholder: Replace with actual subscription check logic
-                ?>
-                <div class="columns is-vcentered">
-                    <div class="column is-half">
-                        <p class="has-text-white">
-                            <span class="has-text-weight-bold has-text-white">Subscription Status:</span> 
-                            <span class="tag is-medium <?php echo $is_subscribed ? 'is-success' : 'is-danger'; ?>">
-                                <?php echo $is_subscribed ? 'Subscribed' : 'Not Subscribed'; ?>
-                            </span>
-                        </p>
-                    </div>
-                    <div class="column is-half has-text-right">
-                        <?php if ($is_subscribed): ?>
-                            <p class="has-text-white">
-                                <span class="has-text-weight-bold has-text-white">Total Used Storage:</span> <?php echo $total_used_storage; ?> GB
-                            </p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="buttons is-centered mt-3">
-                    <?php if (!$is_subscribed): ?>
-                        <button class="button is-primary is-medium">
-                            <span class="icon"><i class="fas fa-archive"></i></span>
-                            <span>Subscribe to Persistent Storage</span>
-                        </button>
-                    <?php endif; ?>
-                </div>
-
-                <?php if ($is_subscribed): ?>
-                    <div class="table-container">
-                        <table class="table is-fullwidth is-striped is-hoverable">
-                            <thead>
-                                <tr>
-                                    <th class="has-text-centered">File Name</th>
-                                    <th class="has-text-centered">Duration</th>
-                                    <th class="has-text-centered">Upload Date</th>
-                                    <th class="has-text-centered">Size</th>
-                                    <th class="has-text-centered">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if ($persistent_storage_error): ?>
-                                    <tr>
-                                        <td colspan="5" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
-                                    </tr>
-                                <?php elseif (empty($persistent_storage_files)): ?>
-                                    <tr>
-                                        <td colspan="5" class="has-text-centered">No files found in persistent storage</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($persistent_storage_files as $file): ?>
-                                    <tr>
-                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
-                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['duration']); ?></td>
-                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
-                                        <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
-                                        <td class="has-text-centered">
-                                            <a href="<?php echo $s3Client->getObjectUrl($bucketName, $file['path']); ?>" class="action-icon" title="Download the video file">
-                                                <i class="fas fa-download"></i>
-                                            </a>
-                                            <a href="delete_persistent.php?file=<?php echo urlencode($file['path']); ?>" class="action-icon" title="Delete the video file" onclick="return confirm('Are you sure you want to delete this file? This action cannot be undone.');">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                            <a href="#" class="play-video action-icon" data-video-url="play_stream.php?persistent=true&file=<?php echo urlencode($file['path']); ?>" title="Watch the video">
-                                                <i class="fas fa-play"></i>
-                                            </a>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            <?php endif; ?>
+        <div class="column is-10">
+            <div class="notification is-info">
+                <p class="has-text-black has-text-weight-bold">Need long-term storage for your streams?</p>
+                <p class="has-text-black">Access your persistent storage from the dedicated page:</p>
+                <a href="persistent_storage.php" class="button is-primary mt-2">
+                    <span class="icon"><i class="fas fa-archive"></i></span>
+                    <span>Go to Persistent Storage</span>
+                </a>
+            </div>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 
 <div id="videoModal" class="modal">
@@ -768,7 +620,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Function to fetch updated table content and refresh
 function refreshTable() {
     // Define the URL to get the updated data
     var url = 'get_stream_files.php?server=' + encodeURIComponent('<?= $selected_server ?>');
