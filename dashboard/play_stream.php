@@ -5,54 +5,30 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 require_once "/var/www/config/db_connect.php";
+include "/var/www/config/object_storage.php";
 include "/var/www/config/ssh.php";
 include 'userdata.php';
+
+$from_persistent = isset($_GET['persistent']) && $_GET['persistent'] === 'true';
+
+if ($from_persistent) {
+    $filename = $_GET['file'];
+    $file_url = "https://{$username}.{$bucket_url}/{$filename}";
+    header("Location: $file_url");
+    exit();
+}
 
 // Validate and get parameters
 if (!isset($_GET['server']) || !isset($_GET['file'])) {
     header('Location: streaming.php');
     exit();
 }
+
 $selected_server = $_GET['server'];
 $filename = $_GET['file'];
 if (strpos($filename, '/') !== false || strpos($filename, '\\') !== false || in_array($filename, ['.', '..'])) {
     header('Location: streaming.php');
     exit();
-}
-
-$from_persistent = isset($_GET['persistent']) && $_GET['persistent'] === 'true';
-
-if ($from_persistent) {
-    require_once '/var/www/vendor/aws-autoloader.php';
-    use Aws\S3\S3Client;
-
-    $s3Client = new S3Client([
-        'version' => 'latest',
-        'region' => 'us-east-1',
-        'endpoint' => "https://" . $bucket_url,
-        'credentials' => [
-            'key' => $access_key,
-            'secret' => $secret_key
-        ]
-    ]);
-
-    try {
-        $bucketName = $username; // Assuming bucket name matches username
-        $object = $s3Client->getObject([
-            'Bucket' => $bucketName,
-            'Key' => $filename
-        ]);
-
-        header('Content-Type: ' . $object['ContentType']);
-        header('Content-Disposition: inline; filename="' . basename($filename) . '"');
-        header('Content-Length: ' . $object['ContentLength']);
-        echo $object['Body'];
-        exit();
-    } catch (Aws\Exception\AwsException $e) {
-        header('HTTP/1.1 500 Internal Server Error');
-        echo "Error retrieving file from persistent storage: " . htmlspecialchars($e->getMessage());
-        exit();
-    }
 }
 
 // Set server details based on selection
