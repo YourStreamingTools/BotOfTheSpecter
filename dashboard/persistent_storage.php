@@ -116,7 +116,7 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
     }
 }
 
-// Check the subscription status (placeholder - replace with actual logic)
+// Check the subscription status
 $is_subscribed = false;
 ?>
 <!doctype html>
@@ -184,6 +184,7 @@ $is_subscribed = false;
                 </a></p>
             </div>
 
+            <?php if ($is_subscribed): ?>
             <div class="table-container">
                 <table class="table is-fullwidth">
                     <thead>
@@ -228,6 +229,12 @@ $is_subscribed = false;
                     </tbody>
                 </table>
             </div>
+            <?php else: ?>
+            <div class="notification is-danger">
+                <p class="has-text-weight-bold">Subscription Inactive</p>
+                <p>Your subscription is currently inactive. Please activate your subscription to access persistent storage files.</p>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
