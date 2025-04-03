@@ -3,6 +3,7 @@ import datetime
 import logging
 import ssl
 import asyncio
+import argparse
 from asyncio import subprocess
 import aiomysql
 from dotenv import load_dotenv
@@ -19,6 +20,23 @@ def safe_peername(self):
     return info
 
 SessionManager.peername = property(safe_peername)
+
+# Define Twitch ingest servers
+TWITCH_INGEST_SERVERS = {
+    "sydney": "rtmps://syd03.contribute.live-video.net/app/",
+    "us-west": "rtmps://sea02.contribute.live-video.net/app/",
+    "us-east": "rtmps://atl.contribute.live-video.net/app/",
+    "eu-central": "rtmps://fra05.contribute.live-video.net/app/",
+    # Add more regions as needed
+}
+DEFAULT_INGEST_SERVER = "sydney"
+
+# Parse command line arguments
+def parse_args():
+    parser = argparse.ArgumentParser(description='RTMP Server with Twitch forwarding')
+    parser.add_argument('-server', type=str, default=DEFAULT_INGEST_SERVER,
+                       help='Twitch ingest server location (sydney, us-west, us-east, eu-central)')
+    return parser.parse_args()
 
 # Load environment variables
 load_dotenv()
@@ -109,8 +127,9 @@ async def get_streaming_settings(username):
         return None, False
 
 class RTMP2FLVController(SimpleRTMPController):
-    def __init__(self, output_directory: str):
+    def __init__(self, output_directory: str, twitch_server: str):
         self.output_directory = output_directory
+        self.twitch_server = twitch_server
         super().__init__()
 
     async def on_connect(self, session, message):
@@ -157,7 +176,10 @@ class RTMP2FLVController(SimpleRTMPController):
         session.twitch_key = twitch_key
         session.ffmpeg_process = None
         if forward_to_twitch:
-            twitch_url = f"rtmps://syd03.contribute.live-video.net/app/{twitch_key}"
+            # Use the correct Twitch ingest server based on command line argument
+            twitch_server_url = TWITCH_INGEST_SERVERS.get(self.twitch_server, TWITCH_INGEST_SERVERS[DEFAULT_INGEST_SERVER])
+            twitch_url = f"{twitch_server_url}{twitch_key}"
+            logger.info(f"Using Twitch ingest server: {self.twitch_server} ({twitch_server_url})")
             asyncio.create_task(self.forward_to_twitch(session, twitch_url))
         await super().on_ns_publish(session, message)
 
@@ -286,14 +308,15 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_command_message(session, message)
 
 class SimpleServer(SimpleRTMPServer):
-    def __init__(self, output_directory: str):
+    def __init__(self, output_directory: str, twitch_server: str):
         self.output_directory = output_directory
+        self.twitch_server = twitch_server
         super().__init__()
 
     async def create(self, host: str, port: int, ssl_context=None):
         loop = asyncio.get_event_loop()
         self.server = await loop.create_server(
-            lambda: RTMPProtocol(controller=RTMP2FLVController(self.output_directory)),
+            lambda: RTMPProtocol(controller=RTMP2FLVController(self.output_directory, self.twitch_server)),
             host=host,
             port=port,
             ssl=ssl_context
@@ -307,17 +330,25 @@ def create_ssl_context():
     context.load_cert_chain(certfile=cert_path, keyfile=key_path)
     return context
 
-async def start_rtmp_server():
+async def start_rtmp_server(twitch_server):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     ssl_context = create_ssl_context()
-    server = SimpleServer(output_directory=current_dir)
+    server = SimpleServer(output_directory=current_dir, twitch_server=twitch_server)
     await server.create(host=RTMPS_HOST, port=RTMPS_PORT, ssl_context=ssl_context)
     logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL.")
+    logger.info(f"Using Twitch ingest server location: {twitch_server}")
     await server.start()
     await server.wait_closed()
 
 if __name__ == "__main__":
     try:
-        asyncio.run(start_rtmp_server())
+        args = parse_args()
+        # Validate server selection
+        if args.server not in TWITCH_INGEST_SERVERS:
+            logger.warning(f"Invalid server location: {args.server}. Using default: {DEFAULT_INGEST_SERVER}")
+            server_location = DEFAULT_INGEST_SERVER
+        else:
+            server_location = args.server
+        asyncio.run(start_rtmp_server(server_location))
     except KeyboardInterrupt:
         logger.info("Server shutdown gracefully due to CTRL+C")
