@@ -157,7 +157,7 @@ class RTMP2FLVController(SimpleRTMPController):
         session.twitch_key = twitch_key
         session.ffmpeg_process = None
         if forward_to_twitch:
-            twitch_url = f"rtmp://syd03.contribute.live-video.net/app/{twitch_key}"
+            twitch_url = f"rtmps://syd03.contribute.live-video.net/app/{twitch_key}"
             asyncio.create_task(self.forward_to_twitch(session, twitch_url))
         await super().on_ns_publish(session, message)
 
