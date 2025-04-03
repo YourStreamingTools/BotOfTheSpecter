@@ -120,11 +120,10 @@ function getS3Files($bucketName) {
                 // Format creation date
                 $createdAt = date('d-m-Y H:i:s', $lastModified);
                 $files[] = [
-                    'name' => basename($key),
+                    'name' => pathinfo(basename($key), PATHINFO_FILENAME),
                     'size' => $size,
                     'created_at' => $createdAt,
-                    'path' => $key,
-                    'duration' => 'N/A'
+                    'path' => $key
                 ];
             }
         }
@@ -258,7 +257,6 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                     <thead>
                         <tr>
                             <th class="has-text-centered">File Name</th>
-                            <th class="has-text-centered">Duration</th>
                             <th class="has-text-centered">Upload Date</th>
                             <th class="has-text-centered">Size</th>
                             <th class="has-text-centered">Actions</th>
@@ -267,17 +265,16 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                     <tbody>
                         <?php if ($persistent_storage_error): ?>
                             <tr>
-                                <td colspan="5" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
+                                <td colspan="4" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
                             </tr>
                         <?php elseif (empty($persistent_storage_files)): ?>
                             <tr>
-                                <td colspan="5" class="has-text-centered">No files found in persistent storage</td>
+                                <td colspan="4" class="has-text-centered">No files found in persistent storage</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($persistent_storage_files as $file): ?>
                             <tr>
                                 <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
-                                <td class="has-text-centered"><?php echo htmlspecialchars($file['duration']); ?></td>
                                 <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
                                 <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
                                 <td class="has-text-centered">
