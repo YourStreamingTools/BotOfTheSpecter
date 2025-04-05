@@ -281,8 +281,8 @@ if ($selected_server == 'au-east-1') {
         $storage_error = "US-WEST-1 server connection information not configured.";
     }
 } elseif ($selected_server == 'us-east-1') {
-    $recording_dir = "/home/specter/"; // Base directory for US-EAST-1
-    $user_dir = "/home/specter/$username";  // User-specific directory for US-EAST-1
+    $recording_dir = "/mnt/stream-us-east-1/"; // Base directory for US-EAST-1
+    $user_dir = "/mnt/stream-us-east-1/$username";  // User-specific directory for US-EAST-1
     if (!empty($storage_server_us_east_1_host) && !empty($storage_server_us_east_1_username) && !empty($storage_server_us_east_1_password)) {
         $result = getStorageFiles(
             $storage_server_us_east_1_host, 
