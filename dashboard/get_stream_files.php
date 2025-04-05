@@ -168,6 +168,28 @@ if ($selected_server == 'au-east-1') {
     } else {
         $storage_error = "Server connection information not configured.";
     }
+} elseif ($selected_server == 'us-east-1') {
+    $recording_dir = "/home/specter/"; // Base directory for US-EAST-1
+    $user_dir = "/home/specter/$username";  // User-specific directory for US-EAST-1
+    if (!empty($storage_server_us_east_1_host) && !empty($storage_server_us_east_1_username) && !empty($storage_server_us_east_1_password)) {
+        $result = getStorageFiles(
+            $storage_server_us_east_1_host, 
+            $storage_server_us_east_1_username, 
+            $storage_server_us_east_1_password, 
+            $user_dir,
+            $api_key,
+            $recording_dir
+        );
+        if (isset($result['error'])) {
+            $storage_error = $result['error'];
+        } else {
+            $storage_files = $result;
+        }
+    } else {
+        $storage_error = "Server connection information not configured.";
+    }
+} else {
+    $storage_error = "Invalid server selected.";
 }
 
 // Generate HTML for the files table
