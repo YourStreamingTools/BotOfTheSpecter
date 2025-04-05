@@ -45,6 +45,11 @@ load_dotenv()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 log_file = os.path.join(current_dir, "stream_server.log")
 
+# Create the log file if it doesn't exist
+if not os.path.exists(log_file):
+    with open(log_file, 'w') as f:
+        pass
+
 # Logging Configuration
 logging.basicConfig(
     filename=log_file,
