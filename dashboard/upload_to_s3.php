@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'host' => $storage_server_us_east_1_host,
             'username' => $storage_server_us_east_1_username,
             'password' => $storage_server_us_east_1_password,
-            'recording_dir' => '/home/specter/'
+            'recording_dir' => '/mnt/stream-us-east-1/'
         ]
     ];
 
