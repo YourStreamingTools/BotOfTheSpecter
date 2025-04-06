@@ -143,6 +143,7 @@ for logger in loggers.values():
     logger.info(startup_msg)
 
 # Setup Globals
+global bot_owner
 global stream_online
 global current_game
 global stream_title
@@ -154,7 +155,10 @@ global HEARTRATE
 global TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
 global TWITCH_SHOUTOUT_USER_COOLDOWN
 global last_shoutout_time
-global bot_owner
+global shoutout_user
+global last_message_time
+global next_ad_break_time
+global last_ad_break_time
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()                         # Translator instance 
@@ -185,7 +189,6 @@ HEARTRATE = None                                        # Current heart rate val
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
-shoutout_user = None                                    # Tracks the last shoutout user
 bot_owner = "gfaundead"                                 # Bot owner's username
 
 # Function to handle termination signals
@@ -845,8 +848,8 @@ async def process_twitch_eventsub_message(message):
                     asyncio.create_task(process_channel_point_rewards(event_data, event_type))
                 # Poll Event
                 elif event_type in ["channel.poll.begin", "channel.poll.end"]:
-                    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
                     if event_type == "channel.poll.begin":
+                        poll_id = event_data.get("id")
                         poll_title = event_data.get("title")
                         poll_ends_at = datetime.fromisoformat(event_data["ends_at"].replace("Z", "+00:00"))
                         utc_now = datetime.now(timezone.utc)
@@ -859,8 +862,7 @@ async def process_twitch_eventsub_message(message):
                             message = f"Poll '{poll_title}' has started! Poll ending in {int(minutes)} minutes."
                         else:
                             message = f"Poll '{poll_title}' has started! Poll ending in {int(seconds)} seconds."
-                        await channel.send(message)
-                        asyncio.create_task(send_poll_halfway_notification(half_time, poll_title))
+                        asyncio.create_task(handel_twitch_poll(event="poll.begin", poll_title=poll_title, half_time=half_time, message=message))
                     elif event_type == "channel.poll.end":
                         poll_id = event_data.get("id")
                         poll_title = event_data.get("title")
@@ -873,7 +875,7 @@ async def process_twitch_eventsub_message(message):
                                 "total_votes": choice.get("votes", 0)
                             })
                         sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
-                        await channel.send(f"The poll '{poll_title}' has ended!")
+                        message = f"The poll '{poll_title}' has ended!"
                         await cursor.execute("INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s)", (poll_id, poll_title))
                         await sqldb.commit()
                         sql_options = ["one", "two", "three", "four", "five"]
@@ -881,6 +883,7 @@ async def process_twitch_eventsub_message(message):
                         params = [sorted_choices[i]["title"] if i < len(sorted_choices) else None for i in range(len(sql_options))] + [poll_id]
                         await cursor.execute(sql_query, params)
                         await sqldb.commit()
+                        asyncio.create_task(handel_twitch_poll(event="poll.end", poll_title=poll_title, message=message))
                 # Stream Online/Offline Event
                 elif event_type in ["stream.online", "stream.offline"]:
                     if event_type == "stream.online":
@@ -1139,7 +1142,6 @@ class TwitchBot(commands.Bot):
         asyncio.get_event_loop().create_task(specter_websocket())
         asyncio.get_event_loop().create_task(hyperate_websocket())
         asyncio.get_event_loop().create_task(connect_to_tipping_services())
-        asyncio.get_event_loop().create_task(timed_message())
         asyncio.get_event_loop().create_task(midnight())
         asyncio.get_event_loop().create_task(shoutout_worker())
         asyncio.get_event_loop().create_task(periodic_watch_time_update())
@@ -2472,20 +2474,23 @@ class TwitchBot(commands.Bot):
                 async with search_session.get(search_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        if data and data["tracks"]["items"]:
-                            song_id = data["tracks"]["items"][0]["uri"]
-                            song_name = data["tracks"]["items"][0]["name"]
-                            artist_name = data["tracks"]["items"][0]["artists"][0]["name"]
-                            api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
-                            song_requests[song_id] = {
-                                "user": ctx.message.author.name,
-                                "song_name": song_name,
-                                "artist_name": artist_name,
-                                "timestamp": datetime.now()
-                            }
-                        else:
-                            await ctx.send(f"No song found: {message_content}")
-                            return
+                        tracks = data.get("tracks", {}).get("items", [])
+                        for track in tracks:
+                            song_id = track["uri"]
+                            song_name = track["name"]
+                            artist_name = track["artists"][0]["name"]
+                            # Check if the song is an instrumental version
+                            if "instrumental" not in song_name.lower() and "instrumental" not in artist_name.lower():
+                                api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
+                                song_requests[song_id] = {
+                                    "user": ctx.message.author.name,
+                                    "song_name": song_name,
+                                    "artist_name": artist_name,
+                                    "timestamp": datetime.now()
+                                }
+                            else:
+                                await ctx.send(f"No song found: {message_content}")
+                                return
                     else:
                         # Map Spotify API response codes to plain English explanations
                         SPOTIFY_ERROR_MESSAGES = {
@@ -5696,6 +5701,7 @@ async def process_stream_online_websocket():
     global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
     stream_online = True
     asyncio.get_event_loop().create_task(timed_message())
+    asyncio.get_event_loop().create_task(handle_upcoming_ads())
     await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
@@ -5882,12 +5888,18 @@ async def handle_chat_message(messageAuthor):
                 asyncio.create_task(send_timed_message(message_id, message, wait_time))
 
 async def send_timed_message(message_id, message, delay):
-    global stream_online
+    global stream_online, last_message_time
     await asyncio.sleep(delay)
     if stream_online:
+        # Ensure a delay between consecutive messages
+        current_time = asyncio.get_event_loop().time()
+        if 'last_message_time' in globals() and current_time - last_message_time < delay:
+            wait_time = delay - (current_time - last_message_time)
+            await asyncio.sleep(wait_time)
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         await channel.send(message)
+        last_message_time = asyncio.get_event_loop().time()
     else:
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
@@ -6119,19 +6131,28 @@ async def handle_ad_break_start(duration_seconds):
         handle_ad_break_end.start(channel)
 
 # Fcuntion for POLLS
-async def send_poll_halfway_notification(half_time, poll_title):
-    await asyncio.sleep(half_time.total_seconds())
+async def handel_twitch_poll(event=None, poll_title=None, half_time=None, message=None):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     if not channel:
         return
-    minutes, seconds = divmod(int(half_time.total_seconds()), 60)
-    if minutes and seconds:
-        time_left = f"{minutes} minutes and {seconds} seconds"
-    elif minutes:
-        time_left = f"{minutes} minutes"
-    else:
-        time_left = f"{seconds} seconds"
-    await channel.send(f"The poll '{poll_title}' is halfway through! You have {time_left} left to cast your vote.")
+    if event == "poll.start":
+        await channel.send(message)
+        half_time = int(half_time.total_seconds()), 60
+        minutes, seconds = divmod(half_time)
+        if minutes and seconds:
+            time_left = f"{minutes} minutes and {seconds} seconds"
+        elif minutes:
+            time_left = f"{minutes} minutes"
+        else:
+            time_left = f"{seconds} seconds"
+        half_way_message = f"The poll '{poll_title}' is halfway through! You have {time_left} left to cast your vote."
+        @routines.routine(seconds=half_time, iterations=1, wait_first=True)
+        async def handel_twitch_poll_half_message(channel):
+            await channel.send(half_way_message)
+        handel_twitch_poll_half_message.start(channel)
+    elif event == "poll.end":
+        await channel.send(message)
+        handel_twitch_poll_half_message.cancel()
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
@@ -6848,6 +6869,8 @@ async def check_stream_online():
                 with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
                     file.write('False')
             else:
+                asyncio.get_event_loop().create_task(timed_message())
+                asyncio.get_event_loop().create_task(handle_upcoming_ads())
                 # Stream is online, extract the game name
                 stream_online = True
                 game = data['data'][0].get('game_name', None)
@@ -7795,6 +7818,42 @@ async def remove_shoutout_user(username: str, delay: int):
     if shoutout_user:
         chat_logger.info(f"Removed temporary shoutout data for {username}")
         shoutout_user = None
+
+# Handel upcoming Twitch Ads
+async def handle_upcoming_ads():
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online, next_ad_break_time, last_ad_break_time
+    channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+    time_now = datetime.now(pytz.timezone("UTC"))
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+    while True:
+        await asyncio.sleep(60)
+        if stream_online:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ads_data = data.get("data", [])
+                        if ads_data:
+                            next_ad_str = ads_data[0].get("next_ad_break_time")
+                            last_ad_str = ads_data[0].get("last_ad_break_time")
+                            if next_ad_str and isinstance(next_ad_str, str):
+                                next_ad_break_time = datetime.fromtimestamp(int(next_ad_str), tz=pytz.timezone("UTC"))
+                                last_ad_break_time = datetime.fromtimestamp(int(last_ad_str), tz=pytz.timezone("UTC"))
+                                time_to_ad_seconds = int((next_ad_break_time - time_now).total_seconds())
+                                if last_ad_break_time < time_now and 0 < next_ad_break_time <=300:
+                                    # Check if the ad break is within 5 minutes
+                                    time_to_ad_minutes = time_to_ad_seconds // 60
+                                    if time_to_ad_minutes <= 5:
+                                        # Send a message to the channel about the upcoming ad break
+                                        await channel.send(f"Upcoming ad break in {time_to_ad_minutes} minutes!")
+                        else:
+                            bot_logger.warning("No ad data found.")
+        else:
+            return
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
