@@ -7854,7 +7854,8 @@ async def handle_upcoming_ads():
                         else:
                             api_logger.warning("No ad data found.")
         else:
-            api_logger.info("Stream is offline, skipping ad check.")
+            continue
+            #api_logger.info("Stream is offline, skipping ad check.")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
