@@ -74,3 +74,4 @@ bot/__pycache__/
 /stream/ssl
 stream/.env
 stream/stream.service
+/cdn/music
