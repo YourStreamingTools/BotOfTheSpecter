@@ -7823,7 +7823,6 @@ async def remove_shoutout_user(username: str, delay: int):
 async def handle_upcoming_ads():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online, next_ad_break_time, last_ad_break_time
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    time_now = datetime.now(pytz.timezone("UTC"))
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -7831,6 +7830,7 @@ async def handle_upcoming_ads():
     url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
     while True:
         await asyncio.sleep(60)
+        time_now = datetime.now(pytz.timezone("UTC"))
         if stream_online:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
@@ -7844,16 +7844,17 @@ async def handle_upcoming_ads():
                                 next_ad_break_time = datetime.fromtimestamp(int(next_ad_str), tz=pytz.timezone("UTC"))
                                 last_ad_break_time = datetime.fromtimestamp(int(last_ad_str), tz=pytz.timezone("UTC"))
                                 time_to_ad_seconds = int((next_ad_break_time - time_now).total_seconds())
-                                if last_ad_break_time < time_now and 0 < next_ad_break_time <=300:
-                                    # Check if the ad break is within 5 minutes
-                                    time_to_ad_minutes = time_to_ad_seconds // 60
+                                # Check if the ad break is within 5 minutes
+                                time_to_ad_minutes = time_to_ad_seconds // 60
+                                api_logger.info(f"Next ad break in {time_to_ad_minutes} minutes.")
+                                if last_ad_break_time < time_now and 0 < time_to_ad_seconds <= 300:
                                     if time_to_ad_minutes <= 5:
-                                        # Send a message to the channel about the upcoming ad break
-                                        await channel.send(f"Upcoming ad break in {time_to_ad_minutes} minutes!")
+                                            # Send a message to the channel about the upcoming ad break
+                                            await channel.send(f"Upcoming ad break in {time_to_ad_minutes} minutes!")
                         else:
-                            bot_logger.warning("No ad data found.")
+                            api_logger.warning("No ad data found.")
         else:
-            return
+            api_logger.info("Stream is offline, skipping ad check.")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
