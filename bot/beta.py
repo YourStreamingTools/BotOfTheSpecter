@@ -7830,32 +7830,30 @@ async def handle_upcoming_ads():
     url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
     while True:
         await asyncio.sleep(60)
-        time_now = datetime.now(pytz.timezone("UTC"))
-        if stream_online:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        ads_data = data.get("data", [])
-                        if ads_data:
-                            next_ad_str = ads_data[0].get("next_ad_break_time")
-                            last_ad_str = ads_data[0].get("last_ad_break_time")
-                            if next_ad_str and isinstance(next_ad_str, str):
-                                next_ad_break_time = datetime.fromtimestamp(int(next_ad_str), tz=pytz.timezone("UTC"))
-                                last_ad_break_time = datetime.fromtimestamp(int(last_ad_str), tz=pytz.timezone("UTC"))
-                                time_to_ad_seconds = int((next_ad_break_time - time_now).total_seconds())
-                                # Check if the ad break is within 5 minutes
-                                time_to_ad_minutes = time_to_ad_seconds // 60
-                                api_logger.info(f"Next ad break in {time_to_ad_minutes} minutes.")
-                                if last_ad_break_time < time_now and 0 < time_to_ad_seconds <= 300:
-                                    if time_to_ad_minutes <= 5:
-                                            # Send a message to the channel about the upcoming ad break
-                                            await channel.send(f"Upcoming ad break in {time_to_ad_minutes} minutes!")
-                        else:
-                            api_logger.warning("No ad data found.")
-        else:
+        if not stream_online:
             continue
-            #api_logger.info("Stream is offline, skipping ad check.")
+        time_now = datetime.now(pytz.timezone("UTC"))
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    ads_data = data.get("data", [])
+                    if ads_data:
+                        next_ad_str = ads_data[0].get("next_ad_break_time")
+                        last_ad_str = ads_data[0].get("last_ad_break_time")
+                        if next_ad_str and isinstance(next_ad_str, str):
+                            next_ad_break_time = datetime.fromtimestamp(int(next_ad_str), tz=pytz.timezone("UTC"))
+                            last_ad_break_time = datetime.fromtimestamp(int(last_ad_str), tz=pytz.timezone("UTC"))
+                            time_to_ad_seconds = int((next_ad_break_time - time_now).total_seconds())
+                            time_to_ad_minutes = time_to_ad_seconds // 60
+                            api_logger.info(f"Next ad break in {time_to_ad_minutes} minutes.")
+                            if last_ad_break_time < time_now and 0 < time_to_ad_seconds <= 300:
+                                if time_to_ad_minutes <= 5:
+                                    await channel.send(f"Upcoming ad break in {time_to_ad_minutes} minutes!")
+                    else:
+                        api_logger.warning("No ad data found.")
+                else:
+                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
