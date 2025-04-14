@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // Initialize the session
 session_start();
 
@@ -24,24 +20,15 @@ $profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
 $timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
-// Use broadcaster's information instead of moderator's
-$cacheUsername = $_SESSION['editing_username'];;
-
-// Fetch the total number of users in the seen_users table for the broadcaster
-$totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users WHERE broadcaster_id = :broadcaster_id");
-$totalUsersSTMT->bindParam(':broadcaster_id', $_SESSION['editing_user']);
+// Fetch the total number of users in the seen_users table
+$totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users");
 $totalUsersSTMT->execute();
 $totalUsersResult = $totalUsersSTMT->fetch(PDO::FETCH_ASSOC);
 $totalUsers = $totalUsersResult['total_users'];
 
-// Fetch seen users data for the broadcaster
-$seenUsersSTMT = $db->prepare("SELECT * FROM seen_users WHERE broadcaster_id = :broadcaster_id");
-$seenUsersSTMT->bindParam(':broadcaster_id', $_SESSION['editing_user']);
-$seenUsersSTMT->execute();
-$seenUsersData = $seenUsersSTMT->fetchAll(PDO::FETCH_ASSOC);
-
 // Cache for banned users
-$cacheExpiration = 600; // Cache expires after 10 minutes
+$cacheUsername = $_SESSION['editing_username'];
+$cacheExpiration = 86400; // Cache expires after 24 hours
 $cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
 
@@ -54,6 +41,9 @@ if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration
     if ($cacheContent) {
         $bannedUsersCache = json_decode($cacheContent, true);
     }
+} else {
+    // Clear the cache if it is expired
+    $bannedUsersCache = [];
 }
 
 // Handle POST requests for updates
@@ -178,6 +168,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <script>
 const totalUsers = <?php echo $totalUsers; ?>;
 let loadedUsers = 0;
+const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
   // Initialize the editing functionality
@@ -206,7 +197,24 @@ function fetchBannedStatuses() {
   let remainingRequests = usernames.length;
   usernames.forEach(usernameElement => {
     const username = usernameElement.dataset.username;
-    fetchBannedStatus(username, usernameElement, () => {
+    if (!(username in bannedUsersCache)) {
+      fetchBannedStatus(username, usernameElement, () => {
+        remainingRequests--;
+        loadedUsers++;
+        updateLoadingNotice();
+        if (remainingRequests === 0) {
+          const loadingNoticeBox = document.getElementById('loadingNoticeBox');
+          const loadingNotice = document.getElementById('loadingNotice');
+          loadingNotice.innerText = 'Loading completed, you can start editing';
+          loadingNoticeBox.classList.remove('is-warning');
+          loadingNoticeBox.classList.add('is-success');
+          setTimeout(() => {
+            loadingNoticeBox.style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+          }, 2000); // Show the success message for 2 seconds before hiding it
+        }
+      });
+    } else {
       remainingRequests--;
       loadedUsers++;
       updateLoadingNotice();
@@ -221,7 +229,7 @@ function fetchBannedStatuses() {
           document.getElementById('content').style.display = 'block';
         }, 2000); // Show the success message for 2 seconds before hiding it
       }
-    });
+    }
   });
 }
 
@@ -249,23 +257,19 @@ function fetchBannedStatus(username, usernameElement, callback) {
           console.log(`${username} is not banned`);
         }
         // Update the cache
-        const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
         bannedUsersCache[username] = response.banned;
-        if (Object.keys(bannedUsersCache).length > 0) {
-            fetch('update_banned_users_cache.php', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(bannedUsersCache)
-            }).then(res => res.json()).then(data => {
-              console.log('Cache updated', data);
-            }).catch(error => {
-              console.error('Error updating cache', error);
-            });
-        } else {
-            console.error('Error: Cache update attempt with empty data.');
-        }
+        // Update the cache file with new data
+        fetch('update_banned_users_cache.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bannedUsersCache)
+        }).then(res => res.json()).then(data => {
+          console.log('Cache updated', data);
+        }).catch(error => {
+          console.error('Error updating cache', error);
+        });
       } else {
         console.log(`Error fetching banned status for ${username}: ${xhr.status}`);
       }
