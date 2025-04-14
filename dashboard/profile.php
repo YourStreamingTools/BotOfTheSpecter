@@ -303,7 +303,7 @@ if ($is_admin) {
       </button>
       <button type="button" class="button is-primary" id="regen-api-key-open" style="width: 180px;">Regenerate API Key</button>
     </div>
-    <div class="column bot-box is-4">
+    <div class="column bot-box is-5">
       <h4 class="label is-4">Update Profile</h4>
       <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
         <input type="hidden" name="form" value="profile">
@@ -353,7 +353,7 @@ if ($is_admin) {
         Heart Rate in chat via Specter is powered by: <a href="https://www.hyperate.io/" target="_blank">HypeRate.io</a>
       </form>
     </div>
-    <div class="column bot-box is-4">
+    <div class="column bot-box is-5">
       <h4 class="label is-4">Storage Used</h4>
       <div class="progress-bar-container">
         <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
