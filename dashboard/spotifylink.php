@@ -17,6 +17,7 @@ require_once "/var/www/config/spotify.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
+include "mod_access.php";
 foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
   $weather = $profile['weather_location'];
