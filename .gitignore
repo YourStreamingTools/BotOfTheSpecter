@@ -75,3 +75,4 @@ bot/__pycache__/
 stream/.env
 stream/stream.service
 /cdn/music
+/cache
