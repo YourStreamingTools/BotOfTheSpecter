@@ -169,8 +169,8 @@
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-coffee"></i></span>
 						<span>Ko-Fi</span>
 					</a>
-					<a class="navbar-item" href="../integrations.php#patreon" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-patreon"></i></span>
+					<a class="navbar-item" href="../integrations.php" style="display: flex; align-items: center;">
+						<span class="icon" style="margin-right: 5px;"><i class="fa-brands fa-patreon"></i></span>
 						<span>Patreon</span>
 					</a>
 				</div>
