@@ -14,11 +14,6 @@ $stmt->execute();
 $result = $stmt->get_result();
 $row = $result->fetch_assoc();
 
-// Check if the user has access
-if ($row['access_count'] == 0) {
-    die("Access Denied: You do not have permission to access this panel.");
-}
-
 // Fetch channels the user can moderate
 $query = "SELECT u.twitch_display_name, u.profile_image, u.twitch_user_id FROM moderator_access ma JOIN users u ON ma.broadcaster_id = u.twitch_user_id WHERE ma.moderator_id = ?";
 $stmt = $conn->prepare($query);
