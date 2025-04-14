@@ -16,6 +16,7 @@ require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
+include "mod_access.php";
 date_default_timezone_set($timezone);
 
 // Define plans with features
