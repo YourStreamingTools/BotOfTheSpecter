@@ -5893,9 +5893,12 @@ async def send_timed_message(message_id, message, delay):
     if stream_online:
         # Ensure a delay between consecutive messages
         current_time = asyncio.get_event_loop().time()
-        if 'last_message_time' in globals() and current_time - last_message_time < delay:
-            wait_time = delay - (current_time - last_message_time)
-            await asyncio.sleep(wait_time)
+        if 'last_message_time' in globals():
+            minimum_gap = 60
+            if current_time - last_message_time < minimum_gap:
+                wait_time = minimum_gap - (current_time - last_message_time)
+                chat_logger.info(f"Waiting {wait_time} more seconds before sending Timed Message ID: {message_id}")
+                await asyncio.sleep(wait_time)
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
         await channel.send(message)
