@@ -384,7 +384,6 @@ date_default_timezone_set($timezone);
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
 function openModal(modalId) {
     document.getElementById(modalId).classList.add('is-active');
@@ -498,32 +497,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 
-// Function to send a stream event
-function sendStreamEvent(eventType, fileName) {
-    const xhr = new XMLHttpRequest();
-    const url = "notify_event.php";
-    const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
-    xhr.open("POST", url, true);
-    xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                    console.log(`${eventType} event for ${fileName} sent successfully.`);
-                } else {
-                    console.error(`Error sending ${eventType} event: ${response.message}`);
-                }
-            } catch (e) {
-                console.error("Error parsing JSON response:", e);
-                console.error("Response:", xhr.responseText);
-            }
-        } else if (xhr.readyState === 4) {
-            console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
-        }
-    };
-    xhr.send(params);
-}
 </script>
 </body>
 </html>
