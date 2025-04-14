@@ -52,6 +52,8 @@ $broadcasterName = $broadcasterInfo['twitch_display_name'];
 $broadcasterImage = $broadcasterInfo['profile_image'];
 $broadcasterUsername = $broadcasterInfo['username'];
 $_SESSION['editing_user'] = $broadcasterId;
+$_SESSION['editing_username'] = $broadcasterUsername;
+$_SESSION['editing_display_name'] = $broadcasterName;
 $twitchDisplayName = $broadcasterName;
 $twitch_profile_image_url = $broadcasterImage;
 ?>
