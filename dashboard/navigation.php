@@ -191,7 +191,7 @@
 				</a>
 				<div class="navbar-dropdown">
 					<?php foreach ($modChannels as $channel): ?>
-						<a class="navbar-item" style="display: flex; align-items: center;">
+						<a class="navbar-item" href="https://dashboard.botofthespecter.com/moderator/?broadcaster_id=<?php echo urlencode($channel['twitch_user_id']); ?>" style="display: flex; align-items: center;">
 							<figure class="image is-30x30" style="margin-right: 10px;">
 								<img class="is-rounded" src="<?php echo htmlspecialchars($channel['profile_image']); ?>" alt="<?php echo htmlspecialchars($channel['twitch_display_name']); ?> Profile Image" style="object-fit: cover; width: 30px; height: 30px;">
 							</figure>
