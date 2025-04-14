@@ -10,7 +10,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$title = "Dashboard";
+$title = "Moderator Dashboard";
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -24,6 +24,15 @@ $channelData = $stmt->fetch(PDO::FETCH_ASSOC);
 $timezone = $channelData['timezone'] ?? 'UTC';
 date_default_timezone_set($timezone);
 $currentDateTime = new DateTime('now');
+
+$activeStatus = "Offline";
+$stream_title = 'No Title';
+$gameName = 'Not Playing';
+$isLive = false;
+$commandCount = 0;
+$enabledCommandCount = 0;
+$disabledCommandCount = 0;
+$timerCount = 0;
 
 // Function to get channel status from Twitch API
 function getChannelStatus($login) {
@@ -60,6 +69,32 @@ function getChannelStatus($login) {
 // Get channel information
 $channelResponse = getChannelStatus($_SESSION['editing_display_name']);
 $channelInfo = $channelResponse['data'];
+if ($channelInfo) {
+  $stream_title = $channelInfo['title'] ?? 'No Title';
+  $gameName = $channelInfo['game_name'] ?? 'Not Playing';
+  $isLive = $channelInfo['is_live'] ?? false;
+  $activeStatus = $isLive ? "Live" : "Offline";
+}
+
+// Count custom commands
+$commandCountStmt = $db->prepare("SELECT COUNT(*) FROM custom_commands");
+$commandCountStmt->execute();
+$commandCount = $commandCountStmt->fetchColumn();
+
+// Count enabled custom commands
+$enabledCommandStmt = $db->prepare("SELECT COUNT(*) FROM custom_commands WHERE status = 'Enabled'");
+$enabledCommandStmt->execute();
+$enabledCommandCount = $enabledCommandStmt->fetchColumn();
+
+// Count disabled custom commands
+$disabledCommandStmt = $db->prepare("SELECT COUNT(*) FROM custom_commands WHERE status = 'Disabled'");
+$disabledCommandStmt->execute();
+$disabledCommandCount = $disabledCommandStmt->fetchColumn();
+
+// Count timers
+$timerCountStmt = $db->prepare("SELECT COUNT(*) FROM timed_messages");
+$timerCountStmt->execute();
+$timerCount = $timerCountStmt->fetchColumn();
 ?>
 <!doctype html>
 <html lang="en">
@@ -96,37 +131,26 @@ $channelInfo = $channelResponse['data'];
       <div class="box">
         <h3 class="title is-4">Channel Overview</h3>
         <div class="columns">
-          <?php
-          $commandCount = 0;
-          $timerCount = 0;
-          $activeStatus = "Offline";
-          $title = 'No Title';
-          $gameName = 'Not Playing';
-          $tags = [];
-          $isLive = false;
-          if ($channelInfo) {
-            $title = $channelInfo['title'] ?? 'No Title';
-            $gameName = $channelInfo['game_name'] ?? 'Not Playing';
-            $tags = $channelInfo['tags'] ?? [];
-            $isLive = $channelInfo['is_live'] ?? false;
-            $activeStatus = $isLive ? "Live" : "Offline";
-          }
-          ?>
           <div class="column has-text-centered">
-            <p class="heading">Commands</p>
+            <p class="heading">Custom Commands</p>
             <p class="title"><?php echo $commandCount; ?></p>
+            <p class="subtitle is-size-6">
+              <span class="has-text-success"><?php echo $enabledCommandCount; ?> Enabled</span>
+              &nbsp;/&nbsp;
+              <span class="has-text-danger"><?php echo $disabledCommandCount; ?> Disabled</span>
+            </p>
           </div>
           <div class="column has-text-centered">
             <p class="heading">Timers</p>
             <p class="title"><?php echo $timerCount; ?></p>
           </div>
           <div class="column has-text-centered">
-            <p class="heading">Bot Status</p>
+            <p class="heading">Online Status</p>
             <p class="title"><?php echo $activeStatus; ?></p>
           </div>
         </div>
         <div class="mt-4">
-          <p><span>Stream Title:</span> <?php echo htmlspecialchars($title); ?></p>
+          <p><span>Stream Title:</span> <?php echo htmlspecialchars($stream_title); ?></p>
           <p><span>Game/Category:</span> <?php echo htmlspecialchars($gameName); ?></p>
         </div>
       </div>
