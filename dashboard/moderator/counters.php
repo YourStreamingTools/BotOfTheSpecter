@@ -9,17 +9,15 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page title
-$title = "Bot Counters";
+$title = "Counters and Information";
 
-// Include all the information
-require_once "db_connect.php";
-include 'userdata.php';
-include 'bot_control.php';
+// Include files for database and user data
+require_once "/var/www/config/db_connect.php";
+include 'modding_access.php';
 include 'user_db.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+$getProfile = $db->query("SELECT timezone FROM profile");
+$profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
+$timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
 try {
@@ -114,25 +112,30 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 
 <div class="container">
   <br>
-  <div class="buttons">
+  <h1 class="title is-2">System Counters and Information</h1>
+  <br>
+  <div class="buttons is-centered">
     <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
     <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
     <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
     <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
     <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
-    <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
+    <button class="button is-info" onclick="loadData('highfives')">High-Five Counts</button>
+    <button class="button is-info" onclick="loadData('customCounts')">Custom Counts</button>
     <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
-    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button> 
+    <button class="button is-info" onclick="loadData('rewardCounts')">Reward Counts</button>
+    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
+    <button class="button is-info" onclick="loadData('quotes')">Quotes</button>
   </div>
   <div class="content">
     <div class="box">
-      <h3 id="table-title" class="title" style="color: white;">User Counts for Commands</h3>
+      <h3 id="table-title" class="title" style="color: white;"></h3>
       <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            <th id="info-column-data" style="color: white; width: 33%;">User</th>
-            <th id="data-column-info" style="color: white; width: 33%;">Command</th>
-            <th id="count-column" style="color: white; width: 33%; display: none;">Count</th>
+            <th id="info-column-data" style="color: white; width: 33%;"></th>
+            <th id="data-column-info" style="color: white; width: 33%;"></th>
+            <th id="count-column" style="color: white; width: 33%; display: none;"></th>
           </tr>
         </thead>
         <tbody id="table-body">
@@ -144,12 +147,39 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadData('lurkers');
+});
+
+function formatWatchTime(seconds) {
+  if (seconds === 0) {
+    return "<span class='has-text-danger'>Not Recorded</span>";
+  }
+  const units = {
+      year: 31536000,
+      month: 2592000,
+      day: 86400,
+      hour: 3600,
+      minute: 60
+  };
+  const parts = [];
+  for (const [name, divisor] of Object.entries(units)) {
+      const quotient = Math.floor(seconds / divisor);
+      if (quotient > 0) {
+          parts.push(`${quotient} ${name}${quotient > 1 ? 's' : ''}`);
+          seconds -= quotient * divisor;
+      }
+  }
+  return `<span class='has-text-success'>${parts.join(', ')}</span>`;
+}
+
 function loadData(type) {
   let data;
   let title;
   let dataColumn;
   let infoColumn;
   let countColumnVisible = false;
+  let additionalColumnName;
   let output = '';
   switch(type) {
     case 'lurkers':
@@ -167,22 +197,28 @@ function loadData(type) {
     case 'deaths':
       data = <?php echo json_encode($gameDeaths); ?>;
       title = 'Deaths Overview';
-      dataColumn = 'Death Count';
+      dataColumn = 'Count';
       infoColumn = 'Game'; 
       break;
     case 'hugs':
       data = <?php echo json_encode($hugCounts); ?>;
       title = 'Hug Counts';
-      dataColumn = 'Hug Count';
+      dataColumn = 'Count';
       infoColumn = 'Username'; 
       break;
     case 'kisses':
       data = <?php echo json_encode($kissCounts); ?>;
       title = 'Kiss Counts';
-      dataColumn = 'Kiss Count';
+      dataColumn = 'Count';
       infoColumn = 'Username'; 
       break;
-    case 'custom':
+    case 'highfives':
+      data = <?php echo json_encode($highfiveCounts); ?>;
+      title = 'High-Five Counts';
+      dataColumn = 'Count';
+      infoColumn = 'Username'; 
+      break;
+    case 'customCounts':
       data = <?php echo json_encode($customCounts); ?>;
       title = 'Custom Counts';
       dataColumn = 'Used';
@@ -190,43 +226,68 @@ function loadData(type) {
       break;
     case 'userCounts':
       data = <?php echo json_encode($userCounts); ?>;
-      title = 'User Counts for Commands';
-      dataColumn = 'Count';
-      infoColumn = 'Command'; 
       countColumnVisible = true;
+      title = 'User Counts for Commands';
+      infoColumn = 'Username';
+      dataColumn = 'Command';
+      additionalColumnName = 'Count';
+      break;
+    case 'rewardCounts':
+      data = <?php echo json_encode($rewardCounts); ?>;
+      countColumnVisible = true;
+      title = 'Reward Counts';
+      infoColumn = 'Reward Name';
+      dataColumn = 'Username';
+      additionalColumnName = 'Count';
       break;
     case 'watchTime': 
       data = <?php echo json_encode($watchTimeData); ?>;
       title = 'Watch Time';
-      dataColumn = 'Total Watch Time';
       infoColumn = 'Username';
+      dataColumn = 'Online Watch Time';
+      additionalColumnName = 'Offline Watch Time';
+      countColumnVisible = true;
+      data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+      break;
+    case 'quotes':
+      data = <?php echo json_encode($quotesData); ?>;
+      title = 'Quotes';
+      infoColumn = 'ID';
+      dataColumn = 'What was said';
       break;
   }
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
   if (countColumnVisible) {
     document.getElementById('count-column').style.display = '';
+    document.getElementById('count-column').innerText = additionalColumnName;
   } else {
     document.getElementById('count-column').style.display = 'none';
   }
   data.forEach(item => {
     output += `<tr>`;
     if (type === 'lurkers') {
-      output += `<td>${item.username}</td><td>${item.lurk_duration}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`;
     } else if (type === 'typos') {
-      output += `<td>${item.username}</td><td>${item.typo_count}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`;
     } else if (type === 'deaths') {
-      output += `<td>${item.game_name}</td><td>${item.death_count}</td>`; 
+      output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`;
     } else if (type === 'hugs') {
-      output += `<td>${item.username}</td><td>${item.hug_count}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`;
     } else if (type === 'kisses') {
-      output += `<td>${item.username}</td><td>${item.kiss_count}</td>`; 
-    } else if (type === 'custom') {
-      output += `<td>${item.command}</td><td>${item.count}</td>`; 
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`;
+    } else if (type === 'highfives') {
+      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.highfive_count}</span></td>`;
+    } else if (type === 'customCounts') {
+      output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'userCounts') {
-      output += `<td>${item.user}</td><td>${item.command}</td><td>${item.count}</td>`; 
+      output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`;
+    } else if (type === 'rewardCounts') {
+      output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
     } else if (type === 'watchTime') { 
-      output += `<td>${item.username}</td><td>${item.watch_time}</td>`; 
+      output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+    } else if (type === 'quotes') {
+      output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`;
     }
     output += `</tr>`;
   });
