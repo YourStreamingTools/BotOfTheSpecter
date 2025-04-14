@@ -250,10 +250,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
                 <input type="submit" value="Upload MP4 Files" name="submit">
             </form>
             <br>
-            <div class="progress-bar-container" id="upload-progress-bar-container" style="display: none;">
-                <div class="progress-bar has-text-black-bis" id="upload-progress-bar" style="width: 0%;">0%</div>
-            </div>
-            <br>
             <div class="progress-bar-container">
                 <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
             </div>
@@ -263,78 +259,48 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
             <?php endif; ?>
         </div>
         <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
-            <?php $walkon_files = array_diff(scandir($videoalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
-            <h1 class="title is-4">Your Video Alerts</h1>
-            <form action="" method="POST" id="deleteForm">
-                <table class="table is-striped" style="width: 100%; text-align: center;">
-                    <thead>
-                        <tr>
-                            <th style="width: 70px;">Select</th>
-                            <th>File Name</th>
-                            <th>Channel Point Reward</th>
-                            <th style="width: 100px;">Action</th>
-                            <th style="width: 100px;">Test Video</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($walkon_files as $file): ?>
-                        <tr>
-                            <td>
-                                <input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                            </td>
-                            <td>
-                                <?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>
-                            </td>
-                            <td>
-                                <?php
-                                // Determine the current mapped reward (if any)
-                                $current_reward_id = isset($videoAlertMappings[$file]) ? $videoAlertMappings[$file] : null;
-                                $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
-                                ?>
-                                <?php if ($current_reward_id): ?>
-                                    <em><?php echo $current_reward_title; ?></em>
-                                <?php else: ?>
-                                    <em>Not Mapped</em>
-                                <?php endif; ?>
-                                <br>
-                                <form action="" method="POST" class="mapping-form">
-                                    <input type="hidden" name="video_file" value="<?php echo htmlspecialchars($file); ?>">
-                                    <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
-                                        <?php 
-                                        if ($current_reward_id): ?>
-                                            <option value="" class="has-text-danger">-- Remove Mapping --</option>
-                                        <?php endif; ?>
-                                        <option value="">-- Select Reward --</option>
-                                        <?php 
-                                        foreach ($channelPointRewards as $reward): 
-                                            // Modified: Exclude rewards already mapped in video OR sound alerts unless currently selected
-                                            $isMapped = (in_array($reward['reward_id'], $videoAlertMappings) || in_array($reward['reward_id'], $soundMappedRewards));
-                                            $isCurrent = ($current_reward_id === $reward['reward_id']);
-                                            // Skip rewards that are already mapped to other videos, unless it's the current mapping
-                                            if ($isMapped && !$isCurrent) continue; 
-                                        ?>
-                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) { echo ' selected';}?>>
-                                                <?php echo htmlspecialchars($reward['reward_title']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </form>
-                            </td>
-                            <td>
-                                <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
-                            </td>
-                            <td>
-                                <button type="button" class="test-video button is-primary" data-file="<?php echo htmlspecialchars($file); ?>">Test</button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
-            </form>
-            <?php else: ?>
-                <h1 class="title is-4">No video alert files uploaded.</h1>
-            <?php endif; ?>
+            <?php 
+            // Ensure the files are displayed in the table
+            if (!empty($videoalert_files)) {
+                echo '<h1 class="title is-4">Your Video Alerts</h1>';
+                echo '<form action="" method="POST" id="deleteForm">';
+                echo '<table class="table is-striped" style="width: 100%; text-align: center;">';
+                echo '<thead><tr><th style="width: 70px;">Select</th><th>File Name</th><th>Channel Point Reward</th><th style="width: 100px;">Action</th><th style="width: 100px;">Test Video</th></tr></thead>';
+                echo '<tbody>';
+                foreach ($videoalert_files as $file) {
+                    $fileName = htmlspecialchars(pathinfo($file, PATHINFO_FILENAME));
+                    $current_reward_id = isset($videoAlertMappings[$file]) ? $videoAlertMappings[$file] : null;
+                    $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : "Not Mapped";
+                    echo '<tr>';
+                    echo '<td><input type="checkbox" name="delete_files[]" value="' . htmlspecialchars($file) . '"></td>';
+                    echo '<td>' . $fileName . '</td>';
+                    echo '<td>';
+                    echo $current_reward_id ? '<em>' . $current_reward_title . '</em>' : '<em>Not Mapped</em>';
+                    echo '<form action="" method="POST" class="mapping-form">';
+                    echo '<input type="hidden" name="video_file" value="' . htmlspecialchars($file) . '">';
+                    echo '<select name="reward_id" class="mapping-select" onchange="this.form.submit()">';
+                    if ($current_reward_id) {
+                        echo '<option value="" class="has-text-danger">-- Remove Mapping --</option>';
+                    }
+                    echo '<option value="">-- Select Reward --</option>';
+                    foreach ($channelPointRewards as $reward) {
+                        $isMapped = (in_array($reward['reward_id'], $videoAlertMappings) || in_array($reward['reward_id'], $soundMappedRewards));
+                        $isCurrent = ($current_reward_id === $reward['reward_id']);
+                        if ($isMapped && !$isCurrent) continue;
+                        echo '<option value="' . htmlspecialchars($reward['reward_id']) . '"' . ($isCurrent ? ' selected' : '') . '>' . htmlspecialchars($reward['reward_title']) . '</option>';
+                    }
+                    echo '</select></form></td>';
+                    echo '<td><button type="button" class="delete-single button is-danger" data-file="' . htmlspecialchars($file) . '">Delete</button></td>';
+                    echo '<td><button type="button" class="test-video button is-primary" data-file="' . htmlspecialchars($file) . '">Test</button></td>';
+                    echo '</tr>';
+                }
+                echo '</tbody></table>';
+                echo '<input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">';
+                echo '</form>';
+            } else {
+                echo '<h1 class="title is-4">No video alert files uploaded.</h1>';
+            }
+            ?>
         </div>
     </div>
 </div>
@@ -368,7 +334,6 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        uploadFiles(files);
     });
     dropArea.on('click', function() {
         fileInput.click();
@@ -379,7 +344,6 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        uploadFiles(files);
     });
 
     function uploadFiles(files) {
