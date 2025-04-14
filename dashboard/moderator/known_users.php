@@ -1,4 +1,8 @@
-<?php 
+<?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 
@@ -21,19 +25,18 @@ $timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
 // Use broadcaster's information instead of moderator's
-$broadcasterID = $_SESSION['broadcaster_id'];
-$cacheUsername = $broadcasterUsername;
+$cacheUsername = $_SESSION['editing_username'];;
 
 // Fetch the total number of users in the seen_users table for the broadcaster
 $totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users WHERE broadcaster_id = :broadcaster_id");
-$totalUsersSTMT->bindParam(':broadcaster_id', $broadcasterID);
+$totalUsersSTMT->bindParam(':broadcaster_id', $_SESSION['editing_user']);
 $totalUsersSTMT->execute();
 $totalUsersResult = $totalUsersSTMT->fetch(PDO::FETCH_ASSOC);
 $totalUsers = $totalUsersResult['total_users'];
 
 // Fetch seen users data for the broadcaster
 $seenUsersSTMT = $db->prepare("SELECT * FROM seen_users WHERE broadcaster_id = :broadcaster_id");
-$seenUsersSTMT->bindParam(':broadcaster_id', $broadcasterID);
+$seenUsersSTMT->bindParam(':broadcaster_id', $_SESSION['editing_user']);
 $seenUsersSTMT->execute();
 $seenUsersData = $seenUsersSTMT->fetchAll(PDO::FETCH_ASSOC);
 
