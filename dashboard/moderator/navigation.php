@@ -185,10 +185,6 @@
 			</a>
 		</div>
 		<div class="navbar-end">
-      <a class="navbar-item" href="../../bot.php" style="display: flex; align-items: center;">
-        <span class="icon" style="margin-right: 5px;"><i class="fas fa-home"></i></span>
-				<span>HOME PAGE</span>
-			</a>
 			<div class="navbar-item">
 				<div class="media" style="align-items: center;">
 					<div class="media-content" style="display: flex; align-items: center;">
@@ -197,8 +193,8 @@
 							<img class="is-rounded" src="<?php echo $twitch_profile_image_url; ?>" alt="<?php echo htmlspecialchars($twitchDisplayName); ?> Profile Image" style="object-fit: cover; width: 30px; height: 30px;">
 						</figure>
 					</div>
-					<a href="../logout.php" title="Logout" style="margin-left: 10px; color: #ffffff; text-decoration: none;">
-						<span class="icon" style="color: #ffffff;"><i class="fas fa-sign-out-alt"></i></span>
+					<a href="../../bot.php" title="Logout" style="margin-left: 10px; color: #ffffff; text-decoration: none;">
+						<span class="icon" style="color: #ffffff;"><i class="fas fa-home"></i></span>
 					</a>
 				</div>
 			</div>
