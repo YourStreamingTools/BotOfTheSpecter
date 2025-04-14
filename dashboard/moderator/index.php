@@ -35,6 +35,8 @@ $disabledCommandCount = 0;
 $timerCount = 0;
 $enabledTimerCount = 0;
 $disabledTimerCount = 0;
+$viewerCount = 0;
+$streamUptime = '';
 
 // Function to get channel status from Twitch API
 function getChannelStatus($login) {
@@ -68,6 +70,33 @@ function getChannelStatus($login) {
   return $result;
 }
 
+// Function to get stream information
+function getStreamInfo($userId) {
+  global $clientID;
+  $token = $_SESSION['access_token'];
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/streams?user_id=" . urlencode($userId));
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ' . $token,
+    'Client-Id: ' . $clientID
+  ]);
+  $response = curl_exec($ch);
+  $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  $result = [
+    'success' => ($httpcode == 200),
+    'data' => null
+  ];
+  if ($httpcode == 200) {
+    $data = json_decode($response, true);
+    if (!empty($data['data'][0])) {
+      $result['data'] = $data['data'][0];
+    }
+  }
+  return $result;
+}
+
 // Get channel information
 $channelResponse = getChannelStatus($_SESSION['editing_display_name']);
 $channelInfo = $channelResponse['data'];
@@ -76,6 +105,22 @@ if ($channelInfo) {
   $gameName = $channelInfo['game_name'] ?? 'Not Playing';
   $isLive = $channelInfo['is_live'] ?? false;
   $activeStatus = $isLive ? "Live" : "Offline";
+  // If channel is live, get additional stream information
+  if ($isLive) {
+    $streamInfo = getStreamInfo($channelInfo['id']);
+    if ($streamInfo['success'] && $streamInfo['data']) {
+      $viewerCount = $streamInfo['data']['viewer_count'] ?? 0;
+      // Calculate uptime
+      if (!empty($streamInfo['data']['started_at'])) {
+        $startTime = new DateTime($streamInfo['data']['started_at']);
+        $currentTime = new DateTime();
+        $interval = $currentTime->diff($startTime);
+        // Format the uptime
+        $hours = $interval->h + ($interval->days * 24);
+        $streamUptime = $hours . 'h ' . $interval->i . 'm';
+      }
+    }
+  }
 }
 
 // Count custom commands
@@ -164,11 +209,18 @@ $disabledTimerCount = $disabledTimerStmt->fetchColumn();
           <div class="column has-text-centered">
             <p class="heading">Online Status</p>
             <p class="title"><?php echo $activeStatus; ?></p>
+            <?php if ($isLive): ?>
+            <p class="subtitle is-size-6">
+              <span class="has-text-info"><?php echo number_format($viewerCount); ?> viewers</span>
+              &nbsp;/&nbsp; 
+              <span class="has-text-info"><?php echo $streamUptime; ?> uptime</span>
+            </p>
+            <?php endif; ?>
           </div>
         </div>
         <div class="mt-4">
-          <p><span>Stream Title:</span> <?php echo htmlspecialchars($stream_title); ?></p>
-          <p><span>Game/Category:</span> <?php echo htmlspecialchars($gameName); ?></p>
+          <p>Stream Title:<span class="has-text-success"> <?php echo htmlspecialchars($stream_title); ?></span></p>
+          <p>Game/Category:<span class="has-text-info"> <?php echo htmlspecialchars($gameName); ?></span></p>
         </div>
       </div>
     </div>
