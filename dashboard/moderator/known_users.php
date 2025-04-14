@@ -11,25 +11,33 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Known Users";
 
-// Include all the information
-require_once "db_connect.php";
-include 'userdata.php';
-include 'bot_control.php';
+// Include files for database and user data
+require_once "/var/www/config/db_connect.php";
+include 'modding_access.php';
 include 'user_db.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+$getProfile = $db->query("SELECT timezone FROM profile");
+$profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
+$timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
-// Fetch the total number of users in the seen_users table
-$totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users");
+// Use broadcaster's information instead of moderator's
+$broadcasterID = $_SESSION['broadcaster_id'];
+$cacheUsername = $broadcasterUsername;
+
+// Fetch the total number of users in the seen_users table for the broadcaster
+$totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users WHERE broadcaster_id = :broadcaster_id");
+$totalUsersSTMT->bindParam(':broadcaster_id', $broadcasterID);
 $totalUsersSTMT->execute();
 $totalUsersResult = $totalUsersSTMT->fetch(PDO::FETCH_ASSOC);
 $totalUsers = $totalUsersResult['total_users'];
 
+// Fetch seen users data for the broadcaster
+$seenUsersSTMT = $db->prepare("SELECT * FROM seen_users WHERE broadcaster_id = :broadcaster_id");
+$seenUsersSTMT->bindParam(':broadcaster_id', $broadcasterID);
+$seenUsersSTMT->execute();
+$seenUsersData = $seenUsersSTMT->fetchAll(PDO::FETCH_ASSOC);
+
 // Cache for banned users
-$cacheUsername = $_SESSION['username'];
 $cacheExpiration = 600; // Cache expires after 10 minutes
 $cacheDirectory = "cache/$cacheUsername";
 $cacheFile = "$cacheDirectory/bannedUsers.json";
