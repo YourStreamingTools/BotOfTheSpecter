@@ -95,10 +95,6 @@
 					</a>
 				</div>
 			</div>
-			<a class="navbar-item" href="music.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
-				<span class="icon" style="margin-right: 5px;"><i class="fas fa-music"></i></span>
-				<span>VOD Music</span>
-			</a>
 		</div>
 		<div class="navbar-end">
 			<div class="navbar-item">
