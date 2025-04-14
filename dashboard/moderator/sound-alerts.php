@@ -224,7 +224,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                             <th>File Name</th>
                             <th>Channel Point Reward</th>
                             <th style="width: 100px;">Action</th>
-                            <th style="width: 100px;">Test Audio</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -273,9 +272,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                             </td>
                             <td>
                                 <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
-                            </td>
-                            <td>
-                                <button type="button" class="test-sound button is-primary" data-file="<?php echo htmlspecialchars($file); ?>">Test</button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -384,43 +380,6 @@ $(document).ready(function() {
         }
     });
 });
-
-document.addEventListener("DOMContentLoaded", function () {
-    // Attach click event listeners to all Test buttons
-    document.querySelectorAll(".test-sound").forEach(function (button) {
-        button.addEventListener("click", function () {
-            const fileName = this.getAttribute("data-file");
-            sendStreamEvent("SOUND_ALERT", fileName);
-        });
-    });
-});
-
-// Function to send a stream event
-function sendStreamEvent(eventType, fileName) {
-    const xhr = new XMLHttpRequest();
-    const url = "notify_event.php";
-    const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
-    xhr.open("POST", url, true);
-    xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                    console.log(`${eventType} event for ${fileName} sent successfully.`);
-                } else {
-                    console.error(`Error sending ${eventType} event: ${response.message}`);
-                }
-            } catch (e) {
-                console.error("Error parsing JSON response:", e);
-                console.error("Response:", xhr.responseText);
-            }
-        } else if (xhr.readyState === 4) {
-            console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
-        }
-    };
-    xhr.send(params);
-}
 </script>
 </body>
 </html>
