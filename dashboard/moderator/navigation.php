@@ -18,36 +18,8 @@
 		<div class="navbar-start" style="align-items: center;">
 			<a class="navbar-item" href="../bot.php" style="display: flex; align-items: center;">
 				<span class="icon" style="margin-right: 5px;"><i class="fas fa-home"></i></span>
-				<span>Bots</span>
+				<span>Home</span>
 			</a>
-			<div class="navbar-item has-dropdown is-hoverable">
-				<a class="navbar-link" style="display: flex; align-items: center;">
-					<span class="icon" style="margin-right: 5px;"><i class="fas fa-chart-bar"></i></span>
-					<span>Twitch Data</span>
-				</a>
-				<div class="navbar-dropdown">
-					<a class="navbar-item" href="../mods.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-user-shield"></i></span>
-						<span>Your Mods</span>
-					</a>
-					<a class="navbar-item" href="../followers.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-users"></i></span>
-						<span>Your Followers</span>
-					</a>
-					<a class="navbar-item" href="../subscribers.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-star"></i></span>
-						<span>Your Subscribers</span>
-					</a>
-					<a class="navbar-item" href="../vips.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-crown"></i></span>
-						<span>Your VIPs</span>
-					</a>
-					<a class="navbar-item" href="../channel_rewards.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-gift"></i></span>
-						<span>Channel Point Rewards</span>
-					</a>
-				</div>
-			</div>
 			<a class="navbar-item" href="../logs.php" style="display: flex; align-items: center;">
 				<span class="icon" style="margin-right: 5px;"><i class="fas fa-file-alt"></i></span>
 				<span>Logs</span>
@@ -123,65 +95,13 @@
 					</a>
 				</div>
 			</div>
-			<div class="navbar-item has-dropdown is-hoverable">
-				<a class="navbar-link" style="display: flex; align-items: center;">
-					<span class="icon" style="margin-right: 5px;"><i class="fas fa-plug"></i></span>
-					<span>Bot Integrations</span>
-				</a>
-				<div class="navbar-dropdown">
-					<a class="navbar-item" href="../discordbot.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fab fa-discord"></i></span>
-						<span>Discord Bot</span>
-					</a>
-					<a class="navbar-item" href="../overlays.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-desktop"></i></span>
-						<span>Overlays</span>
-					</a>
-					<a class="navbar-item" href="../streaming.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-video"></i></span>
-						<span>Specter Streaming</span>
-					</a>
-					<a class="navbar-item" href="../music.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-music"></i></span>
-						<span>VOD Music</span>
-					</a>
-					<a class="navbar-item" href="../spotifylink.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fab fa-spotify"></i></span>
-						<span>Link Spotify</span>
-					</a>
-					<a class="navbar-item" href="../todolist" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-list"></i></span>
-						<span>To Do List</span>
-					</a>
-				</div>
-			</div>
-			<div class="navbar-item has-dropdown is-hoverable">
-				<a class="navbar-link" style="display: flex; align-items: center;">
-					<span class="icon" style="margin-right: 5px;"><i class="fas fa-external-link-alt"></i></span>
-					<span>External Services</span>
-				</a>
-				<div class="navbar-dropdown">
-					<a class="navbar-item" href="../integrations.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-store"></i></span>
-						<span>Fourthwall</span>
-					</a>
-					<a class="navbar-item" href="../integrations.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fas fa-coffee"></i></span>
-						<span>Ko-Fi</span>
-					</a>
-					<a class="navbar-item" href="../integrations.php" style="display: flex; align-items: center;">
-						<span class="icon" style="margin-right: 5px;"><i class="fa-brands fa-patreon"></i></span>
-						<span>Patreon</span>
-					</a>
-				</div>
-			</div>
-			<a class="navbar-item" href="../premium.php" style="display: flex; align-items: center;">
-				<span class="icon" style="margin-right: 5px;"><i class="fas fa-gem"></i></span>
-				<span>Premium</span>
+			<a class="navbar-item" href="../music.php" style="display: flex; align-items: center;">
+				<span class="icon" style="margin-right: 5px;"><i class="fas fa-music"></i></span>
+				<span>VOD Music</span>
 			</a>
-			<a class="navbar-item" href="../profile.php" style="display: flex; align-items: center;">
-				<span class="icon" style="margin-right: 5px;"><i class="fas fa-user"></i></span>
-				<span>Profile</span>
+			<a class="navbar-item" href="../todolist" style="display: flex; align-items: center;">
+				<span class="icon" style="margin-right: 5px;"><i class="fas fa-list"></i></span>
+				<span>To Do List</span>
 			</a>
 		</div>
 		<div class="navbar-end">
