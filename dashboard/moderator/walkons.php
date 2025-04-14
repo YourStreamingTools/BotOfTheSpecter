@@ -1,6 +1,7 @@
-<?php 
+<?php
 // Initialize the session
 session_start();
+ini_set('max_execution_time', 300);
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -15,64 +16,20 @@ $title = "Walkons";
 require_once "/var/www/config/db_connect.php";
 include 'modding_access.php';
 include 'user_db.php';
+include 'storage_used.php';
 $getProfile = $db->query("SELECT timezone FROM profile");
 $profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
 $timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
-// Define user-specific storage limits
-$base_storage_size = 2 * 1024 * 1024; // 2MB in bytes
-$tier = $_SESSION['tier'] ?? "None";
-
-switch ($tier) {
-    case "1000":
-        $max_storage_size = 5 * 1024 * 1024; // 5MB
-        break;
-    case "2000":
-        $max_storage_size = 10 * 1024 * 1024; // 10MB
-        break;
-    case "3000":
-        $max_storage_size = 20 * 1024 * 1024; // 20MB
-        break;
-    case "4000":
-        $max_storage_size = 50 * 1024 * 1024; // 50MB
-        break;
-    default:
-        $max_storage_size = $base_storage_size; // Default 2MB
-        break;
-}
-
-// User's walkon directory
-$walkon_path = "/var/www/walkons/" . $username;
-$soundalert_path = "/var/www/soundalerts/" . $username;
+// Define empty variable for status
 $status = '';
 
-// Create the user's directory if it doesn't exist
-if (!is_dir($walkon_path)) {
-    if (!mkdir($walkon_path, 0755, true)) {
-        exit("Failed to create directory.");
-    }
-}
-
-if (!is_dir($soundalert_path)) {
-    if (!mkdir($soundalert_path, 0755, true)) {
-        exit("Failed to create directory.");
-    }
-}
-
-// Calculate total storage used by the user across both directories
-function calculateStorageUsed($directories) {
-    $size = 0;
-    foreach ($directories as $directory) {
-        foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
-            $size += is_file($file) ? filesize($file) : calculateStorageUsed([$file]);
-        }
-    }
-    return $size;
-}
-
-$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
-$storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+// Define user-specific storage limits
+$remaining_storage = $max_storage_size - $current_storage_used;
+$max_upload_size = $remaining_storage;
+// ini_set('upload_max_filesize', $max_upload_size);
+// ini_set('post_max_size', $max_upload_size);
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
@@ -84,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
         }
         $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
-        if ($fileType != "mp3") {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
+        if ($fileType != "mp3" && $fileType != "mp4") {
+            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 and MP4 files are allowed.<br>";
             continue;
         }
         if (move_uploaded_file($tmp_name, $targetFile)) {
@@ -113,6 +70,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
 }
 $walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
 function formatFileName($fileName) { return basename($fileName, '.mp3'); }
+function formatFileNamewithEXT($fileName) {
+    $fileInfo = pathinfo($fileName);
+    $name = basename($fileName, '.' . $fileInfo['extension']);
+    $extenstion = strtoupper($fileInfo['extension']);
+    return $name . " (" . $extenstion . ")";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -144,7 +107,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             </div>
         </div>
     </div>
-    <div class="columns is-desktop is-multiline box-container">
+    <div class="columns is-desktop is-multiline box-container is-centered">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
             <h1 class="title is-4">Upload MP3 Files:</h1>
             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
@@ -158,6 +121,10 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 <br>
                 <input type="submit" value="Upload MP3 Files" name="submit">
             </form>
+            <br>
+            <div class="progress-bar-container" id="upload-progress-bar-container" style="display: none;">
+                <div class="progress-bar has-text-black-bis" id="upload-progress-bar" style="width: 0%;">0%</div>
+            </div>
             <br>
             <div class="progress-bar-container">
                 <div class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
@@ -184,7 +151,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                         <?php foreach ($walkon_files as $file): ?>
                         <tr>
                             <td style="text-align: center; vertical-align: middle;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                            <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                            <td style="text-align: center; vertical-align: middle;"><?php echo htmlspecialchars(formatFileNamewithEXT($file)); ?></td>
                             <td><button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
                             <td><button type="button" class="test-walkon button is-primary" data-file="<?php echo htmlspecialchars(formatFileName($file)); ?>">Test</button></td>
                         </tr>
@@ -193,6 +160,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 </table>
                 <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
             </form>
+            <?php else: ?>
+                <h1 class="title is-4">No walkon files uploaded.</h1>
             <?php endif; ?>
         </div>
     </div>
@@ -204,6 +173,9 @@ $(document).ready(function() {
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
     let fileList = $('#file-list');
+    let uploadProgressBarContainer = $('#upload-progress-bar-container');
+    let uploadProgressBar = $('#upload-progress-bar');
+
     dropArea.on('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -224,7 +196,7 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        $('#uploadForm').submit();
+        uploadFiles(files);
     });
     dropArea.on('click', function() {
         fileInput.click();
@@ -235,16 +207,51 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        $('#uploadForm').submit();
+        uploadFiles(files);
     });
+
+    function uploadFiles(files) {
+        let formData = new FormData();
+        $.each(files, function(index, file) {
+            formData.append('filesToUpload[]', file);
+        });
+        uploadProgressBarContainer.show();
+        $.ajax({
+            url: '',
+            type: 'POST',
+            data: formData,
+            contentType: false,
+            processData: false,
+            xhr: function() {
+                let xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        let percentComplete = (e.loaded / e.total) * 100;
+                        uploadProgressBar.css('width', percentComplete + '%');
+                        uploadProgressBar.text(Math.round(percentComplete) + '%');
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                location.reload(); // Reload the page to update the file list and storage usage
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
+            }
+        });
+    }
+
     $('.delete-single').on('click', function() {
         let fileName = $(this).data('file');
-        $('<input>').attr({
-            type: 'hidden',
-            name: 'delete_files[]',
-            value: fileName
-        }).appendTo('#deleteForm');
-        $('#deleteForm').submit();
+        if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'delete_files[]',
+                value: fileName
+            }).appendTo('#deleteForm');
+            $('#deleteForm').submit();
+        }
     });
 });
 
