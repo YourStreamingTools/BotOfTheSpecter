@@ -263,7 +263,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
                 echo '<h1 class="title is-4">Your Video Alerts</h1>';
                 echo '<form action="" method="POST" id="deleteForm">';
                 echo '<table class="table is-striped" style="width: 100%; text-align: center;">';
-                echo '<thead><tr><th style="width: 70px;">Select</th><th>File Name</th><th>Channel Point Reward</th><th style="width: 100px;">Action</th><th style="width: 100px;">Test Video</th></tr></thead>';
+                echo '<thead><tr><th style="width: 70px;">Select</th><th>File Name</th><th>Channel Point Reward</th><th style="width: 100px;">Action</th></tr></thead>';
                 echo '<tbody>';
                 foreach ($videoalert_files as $file) {
                     $fileName = htmlspecialchars(pathinfo($file, PATHINFO_FILENAME));
@@ -289,7 +289,6 @@ function formatFileName($fileName) { return basename($fileName, '.mp4'); }
                     }
                     echo '</select></form></td>';
                     echo '<td><button type="button" class="delete-single button is-danger" data-file="' . htmlspecialchars($file) . '">Delete</button></td>';
-                    echo '<td><button type="button" class="test-video button is-primary" data-file="' . htmlspecialchars($file) . '">Test</button></td>';
                     echo '</tr>';
                 }
                 echo '</tbody></table>';
@@ -388,43 +387,6 @@ $(document).ready(function() {
         }
     });
 });
-
-document.addEventListener("DOMContentLoaded", function () {
-    // Attach click event listeners to all Test buttons
-    document.querySelectorAll(".test-video").forEach(function (button) {
-        button.addEventListener("click", function () {
-            const fileName = this.getAttribute("data-file");
-            sendStreamEvent("VIDEO_ALERT", fileName);
-        });
-    });
-});
-
-// Function to send a stream event
-function sendStreamEvent(eventType, fileName) {
-    const xhr = new XMLHttpRequest();
-    const url = "notify_event.php";
-    const params = `event=${eventType}&video=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
-    xhr.open("POST", url, true);
-    xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                    console.log(`${eventType} event for ${fileName} sent successfully.`);
-                } else {
-                    console.error(`Error sending ${eventType} event: ${response.message}`);
-                }
-            } catch (e) {
-                console.error("Error parsing JSON response:", e);
-                console.error("Response:", xhr.responseText);
-            }
-        } else if (xhr.readyState === 4) {
-            console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
-        }
-    };
-    xhr.send(params);
-}
 </script>
 </body>
 </html>
