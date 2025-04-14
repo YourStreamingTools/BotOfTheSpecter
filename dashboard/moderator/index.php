@@ -36,7 +36,9 @@ date_default_timezone_set($timezone);
 <div class="container">
   <br>
   <div class="columns is-desktop is-multiline box-container">
-    Editing User ID: <?php echo $_SESSION['editing_user']; ?>
+    Editing User ID: <?php echo $_SESSION['editing_user']; ?><br>
+    Editing User Name: <?php echo $_SESSION['editing_username']; ?><br>
+    Editing User Display Name: <?php echo $_SESSION['editing_display_name']; ?><br>
   </div>
 </div>
 
