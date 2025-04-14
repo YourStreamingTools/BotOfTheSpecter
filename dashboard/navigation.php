@@ -185,6 +185,7 @@
 			</a>
 		</div>
 		<div class="navbar-end">
+			<?php if (!empty($modChannels)): ?>
 			<div class="navbar-item has-dropdown is-hoverable">
 				<a class="navbar-link" style="display: flex; align-items: center;">
 					<span style="font-size: 14px; color: #ffffff;">Moderating</span>
@@ -200,6 +201,7 @@
 					<?php endforeach; ?>
 				</div>
 			</div>
+			<?php endif; ?>
 			<div class="navbar-item">
 				<div class="media" style="align-items: center;">
 					<div class="media-content" style="display: flex; align-items: center;">
