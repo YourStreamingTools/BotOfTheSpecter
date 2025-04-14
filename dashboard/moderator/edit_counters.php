@@ -11,15 +11,13 @@ if (!isset($_SESSION['access_token'])) {
 // Page Title
 $title = "Edit Counters";
 
-// Include all the information
-require_once "db_connect.php";
-include 'userdata.php';
-include 'bot_control.php';
+// Include files for database and user data
+require_once "/var/www/config/db_connect.php";
+include 'modding_access.php';
 include 'user_db.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+$getProfile = $db->query("SELECT timezone FROM profile");
+$profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
+$timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 $status = '';
 $notification_status = '';
