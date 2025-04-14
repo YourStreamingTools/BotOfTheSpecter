@@ -22,7 +22,7 @@ include 'bot_control.php';
 include 'user_db.php';
 include 'storage_used.php';
 include 'module_data_post.php';
-
+include "mod_access.php";
 foreach ($profileData as $profile) {
     $timezone = $profile['timezone'];
     $weather = $profile['weather_location'];
