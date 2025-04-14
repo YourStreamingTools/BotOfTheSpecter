@@ -16,6 +16,7 @@ $title = "Template Title";
 require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
 include 'user_db.php';
+include "mod_access.php";
 foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
   $weather = $profile['weather_location'];
