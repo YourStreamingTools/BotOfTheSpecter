@@ -161,16 +161,6 @@ if ($is_admin) {
         'free' => $api_storage['free'],
         'percentage' => $api_storage['percentage']
       ];
-    } else {
-      // Fallback to placeholder if SSH connection fails
-      $server_storage_info['api'] = [
-        'name' => 'API Server',
-        'mount' => '/',
-        'total' => '500 GB', 
-        'used' => '125 GB',
-        'free' => '375 GB',
-        'percentage' => 25
-      ];
     }
   }
   // SQL Database Server
@@ -184,16 +174,6 @@ if ($is_admin) {
         'used' => $sql_storage['used'],
         'free' => $sql_storage['free'],
         'percentage' => $sql_storage['percentage']
-      ];
-    } else {
-      // Fallback to placeholder if SSH connection fails
-      $server_storage_info['sql'] = [
-        'name' => 'SQL Database Server',
-        'mount' => '/',
-        'total' => '1000 GB',
-        'used' => '450 GB',
-        'free' => '550 GB',
-        'percentage' => 45
       ];
     }
   }
@@ -210,16 +190,6 @@ if ($is_admin) {
         'free' => $au_east_storage['free'],
         'percentage' => $au_east_storage['percentage']
       ];
-    } else {
-      // Fallback to placeholder if SSH connection fails
-      $server_storage_info['au-east-1'] = [
-        'name' => 'STREAM AU-EAST-1',
-        'mount' => '/',
-        'total' => '750 GB',
-        'used' => '300 GB',
-        'free' => '450 GB',
-        'percentage' => 40
-      ];
     }
   }
   // US-WEST-1 (root mount)
@@ -234,16 +204,6 @@ if ($is_admin) {
         'free' => $us_west_root_storage['free'],
         'percentage' => $us_west_root_storage['percentage']
       ];
-    } else {
-      // Fallback to placeholder if SSH connection fails
-      $server_storage_info['us-west-1-root'] = [
-        'name' => 'STREAM US-WEST-1',
-        'mount' => '/',
-        'total' => '250 GB',
-        'used' => '75 GB',
-        'free' => '175 GB',
-        'percentage' => 30
-      ];
     }
     // US-WEST-1 (storage mount)
     $us_west_storage_mount = getRemoteDiskSpace($storage_server_us_west_1_host, $storage_server_us_west_1_username, $storage_server_us_west_1_password, "/mnt/stream-us-west-1");
@@ -255,16 +215,6 @@ if ($is_admin) {
         'used' => $us_west_storage_mount['used'],
         'free' => $us_west_storage_mount['free'],
         'percentage' => $us_west_storage_mount['percentage']
-      ];
-    } else {
-      // Fallback to placeholder if SSH connection fails
-      $server_storage_info['us-west-1-storage'] = [
-        'name' => 'STREAM US-WEST-1',
-        'mount' => '/mnt/stream-us-west-1',
-        'total' => '500 GB',
-        'used' => '150 GB',
-        'free' => '350 GB',
-        'percentage' => 30
       ];
     }
   }
@@ -280,16 +230,6 @@ if ($is_admin) {
         'free' => $us_east_root_storage['free'],
         'percentage' => $us_east_root_storage['percentage']
       ];
-    } else {
-      // Fallback to placeholder if SSH connection fails
-      $server_storage_info['us-east-1-root'] = [
-        'name' => 'STREAM US-EAST-1',
-        'mount' => '/',
-        'total' => '250 GB',
-        'used' => '62.5 GB',
-        'free' => '187.5 GB',
-        'percentage' => 25
-      ];
     }
     // US-EAST-1 (storage mount)
     $us_east_storage_mount = getRemoteDiskSpace($storage_server_us_east_1_host, $storage_server_us_east_1_username, $storage_server_us_east_1_password, "/mnt/stream-us-east-1");
@@ -301,16 +241,6 @@ if ($is_admin) {
         'used' => $us_east_storage_mount['used'],
         'free' => $us_east_storage_mount['free'],
         'percentage' => $us_east_storage_mount['percentage']
-      ];
-    } else {
-      // Fallback to placeholder if SSH connection fails
-      $server_storage_info['us-east-1-storage'] = [
-        'name' => 'STREAM US-EAST-1',
-        'mount' => '/mnt/stream-us-east-1',
-        'total' => '500 GB',
-        'used' => '125 GB',
-        'free' => '375 GB',
-        'percentage' => 25
       ];
     }
   }
