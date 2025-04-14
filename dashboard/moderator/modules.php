@@ -14,14 +14,12 @@ $title = "Modules";
 $current_blacklist = [];
 
 // Include files for database and user data
-require_once "db_connect.php";
-include 'userdata.php';
-include 'bot_control.php';
+require_once "/var/www/config/db_connect.php";
+include 'modding_access.php';
 include 'user_db.php';
-foreach ($profileData as $profile) {
-    $timezone = $profile['timezone'];
-    $weather = $profile['weather_location'];
-}
+$getProfile = $db->query("SELECT timezone FROM profile");
+$profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
+$timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
 // Fetch the current blacklist settings
