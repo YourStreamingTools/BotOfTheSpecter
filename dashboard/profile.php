@@ -343,7 +343,7 @@ if ($is_admin) {
       <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB used</p>
     </div>
     <?php if ($is_admin): ?>
-    <div class="column bot-box is-11">
+    <div class="column bot-box is-12">
       <h4 class="label is-4">Server Storage Information</h4>
       <div class="columns is-multiline">
         <?php 
@@ -357,19 +357,21 @@ if ($is_admin) {
         // Display each server group
         foreach ($grouped_servers as $server_name => $mounts): ?>
           <div class="column is-4">
-            <h5 class="label is-5"><?php echo $server_name; ?></h5>
-            <?php foreach ($mounts as $mount): ?>
-              <?php if ($mount['mount'] != '/'): ?>
-                <p class="label is-6">Mount: <?php echo $mount['mount']; ?></p>
-              <?php endif; ?>
-              <div class="progress-bar-container">
-                <div class="progress-bar has-text-black-bis" style="width: <?php echo $mount['percentage']; ?>%;"><?php echo round($mount['percentage'], 2); ?>%</div>
-              </div>
-              <p class="label is-6">Total: <?php echo $mount['total']; ?> | Used: <?php echo $mount['used']; ?> | Free: <?php echo $mount['free']; ?></p>
-              <?php if (next($mounts)): ?>
-                <div style="margin-bottom: 15px;"></div>
-              <?php endif; ?>
-            <?php endforeach; ?>
+            <div class="has-background-grey-darker has-text-white p-4" style="border-radius: 6px;">
+              <h5 class="label is-5 has-text-white"><?php echo $server_name; ?></h5>
+              <?php foreach ($mounts as $mount): ?>
+                <?php if ($mount['mount'] != '/'): ?>
+                  <p class="label is-6 has-text-white">Mount: <?php echo $mount['mount']; ?></p>
+                <?php endif; ?>
+                <div class="progress-bar-container">
+                  <div class="progress-bar has-text-black-bis" style="width: <?php echo $mount['percentage']; ?>%;"><?php echo round($mount['percentage'], 2); ?>%</div>
+                </div>
+                <p class="label is-6 has-text-white">Total: <?php echo $mount['total']; ?> | Used: <?php echo $mount['used']; ?> | Free: <?php echo $mount['free']; ?></p>
+                <?php if (next($mounts)): ?>
+                  <div style="margin-bottom: 15px;"></div>
+                <?php endif; ?>
+              <?php endforeach; ?>
+            </div>
           </div>
         <?php endforeach; ?>
       </div>
