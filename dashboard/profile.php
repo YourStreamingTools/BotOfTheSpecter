@@ -150,8 +150,8 @@ if ($is_admin) {
     ];
   }
   // API Server
-  if (!empty($ssh_host) && !empty($ssh_username) && !empty($ssh_password)) {
-    $api_storage = getRemoteDiskSpace($ssh_host, $ssh_username, $ssh_password, "/");
+  if (!empty($api_server_host) && !empty($api_server_username) && !empty($api_server_password)) {
+    $api_storage = getRemoteDiskSpace($api_server_host, $api_server_username, $api_server_password, "/");
     if ($api_storage) {
       $server_storage_info['api'] = [
         'name' => 'API Server',
@@ -174,8 +174,8 @@ if ($is_admin) {
     }
   }
   // SQL Database Server
-  if (!empty($ssh_host) && !empty($ssh_username) && !empty($ssh_password)) {
-    $sql_storage = getRemoteDiskSpace($ssh_host, $ssh_username, $ssh_password, "/");
+  if (!empty($sql_server_host) && !empty($sql_server_username) && !empty($sql_server_password)) {
+    $sql_storage = getRemoteDiskSpace($sql_server_host, $sql_server_username, $sql_server_password, "/");
     if ($sql_storage) {
       $server_storage_info['sql'] = [
         'name' => 'SQL Database Server',
