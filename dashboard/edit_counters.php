@@ -263,21 +263,17 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
 <script>
 function fetchCurrentCount(type, value, inputId) {
     if (value) {
-        console.log('Fetching count for:', type, 'with value:', value);
         const param = type === 'typo' ? 'username' : 'command';
         fetch(`?action=get_${type}_count&${param}=` + encodeURIComponent(value))
             .then(response => {
-                console.log('Response:', response);
                 if (!response.ok) {
                     throw new Error('Network response was not ok: ' + response.statusText);
                 }
                 return response.text();
             })
             .then(data => {
-                console.log('Data:', data);
                 const inputField = document.getElementById(inputId);
                 if (inputField && data) {
-                    console.log('Updating input field:', inputId, 'with data:', data);
                     inputField.value = data;
                 } else {
                     console.error('No data returned from server for type:', type, 'value:', value);
@@ -292,7 +288,6 @@ function fetchCurrentCount(type, value, inputId) {
 
 function updateCurrentCount(type, value) {
     const inputId = type === 'typo' ? 'typo_count' : 'command_count';
-    console.log('Updating count for:', type, 'with value:', value);
     fetchCurrentCount(type, value, inputId);
 }
 </script>
