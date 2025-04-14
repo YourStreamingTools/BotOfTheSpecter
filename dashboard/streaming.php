@@ -330,11 +330,47 @@ if ($selected_server == 'au-east-1') {
         <hr>
         <p class="has-text-weight-bold has-text-black">Important Storage Information:</p>
         <ul style="list-style-type: disc; padding-left: 20px;">
-            <li class="has-text-black">We currently offer server locations in AU EAST (Sydney, Australia) and US WEST (Hillsboro, Oregon).</li>
-            <li class="has-text-black">Coming soon: US EAST (Ashburn, Virginia) & EU CENTRAL (Nuremberg, Germany) servers!</li>
             <li class="has-text-black">Recorded streams are stored for 24 hours after the stream ends.</li>
             <li class="has-text-black">After 24 hours, recorded files will be automatically removed due to storage limitations.</li>
         </ul>
+        <div style="position: relative; min-height: 150px;">
+            <p class="has-text-weight-bold has-text-black">Server Locations:</p>
+            <ul style="list-style-type: disc; padding-left: 20px;">
+                <li class="has-text-black">Current server locations:
+                    <ul style="list-style-type: circle; padding-left: 20px;">
+                        <li class="has-text-black">AU EAST (Sydney, Australia)</li>
+                        <li class="has-text-black">US WEST (Hillsboro, Oregon)</li>
+                        <li class="has-text-black">US EAST (Ashburn, Virginia)</li>
+                    </ul>
+                </li>
+                <li class="has-text-black">Coming soon:
+                    <ul style="list-style-type: circle; padding-left: 20px;">
+                        <li class="has-text-black">EU CENTRAL (Nuremberg, Germany)</li>
+                    </ul>
+                </li>
+            </ul>
+            <div style="position: absolute; bottom: 0; right: 0;">
+                <form method="get" id="server-selection-form">
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal"><label class="has-text-black has-text-weight-bold">Server:</label></div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <div class="select">
+                                        <select id="server-location" name="server" onchange="document.getElementById('server-selection-form').submit();">
+                                            <option value="au-east-1" <?php echo $selected_server == 'au-east-1' ? 'selected' : ''; ?>>AU-EAST-1</option>
+                                            <option value="us-west-1" <?php echo $selected_server == 'us-west-1' ? 'selected' : ''; ?>>US-WEST-1</option>
+                                            <option value="us-east-1" <?php echo $selected_server == 'us-east-1' ? 'selected' : ''; ?>>US-EAST-1</option>
+                                            <!-- Additional server options can be added in the future -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
     <h1 class="title">Streaming Settings</h1>
     <?php if (isset($_SESSION['settings_saved'])): ?>
@@ -393,29 +429,6 @@ if ($selected_server == 'au-east-1') {
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-10 bot-box">
             <h2 class="subtitle has-text-white">Your Recorded Streams</h2>
-            <!-- Server selection form -->
-            <div class="field is-horizontal mb-4">
-                <div class="field-label is-normal">
-                    <label class="label has-text-white">Server Location:</label>
-                </div>
-                <div class="field-body">
-                    <div class="field">
-                        <div class="control">
-                            <form method="get" id="server-selection-form">
-                                <div class="select">
-                                    <select id="server-location" name="server" onchange="document.getElementById('server-selection-form').submit();">
-                                        <option value="au-east-1" <?php echo $selected_server == 'au-east-1' ? 'selected' : ''; ?>>AU-EAST-1</option>
-                                        <option value="us-west-1" <?php echo $selected_server == 'us-west-1' ? 'selected' : ''; ?>>US-WEST-1</option>
-                                        <option value="us-east-1" <?php echo $selected_server == 'us-east-1' ? 'selected' : ''; ?>>US-EAST-1</option>
-                                        <!-- Additional server options can be added in the future -->
-                                    </select>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
             <div class="table-container">
                 <table class="table is-fullwidth">
                     <thead>
