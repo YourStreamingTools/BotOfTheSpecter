@@ -20,10 +20,6 @@
 				<span class="icon" style="margin-right: 5px;"><i class="fas fa-home"></i></span>
 				<span>Home</span>
 			</a>
-			<a class="navbar-item" href="logs.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
-				<span class="icon" style="margin-right: 5px;"><i class="fas fa-file-alt"></i></span>
-				<span>Logs</span>
-			</a>
 			<div class="navbar-item has-dropdown is-hoverable">
 				<a class="navbar-link" style="display: flex; align-items: center;">
 					<span class="icon" style="margin-right: 5px;"><i class="fas fa-robot"></i></span>
