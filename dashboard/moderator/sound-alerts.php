@@ -1,6 +1,7 @@
 <?php
 // Initialize the session
 session_start();
+ini_set('max_execution_time', 300);
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -15,32 +16,14 @@ $title = "Sound Alerts";
 require_once "/var/www/config/db_connect.php";
 include 'modding_access.php';
 include 'user_db.php';
+include 'storage_used.php';
 $getProfile = $db->query("SELECT timezone FROM profile");
 $profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
 $timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
-// Define user-specific storage limits
-$base_storage_size = 2 * 1024 * 1024; // 2MB in bytes
-$tier = $_SESSION['tier'] ?? "None";
-
-switch ($tier) {
-    case "1000":
-        $max_storage_size = 5 * 1024 * 1024; // 5MB
-        break;
-    case "2000":
-        $max_storage_size = 10 * 1024 * 1024; // 10MB
-        break;
-    case "3000":
-        $max_storage_size = 20 * 1024 * 1024; // 20MB
-        break;
-    case "4000":
-        $max_storage_size = 50 * 1024 * 1024; // 50MB
-        break;
-    default:
-        $max_storage_size = $base_storage_size; // Default 2MB
-        break;
-}
+// Define empty variables
+$status = '';
 
 // Fetch sound alert mappings for the current user
 $getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
@@ -53,46 +36,74 @@ foreach ($soundAlerts as $alert) {
     $soundAlertMappings[$alert['sound_mapping']] = $alert['reward_id'];
 }
 
+// NEW: Query video alerts to exclude mapped rewards from sound alerts
+$getVideoAlertsForMapping = $db->prepare("SELECT DISTINCT reward_id FROM video_alerts");
+$getVideoAlertsForMapping->execute();
+$videoMappedRewards = $getVideoAlertsForMapping->fetchAll(PDO::FETCH_COLUMN, 0);
+
 // Create an associative array for reward_id => reward_title for easy lookup
 $rewardIdToTitle = [];
 foreach ($channelPointRewards as $reward) {
     $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
 }
 
-// Define sound alert path and storage limits
-$soundalert_path = "/var/www/soundalerts/" . $username;
-$walkon_path = "/var/www/walkons/" . $username;
-$status = '';
-
-// Create the user's directory if it doesn't exist
-if (!is_dir($soundalert_path)) {
-    if (!mkdir($soundalert_path, 0755, true)) {
-        exit("Failed to create directory.");
-    }
-}
-
-if (!is_dir($walkon_path)) {
-    if (!mkdir($walkon_path, 0755, true)) {
-        exit("Failed to create directory.");
-    }
-}
-
-// Calculate total storage used by the user across both directories
-function calculateStorageUsed($directories) {
-    $size = 0;
-    foreach ($directories as $directory) {
-        foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
-            $size += is_file($file) ? filesize($file) : calculateStorageUsed([$file]);
+// Handle channel point reward mapping
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST['reward_id'])) {
+    $status = ""; // Initialize $status
+    $soundFile = $_POST['sound_file'];
+    $rewardId = $_POST['reward_id'];
+    $soundFile = htmlspecialchars($soundFile); 
+    $db->beginTransaction();  
+    // Check if a mapping already exists for this sound file
+    $checkExisting = $db->prepare("SELECT 1 FROM sound_alerts WHERE sound_mapping = :sound_mapping");
+    $checkExisting->bindParam(':sound_mapping', $soundFile);
+    $checkExisting->execute();
+    if ($checkExisting->rowCount() > 0) {
+        // Update existing mapping
+        if ($rewardId) {
+            $updateMapping = $db->prepare("UPDATE sound_alerts SET reward_id = :reward_id WHERE sound_mapping = :sound_mapping");
+            $updateMapping->bindParam(':reward_id', $rewardId);
+            $updateMapping->bindParam(':sound_mapping', $soundFile);
+            if (!$updateMapping->execute()) {
+                $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->errorInfo(), true) . "<br>"; 
+            } else {
+                $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
+            }
+        } else {
+            // Delete the mapping if no reward is selected (Remove Mapping option)
+            $deleteMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = :sound_mapping");
+            $deleteMapping->bindParam(':sound_mapping', $soundFile);
+            if (!$deleteMapping->execute()) {
+                $status .= "Failed to remove mapping for file '" . $soundFile . "'. Database error: " . print_r($deleteMapping->errorInfo(), true) . "<br>"; 
+            } else {
+                $status .= "Mapping for file '" . $soundFile . "' has been removed.<br>";
+            }
         }
+    } else {
+        // Create a new mapping if it doesn't exist
+        if ($rewardId) {
+            $insertMapping = $db->prepare("INSERT INTO sound_alerts (sound_mapping, reward_id) VALUES (:sound_mapping, :reward_id)");
+            $insertMapping->bindParam(':sound_mapping', $soundFile);
+            $insertMapping->bindParam(':reward_id', $rewardId);
+            if (!$insertMapping->execute()) {
+                $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->errorInfo(), true) . "<br>"; 
+            } else {
+                $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
+            }
+        } 
     }
-    return $size;
+    // Commit transaction
+    $db->commit();
 }
 
-$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
-$storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+$remaining_storage = $max_storage_size - $current_storage_used;
+$max_upload_size = $remaining_storage;
+// ini_set('upload_max_filesize', $max_upload_size);
+// ini_set('post_max_size', $max_upload_size);
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
+    $status = "";
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
@@ -117,19 +128,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
 
 // Handle file deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
+    $status = "";
+    $db->beginTransaction();
     foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete = $soundalert_path . '/' . basename($file_to_delete);
-        if (is_file($file_to_delete) && unlink($file_to_delete)) {
-            $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
+        $filename = basename($file_to_delete);
+        $full_path = $soundalert_path . '/' . $filename;
+        // First delete the physical file
+        if (is_file($full_path) && unlink($full_path)) {
+            $status .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
+            // Now delete any mapping for this file from the database
+            $deleteMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = :sound_mapping");
+            $deleteMapping->bindParam(':sound_mapping', $filename);
+            if ($deleteMapping->execute()) {
+                if ($deleteMapping->rowCount() > 0) {
+                    $status .= "The mapping for " . htmlspecialchars($filename) . " has also been removed.<br>";
+                }
+            } else {
+                $status .= "Warning: Could not remove mapping for " . htmlspecialchars($filename) . ".<br>";
+            }
         } else {
-            $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+            $status .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
         }
     }
+    $db->commit(); // Commit all database changes
     $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
 
-$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..'));
+$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..', 'twitch'));
 function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 ?>
 <!DOCTYPE html>
@@ -164,7 +190,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             </div>
         </div>
     </div>
-    <div class="columns is-desktop is-multiline box-container" style="width: 100%;">
+    <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
         <div class="column is-4" id="walkon-upload" style="position: relative;">
             <h1 class="title is-4">Upload MP3 Files:</h1>
             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
@@ -188,7 +214,7 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
             <?php endif; ?>
         </div>
         <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
-            <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
+            <?php $walkon_files = array_diff(scandir($soundalert_path), array('.', '..', 'twitch')); if (!empty($walkon_files)) : ?>
             <h1 class="title is-4">Your Sound Alerts</h1>
             <form action="" method="POST" id="deleteForm">
                 <table class="table is-striped" style="width: 100%; text-align: center;">
@@ -224,22 +250,21 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                                 <br>
                                 <form action="" method="POST" class="mapping-form">
                                     <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                    <select name="reward_id" class="mapping-select" onchange="this.form.submit()">
-                                        <option value="">-- Select Reward --</option>
+                                    <select name="reward_id" class="mapping-select">
                                         <?php 
+                                        if ($current_reward_id): ?>
+                                            <option value="" class="has-text-danger">-- Remove Mapping --</option>
+                                        <?php endif; ?>
+                                        <option value="">-- Select Reward --</option>
+                                        <?php
                                         foreach ($channelPointRewards as $reward): 
-                                            $isMapped = in_array($reward['reward_id'], $soundAlertMappings);
+                                            // Modified: Exclude rewards already mapped in sound OR video alerts unless currently selected
+                                            $isMapped = (in_array($reward['reward_id'], $soundAlertMappings) || in_array($reward['reward_id'], $videoMappedRewards));
                                             $isCurrent = ($current_reward_id === $reward['reward_id']);
                                             // Skip rewards that are already mapped to other sounds, unless it's the current mapping
                                             if ($isMapped && !$isCurrent) continue; 
                                         ?>
-                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>" 
-                                                <?php 
-                                                if ($isCurrent) {
-                                                    echo 'selected';
-                                                }
-                                                ?>
-                                            >
+                                            <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) { echo ' selected';}?>>
                                                 <?php echo htmlspecialchars($reward['reward_title']); ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -258,6 +283,8 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
                 </table>
                 <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
             </form>
+            <?php else: ?>
+                <h1 class="title is-4">No sound alert files uploaded.</h1>
             <?php endif; ?>
         </div>
     </div>
@@ -266,9 +293,20 @@ function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
 $(document).ready(function() {
+    // Add event listener for mapping select boxes
+    $('.mapping-select').on('change', function() {
+        // Submit the form via AJAX
+        const form = $(this).closest('form');
+        $.post('', form.serialize(), function(data) {
+            // Reload the page after successful submission
+            location.reload();
+        });
+    });
     let dropArea = $('#drag-area');
     let fileInput = $('#filesToUpload');
     let fileList = $('#file-list');
+    let uploadProgressBar = $('.upload-progress-bar');
+
     dropArea.on('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -289,7 +327,7 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        $('#uploadForm').submit();
+        uploadFiles(files);
     });
     dropArea.on('click', function() {
         fileInput.click();
@@ -300,8 +338,40 @@ $(document).ready(function() {
         $.each(files, function(index, file) {
             fileList.append('<div>' + file.name + '</div>');
         });
-        $('#uploadForm').submit();
+        uploadFiles(files);
     });
+
+    function uploadFiles(files) {
+        let formData = new FormData();
+        $.each(files, function(index, file) {
+            formData.append('filesToUpload[]', file);
+        });
+        $.ajax({
+            url: '',
+            type: 'POST',
+            data: formData,
+            contentType: false,
+            processData: false,
+            xhr: function() {
+                let xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        let percentComplete = (e.loaded / e.total) * 100;
+                        uploadProgressBar.css('width', percentComplete + '%');
+                        uploadProgressBar.text(Math.round(percentComplete) + '%');
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                location.reload(); // Reload the page to update the file list and storage usage
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
+            }
+        });
+    }
+
     $('.delete-single').on('click', function() {
         let fileName = $(this).data('file');
         if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
