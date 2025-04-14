@@ -40,7 +40,7 @@ if ($row['mod_count'] === 0) {
 }
 
 // Fetch broadcaster information from the database
-$query = "SELECT twitch_display_name, profile_image FROM users WHERE twitch_user_id = ?";
+$query = "SELECT twitch_display_name, profile_image, username FROM users WHERE twitch_user_id = ?";
 $stmt = $conn->prepare($query);
 $stmt->bind_param("s", $broadcasterId);
 $stmt->execute();
@@ -50,7 +50,8 @@ $broadcasterInfo = $result->fetch_assoc();
 
 $broadcasterName = $broadcasterInfo['twitch_display_name'];
 $broadcasterImage = $broadcasterInfo['profile_image'];
-$broadcasterUsername = $broadcasterInfo['twitch_username'];
+$broadcasterUsername = $broadcasterInfo['username'];
+$_SESSION['editing_user'] = $broadcasterId;
 $twitchDisplayName = $broadcasterName;
 $twitch_profile_image_url = $broadcasterImage;
 ?>
