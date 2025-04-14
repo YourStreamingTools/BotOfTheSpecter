@@ -47,4 +47,15 @@ if ($row['valid_count'] > 0) {
 } else {
     die("Access Denied: Invalid broadcaster ID.");
 }
+
+// Validate if the user is a moderator for the broadcaster
+$query = "SELECT COUNT(*) AS mod_count FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("ss", $mod_user, $broadcasterId);
+$stmt->execute();
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
+if ($row['mod_count'] === 0) {
+    die("Access Denied: You do not have moderator access for this broadcaster.");
+}
 ?>
