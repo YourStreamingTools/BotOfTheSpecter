@@ -27,7 +27,7 @@ function getChannelStatus($login) {
   global $clientID;
   $token = $_SESSION['access_token'];
   $ch = curl_init();
-  curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/search/channels?query=" . urlencode($login));
+  curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/search/channels?first=1&query=" . urlencode($login));
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Authorization: Bearer ' . $token,
@@ -47,8 +47,8 @@ function getChannelStatus($login) {
   ];
   if ($httpcode == 200) {
     $data = json_decode($response, true);
-    if (!empty($data['data'])) {
-      return $result['data'] = $channel;
+    if (!empty($data['data'][0])) {
+      $result['data'] = $data['data'][0];
     }
   }
   return $result;
@@ -100,6 +100,7 @@ $channelInfo = $channelResponse['data'];
           $title = 'No Title';
           $gameName = 'Not Playing';
           $tags = [];
+          $isLive = false;
           if ($channelInfo) {
             $title = $channelInfo['title'] ?? 'No Title';
             $gameName = $channelInfo['game_name'] ?? 'Not Playing';
@@ -124,17 +125,6 @@ $channelInfo = $channelResponse['data'];
         <div class="mt-4">
           <p><span>Stream Title:</span> <?php echo htmlspecialchars($title); ?></p>
           <p><span>Game/Category:</span> <?php echo htmlspecialchars($gameName); ?></p>
-          <p><span>Status:</span> <span class="tag <?php echo $isLive ? 'is-success' : 'is-light'; ?>">
-            <?php echo $isLive ? 'LIVE' : 'Offline'; ?>
-          </span></p>
-          <?php if (!empty($tags)): ?>
-          <p><span>Tags:</span> <?php echo htmlspecialchars(implode(', ', $tags)); ?></p>
-          <?php endif; ?>
-          <?php if (!empty($channelInfo['thumbnail_url'])): ?>
-          <div class="mt-3">
-            <img src="<?php echo htmlspecialchars($channelInfo['thumbnail_url']); ?>" alt="Channel Thumbnail" width="150">
-          </div>
-          <?php endif; ?>
         </div>
       </div>
     </div>
