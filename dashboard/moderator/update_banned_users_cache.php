@@ -1,25 +1,17 @@
 <?php
-// Initialize the session
-session_start();
-
-$cacheUsername = $_SESSION['username'];
-
+$cacheUsername = $_SESSION['editing_username'];
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $cacheDirectory = "cache/$cacheUsername";
     $cacheFile = "$cacheDirectory/bannedUsers.json";
     $tempCacheFile = "$cacheFile.tmp";
-
     $data = json_decode(file_get_contents('php://input'), true);
-
     if ($data === null) {
         echo json_encode(['status' => 'failed', 'error' => 'Invalid JSON']);
         exit();
     }
-
     if (!is_dir($cacheDirectory)) {
         mkdir($cacheDirectory, 0755, true);
     }
-
     // Write to a temporary file first
     if (!empty($data) && $tempFileHandle = fopen($tempCacheFile, 'w')) {
         if (flock($tempFileHandle, LOCK_EX)) {
@@ -33,7 +25,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         echo json_encode(['status' => 'failed', 'error' => 'Could not write to cache file or data is empty']);
     }
-
 } else {
     echo json_encode(['status' => 'failed', 'error' => 'Invalid request']);
 }
