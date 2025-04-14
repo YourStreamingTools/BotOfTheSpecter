@@ -1,28 +1,4 @@
 <?php 
-// Initialize the session
-session_start();
-
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
-}
-
-// Page Title
-$title = "Chat Protection";
-
-// Include all the information
-require_once "db_connect.php";
-include 'userdata.php';
-include 'bot_control.php';
-include 'user_db.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
-date_default_timezone_set($timezone);
-$message = '';
-
 // Fetch protection settings
 $getProtection = $db->query("SELECT * FROM protection LIMIT 1");
 $settings = $getProtection->fetchAll(PDO::FETCH_ASSOC);
@@ -74,29 +50,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             error_log("Error inserting blacklist link: " . implode(", ", $stmt->errorInfo()));
         }
     }
+
+    // Remove Whitelist Link
+    if (isset($_POST['remove_whitelist_link'])) {
+        $remove_whitelist_link = $_POST['remove_whitelist_link'];
+        $stmt = $db->prepare("DELETE FROM link_whitelist WHERE link = ?");
+        $stmt->bindParam(1, $remove_whitelist_link, PDO::PARAM_STR);
+        if ($stmt->execute()) {
+            $message .= "Link removed from the whitelist.<br>";
+        } else {
+            $message .= "Failed to remove the link from the whitelist.<br>";
+            error_log("Error deleting whitelist link: " . implode(", ", $stmt->errorInfo()));
+        }
+    }
+
+    // Remove Blacklist Link
+    if (isset($_POST['remove_blacklist_link'])) {
+        $remove_blacklist_link = $_POST['remove_blacklist_link'];
+        $stmt = $db->prepare("DELETE FROM link_blacklisting WHERE link = ?");
+        $stmt->bindParam(1, $remove_blacklist_link, PDO::PARAM_STR);
+        if ($stmt->execute()) {
+            $message .= "Link removed from the blacklist.<br>";
+        } else {
+            $message .= "Failed to remove the link from the blacklist.<br>";
+            error_log("Error deleting blacklist link: " . implode(", ", $stmt->errorInfo()));
+        }
+    }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
 <div class="container">
-    <br>
-    <h1 class="title">Chat Protection</h1>
+    <h1 class="title">Chat Protection Settings:</h1>
     <?php if (!empty($message)): ?>
         <div class="notification is-primary has-text-black has-text-weight-bold">
             <?php echo $message; ?>
         </div>
     <?php endif; ?>
-    <div class="columns is-desktop is-multiline box-container">
+    <div class="columns is-desktop is-multiline is-centered box-container">
         <!-- URL Blocking Settings -->
         <div class="column is-2 bot-box" style="position: relative;">
             <form action="" method="post">
@@ -147,27 +136,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </form>
         </div>
         <!-- Whitelist and Blacklist Tables -->
-        <div class="column is-5 bot-box" style="position: relative;">
-            <i class="fas fa-question-circle" id="whitelist-links-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <div class="column is-5" style="position: relative;">
             <h2 class="subtitle">Whitelist Links</h2>
             <table class="table is-fullwidth is-bordered">
                 <tbody>
                     <?php foreach ($whitelistLinks as $link): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($link['link']); ?></td>
+                            <td>
+                                <form action="" method="post" style="display:inline;">
+                                    <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                    <button type="submit" class="button is-danger">Remove</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-        <div class="column is-5 bot-box" style="position: relative;">
-            <i class="fas fa-question-circle" id="blacklist-links-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
+        <div class="column is-5" style="position: relative;">
             <h2 class="subtitle">Blacklist Links</h2>
             <table class="table is-fullwidth is-bordered">
                 <tbody>
                     <?php foreach ($blacklistLinks as $link): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($link['link']); ?></td>
+                            <td>
+                                <form action="" method="post" style="display:inline;">
+                                    <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                    <button type="submit" class="button is-danger">Remove</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -175,58 +174,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 </div>
-
-<div class="modal" id="whitelist-links-modal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white">Whitelist Links</p>
-            <button class="delete" aria-label="close" id="whitelist-links-modal-close"></button>
-        </header>
-        <section class="modal-card-body has-background-dark has-text-white">
-            <p>Adding links to the whitelist allows them to be shared freely in your Twitch chat, regardless of any URL-blocking settings enabled for general link sharing. Whitelisted links are exempt from any automatic deletion, ensuring that trusted sources or specific links you approve can always appear in chat.</p>
-            <br>
-            <p>This is particularly useful for allowing links to community resources, your own websites, or trusted external platforms, providing your viewers with easy access to valuable information while maintaining strict control over unapproved content.</p>
-        </section>
-    </div>
-</div>
-
-<div class="modal" id="blacklist-links-modal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white">Blacklist Links</p>
-            <button class="delete" aria-label="close" id="blacklist-links-modal-close"></button>
-        </header>
-        <section class="modal-card-body has-background-dark has-text-white">
-            <p>Any link added to the blacklist will be permanently banned from appearing in your Twitch chat. Blacklisted links will be automatically detected and deleted by the Twitch bot without further intervention. This feature is invaluable for blocking spam, harmful, or distracting links that might detract from the viewer experience or violate chat guidelines.</p>
-            <br>
-            <p>Blacklisting provides an additional layer of security, helping to prevent phishing attempts, unwanted advertisements, or disruptive content from appearing. By curating this list, you maintain a safe, respectful, and distraction-free environment for your community.</p>
-        </section>
-    </div>
-</div>
-
-<script>
-const modalIds = [
-    { open: "whitelist-links-modal-open", close: "whitelist-links-modal-close" },
-    { open: "blacklist-links-modal-open", close: "blacklist-links-modal-close" }
-];
-
-modalIds.forEach(modal => {
-    const openButton = document.getElementById(modal.open);
-    const closeButton = document.getElementById(modal.close);
-    if (openButton) {
-        openButton.addEventListener("click", function() {
-            document.getElementById(modal.close.replace('-close', '')).classList.add("is-active");
-        });
-    }
-    if (closeButton) {
-        closeButton.addEventListener("click", function() {
-            document.getElementById(modal.close.replace('-close', '')).classList.remove("is-active");
-        });
-    }
-});
-</script>
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
