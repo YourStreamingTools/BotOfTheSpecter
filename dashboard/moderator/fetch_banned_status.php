@@ -9,9 +9,16 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 $access_token = $_SESSION['access_token'];
-$broadcasterID = $_SESSION['twitch_user_id'];
-$cacheUsername = $_SESSION['username'];
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+
+// Use broadcaster ID from query or session
+if (isset($_GET['broadcaster_id'])) {
+    $broadcasterID = $_GET['broadcaster_id'];
+} elseif (isset($_SESSION['broadcaster_id'])) {
+    $broadcasterID = $_SESSION['broadcaster_id'];
+} else {
+    die("Error: Broadcaster ID not provided.");
+}
 
 function getTwitchUserId($username, $accessToken, $clientID) {
     $url = "https://api.twitch.tv/helix/users?login=$username";
@@ -28,6 +35,7 @@ function getTwitchUserId($username, $accessToken, $clientID) {
     return $data['data'][0]['id'] ?? null;
 }
 
+// Ensure the banned status check is scoped to the broadcaster
 function isUserBanned($userId, $accessToken, $broadcasterID, $clientID) {
     $url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=$broadcasterID&user_id=$userId";
     $headers = [
@@ -46,7 +54,7 @@ function isUserBanned($userId, $accessToken, $broadcasterID, $clientID) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     $username = $_POST['usernameToCheck'];
 
-    $cacheDirectory = "cache/$cacheUsername";
+    $cacheDirectory = "cache/$broadcasterID";
     $cacheFile = "$cacheDirectory/bannedUsers.json";
     $tempCacheFile = "$cacheFile.tmp";
     $cacheExpiration = 600; // Cache expires after 10 minutes
