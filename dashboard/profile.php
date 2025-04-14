@@ -346,13 +346,30 @@ if ($is_admin) {
     <div class="column bot-box is-11">
       <h4 class="label is-4">Server Storage Information</h4>
       <div class="columns is-multiline">
-        <?php foreach ($server_storage_info as $server): ?>
+        <?php 
+        // Group servers by name
+        $grouped_servers = [];
+        foreach ($server_storage_info as $key => $server) {
+          if (!isset($grouped_servers[$server['name']])) {
+            $grouped_servers[$server['name']] = []; }
+          $grouped_servers[$server['name']][] = $server;
+        }
+        // Display each server group
+        foreach ($grouped_servers as $server_name => $mounts): ?>
           <div class="column is-4">
-            <h5 class="label is-5"><?php echo $server['name']; ?></h5>
-            <div class="progress-bar-container">
-              <div class="progress-bar has-text-black-bis" style="width: <?php echo $server['percentage']; ?>%;"><?php echo round($server['percentage'], 2); ?>%</div>
-            </div>
-            <p class="label is-6">Total: <?php echo $server['total']; ?> | Used: <?php echo $server['used']; ?> | Free: <?php echo $server['free']; ?></p>
+            <h5 class="label is-5"><?php echo $server_name; ?></h5>
+            <?php foreach ($mounts as $mount): ?>
+              <?php if (count($mounts) > 1): ?>
+                <p class="label is-6">Mount: <?php echo $mount['mount']; ?></p>
+              <?php endif; ?>
+              <div class="progress-bar-container">
+                <div class="progress-bar has-text-black-bis" style="width: <?php echo $mount['percentage']; ?>%;"><?php echo round($mount['percentage'], 2); ?>%</div>
+              </div>
+              <p class="label is-6">Total: <?php echo $mount['total']; ?> | Used: <?php echo $mount['used']; ?> | Free: <?php echo $mount['free']; ?></p>
+              <?php if (next($mounts)): ?>
+                <div style="margin-bottom: 15px;"></div>
+              <?php endif; ?>
+            <?php endforeach; ?>
           </div>
         <?php endforeach; ?>
       </div>
