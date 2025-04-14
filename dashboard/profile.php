@@ -103,148 +103,166 @@ $server_storage_info = [];
 $server_storage_percentage = 0;
 if ($is_admin) {
   require_once "/var/www/config/ssh.php";
-  // Main server (local)
-  $total_space = disk_total_space("/");
-  $free_space = disk_free_space("/");
-  $used_space = $total_space - $free_space;
-  $server_storage_info['main'] = [
-    'name' => 'Main Server',
-    'mount' => '/',
-    'total' => round($total_space / 1024 / 1024 / 1024, 2) . ' GB',
-    'used' => round($used_space / 1024 / 1024 / 1024, 2) . ' GB',
-    'free' => round($free_space / 1024 / 1024 / 1024, 2) . ' GB',
-    'percentage' => ($used_space / $total_space) * 100
-  ];
-  // Function to get remote disk space via SSH
-  function getRemoteDiskSpace($host, $username, $password, $mount) {
-    if (empty($host) || empty($username) || empty($password)) {
-      return null;
+  // Define cache file path
+  $cache_file = "/var/www/cache/server_storage_info.json";
+  $cache_expiry = 300; // 5 minutes in seconds
+  // Check if cache exists and is recent
+  $use_cache = false;
+  if (file_exists($cache_file)) {
+    $cache_time = filemtime($cache_file);
+    if ((time() - $cache_time) < $cache_expiry) {
+      // Cache is valid, load from cache
+      $cache_content = file_get_contents($cache_file);
+      if ($cache_content) {
+        $server_storage_info = json_decode($cache_content, true);
+        $use_cache = true;
+      }
     }
-    $connection = ssh2_connect($host, 22);
-    if (!$connection) {
-      return null;
-    }
-    if (!ssh2_auth_password($connection, $username, $password)) {
-      return null;
-    }
-    // Get total space
-    $total_command = "df -k " . escapeshellarg($mount) . " | tail -1 | awk '{print $2}'";
-    $stream_total = ssh2_exec($connection, $total_command);
-    stream_set_blocking($stream_total, true);
-    $total_kb = (int)trim(stream_get_contents($stream_total));
-    $total_gb = round($total_kb / 1024 / 1024, 2);
-    // Get used space
-    $used_command = "df -k " . escapeshellarg($mount) . " | tail -1 | awk '{print $3}'";
-    $stream_used = ssh2_exec($connection, $used_command);
-    stream_set_blocking($stream_used, true);
-    $used_kb = (int)trim(stream_get_contents($stream_used));
-    $used_gb = round($used_kb / 1024 / 1024, 2);
-    // Calculate free space and percentage
-    $free_gb = $total_gb - $used_gb;
-    $percentage = $total_gb > 0 ? ($used_gb / $total_gb) * 100 : 0;
-    return [
-      'total' => $total_gb . ' GB',
-      'used' => $used_gb . ' GB',
-      'free' => $free_gb . ' GB',
-      'percentage' => $percentage
+  }
+  if (!$use_cache) {
+    // Cache expired or doesn't exist, fetch fresh data
+    // Main server (local)
+    $total_space = disk_total_space("/");
+    $free_space = disk_free_space("/");
+    $used_space = $total_space - $free_space;
+    $server_storage_info['main'] = [
+      'name' => 'Main Server',
+      'mount' => '/',
+      'total' => round($total_space / 1024 / 1024 / 1024, 2) . ' GB',
+      'used' => round($used_space / 1024 / 1024 / 1024, 2) . ' GB',
+      'free' => round($free_space / 1024 / 1024 / 1024, 2) . ' GB',
+      'percentage' => ($used_space / $total_space) * 100
     ];
+    // Function to get remote disk space via SSH
+    function getRemoteDiskSpace($host, $username, $password, $mount) {
+      if (empty($host) || empty($username) || empty($password)) { return null; }
+      $connection = ssh2_connect($host, 22);
+      if (!$connection) { return null; }
+      if (!ssh2_auth_password($connection, $username, $password)) { return null;}
+      // Get total space
+      $total_command = "df -k " . escapeshellarg($mount) . " | tail -1 | awk '{print $2}'";
+      $stream_total = ssh2_exec($connection, $total_command);
+      stream_set_blocking($stream_total, true);
+      $total_kb = (int)trim(stream_get_contents($stream_total));
+      $total_gb = round($total_kb / 1024 / 1024, 2);
+      // Get used space
+      $used_command = "df -k " . escapeshellarg($mount) . " | tail -1 | awk '{print $3}'";
+      $stream_used = ssh2_exec($connection, $used_command);
+      stream_set_blocking($stream_used, true);
+      $used_kb = (int)trim(stream_get_contents($stream_used));
+      $used_gb = round($used_kb / 1024 / 1024, 2);
+      // Calculate free space and percentage
+      $free_gb = $total_gb - $used_gb;
+      $percentage = $total_gb > 0 ? ($used_gb / $total_gb) * 100 : 0;
+      return [
+        'total' => $total_gb . ' GB',
+        'used' => $used_gb . ' GB',
+        'free' => $free_gb . ' GB',
+        'percentage' => $percentage
+      ];
+    }
+    // API Server
+    if (!empty($api_server_host) && !empty($api_server_username) && !empty($api_server_password)) {
+      $api_storage = getRemoteDiskSpace($api_server_host, $api_server_username, $api_server_password, "/");
+      if ($api_storage) {
+        $server_storage_info['api'] = [
+          'name' => 'API Server',
+          'mount' => '/',
+          'total' => $api_storage['total'],
+          'used' => $api_storage['used'],
+          'free' => $api_storage['free'],
+          'percentage' => $api_storage['percentage']
+        ];
+      }
+    }
+    // SQL Database Server
+    if (!empty($sql_server_host) && !empty($sql_server_username) && !empty($sql_server_password)) {
+      $sql_storage = getRemoteDiskSpace($sql_server_host, $sql_server_username, $sql_server_password, "/");
+      if ($sql_storage) {
+        $server_storage_info['sql'] = [
+          'name' => 'SQL Database Server',
+          'mount' => '/',
+          'total' => $sql_storage['total'],
+          'used' => $sql_storage['used'],
+          'free' => $sql_storage['free'],
+          'percentage' => $sql_storage['percentage']
+        ];
+      }
+    }
+    // Stream Servers
+    // AU-EAST-1
+    if (!empty($storage_server_au_east_1_host) && !empty($storage_server_au_east_1_username) && !empty($storage_server_au_east_1_password)) {
+      $au_east_storage = getRemoteDiskSpace($storage_server_au_east_1_host, $storage_server_au_east_1_username, $storage_server_au_east_1_password, "/");
+      if ($au_east_storage) {
+        $server_storage_info['au-east-1'] = [
+          'name' => 'STREAM AU-EAST-1',
+          'mount' => '/',
+          'total' => $au_east_storage['total'],
+          'used' => $au_east_storage['used'],
+          'free' => $au_east_storage['free'],
+          'percentage' => $au_east_storage['percentage']
+        ];
+      }
+    }
+    // US-WEST-1 (root mount)
+    if (!empty($storage_server_us_west_1_host) && !empty($storage_server_us_west_1_username) && !empty($storage_server_us_west_1_password)) {
+      $us_west_root_storage = getRemoteDiskSpace($storage_server_us_west_1_host, $storage_server_us_west_1_username, $storage_server_us_west_1_password, "/");
+      if ($us_west_root_storage) {
+        $server_storage_info['us-west-1-root'] = [
+          'name' => 'STREAM US-WEST-1',
+          'mount' => '/',
+          'total' => $us_west_root_storage['total'],
+          'used' => $us_west_root_storage['used'],
+          'free' => $us_west_root_storage['free'],
+          'percentage' => $us_west_root_storage['percentage']
+        ];
+      }
+      // US-WEST-1 (storage mount)
+      $us_west_storage_mount = getRemoteDiskSpace($storage_server_us_west_1_host, $storage_server_us_west_1_username, $storage_server_us_west_1_password, "/mnt/stream-us-west-1");
+      if ($us_west_storage_mount) {
+        $server_storage_info['us-west-1-storage'] = [
+          'name' => 'STREAM US-WEST-1',
+          'mount' => '/mnt/stream-us-west-1',
+          'total' => $us_west_storage_mount['total'],
+          'used' => $us_west_storage_mount['used'],
+          'free' => $us_west_storage_mount['free'],
+          'percentage' => $us_west_storage_mount['percentage']
+        ];
+      }
+    }
+    // US-EAST-1 (root mount)
+    if (!empty($storage_server_us_east_1_host) && !empty($storage_server_us_east_1_username) && !empty($storage_server_us_east_1_password)) {
+      $us_east_root_storage = getRemoteDiskSpace($storage_server_us_east_1_host, $storage_server_us_east_1_username, $storage_server_us_east_1_password, "/");
+      if ($us_east_root_storage) {
+        $server_storage_info['us-east-1-root'] = [
+          'name' => 'STREAM US-EAST-1',
+          'mount' => '/',
+          'total' => $us_east_root_storage['total'],
+          'used' => $us_east_root_storage['used'],
+          'free' => $us_east_root_storage['free'],
+          'percentage' => $us_east_root_storage['percentage']
+        ];
+      }
+      // US-EAST-1 (storage mount)
+      $us_east_storage_mount = getRemoteDiskSpace($storage_server_us_east_1_host, $storage_server_us_east_1_username, $storage_server_us_east_1_password, "/mnt/stream-us-east-1");
+      if ($us_east_storage_mount) {
+        $server_storage_info['us-east-1-storage'] = [
+          'name' => 'STREAM US-EAST-1',
+          'mount' => '/mnt/stream-us-east-1',
+          'total' => $us_east_storage_mount['total'],
+          'used' => $us_east_storage_mount['used'],
+          'free' => $us_east_storage_mount['free'],
+          'percentage' => $us_east_storage_mount['percentage']
+        ];
+      }
+    }
+    $server_storage_percentage = ($used_space / $total_space) * 100;
+    // Save to cache file
+    if (!is_dir(dirname($cache_file))) {
+      mkdir(dirname($cache_file), 0755, true);
+    }
+    file_put_contents($cache_file, json_encode($server_storage_info));
   }
-  // API Server
-  if (!empty($api_server_host) && !empty($api_server_username) && !empty($api_server_password)) {
-    $api_storage = getRemoteDiskSpace($api_server_host, $api_server_username, $api_server_password, "/");
-    if ($api_storage) {
-      $server_storage_info['api'] = [
-        'name' => 'API Server',
-        'mount' => '/',
-        'total' => $api_storage['total'],
-        'used' => $api_storage['used'],
-        'free' => $api_storage['free'],
-        'percentage' => $api_storage['percentage']
-      ];
-    }
-  }
-  // SQL Database Server
-  if (!empty($sql_server_host) && !empty($sql_server_username) && !empty($sql_server_password)) {
-    $sql_storage = getRemoteDiskSpace($sql_server_host, $sql_server_username, $sql_server_password, "/");
-    if ($sql_storage) {
-      $server_storage_info['sql'] = [
-        'name' => 'SQL Database Server',
-        'mount' => '/',
-        'total' => $sql_storage['total'],
-        'used' => $sql_storage['used'],
-        'free' => $sql_storage['free'],
-        'percentage' => $sql_storage['percentage']
-      ];
-    }
-  }
-  // Stream Servers
-  // AU-EAST-1
-  if (!empty($storage_server_au_east_1_host) && !empty($storage_server_au_east_1_username) && !empty($storage_server_au_east_1_password)) {
-    $au_east_storage = getRemoteDiskSpace($storage_server_au_east_1_host, $storage_server_au_east_1_username, $storage_server_au_east_1_password, "/");
-    if ($au_east_storage) {
-      $server_storage_info['au-east-1'] = [
-        'name' => 'STREAM AU-EAST-1',
-        'mount' => '/',
-        'total' => $au_east_storage['total'],
-        'used' => $au_east_storage['used'],
-        'free' => $au_east_storage['free'],
-        'percentage' => $au_east_storage['percentage']
-      ];
-    }
-  }
-  // US-WEST-1 (root mount)
-  if (!empty($storage_server_us_west_1_host) && !empty($storage_server_us_west_1_username) && !empty($storage_server_us_west_1_password)) {
-    $us_west_root_storage = getRemoteDiskSpace($storage_server_us_west_1_host, $storage_server_us_west_1_username, $storage_server_us_west_1_password, "/");
-    if ($us_west_root_storage) {
-      $server_storage_info['us-west-1-root'] = [
-        'name' => 'STREAM US-WEST-1',
-        'mount' => '/',
-        'total' => $us_west_root_storage['total'],
-        'used' => $us_west_root_storage['used'],
-        'free' => $us_west_root_storage['free'],
-        'percentage' => $us_west_root_storage['percentage']
-      ];
-    }
-    // US-WEST-1 (storage mount)
-    $us_west_storage_mount = getRemoteDiskSpace($storage_server_us_west_1_host, $storage_server_us_west_1_username, $storage_server_us_west_1_password, "/mnt/stream-us-west-1");
-    if ($us_west_storage_mount) {
-      $server_storage_info['us-west-1-storage'] = [
-        'name' => 'STREAM US-WEST-1',
-        'mount' => '/mnt/stream-us-west-1',
-        'total' => $us_west_storage_mount['total'],
-        'used' => $us_west_storage_mount['used'],
-        'free' => $us_west_storage_mount['free'],
-        'percentage' => $us_west_storage_mount['percentage']
-      ];
-    }
-  }
-  // US-EAST-1 (root mount)
-  if (!empty($storage_server_us_east_1_host) && !empty($storage_server_us_east_1_username) && !empty($storage_server_us_east_1_password)) {
-    $us_east_root_storage = getRemoteDiskSpace($storage_server_us_east_1_host, $storage_server_us_east_1_username, $storage_server_us_east_1_password, "/");
-    if ($us_east_root_storage) {
-      $server_storage_info['us-east-1-root'] = [
-        'name' => 'STREAM US-EAST-1',
-        'mount' => '/',
-        'total' => $us_east_root_storage['total'],
-        'used' => $us_east_root_storage['used'],
-        'free' => $us_east_root_storage['free'],
-        'percentage' => $us_east_root_storage['percentage']
-      ];
-    }
-    // US-EAST-1 (storage mount)
-    $us_east_storage_mount = getRemoteDiskSpace($storage_server_us_east_1_host, $storage_server_us_east_1_username, $storage_server_us_east_1_password, "/mnt/stream-us-east-1");
-    if ($us_east_storage_mount) {
-      $server_storage_info['us-east-1-storage'] = [
-        'name' => 'STREAM US-EAST-1',
-        'mount' => '/mnt/stream-us-east-1',
-        'total' => $us_east_storage_mount['total'],
-        'used' => $us_east_storage_mount['used'],
-        'free' => $us_east_storage_mount['free'],
-        'percentage' => $us_east_storage_mount['percentage']
-      ];
-    }
-  }
-  $server_storage_percentage = ($used_space / $total_space) * 100;
 }
 ?>
 <!DOCTYPE html>
