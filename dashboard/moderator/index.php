@@ -33,6 +33,8 @@ $commandCount = 0;
 $enabledCommandCount = 0;
 $disabledCommandCount = 0;
 $timerCount = 0;
+$enabledTimerCount = 0;
+$disabledTimerCount = 0;
 
 // Function to get channel status from Twitch API
 function getChannelStatus($login) {
@@ -95,6 +97,16 @@ $disabledCommandCount = $disabledCommandStmt->fetchColumn();
 $timerCountStmt = $db->prepare("SELECT COUNT(*) FROM timed_messages");
 $timerCountStmt->execute();
 $timerCount = $timerCountStmt->fetchColumn();
+
+// Count enabled timers
+$enabledTimerStmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE status = 'True'");
+$enabledTimerStmt->execute();
+$enabledTimerCount = $enabledTimerStmt->fetchColumn();
+
+// Count disabled timers
+$disabledTimerStmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE status = 'False'");
+$disabledTimerStmt->execute();
+$disabledTimerCount = $disabledTimerStmt->fetchColumn();
 ?>
 <!doctype html>
 <html lang="en">
@@ -143,6 +155,11 @@ $timerCount = $timerCountStmt->fetchColumn();
           <div class="column has-text-centered">
             <p class="heading">Timers</p>
             <p class="title"><?php echo $timerCount; ?></p>
+            <p class="subtitle is-size-6">
+              <span class="has-text-success"><?php echo $enabledTimerCount; ?> Enabled</span> 
+              &nbsp;/&nbsp; 
+              <span class="has-text-danger"><?php echo $disabledTimerCount; ?> Disabled</span>
+            </p>
           </div>
           <div class="column has-text-centered">
             <p class="heading">Online Status</p>
