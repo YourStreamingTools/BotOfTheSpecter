@@ -9,16 +9,8 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 $access_token = $_SESSION['access_token'];
+$broadcasterID = $_SESSION['editing_user'];
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
-
-// Use broadcaster ID from query or session
-if (isset($_GET['broadcaster_id'])) {
-    $broadcasterID = $_GET['broadcaster_id'];
-} elseif (isset($_SESSION['broadcaster_id'])) {
-    $broadcasterID = $_SESSION['broadcaster_id'];
-} else {
-    die("Error: Broadcaster ID not provided.");
-}
 
 function getTwitchUserId($username, $accessToken, $clientID) {
     $url = "https://api.twitch.tv/helix/users?login=$username";
@@ -53,20 +45,15 @@ function isUserBanned($userId, $accessToken, $broadcasterID, $clientID) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
     $username = $_POST['usernameToCheck'];
-
     $cacheDirectory = "cache/$broadcasterID";
     $cacheFile = "$cacheDirectory/bannedUsers.json";
     $tempCacheFile = "$cacheFile.tmp";
     $cacheExpiration = 600; // Cache expires after 10 minutes
-
     $bannedUsersCache = [];
     if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
         $cacheContent = file_get_contents($cacheFile);
-        if ($cacheContent) {
-            $bannedUsersCache = json_decode($cacheContent, true);
-        }
+        if ($cacheContent) { $bannedUsersCache = json_decode($cacheContent, true); }
     }
-
     if (isset($bannedUsersCache[$username])) {
         $banned = $bannedUsersCache[$username];
     } else {
@@ -74,11 +61,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
         if ($userId) {
             $banned = isUserBanned($userId, $access_token, $broadcasterID, $clientID);
             $bannedUsersCache[$username] = $banned;
-
             if (!is_dir($cacheDirectory)) {
                 mkdir($cacheDirectory, 0755, true);
             }
-
             // Write to a temporary file first
             if (!empty($bannedUsersCache) && $tempFileHandle = fopen($tempCacheFile, 'w')) {
                 if (flock($tempFileHandle, LOCK_EX)) {
@@ -93,9 +78,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernameToCheck'])) {
             $banned = false;
         }
     }
-
     echo json_encode(['banned' => $banned]);
-
 } else {
     http_response_code(400);
     echo json_encode(['error' => 'Bad request']);
