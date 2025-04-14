@@ -1,8 +1,6 @@
 <?php
 // User Specter Database
-$mysqlhost = "sql.botofthespecter.com";
-$mysqlusername = ""; // CHANGE TO MAKE THIS WORK
-$mysqlpassword = ""; // CHANGE TO MAKE THIS WORK
+include '/var/www/config/database.php';
 $dbname = $_SESSION['username'];
 
 // Initialize all variables as empty arrays or values
@@ -17,16 +15,19 @@ $totalHugs = 0;
 $hugCounts = [];
 $totalKisses = 0;
 $kissCounts = [];
+$highfiveCounts = [];
 $customCounts = [];
 $userCounts = [];
+$rewardCounts = [];
 $seenUsersData = [];
 $timedMessagesData = [];
 $channelPointRewards = [];
 $profileData = [];
+$todos = [];
 
 try {
     // Connect to MySQL database
-    $db = new PDO("mysql:host=$mysqlhost;dbname=$dbname", $mysqlusername, $mysqlpassword);
+    $db = new PDO("mysql:host=$db_servername;dbname=$dbname", $db_username, $db_password);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Fetch all custom commands
@@ -42,7 +43,7 @@ try {
     $lurkers = $getLurkers->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch watch time from the database
-    $getWatchTime = $db->query("SELECT user_id, username, total_watch_time_live, total_watch_time_offline FROM watch_time");
+    $getWatchTime = $db->query("SELECT * FROM watch_time");
     $watchTimeData = $getWatchTime->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch typo counts
@@ -73,6 +74,10 @@ try {
     $getKissCounts = $db->query("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC");
     $kissCounts = $getKissCounts->fetchAll(PDO::FETCH_ASSOC);
 
+    // Fetch highfive counts
+    $getHighfiveCounts = $db->query("SELECT username, highfive_count FROM highfive_counts ORDER BY highfive_count DESC");
+    $highfiveCounts = $getHighfiveCounts->fetchAll(PDO::FETCH_ASSOC);
+
     // Fetch custom counts
     $getCustomCounts = $db->query("SELECT command, count FROM custom_counts ORDER BY count DESC");
     $customCounts = $getCustomCounts->fetchAll(PDO::FETCH_ASSOC);
@@ -80,6 +85,10 @@ try {
     // Fetah Custom User Counts
     $getUserCounts = $db->query("SELECT command, user, count FROM user_counts");
     $userCounts = $getUserCounts->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch reward counts
+    $getRewardCounts = $db->query("SELECT rc.reward_id, rc.user, rc.count, c.reward_title FROM reward_counts AS rc LEFT JOIN channel_point_rewards AS c ON rc.reward_id = c.reward_id ORDER BY rc.count DESC");
+    $rewardCounts = $getRewardCounts->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch seen users data
     $getSeenUsersData = $db->query("SELECT * FROM seen_users ORDER BY id");
@@ -92,6 +101,18 @@ try {
     // Fetch channel point rewards sorted by cost (low to high)
     $getChannelPointRewards = $db->query("SELECT * FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
     $channelPointRewards = $getChannelPointRewards->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch todos
+    $getTodos = $db->query("SELECT * FROM todos ORDER BY id DESC");
+    $todos = $getTodos->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch todo categories
+    $getTodoCategories = $db->query("SELECT * FROM categories");
+    $todoCategories = $getTodoCategories->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch quotes data
+    $getQuotes = $db->query("SELECT * FROM quotes ORDER BY id DESC");
+    $quotesData = $getQuotes->fetchAll(PDO::FETCH_ASSOC);
 
     // Fetch profile data
     $getProfileSettings = $db->query("SELECT * FROM profile");
