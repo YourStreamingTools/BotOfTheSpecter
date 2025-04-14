@@ -185,6 +185,21 @@
 			</a>
 		</div>
 		<div class="navbar-end">
+			<div class="navbar-item has-dropdown is-hoverable">
+				<a class="navbar-link" style="display: flex; align-items: center;">
+					<span style="font-size: 14px; color: #ffffff;">Moderating</span>
+				</a>
+				<div class="navbar-dropdown">
+					<?php foreach ($modChannels as $channel): ?>
+						<a class="navbar-item" style="display: flex; align-items: center;">
+							<figure class="image is-30x30" style="margin-right: 10px;">
+								<img class="is-rounded" src="<?php echo htmlspecialchars($channel['profile_image']); ?>" alt="<?php echo htmlspecialchars($channel['twitch_display_name']); ?> Profile Image" style="object-fit: cover; width: 30px; height: 30px;">
+							</figure>
+							<span><?php echo htmlspecialchars($channel['twitch_display_name']); ?></span>
+						</a>
+					<?php endforeach; ?>
+				</div>
+			</div>
 			<div class="navbar-item">
 				<div class="media" style="align-items: center;">
 					<div class="media-content" style="display: flex; align-items: center;">
