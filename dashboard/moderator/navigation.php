@@ -16,11 +16,11 @@
 	</div>
 	<div id="navbarBasic" class="navbar-menu">
 		<div class="navbar-start" style="align-items: center;">
-			<a class="navbar-item" href="../bot.php" style="display: flex; align-items: center;">
+			<a class="navbar-item" href="index.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 				<span class="icon" style="margin-right: 5px;"><i class="fas fa-home"></i></span>
 				<span>Home</span>
 			</a>
-			<a class="navbar-item" href="../logs.php" style="display: flex; align-items: center;">
+			<a class="navbar-item" href="logs.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 				<span class="icon" style="margin-right: 5px;"><i class="fas fa-file-alt"></i></span>
 				<span>Logs</span>
 			</a>
@@ -30,46 +30,46 @@
 					<span>Bot Functions</span>
 				</a>
 				<div class="navbar-dropdown">
-					<a class="navbar-item" href="../known_users.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="known_users.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-user-check"></i></span>
 						<span>User Welcome Messages</span>
 					</a>
-					<a class="navbar-item" href="../timed_messages.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="timed_messages.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-clock"></i></span>
 						<span>Timed Chat Messages</span>
 					</a>
-					<a class="navbar-item" href="../bot_points.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="bot_points.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-coins"></i></span>
 						<span>Bot Point System</span>
 					</a>
 					<hr class="navbar-divider">
-					<a class="navbar-item" href="../counters.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="counters.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-info-circle"></i></span>
 						<span>Counters and Information</span>
 					</a>
-					<a class="navbar-item" href="../edit_counters.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="edit_counters.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-edit"></i></span>
 						<span>Edit Counters</span>
 					</a>
 					<hr class="navbar-divider">
-					<a class="navbar-item" href="../commands.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="commands.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-terminal"></i></span>
 						<span>View Custom Commands</span>
 					</a>
-					<a class="navbar-item" href="../manage_custom_commands.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="manage_custom_commands.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-tools"></i></span>
 						<span>Manage Custom Commands</span>
 					</a>
 					<hr class="navbar-divider">
-					<a class="navbar-item" href="../walkons.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="walkons.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-music"></i></span>
 						<span>Walkon Audio</span>
 					</a>
-					<a class="navbar-item" href="../sound-alerts.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="sound-alerts.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-bell"></i></span>
 						<span>Sound Alerts</span>
 					</a>
-					<a class="navbar-item" href="../video-alerts.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="video-alerts.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-video"></i></span>
 						<span>Video Alerts</span>
 					</a>
@@ -81,27 +81,23 @@
 					<span>Bot Settings</span>
 				</a>
 				<div class="navbar-dropdown">
-					<a class="navbar-item" href="../builtin.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="builtin.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-code"></i></span>
 						<span>Built-in Commands</span>
 					</a>
-					<a class="navbar-item" href="../modules.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="modules.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-puzzle-piece"></i></span>
 						<span>Module Settings</span>
 					</a>
-					<a class="navbar-item" href="../subathon.php" style="display: flex; align-items: center;">
+					<a class="navbar-item" href="subathon.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 						<span class="icon" style="margin-right: 5px;"><i class="fas fa-stopwatch"></i></span>
 						<span>Subathon Settings</span>
 					</a>
 				</div>
 			</div>
-			<a class="navbar-item" href="../music.php" style="display: flex; align-items: center;">
+			<a class="navbar-item" href="music.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" style="display: flex; align-items: center;">
 				<span class="icon" style="margin-right: 5px;"><i class="fas fa-music"></i></span>
 				<span>VOD Music</span>
-			</a>
-			<a class="navbar-item" href="../todolist" style="display: flex; align-items: center;">
-				<span class="icon" style="margin-right: 5px;"><i class="fas fa-list"></i></span>
-				<span>To Do List</span>
 			</a>
 		</div>
 		<div class="navbar-end">
@@ -113,7 +109,7 @@
 							<img class="is-rounded" src="<?php echo $twitch_profile_image_url; ?>" alt="<?php echo htmlspecialchars($twitchDisplayName); ?> Profile Image" style="object-fit: cover; width: 30px; height: 30px;">
 						</figure>
 					</div>
-					<a href="../../bot.php" title="Logout" style="margin-left: 10px; color: #ffffff; text-decoration: none;">
+					<a href="../bot.php" title="Logout" style="margin-left: 10px; color: #ffffff; text-decoration: none;">
 						<span class="icon" style="color: #ffffff;"><i class="fas fa-home"></i></span>
 					</a>
 				</div>
