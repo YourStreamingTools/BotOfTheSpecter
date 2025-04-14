@@ -14,12 +14,38 @@ $title = "Dashboard";
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'modding_access.php';
 include 'user_db.php';
 $getProfile = $db->query("SELECT timezone FROM profile");
 $profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
 $timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
+
+// Function to get channel status from Twitch API
+function getChannelStatus($broadcaster_id) {
+    $token = $_SESSION['access_token'];
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/channels?broadcaster_id=" . $broadcaster_id);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $token,
+        'Client-Id: ' . $clientID
+    ]);
+    $response = curl_exec($ch);
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($httpcode == 200) {
+        $data = json_decode($response, true);
+        if (isset($data['data'][0])) {
+            return $data['data'][0];
+        }
+    }
+    return null;
+}
+
+// Get channel information
+$channelInfo = getChannelStatus($_SESSION['editing_user']);
 ?>
 <!doctype html>
 <html lang="en">
@@ -60,6 +86,15 @@ date_default_timezone_set($timezone);
           $commandCount = 0;
           $timerCount = 0;
           $activeStatus = "Offline";
+          $title = 'No Title';
+          $gameName = 'Not Playing';
+          $tags = [];
+          if ($channelInfo) {
+            $title = $channelInfo['title'] ?? 'No Title';
+            $gameName = $channelInfo['game_name'] ?? 'Not Playing';
+            $tags = $channelInfo['tags'] ?? [];
+            $activeStatus = "Online";
+          }
           ?>
           <div class="column has-text-centered">
             <p class="heading">Commands</p>
@@ -74,6 +109,15 @@ date_default_timezone_set($timezone);
             <p class="title"><?php echo $activeStatus; ?></p>
           </div>
         </div>
+        <?php if ($channelInfo): ?>
+        <div class="mt-4">
+          <p><strong>Stream Title:</strong> <?php echo htmlspecialchars($title); ?></p>
+          <p><strong>Game/Category:</strong> <?php echo htmlspecialchars($gameName); ?></p>
+          <?php if (!empty($tags)): ?>
+          <p><strong>Tags:</strong> <?php echo htmlspecialchars(implode(', ', $tags)); ?></p>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
