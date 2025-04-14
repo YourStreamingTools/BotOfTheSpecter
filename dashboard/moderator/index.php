@@ -23,29 +23,40 @@ $timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 
 // Function to get channel status from Twitch API
-function getChannelStatus($broadcaster_id) {
-    $token = $_SESSION['access_token'];
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/channels?broadcaster_id=" . $broadcaster_id);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $token,
-        'Client-Id: ' . $clientID
-    ]);
-    $response = curl_exec($ch);
-    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($httpcode == 200) {
-        $data = json_decode($response, true);
-        if (isset($data['data'][0])) {
-            return $data['data'][0];
-        }
+function getChannelStatus($login) {
+  global $clientID;
+  $token = $_SESSION['access_token'];
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/search/channels?query=" . urlencode($login));
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ' . $token,
+    'Client-Id: ' . $clientID
+  ]);
+  $response = curl_exec($ch);
+  $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $raw_response = $response;
+  $curl_error = curl_error($ch);
+  curl_close($ch);
+  $result = [
+    'success' => ($httpcode == 200),
+    'http_code' => $httpcode,
+    'raw_response' => $raw_response,
+    'curl_error' => $curl_error,
+    'data' => null
+  ];
+  if ($httpcode == 200) {
+    $data = json_decode($response, true);
+    if (!empty($data['data'])) {
+      return $result['data'] = $channel;
     }
-    return null;
+  }
+  return $result;
 }
 
 // Get channel information
-$channelInfo = getChannelStatus($_SESSION['editing_user']);
+$channelResponse = getChannelStatus($_SESSION['editing_display_name']);
+$channelInfo = $channelResponse['data'];
 ?>
 <!doctype html>
 <html lang="en">
@@ -93,7 +104,8 @@ $channelInfo = getChannelStatus($_SESSION['editing_user']);
             $title = $channelInfo['title'] ?? 'No Title';
             $gameName = $channelInfo['game_name'] ?? 'Not Playing';
             $tags = $channelInfo['tags'] ?? [];
-            $activeStatus = "Online";
+            $isLive = $channelInfo['is_live'] ?? false;
+            $activeStatus = $isLive ? "Live" : "Offline";
           }
           ?>
           <div class="column has-text-centered">
@@ -109,15 +121,21 @@ $channelInfo = getChannelStatus($_SESSION['editing_user']);
             <p class="title"><?php echo $activeStatus; ?></p>
           </div>
         </div>
-        <?php if ($channelInfo): ?>
         <div class="mt-4">
-          <p><strong>Stream Title:</strong> <?php echo htmlspecialchars($title); ?></p>
-          <p><strong>Game/Category:</strong> <?php echo htmlspecialchars($gameName); ?></p>
+          <p><span>Stream Title:</span> <?php echo htmlspecialchars($title); ?></p>
+          <p><span>Game/Category:</span> <?php echo htmlspecialchars($gameName); ?></p>
+          <p><span>Status:</span> <span class="tag <?php echo $isLive ? 'is-success' : 'is-light'; ?>">
+            <?php echo $isLive ? 'LIVE' : 'Offline'; ?>
+          </span></p>
           <?php if (!empty($tags)): ?>
-          <p><strong>Tags:</strong> <?php echo htmlspecialchars(implode(', ', $tags)); ?></p>
+          <p><span>Tags:</span> <?php echo htmlspecialchars(implode(', ', $tags)); ?></p>
+          <?php endif; ?>
+          <?php if (!empty($channelInfo['thumbnail_url'])): ?>
+          <div class="mt-3">
+            <img src="<?php echo htmlspecialchars($channelInfo['thumbnail_url']); ?>" alt="Channel Thumbnail" width="150">
+          </div>
           <?php endif; ?>
         </div>
-        <?php endif; ?>
       </div>
     </div>
   </div>
