@@ -1,4 +1,8 @@
-<?php 
+<?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Initialize the session
 session_start();
 $today = new DateTime();
@@ -13,9 +17,9 @@ if (!isset($_SESSION['access_token'])) {
 $title = "Dashboard";
 
 // Include files for database and user data
-require_once "db_connect.php";
+require_once "/var/www/config/db_connect.php";
+include 'modding_access.php';
 include 'userdata.php';
-include 'bot_control.php';
 include 'user_db.php';
 foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
