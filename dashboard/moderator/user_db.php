@@ -1,7 +1,7 @@
 <?php
 // User Specter Database
 include '/var/www/config/database.php';
-$dbname = $_SESSION['username'];
+$dbname = $broadcasterUsername;
 
 // Initialize all variables as empty arrays or values
 $commands = [];
