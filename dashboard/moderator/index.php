@@ -19,7 +19,6 @@ $title = "Dashboard";
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include 'modding_access.php';
-include 'userdata.php';
 include 'user_db.php';
 foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
