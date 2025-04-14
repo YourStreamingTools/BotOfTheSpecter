@@ -17,6 +17,7 @@ $current_blacklist = [];
 require_once "/var/www/config/db_connect.php";
 include 'modding_access.php';
 include 'user_db.php';
+include 'storage_used.php';
 $getProfile = $db->query("SELECT timezone FROM profile");
 $profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
 $timezone = $profile['timezone'];
