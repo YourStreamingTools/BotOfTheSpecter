@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // Initialize the session
 session_start();
 $today = new DateTime();
@@ -20,10 +16,9 @@ $title = "Dashboard";
 require_once "/var/www/config/db_connect.php";
 include 'modding_access.php';
 include 'user_db.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+$getProfile = $db->query("SELECT timezone FROM profile");
+$profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
+$timezone = $profile['timezone'];
 date_default_timezone_set($timezone);
 ?>
 <!doctype html>
@@ -41,7 +36,7 @@ date_default_timezone_set($timezone);
 <div class="container">
   <br>
   <div class="columns is-desktop is-multiline box-container">
-    
+    Editing User ID: <?php echo $_SESSION['editing_user']; ?>
   </div>
 </div>
 
