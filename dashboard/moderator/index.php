@@ -17,10 +17,13 @@ require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include 'modding_access.php';
 include 'user_db.php';
-$getProfile = $db->query("SELECT timezone FROM profile");
-$profile = $getProfile->fetchAll(PDO::FETCH_ASSOC);
-$timezone = $profile['timezone'];
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$channelData = $stmt->fetch(PDO::FETCH_ASSOC);
+$timezone = $channelData['timezone'] ?? 'UTC';
 date_default_timezone_set($timezone);
+$currentDateTime = new DateTime('now');
 
 // Function to get channel status from Twitch API
 function getChannelStatus($login) {
@@ -78,7 +81,7 @@ $channelInfo = $channelResponse['data'];
         <h3 class="title is-4">Moderator Info</h3>
         <p><span>Display Name:</span> <?php echo $_SESSION['editing_display_name']; ?></p>
         <p><span>Channel ID:</span> <?php echo $_SESSION['editing_user']; ?></p>
-        <p><span>Current Date:</span> <?php echo $today->format('F j, Y'); ?></p>
+        <p><span>Current Date/Time:</span><br><?php echo $currentDateTime->format('F j, Y - g:i A'); ?></p>
       </div>
       <div class="box">
         <h3 class="title is-4">Quick Actions</h3>
