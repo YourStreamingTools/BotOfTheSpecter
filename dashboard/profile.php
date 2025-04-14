@@ -23,7 +23,6 @@ if(isset($_SESSION['status'])) {
 
 // Include all the information
 require_once "/var/www/config/db_connect.php";
-require_once "/var/www/config/ssh.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
@@ -103,6 +102,7 @@ function get_timezones() {
 $server_storage_info = [];
 $server_storage_percentage = 0;
 if ($is_admin) {
+  require_once "/var/www/config/ssh.php";
   // Main server (local)
   $total_space = disk_total_space("/");
   $free_space = disk_free_space("/");
@@ -359,7 +359,7 @@ if ($is_admin) {
           <div class="column is-4">
             <h5 class="label is-5"><?php echo $server_name; ?></h5>
             <?php foreach ($mounts as $mount): ?>
-              <?php if (count($mounts) > 1): ?>
+              <?php if ($mount['mount'] != '/'): ?>
                 <p class="label is-6">Mount: <?php echo $mount['mount']; ?></p>
               <?php endif; ?>
               <div class="progress-bar-container">
