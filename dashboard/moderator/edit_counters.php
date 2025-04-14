@@ -180,7 +180,7 @@ $typoCountsJs = json_encode(array_column($typoData, 'typo_count', 'username'));
     <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
         <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
     <?php endif; ?>
-    <div class="columns is-desktop is-multiline box-container">
+    <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-3 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-5">Edit User Typos</h2>
             <form action="" method="post">
