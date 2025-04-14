@@ -5809,7 +5809,7 @@ async def clear_lotto_numbers():
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute('TRUNCATE TABLE lotto_numbers')
+            await cursor.execute('TRUNCATE TABLE stream_lotto')
             await sqldb.commit()
             await cursor.execute('TRUNCATE TABLE stream_lotto_winning_numbers')
             await sqldb.commit()
