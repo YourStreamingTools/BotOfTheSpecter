@@ -3,12 +3,12 @@ import os
 import re
 import asyncio
 from asyncio import Queue
+from asyncio import subprocess
 import argparse
 import datetime
 from datetime import datetime, timezone, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
-import subprocess
 import json
 import time
 import random
@@ -491,6 +491,7 @@ async def subscribe_to_events(session_id):
             async with v1topic_session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
                     responses.append(await response.json())
+                    twitch_logger.info(f"Subscribed to {v1topic} successfully.")
     async with aiohttp.ClientSession() as v2topic_session:
         for v2topic in v2topics:
             if v2topic == "channel.follow":
@@ -522,6 +523,7 @@ async def subscribe_to_events(session_id):
             async with v2topic_session.post(url, headers=headers, json=payload) as response:
                 if response.status in (200, 202):
                     responses.append(await response.json())
+                    twitch_logger.info(f"Subscribed to {v2topic} successfully.")
 
 async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
     while True:
@@ -6022,6 +6024,7 @@ async def twitch_gql_token_valid():
         return False
 
 async def shazam_detect_song(raw_audio_b64):
+    sqldb = await access_website_database()
     try:
         url = "https://shazam.p.rapidapi.com/songs/v2/detect"
         querystring = {"timezone": "Australia/Sydney", "locale": "en-US"}
@@ -6041,9 +6044,12 @@ async def shazam_detect_song(raw_audio_b64):
                     with open(file_path, 'w') as file:
                         file.write(requests_left)
                     api_logger.info(f"There are {requests_left} requests lefts for the song command.")
+                    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                        await cursor.execute("UPDATE api_counts SET count=%s WHERE type=%s", (requests_left, "shazam"))
+                        await sqldb.commit()
+                        sqldb.close()
                     if int(requests_left) == 0:
                         return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
-                
                 return await response.json()
     except Exception as e:
         api_logger.error(f"An error occurred while detecting song: {e}")
@@ -6054,8 +6060,8 @@ async def convert_to_raw_audio(in_file, out_file):
         ffmpeg_path = "/usr/bin/ffmpeg"
         proc = await asyncio.create_subprocess_exec(
             ffmpeg_path, '-i', in_file, "-vn", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", "-f", "s16le", out_file,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
         # Wait for the subprocess to finish
         returncode = await proc.wait()
         return returncode == 0
