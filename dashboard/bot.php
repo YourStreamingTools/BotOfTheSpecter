@@ -296,21 +296,21 @@ include "mod_access.php";
         <h3 class="title is-5">Stable Version Info</h3>
         <p><span class="has-text-weight-bold">Last Updated:</span> <span id="stable-last-modified-time"><?php echo $stableLastModifiedOutput; ?></span></p>
         <p><span class="has-text-weight-bold">Last Ran:</span> <span id="stable-last-restart-time"><?php echo $stableLastRestartOutput; ?></span></p>
-        <p class="is-size-7 mt-2">"Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
+        <p class="is-size-7 mt-2">Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
       </div>
       <?php elseif ($selectedBot === 'beta'): ?>
       <div class="box">
         <h3 class="title is-5">Beta Version Info</h3>
         <p><span class="has-text-weight-bold">Last Updated:</span> <span id="last-modified-time"><?php echo $lastModifiedOutput; ?></span></p>
         <p><span class="has-text-weight-bold">Last Ran:</span> <span id="last-restart-time"><?php echo $lastRestartOutput; ?></span></p>
-        <p class="is-size-7 mt-2">"Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
+        <p class="is-size-7 mt-2">Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
       </div>
       <?php elseif ($selectedBot === 'alpha'): ?>
       <div class="box">
         <h3 class="title is-5">Alpha Version Info</h3>
         <p><span class="has-text-weight-bold">Last Updated:</span> <span id="alpha-last-modified-time"><?php echo $alphaLastModifiedOutput; ?></span></p>
         <p><span class="has-text-weight-bold">Last Ran:</span> <span id="alpha-last-restart-time"><?php echo $alphaLastRestartOutput; ?></span></p>
-        <p class="is-size-7 mt-2">"Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
+        <p class="is-size-7 mt-2">Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
       </div>
       <?php endif; ?>
       <!-- API Limits Section (now in left sidebar) -->
