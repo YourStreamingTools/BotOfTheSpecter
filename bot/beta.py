@@ -2481,8 +2481,8 @@ class TwitchBot(commands.Bot):
                             song_id = track["uri"]
                             song_name = track["name"]
                             artist_name = track["artists"][0]["name"]
-                            # Check if the song is an instrumental version
-                            if "instrumental" not in song_name.lower() and "instrumental" not in artist_name.lower():
+                            unwanted_keywords = ["instrumental", "karaoke version"]
+                            if not any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
                                 song_requests[song_id] = {
                                     "user": ctx.message.author.name,
