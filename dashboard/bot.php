@@ -531,18 +531,8 @@ include "mod_access.php";
       </p>
       <br>
       <p>
-        <span class="has-text-weight-bold variable-title">Streaming Service</span>:<br>
-        The streaming service is responsible for our streaming server. The green heartbeat icon indicates that the service is active. If the icon turns red, it means the streaming service is currently offline.
-      </p>
-      <p>
-        <span class="has-text-weight-bold variable-title">Force Online Status</span>:<br>
-        Clicking this button will force the system to display you as online, even if your stream is not active. This will notify both the Twitch Chat Bot and the Discord Bot that you wish to appear online.
-      </p>
-      <br>
-      <p>
-        <span class="has-text-weight-bold variable-title">Force Offline Status</span>:<br>
-        This button will set your status to offline across the system, even if you are currently online. Once clicked, both the Twitch Chat Bot and Discord Bot will be notified of your offline status.<br>
-        Additionally, after 5 minutes of being offline, this action will clear the "Credits" overlay data and the "Seen Users" list for welcome messages.
+        <span class="has-text-weight-bold variable-title">Streaming Services</span>:<br>
+        The streaming service(s) is responsible for our streaming server. The green heartbeat icon indicates that the service is active. If the icon turns red, it means the streaming service is currently offline.
       </p>
     </section>
   </div>
