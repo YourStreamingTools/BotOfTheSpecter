@@ -34,8 +34,19 @@ switch ($service) {
         $pingStatus = pingServer('10.240.0.40', 3306);
         $status = $pingStatus >= 0 ? 'OK' : 'OFF';
         break;
-    case 'streaming':
+    case 'streamingService':
+        // AU-EAST-1 Streaming Service
         $pingStatus = pingServer('10.240.0.211', 80);
+        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
+        break;
+    case 'streamingServiceWest':
+        // US-WEST-1 Streaming Service
+        $pingStatus = pingServer('5.78.129.75', 80);
+        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
+        break;
+    case 'streamingServiceEast':
+        // US-EAST-1 Streaming Service
+        $pingStatus = pingServer('5.161.201.91', 80);
         $status = $pingStatus >= 0 ? 'OK' : 'OFF';
         break;
 }
