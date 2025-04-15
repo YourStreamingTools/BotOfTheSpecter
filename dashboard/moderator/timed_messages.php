@@ -1,4 +1,4 @@
-<?php
+<?php 
 // Initialize the session
 session_start();
 
@@ -133,18 +133,22 @@ if ($displayMessageData) {
 
 <div class="container">
     <br>
-    <div class="notification is-danger">
-        <div class="columns is-vcentered">
+    <div class="notification is-info">
+        <div class="columns is-vcentered is-centered">
             <div class="column is-narrow">
                 <span class="icon is-large">
-                    <i class="fas fa-tools fa-2x"></i> 
+                    <i class="fas fa-clock fa-2x"></i> 
                 </span>
             </div>
             <div class="column">
-                <p><strong>🚧 Under Construction! 🚧</strong></p> 
-                <p>Our timed messages are getting a major upgrade. Things might get a little bumpy while we're working on them.</p>
-                <p> <span class="icon"><i class="fas fa-power-off"></i></span> Don't forget to give your bot a power nap (restart it) after making any changes to your timed messages.</p>
-                <p>We appreciate your patience!</p>
+                <p><strong>Timed Messages</strong></p> 
+                <p>Timed messages function based on the following parameters:</p>
+                <ul style="margin-left: 20px; list-style-type: disc;">
+                    <li><strong>Message:</strong> Enter the text you want the bot to send to your chat.</li>
+                    <li><strong>Interval:</strong> Set the time interval between each message in minutes (between 5 and 60 minutes).</li>
+                    <li><strong>Chat Lines:</strong> Specify the minimum number of chat messages that must be sent in your chat before the timed message is triggered. The minimum is 5 chat messages.</li>
+                </ul>
+                <p><span class="icon"><i class="fas fa-power-off"></i></span> After making changes here for the streamer, please remind them to restart the bot from their dashboard to apply the new settings.</p>
             </div>
         </div>
     </div>
@@ -153,11 +157,12 @@ if ($displayMessageData) {
     <div class="columns is-desktop is-multiline box-container">
         <div class="column is-3 bot-box">
             <h4 class="title is-5">Add a timed message:</h4>
-            <form id="addMessageForm" method="post" action="">
+            <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
                 <div class="field">
                     <label for="message">Message:</label>
                     <div class="control">
-                        <input class="input" type="text" name="message" id="message" required>
+                        <input class="input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount')">
+                        <p id="charCount" class="help">0/255 characters</p>
                         <span id="messageError" class="help is-danger" style="display: none;">Message is required</span>
                     </div>
                 </div>
@@ -187,13 +192,13 @@ if ($displayMessageData) {
                         <div class="control">
                             <div class="select is-fullwidth">
                                 <select name="edit_message" id="edit_message" onchange="showResponse()">
-                                    <option value="">PICK A MESSAGE TO EDIT</option>
+                                    <option value="" selected>PICK A MESSAGE TO EDIT</option>
                                     <?php
                                     usort($timedMessagesData, function($a, $b) {
                                         return $a['id'] - $b['id'];
                                     });
                                     foreach ($timedMessagesData as $message): ?>
-                                        <option value="<?php echo $message['id']; ?>" <?php echo $message['status'] == 'True' ? 'selected' : ''; ?>>
+                                        <option value="<?php echo $message['id']; ?>">
                                             (<?php echo "ID: " . $message['id']; ?>) <?php echo $message['message']; ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -216,7 +221,8 @@ if ($displayMessageData) {
                     <div class="field">
                         <label for="edit_message_content">Message:</label>
                         <div class="control">
-                            <input class="input" type="text" name="edit_message_content" id="edit_message_content" required>
+                            <input class="input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount')">
+                            <p id="editCharCount" class="help">0/255 characters</p>
                         </div>
                     </div>
                     <div class="field">
@@ -273,21 +279,48 @@ function showResponse() {
     var editMessageContent = document.getElementById('edit_message_content');
     var editIntervalInput = document.getElementById('edit_interval');
     var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
-
     // Find the message content, interval, and chat line trigger for the selected message and update the corresponding input fields
     var messageData = timedMessagesData.find(m => m.id == editMessage);
     if (messageData) {
         editMessageContent.value = messageData.message;
         editIntervalInput.value = messageData.interval_count;
         editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
+        // Update character count for the edit message field
+        updateCharCount('edit_message_content', 'editCharCount');
     } else {
         editMessageContent.value = '';
         editIntervalInput.value = '';
         editChatLineTriggerInput.value = '';
+        // Reset character count
+        document.getElementById('editCharCount').textContent = '0/255 characters';
+        document.getElementById('editCharCount').className = 'help';
     }
 }
+
+// Function to update character counts
+function updateCharCount(inputId, counterId) {
+    const input = document.getElementById(inputId);
+    const counter = document.getElementById(counterId);
+    const maxLength = 255;
+    const currentLength = input.value.length;
+    // Update the counter text
+    counter.textContent = currentLength + '/' + maxLength + ' characters';
+    // Update styling based on character count
+    if (currentLength > maxLength) {
+        counter.className = 'help is-danger';
+    } else if (currentLength > maxLength * 0.8) {
+        counter.className = 'help is-warning';
+    } else {
+        counter.className = 'help is-info';
+    }
+}
+
 // Call the function initially to pre-fill the fields if a default message is selected
-window.onload = showResponse;
+window.onload = function() {
+    showResponse();
+    // Initialize character count for the add message field
+    updateCharCount('message', 'charCount');
+}
 
 function showMessage() {
     var select = document.getElementById('remove_message');
@@ -298,6 +331,42 @@ function showMessage() {
         }
     <?php endforeach; ?>
 }
+
+// Function to validate the form before submission
+function validateForm() {
+    // Message length validation
+    const messageInput = document.getElementById('message');
+    if (messageInput.value.length > 255) {
+        document.getElementById('messageError').textContent = 'Message exceeds 255 character limit';
+        document.getElementById('messageError').style.display = 'block';
+        return false;
+    }
+    // Interval validation
+    const intervalInput = document.getElementById('interval');
+    if (intervalInput.value < 5 || intervalInput.value > 60) {
+        document.getElementById('intervalError').style.display = 'block';
+        return false;
+    }
+    return true;
+}
+
+// Function to validate the edit form before submission
+function validateEditForm() {
+    const editMessageContent = document.getElementById('edit_message_content');
+    if (editMessageContent.value.length > 255) {
+        alert('Message exceeds 255 character limit');
+        return false;
+    }
+    return true;
+}
+
+// Update the edit form to use validation
+document.addEventListener('DOMContentLoaded', function() {
+    const editForm = document.querySelector('form:nth-of-type(2)');
+    if (editForm) {
+        editForm.onsubmit = validateEditForm;
+    }
+});
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
