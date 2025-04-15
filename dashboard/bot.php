@@ -58,6 +58,12 @@ if (!in_array($selectedBot, ['stable', 'beta', 'alpha', 'discord'])) {
   $selectedBot = 'stable';
 }
 
+// Display subscription warning for Beta or Alpha if no access
+$subscriptionWarning = '';
+if (($selectedBot === 'beta' || $selectedBot === 'alpha') && !$user['beta_access'] && $_SESSION['tier'] !== "1000" && $_SESSION['tier'] !== "2000" && $_SESSION['tier'] !== "3000" && $_SESSION['tier'] !== "4000") {
+  $subscriptionWarning = '<div class="notification is-warning has-text-black has-text-weight-bold">You need an active subscription to access this version of the bot. Please visit the <a href="premium.php">Premium page</a> for more information.</div>';
+}
+
 // Twitch API to check bot mod status
 $checkMod = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$broadcasterID}";
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
@@ -270,9 +276,7 @@ include "mod_access.php";
             <div class="select is-fullwidth">
               <select id="botSelector" onchange="changeBotSelection(this.value)">
                 <option value="stable" <?php echo $selectedBot === 'stable' ? 'selected' : ''; ?>>Stable Bot</option>
-                <?php if ($betaAccess): ?>
                 <option value="beta" <?php echo $selectedBot === 'beta' ? 'selected' : ''; ?>>Beta Bot</option>
-                <?php endif; ?>
                 <option value="alpha" <?php echo $selectedBot === 'alpha' ? 'selected' : ''; ?>>Alpha Bot</option>
                 <?php if ($guild_id && $live_channel_id): ?>
                 <option value="discord" <?php echo $selectedBot === 'discord' ? 'selected' : ''; ?>>Discord Bot</option>
@@ -313,7 +317,7 @@ include "mod_access.php";
         <p class="is-size-7 mt-2">Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
       </div>
       <?php endif; ?>
-      <!-- API Limits Section (now in left sidebar) -->
+      <!-- API Limits Section -->
       <div class="box" style="position: relative;">
         <i class="fas fa-question-circle" id="api-limits-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-5">API Limits</h4>
@@ -346,6 +350,7 @@ include "mod_access.php";
         <div class="column is-12">
           <?php if ($showButtons): ?>
           <div class="box">
+            <?php echo $subscriptionWarning; ?>
             <?php if ($selectedBot === 'stable'): ?>
             <h3 class="title is-4">Stable Bot Controls (V<?php echo $newVersion; ?>)</h3>
             <div class="content">
@@ -382,7 +387,7 @@ include "mod_access.php";
                 <button class="button is-warning bot-button button-size" type="submit" name="restartBetaBot">Restart Beta Bot</button>
               </form>
             </div>
-            <?php elseif ($selectedBot === 'alpha'): ?>
+            <?php elseif ($selectedBot === 'alpha' && $betaAccess): ?>
             <h3 class="title is-4">Alpha Bot Controls (V<?php echo $alphaNewVersion; ?>A)</h3>
             <div class="content">
               <p>The alpha version contains experimental features. Not recommended for use during live streams.</p>
