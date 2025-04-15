@@ -432,7 +432,7 @@ include "mod_access.php";
         <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4 has-text-centered">System Status</h4>
         <div class="columns is-mobile is-multiline">
-          <div class="column is-3">
+          <div class="column is-4">
             <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
               <span class="subtitle">
                 <span id="apiServiceIcon">
@@ -442,7 +442,7 @@ include "mod_access.php";
               </span>
             </div>
           </div>
-          <div class="column is-3">
+          <div class="column is-4">
             <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
               <span class="subtitle">
                 <span id="databaseServiceIcon">
@@ -452,7 +452,7 @@ include "mod_access.php";
               </span>
             </div>
           </div>
-          <div class="column is-3">
+          <div class="column is-4">
             <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
               <span class="subtitle">
                 <span id="heartbeatIcon">
@@ -462,13 +462,36 @@ include "mod_access.php";
               </span>
             </div>
           </div>
-          <div class="column is-3">
+        </div>
+        <h4 class="title is-4 has-text-centered">Streaming Service Status</h4>
+        <div class="columns is-mobile is-multiline mt-3">
+          <div class="column is-4">
             <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
               <span class="subtitle">
                 <span id="streamingServiceIcon">
                   <i id="streamingService" class="fas fa-heartbeat" style="color: <?php echo $streamingServiceStatus['status'] === 'OK' ? 'green' : 'red'; ?>;"></i>
                 </span>
-                <span style="margin-left: 3px">Streaming Service</span>
+                <span style="margin-left: 3px">AU-EAST-1</span>
+              </span>
+            </div>
+          </div>
+          <div class="column is-4">
+            <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+              <span class="subtitle">
+                <span id="streamingServiceWestIcon">
+                  <i id="streamingServiceWest" class="fas fa-heartbeat" style="color: green;"></i>
+                </span>
+                <span style="margin-left: 3px">US-WEST-1</span>
+              </span>
+            </div>
+          </div>
+          <div class="column is-4">
+            <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+              <span class="subtitle">
+                <span id="streamingServiceEastIcon">
+                  <i id="streamingServiceEast" class="fas fa-heartbeat" style="color: green;"></i>
+                </span>
+                <span style="margin-left: 3px">US-EAST-1</span>
               </span>
             </div>
           </div>
@@ -706,8 +729,8 @@ function checkAllServices() {
       databaseServiceIcon.style.color = 'red';
     });
 
-  // Fetch the latest status for Streaming service
-  fetch('/api_status.php?service=streaming')
+  // Fetch the latest status for AU-EAST-1 Streaming service
+  fetch('/api_status.php?service=streamingService')
     .then(response => response.json())
     .then(data => {
       const streamingServiceIcon = document.getElementById('streamingService');
@@ -723,6 +746,44 @@ function checkAllServices() {
       const streamingServiceIcon = document.getElementById('streamingService');
       streamingServiceIcon.className = 'fas fa-heart-broken';
       streamingServiceIcon.style.color = 'red';
+    });
+    
+  // Fetch the latest status for US-WEST-1 Streaming service
+  fetch('/api_status.php?service=streamingServiceWest')
+    .then(response => response.json())
+    .then(data => {
+      const streamingServiceWestIcon = document.getElementById('streamingServiceWest');
+      if (data.status === 'OK') {
+        streamingServiceWestIcon.className = 'fas fa-heartbeat beating';
+        streamingServiceWestIcon.style.color = 'green';
+      } else {
+        streamingServiceWestIcon.className = 'fas fa-heart-broken';
+        streamingServiceWestIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const streamingServiceWestIcon = document.getElementById('streamingServiceWest');
+      streamingServiceWestIcon.className = 'fas fa-heart-broken';
+      streamingServiceWestIcon.style.color = 'red';
+    });
+    
+  // Fetch the latest status for US-EAST-1 Streaming service
+  fetch('/api_status.php?service=streamingServiceEast')
+    .then(response => response.json())
+    .then(data => {
+      const streamingServiceEastIcon = document.getElementById('streamingServiceEast');
+      if (data.status === 'OK') {
+        streamingServiceEastIcon.className = 'fas fa-heartbeat beating';
+        streamingServiceEastIcon.style.color = 'green';
+      } else {
+        streamingServiceEastIcon.className = 'fas fa-heart-broken';
+        streamingServiceEastIcon.style.color = 'red';
+      }
+    })
+    .catch(error => {
+      const streamingServiceEastIcon = document.getElementById('streamingServiceEast');
+      streamingServiceEastIcon.className = 'fas fa-heart-broken';
+      streamingServiceEastIcon.style.color = 'red';
     });
 }
 
