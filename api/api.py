@@ -28,8 +28,8 @@ SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_KEY = os.getenv('ADMIN_KEY')
 SFTP_HOST = "10.240.0.169"
-SFTP_USER = os.getenv("SFTP_USERNAME")
-SFTP_PASSWORD = os.getenv("SFTP_PASSWORD")
+SFTP_USER = os.getenv("SFPT_USERNAME")
+SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
 WEATHER_API = os.getenv('WEATHER_API')
 
 # Setup Logger
