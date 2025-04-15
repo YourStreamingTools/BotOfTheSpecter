@@ -131,7 +131,7 @@ if ($user['beta_access'] == 1) {
 }
 
 // Last Changed Time for Stable
-$stableFile = '/var/www/bot/main.py';
+$stableFile = '/var/www/bot/bot.py';
 if (file_exists($stableFile)) {
   $stableFileModifiedTime = filemtime($stableFile);
   $stableTimeAgo = time() - $stableFileModifiedTime;
@@ -285,6 +285,9 @@ include "mod_access.php";
           <a href="manage_custom_commands.php" class="button is-primary is-fullwidth mb-2">Manage Custom Commands</a>
           <a href="timed_messages.php" class="button is-info is-fullwidth mb-2">Manage Chat Timers</a>
           <!--<a href="" class="button is-warning is-fullwidth"></a>-->
+          <label class="label">Force Your Status</label>
+          <button class="button is-primary is-fullwidth mb-2" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
+          <button class="button is-danger is-fullwidth mb-2" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
         </div>
       </div>
       <!-- Bot version info box -->
@@ -469,18 +472,6 @@ include "mod_access.php";
         <div class="column is-12">
           <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; margin-top: 10px;">
             <button class="button is-link bot-button is-fullwidth no-working-spinner" onclick="window.open('https://uptime.botofthespecter.com/', '_blank')">Uptime Monitors</button>
-          </div>
-        </div>
-        <div class="column is-6">
-          <div style="position: relative; text-align: center;">
-            <button class="button is-primary bot-button is-fullwidth" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
-            <span id="onlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Online Event Sent!</span>
-          </div>
-        </div>
-        <div class="column is-6">
-          <div style="position: relative; text-align: center;">
-            <button class="button is-danger bot-button is-fullwidth" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
-            <span id="offlineTooltip" style="visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px 0; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;">Offline Event Sent!</span>
           </div>
         </div>
       </div>
