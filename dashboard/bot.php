@@ -259,9 +259,6 @@ include "mod_access.php";
 <!-- /Navigation -->
 
 <div class="container">
-  <br>
-  <?php echo $BotModMessage; ?>
-  <?php echo $setupMessage; ?>
   <?php if ($betaAccess && $showButtons && $selectedBot === 'beta'): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div><?php endif; ?>
   <?php if ($betaAccess && $showButtons && $selectedBot === 'alpha'): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before using the Alpha version of the bot, please be aware that it is highly experimental and may contain features that are incomplete or unstable.</div><?php endif; ?>
   <br>
@@ -348,6 +345,8 @@ include "mod_access.php";
       <div class="columns">
         <!-- Bot Controls Section -->
         <div class="column is-12">
+          <?php echo $BotModMessage; ?>
+          <?php echo $setupMessage; ?>
           <?php if ($showButtons): ?>
           <div class="box">
             <?php echo $subscriptionWarning; ?>
