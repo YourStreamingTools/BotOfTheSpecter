@@ -62,20 +62,28 @@ date_default_timezone_set($timezone);
             <!-- All the Overlays -->
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Overlays:</h4>
-                <p><em>This URL includes all overlays we offer, automatically added and updated.
-                    <br>The exceptions are: Stream Ending Credits, To Do List, Video Alerts & DMCA-free Music.
-                    <br>These exceptions require a separate URL, please see below.
-                    <br>Add this link once, and any new overlays will be included automatically:</em></p>
+                <p><em>This URL includes all overlays we offer, automatically added and updated.<br>
+                    The exceptions are:<br>
+                    <ul class="is-text-white has-text-weight-bold has-text-warning" style="list-style-type: disc; padding-left: 20px;">
+                        <li>Stream Ending Credits</li>
+                        <li>To Do List</li>
+                        <li>Video Alerts</li>
+                        <li>DMCA-free Music.</li>
+                        <li>Any external services</li>
+                    </ul>
+                    These overlays are not included in the all overlays URL.<br>
+                    These exceptions require a separate URL, please see below.</em>
+                    <span class="is-text-white has-text-weight-bold has-text-info">Add this link once, and any new overlays will be included automatically</span></p>
                 <code>https://overlay.botofthespecter.com/?code=API_KEY_HERE</code>
             </div>
         </div>
         <!-- Stream Ending Credits Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Stream Ending Credits:</h4>
+                <h4 class="title is-4">Stream Ending Credits:&nbsp;
+                    <span class="is-text-white has-text-weight-bold has-text-danger">(coming soon)</span></h4>
                 <p><em>The Stream Ending Credits display a scrolling list of all viewers who attended and supported the stream.
-                    <br>This includes followers, subscribers, donors, and cheerers to thank those who contributed.</em>
-                    <br><span class="is-text-white has-text-weight-bold has-text-info">(coming soon)</span></p>
+                    <br>This includes followers, subscribers, donors, and cheerers to thank those who contributed.</em></p>
                 <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -129,8 +137,8 @@ date_default_timezone_set($timezone);
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">All Audio:</h4>
-                <p><em>This URL includes all audio alerts we offer, automatically updated.
-                    <br>Add this link once to include any new audio alerts automatically.</em></p>
+                <p><em>This URL includes all audio alerts we offer, automatically updated.</em><br>
+                <span class="is-text-white has-text-weight-bold has-text-info">Add this link once to include any new audio alerts automatically.</span></p>
                 <code>https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -169,10 +177,37 @@ date_default_timezone_set($timezone);
         <!-- Music Only Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Music Overlay:</h4>
-                <p><em>Stream DMCA-free music for your Twitch broadcasts and VODs.</em>
-                    <span class="is-text-white has-text-weight-bold has-text-info">(coming soon)</span></p>
+                <h4 class="title is-4">Music Overlay:&nbsp;
+                    <span class="is-text-white has-text-weight-bold has-text-danger">(coming soon)</span></h4>
+                <p><em>Stream DMCA-free music for your Twitch broadcasts and VODs.</em></p>
                 <code>https://overlay.botofthespecter.com/music.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- Fourthwall Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Fourthwall&nbsp;<span class="has-text-success">(External Service)</span>:&nbsp;
+                    <span class="is-text-white has-text-weight-bold has-text-danger">(coming soon)</span></h4>
+                <p><em>Display your Orders, Gifts, Donations and Subscriptions from Fourwall on your stream.</em></p>
+                <code>https://overlay.botofthespecter.com/fourthwall.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- Ko-Fi Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Ko-Fi&nbsp;<span class="has-text-success">(External Service)</span>:&nbsp;
+                    <span class="is-text-white has-text-weight-bold has-text-danger">(coming soon)</span></h4>
+                <p><em>Display your your Ko-Fi events on your stream.</em></p>
+                <code>https://overlay.botofthespecter.com/kofi.php?code=API_KEY_HERE</code>
+            </div>
+        </div>
+        <!-- Patreon Overlay -->
+        <div class="column is-half">
+            <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                <h4 class="title is-4">Patreon&nbsp;<span class="has-text-success">(External Service)</span>:&nbsp;
+                    <span class="is-text-white has-text-weight-bold has-text-danger">(coming soon)</span></h4>
+                <p><em>Display your pledge information on your stream.</em></p>
+                <code>https://overlay.botofthespecter.com/patreon.php?code=API_KEY_HERE</code>
             </div>
         </div>
     </div>
