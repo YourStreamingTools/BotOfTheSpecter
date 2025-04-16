@@ -579,19 +579,15 @@ include "mod_access.php";
   </div>
 </div>
 
-<div id="cookie-consent-banner" class="notification is-dark has-text-centered" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; display: none; padding: 1rem; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
-  <div class="columns is-vcentered">
-    <div class="column">
-      <p class="has-text-white">
-        We use cookies to enhance your experience on our site. By clicking "Accept", you consent to the use of cookies in accordance with our <a href="https://botofthespecter.com/privacy-policy.php" target="_blank" class="has-text-link">Privacy Policy</a>.<br>
-        We use cookies to remember your bot version preference. This helps us provide a better experience for you. If you choose to decline cookies, we will not be able to remember your preference and you may need to select your bot version each time you visit our site.
-      </p>
-    </div>
-    <div class="column is-narrow">
-      <div class="buttons">
-        <button id="accept-cookies" class="button is-success is-hoverable">Accept</button>
-        <button id="decline-cookies" class="button is-danger is-hoverable">Decline</button>
-      </div>
+<div id="cookie-consent-banner" class="notification is-dark has-text-centered" style="position: fixed; bottom: 1rem; right: 1rem; z-index: 100; display: none; padding: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.3); max-width: 350px; border-radius: 6px;">
+  <div class="content">
+    <p class="has-text-white">
+      We use cookies to enhance your experience on our site. By clicking "Accept", you consent to the use of cookies in accordance with our 
+      <a href="https://botofthespecter.com/privacy-policy.php" target="_blank" class="has-text-link">Privacy Policy</a>. We use cookies to remember your bot version preference. This helps us provide a better experience for you. If you choose to decline cookies, we will not be able to remember your preference and you may need to select your bot version each time you visit our site.
+    </p>
+    <div class="buttons is-centered mt-2">
+      <button id="accept-cookies" class="button is-success is-rounded is-hoverable">Accept</button>
+      <button id="decline-cookies" class="button is-danger is-rounded is-hoverable">Decline</button>
     </div>
   </div>
 </div>
