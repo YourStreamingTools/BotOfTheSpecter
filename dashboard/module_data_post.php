@@ -33,7 +33,7 @@ if ($ad_notice_settings) {
     $ad_end_message = $ad_notice_settings['ad_end_message'];
     $enable_ad_notice = (int)$ad_notice_settings['enable_ad_notice'];
 } else {
-    $ad_upcoming_message = "Ads will be starting in (duration). Please stay with us!";
+    $ad_upcoming_message = "Ads will be starting in (minutes).";
     $ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
     $ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
     $enable_ad_notice = 1;
