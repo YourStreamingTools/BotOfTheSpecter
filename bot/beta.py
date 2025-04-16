@@ -193,8 +193,10 @@ last_shoutout_time = datetime.min                       # Last time a shoutout w
 bot_owner = "gfaundead"                                 # Bot owner's username
 
 # Function to handle termination signals
-def signal_handler(sig, frame):
+async def signal_handler(sig, frame):
     bot_logger.info("Received termination signal. Shutting down gracefully...")
+    await specterSocket.disconnect()      # Disconnect the SocketClient
+    await hyperateSocket.disconnect()     # Disconnect the SocketClient
     sys.exit(0)  # Exit the program
 
 # Register the signal handler
