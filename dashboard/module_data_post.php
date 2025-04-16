@@ -24,14 +24,16 @@ $default_mod_welcome_message = isset($preferences['default_mod_welcome_message']
 $new_default_mod_welcome_message = isset($preferences['new_default_mod_welcome_message']) ? $preferences['new_default_mod_welcome_message'] : "MOD ON DUTY! Welcome in (user), the power of the sword has increased!";
 
 // Fetch ad notice settings from the database
-$stmt = $db->prepare("SELECT ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
+$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
 $stmt->execute();
 $ad_notice_settings = $stmt->fetch(PDO::FETCH_ASSOC);
 if ($ad_notice_settings) {
+    $ad_upcoming_message = $ad_notice_settings['ad_upcoming_message'];
     $ad_start_message = $ad_notice_settings['ad_start_message'];
     $ad_end_message = $ad_notice_settings['ad_end_message'];
     $enable_ad_notice = (int)$ad_notice_settings['enable_ad_notice'];
 } else {
+    $ad_upcoming_message = "Ads will be starting in (duration). Please stay with us!";
     $ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
     $ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
     $enable_ad_notice = 1;
@@ -145,19 +147,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // Handle Ad Notices Update
     elseif (isset($_POST['ad_start_message'])) {
+        $ad_upcoming_message = $_POST['ad_upcoming_message'];
         $ad_start_message = $_POST['ad_start_message'];
         $ad_end_message = $_POST['ad_end_message'];
         $enable_ad_notice = isset($_POST['enable_ad_notice']) ? 1 : 0;
         $update_sql = "
             INSERT INTO ad_notice_settings 
-            (id, ad_start_message, ad_end_message, enable_ad_notice)
+            (id, ad_upcoming_message, ad_start_message, ad_end_message, enable_ad_notice)
             VALUES 
-            (1, :ad_start_message, :ad_end_message, :enable_ad_notice)
+            (1, :ad_upcoming_message, :ad_start_message, :ad_end_message, :enable_ad_notice)
             ON DUPLICATE KEY UPDATE 
+                ad_upcoming_message = :ad_upcoming_message,
                 ad_start_message = :ad_start_message,
                 ad_end_message = :ad_end_message,
                 enable_ad_notice = :enable_ad_notice";
         $update_stmt = $db->prepare($update_sql);
+        $update_stmt->bindParam(':ad_upcoming_message', $ad_upcoming_message, PDO::PARAM_STR);
         $update_stmt->bindParam(':ad_start_message', $ad_start_message, PDO::PARAM_STR);
         $update_stmt->bindParam(':ad_end_message', $ad_end_message, PDO::PARAM_STR);
         $update_stmt->bindParam(':enable_ad_notice', $enable_ad_notice, PDO::PARAM_INT);
