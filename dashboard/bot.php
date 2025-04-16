@@ -815,23 +815,6 @@ function updateApiLimits() {
     document.getElementById('shazam-count').innerText = data.shazam.requests_remaining;
     document.getElementById('exchange-count').innerText = data.exchangerate.requests_remaining;
     document.getElementById('weather-count').innerText = data.weather.requests_remaining;
-    
-    // Update detailed API limits section
-    document.getElementById('shazam-section-detail').innerHTML = `
-      <p style='color: #1abc9c;'>Song Identifications Left: <span style='color: #e74c3c;'>${data.shazam.requests_remaining}</span> 
-      (<span title='Next reset date: ${data.shazam.reset_date}'>${data.shazam.days_until_reset} days until reset</span>)</p>
-      <p>Last checked: <span style='color: #f39c12;'>${data.shazam.last_modified}</span></p>
-    `;
-    document.getElementById('exchangerate-section-detail').innerHTML = `
-      <p style='color: #1abc9c;'>Exchange Rate Checks Left: <span style='color: #e74c3c;'>${data.exchangerate.requests_remaining}</span> 
-      (<span title='Next reset date: ${data.exchangerate.reset_date}'>${data.exchangerate.days_until_reset} days until reset</span>)</p>
-      <p>Last checked: <span style='color: #f39c12;'>${data.exchangerate.last_modified}</span></p>
-    `;
-    document.getElementById('weather-section-detail').innerHTML = `
-      <p style='color: #1abc9c;'>Weather Requests Left: <span style='color: #e74c3c;'>${data.weather.requests_remaining}</span><br> 
-      (<span title='Resets at midnight'>${data.weather.hours_until_midnight} hours, ${data.weather.minutes_until_midnight} minutes until reset</span>)</p>
-      <p>Last checked: <span style='color: #f39c12;'>${data.weather.last_modified}</span></p>
-    `;
   })
   .catch(error => {
     console.error('Error fetching API limits:', error);
