@@ -90,14 +90,14 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
 <div class="container">
     <br>
     <?php if ($displaySearchBar) : ?>
-      <div class="field">
-          <div class="control">
-              <input class="input" type="text" id="subscriber-search" placeholder="Search for Subscribers...">
-          </div>
-      </div>
+        <div class="field">
+            <div class="control">
+                <input class="input" type="text" id="subscriber-search" placeholder="Search for Subscribers...">
+            </div>
+        </div>
     <?php endif; ?>
     <h1 class="title is-4">Your Subscribers:</h1>
-    <div class="columns is-multiline is-centered">
+    <div class="columns is-multiline">
         <?php
         // Define a custom sorting function to sort by subscription tier in descending order
         usort($subscribersForCurrentPage, function ($a, $b) {
@@ -126,27 +126,28 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
             } else { $subscriptionTier = '<font color="red">Unknown</font>'; }
             // Check if $username is the same as $subscriberDisplayName
             if ($twitchDisplayName == $subscriberDisplayName) {
-                echo "<div class='column'>
-                        <div class='box' style='width: 228px; height: 136px;'>
-                            <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
+                echo "<div class='column is-one-fifth'>
+                        <div class='box has-equal-height'>
+                            <span class='has-text-weight-bold'>$subscriberDisplayName</span>
                             <span>Subscription Tier: $subscriptionTier</span>
+                            <p class='has-text-info'>This is your subscription!</p>
                         </div>
                       </div>";
             } else {
                 // Check if it's a gift subscription
                 if ($isGift) {
-                    echo "<div class='column'>
-                            <div class='box' style='width: 228px; height: 136px;'>
-                                <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
+                    echo "<div class='column is-one-fifth'>
+                            <div class='box has-equal-height'>
+                                <span class='has-text-weight-bold'>$subscriberDisplayName</span>
                                 <span>Subscription Tier: $subscriptionTier</span><br>
                                 <span>Gift Sub from $gifterName</span>
                             </div>
                           </div>";
                 // else show everything else as not gift subscription
                 } else {
-                    echo "<div class='column'>
-                            <div class='box' style='width: 228px; height: 136px;'>
-                                <span class='has-text-weight-bold'>$subscriberDisplayName</span><br>
+                    echo "<div class='column is-one-fifth'>
+                            <div class='box has-equal-height'>
+                                <span class='has-text-weight-bold'>$subscriberDisplayName</span>
                                 <span>Subscription Tier: $subscriptionTier</span>
                             </div>
                           </div>";
@@ -172,15 +173,24 @@ $displaySearchBar = count($allSubscribers) > $subscribersPerPage;
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
 $(document).ready(function() {
+    // Ensure all boxes have the same height
+    var maxHeight = 0;
+    $('.box').each(function() {
+        if ($(this).height() > maxHeight) {
+            maxHeight = $(this).height();
+        }
+    });
+    $('.box').height(maxHeight);
+    
     <?php if ($displaySearchBar) : ?>
     $('#subscriber-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();
-        $('.column .box span').each(function() {
-            var subscriberName = $(this).text().toLowerCase();
+        $('.column').each(function() {
+            var subscriberName = $(this).find('.box span').first().text().toLowerCase();
             if (subscriberName.includes(searchTerm)) {
-                $(this).closest('.column').show();
+                $(this).show();
             } else {
-                $(this).closest('.column').hide();
+                $(this).hide();
             }
         });
     });
