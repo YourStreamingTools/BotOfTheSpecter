@@ -257,7 +257,7 @@ date_default_timezone_set($timezone);
                                                     <?php
                                                     foreach ($availableEvents as $evt) {
                                                         if ($current_reward_id !== $evt) {
-                                                            echo '<option value="' . $evt . '">' . $evt . '</option>';
+                                                            echo '<option value="' . htmlspecialchars($evt) . '">' . htmlspecialchars($evt) . '</option>';
                                                         }
                                                     }
                                                     ?>
