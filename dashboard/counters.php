@@ -37,7 +37,8 @@ try {
                     ($interval->m * 30 * 24 * 3600) + 
                     ($interval->d * 24 * 3600) + 
                     ($interval->h * 3600) + 
-                    ($interval->i * 60);
+                    ($interval->i * 60) +
+                    $interval->s;
     $lurkers[$key]['total_duration'] = $totalDuration; // Store for sorting
     $timeStringParts = [];
     if ($interval->y > 0) {
@@ -54,6 +55,9 @@ try {
     }
     if ($interval->i > 0) {
       $timeStringParts[] = "{$interval->i} minute(s)";
+    }
+    if ($interval->s > 0 || empty($timeStringParts)) {
+      $timeStringParts[] = "{$interval->s} second(s)";
     }
     $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
   }
