@@ -16,7 +16,6 @@ require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
 include 'bot_control.php';
 include 'user_db.php';
-include "mod_access.php";
 foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
   $weather = $profile['weather_location'];
@@ -75,6 +74,7 @@ if (isset($_GET['log'])) {
   echo json_encode(['last_line' => $linesTotal, 'data' => htmlspecialchars($logContent)]);
   exit();
 }
+include "mod_access.php";
 ?>
 <!DOCTYPE html>
 <html lang="en">
