@@ -405,6 +405,7 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 ad_start_message VARCHAR(255),
                 ad_end_message VARCHAR(255),
+                ad_upcoming_message VARCHAR(255),
                 enable_ad_notice TINYINT(1) DEFAULT 1
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'streaming_settings' => "
@@ -455,7 +456,8 @@ try {
         'watch_time_excluded_users' => ['excluded_users' => 'VARCHAR(255) DEFAULT NULL'],
         'streamer_preferences' => ['send_welcome_messages' => 'TINYINT(1)', 'default_welcome_message' => 'TEXT', 'new_default_welcome_message' => 'TEXT', 'default_vip_welcome_message' => 'TEXT', 'new_default_vip_welcome_message' => 'TEXT', 'default_mod_welcome_message' => 'TEXT', 'new_default_mod_welcome_message' => 'TEXT'],
         'stream_lotto' => ['winning_numbers' => 'VARCHAR(255)', 'supplementary_numbers' => 'VARCHAR(255)'],
-        'stream_lotto_winning_numbers' => ['winning_numbers' => 'VARCHAR(255)', 'supplementary_numbers' => 'VARCHAR(255)']
+        'stream_lotto_winning_numbers' => ['winning_numbers' => 'VARCHAR(255)', 'supplementary_numbers' => 'VARCHAR(255)'],
+        'ad_notice_settings' => ['ad_start_message' => 'VARCHAR(255)', 'ad_end_message' => 'VARCHAR(255)', 'ad_upcoming_message' => 'VARCHAR(255)', 'enable_ad_notice' => 'TINYINT(1) DEFAULT 1'],
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
