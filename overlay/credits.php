@@ -11,9 +11,7 @@ function sanitize_input($input) {
 $status = "";
 
 // Database credentials
-$sqlusername = ''; // CHANGE TO MAKE THIS WORK
-$sqlpassword = ''; // CHANGE TO MAKE THIS WORK
-$dbhost = 'sql.botofthespecter.com';
+include '/var/www/config/database.php';
 $maindb = 'website';
 
 function build_event_section($user_db, $event, $section_name, $clean_data = false) {
@@ -58,7 +56,7 @@ function build_chatters_section($user_db) {
 if (isset($_GET['code']) && !empty($_GET['code'])) {
     $api_key = sanitize_input($_GET['code']);
     // Connect to the main database
-    $conn = new mysqli($dbhost, $sqlusername, $sqlpassword, $maindb);
+    $conn = new mysqli($db_servername, $db_username, $db_password, $maindb);
     // Check connection
     if ($conn->connect_error) {
         die("Connection failed: " . $conn->connect_error);
@@ -73,7 +71,7 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
             $username = $user['username'];
             if ($username) {
                 // Connect to the user's database
-                $user_db = new mysqli($dbhost, $sqlusername, $sqlpassword, $username);
+                $user_db = new mysqli($db_servername, $db_username, $db_password, $username);
                 // Check connection
                 if ($user_db->connect_error) {
                     die("Connection failed: " . $user_db->connect_error);
