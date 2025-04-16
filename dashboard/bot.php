@@ -339,22 +339,22 @@ include "mod_access.php";
           <!-- Song Identification Section -->
           <div class="api-section" id="shazam-section" style="padding-bottom: 10px; border-bottom: 1px solid #7f8c8d; margin-bottom: 10px;">
             <p style='color: #1abc9c;'>Song ID Left:
-              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="shazam-count" class="tooltip-trigger" data-tooltip-id="shazam-tooltip">Loading...</span>
-              <span class="tooltip" id="shazam-tooltip" style="display: none; position: absolute; background-color: #34495e; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 100; max-width: 200px;">Last updated: <span id="shazam-updated">...</span></span>
+              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="shazam-count">Loading...</span>
+              <br><small style='color: #95a5a6; font-size: 12px;'>Updated: <span id="shazam-updated">...</span></small>
             </p>
           </div>
           <!-- Exchange Rate Section -->
           <div class="api-section" id="exchangerate-section" style="padding-bottom: 10px; border-bottom: 1px solid #7f8c8d; margin-bottom: 10px;">
             <p style='color: #1abc9c;'>Exchange Rate Left:
-              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="exchange-count" class="tooltip-trigger" data-tooltip-id="exchange-tooltip">Loading...</span>
-              <span class="tooltip" id="exchange-tooltip" style="display: none; position: absolute; background-color: #34495e; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 100; max-width: 200px;">Last updated: <span id="exchange-updated">...</span></span>
+              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="exchange-count">Loading...</span>
+              <br><small style='color: #95a5a6; font-size: 12px;'>Updated: <span id="exchange-updated">...</span></small>
             </p>
           </div>
           <!-- Weather Usage Section -->
           <div class="api-section" id="weather-section">
             <p style='color: #1abc9c;'>Weather Left:
-              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="weather-count" class="tooltip-trigger" data-tooltip-id="weather-tooltip">Loading...</span>
-              <span class="tooltip" id="weather-tooltip" style="display: none; position: absolute; background-color: #34495e; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 100; max-width: 200px;">Last updated: <span id="weather-updated">...</span></span>
+              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="weather-count">Loading...</span>
+              <br><small style='color: #95a5a6; font-size: 12px;'>Updated: <span id="weather-updated">...</span></small>
             </p>
           </div>
         </div>
