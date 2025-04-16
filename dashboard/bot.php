@@ -963,15 +963,19 @@ document.addEventListener('DOMContentLoaded', function() {
     trigger.addEventListener('mouseenter', function() {
       const tooltipId = this.getAttribute('data-tooltip-id');
       const tooltip = document.getElementById(tooltipId);
-      const rect = this.getBoundingClientRect();
-      tooltip.style.display = 'block';
-      tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
-      tooltip.style.left = `${rect.left + window.scrollX}px`;
+      if (tooltip) {
+        const rect = this.getBoundingClientRect();
+        tooltip.style.display = 'block';
+        tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
+        tooltip.style.left = `${rect.left + window.scrollX}px`;
+      }
     });
     trigger.addEventListener('mouseleave', function() {
       const tooltipId = this.getAttribute('data-tooltip-id');
       const tooltip = document.getElementById(tooltipId);
-      tooltip.style.display = 'none';
+      if (tooltip) {
+        tooltip.style.display = 'none';
+      }
     });
   });
 });
