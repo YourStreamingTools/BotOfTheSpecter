@@ -283,12 +283,12 @@ include "mod_access.php";
           </div>
         </div>
         <div class="buttons is-flex is-flex-direction-column mt-3">
-          <a href="manage_custom_commands.php" class="button is-primary is-fullwidth mb-2">Manage Custom Commands</a>
-          <a href="timed_messages.php" class="button is-info is-fullwidth mb-2">Manage Chat Timers</a>
+          <a href="manage_custom_commands.php" class="button is-primary is-fullwidth mb-2 is-rounded">Manage Custom Commands</a>
+          <a href="timed_messages.php" class="button is-info is-fullwidth mb-2 is-rounded">Manage Chat Timers</a>
           <!--<a href="" class="button is-warning is-fullwidth"></a>-->
           <label class="label">Force Your Status</label>
-          <button class="button is-primary is-fullwidth mb-2" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
-          <button class="button is-danger is-fullwidth mb-2" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
+          <button class="button is-primary is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
+          <button class="button is-danger is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
         </div>
       </div>
       <!-- Bot version info box -->
@@ -359,13 +359,13 @@ include "mod_access.php";
             <div id="stableVersion"><?php echo $versionRunning; ?></div>
             <div class="buttons is-centered mt-4">
               <form action="" method="post" class="mr-2">
-                <button class="button is-danger bot-button button-size" type="submit" name="killBot">Stop Bot</button>
+                <button class="button is-danger bot-button button-size is-rounded" type="submit" name="killBot">Stop Bot</button>
               </form>
               <form action="" method="post" class="mr-2">
-                <button class="button is-success bot-button button-size" type="submit" name="runBot">Run Bot</button>
+                <button class="button is-success bot-button button-size is-rounded" type="submit" name="runBot">Run Bot</button>
               </form>
               <form action="" method="post">
-                <button class="button is-warning bot-button button-size" type="submit" name="restartBot">Restart Bot</button>
+                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartBot">Restart Bot</button>
               </form>
             </div>
             <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
@@ -377,13 +377,13 @@ include "mod_access.php";
             <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
             <div class="buttons is-centered mt-4">
               <form action="" method="post" class="mr-2">
-                <button class="button is-danger bot-button button-size" type="submit" name="killBetaBot">Stop Beta Bot</button>
+                <button class="button is-danger bot-button button-size is-rounded" type="submit" name="killBetaBot">Stop Beta Bot</button>
               </form>
               <form action="" method="post" class="mr-2">
-                <button class="button is-success bot-button button-size" type="submit" name="runBetaBot">Run Beta Bot</button>
+                <button class="button is-success bot-button button-size is-rounded" type="submit" name="runBetaBot">Run Beta Bot</button>
               </form>
               <form action="" method="post">
-                <button class="button is-warning bot-button button-size" type="submit" name="restartBetaBot">Restart Beta Bot</button>
+                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartBetaBot">Restart Beta Bot</button>
               </form>
             </div>
             <?php elseif ($selectedBot === 'alpha' && $betaAccess): ?>
@@ -395,13 +395,13 @@ include "mod_access.php";
             <div id="alphaVersion"><?php echo $alphaVersionRunning; ?></div>
             <div class="buttons is-centered mt-4">
               <form action="" method="post" class="mr-2">
-                <button class="button is-danger bot-button button-size" type="submit" name="killAlphaBot">Stop Alpha Bot</button>
+                <button class="button is-danger bot-button button-size is-rounded" type="submit" name="killAlphaBot">Stop Alpha Bot</button>
               </form>
               <form action="" method="post" class="mr-2">
-                <button class="button is-success bot-button button-size" type="submit" name="runAlphaBot">Run Alpha Bot</button>
+                <button class="button is-success bot-button button-size is-rounded" type="submit" name="runAlphaBot">Run Alpha Bot</button>
               </form>
               <form action="" method="post">
-                <button class="button is-warning bot-button button-size" type="submit" name="restartAlphaBot">Restart Alpha Bot</button>
+                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartAlphaBot">Restart Alpha Bot</button>
               </form>
             </div>
             <?php elseif ($selectedBot === 'discord' && $guild_id && $live_channel_id): ?>
@@ -413,13 +413,13 @@ include "mod_access.php";
             <div id="discordVersion"><?php echo $discordVersionRunning; ?></div>
             <div class="buttons is-centered mt-4">
               <form action="" method="post" class="mr-2">
-                <button class="button is-danger bot-button button-size" type="submit" name="killDiscordBot">Stop Discord Bot</button>
+                <button class="button is-danger bot-button button-size is-rounded" type="submit" name="killDiscordBot">Stop Discord Bot</button>
               </form>
               <form action="" method="post" class="mr-2">
-                <button class="button is-success bot-button button-size" type="submit" name="runDiscordBot">Run Discord Bot</button>
+                <button class="button is-success bot-button button-size is-rounded" type="submit" name="runDiscordBot">Run Discord Bot</button>
               </form>
               <form action="" method="post">
-                <button class="button is-warning bot-button button-size" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
+                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
               </form>
             </div>
             <?php endif; ?>
@@ -498,7 +498,7 @@ include "mod_access.php";
         </div>
         <div class="column is-12">
           <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; margin-top: 10px;">
-            <button class="button is-link bot-button is-fullwidth no-working-spinner" onclick="window.open('https://uptime.botofthespecter.com/', '_blank')">Uptime Monitors</button>
+            <button class="button is-link bot-button is-fullwidth no-working-spinner is-rounded" onclick="window.open('https://uptime.botofthespecter.com/', '_blank')">Uptime Monitors</button>
           </div>
         </div>
       </div>
