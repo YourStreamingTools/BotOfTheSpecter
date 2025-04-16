@@ -354,9 +354,16 @@ date_default_timezone_set($timezone);
         <div class="box">
             <h2 class="title is-3">Ad Notices (BETA v5.4)</h2>
             <div class="notification is-info">
-                You can use the variable (duration) which will be replaced with the ads' duration.
+                You can use the variable (duration) which will be replaced with the ads' duration.<br>
+                You can use the variable (minutes) which will be replaced with upcoming ads' duration in minutes.<br>
             </div>
             <form method="POST" action="module_data_post.php">
+                <div class="field">
+                    <label class="label">Ad Upcoming Message</label>
+                    <div class="control">
+                        <input class="input" type="text" name="ad_upcoming_message" placeholder="Message when ads are upcoming" value="<?php echo htmlspecialchars($ad_upcoming_message); ?>">
+                    </div>
+                </div>
                 <div class="field">
                     <label class="label">Ad Starting Message</label>
                     <div class="control">
