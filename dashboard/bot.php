@@ -339,19 +339,22 @@ include "mod_access.php";
           <!-- Song Identification Section -->
           <div class="api-section" id="shazam-section" style="padding-bottom: 10px; border-bottom: 1px solid #7f8c8d; margin-bottom: 10px;">
             <p style='color: #1abc9c;'>Song ID Left:
-              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="shazam-count">Loading...</span>
+              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="shazam-count" class="tooltip-trigger" data-tooltip-id="shazam-tooltip">Loading...</span>
+              <span class="tooltip" id="shazam-tooltip" style="display: none; position: absolute; background-color: #34495e; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 100; max-width: 200px;">Last updated: <span id="shazam-updated">...</span></span>
             </p>
           </div>
           <!-- Exchange Rate Section -->
           <div class="api-section" id="exchangerate-section" style="padding-bottom: 10px; border-bottom: 1px solid #7f8c8d; margin-bottom: 10px;">
             <p style='color: #1abc9c;'>Exchange Rate Left:
-              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="exchange-count">Loading...</span>
+              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="exchange-count" class="tooltip-trigger" data-tooltip-id="exchange-tooltip">Loading...</span>
+              <span class="tooltip" id="exchange-tooltip" style="display: none; position: absolute; background-color: #34495e; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 100; max-width: 200px;">Last updated: <span id="exchange-updated">...</span></span>
             </p>
           </div>
           <!-- Weather Usage Section -->
           <div class="api-section" id="weather-section">
             <p style='color: #1abc9c;'>Weather Left:
-              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="weather-count">Loading...</span>
+              <span style='color: #e74c3c; font-size: 18px; font-weight: bold; text-align: center;' id="weather-count" class="tooltip-trigger" data-tooltip-id="weather-tooltip">Loading...</span>
+              <span class="tooltip" id="weather-tooltip" style="display: none; position: absolute; background-color: #34495e; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 100; max-width: 200px;">Last updated: <span id="weather-updated">...</span></span>
             </p>
           </div>
         </div>
@@ -799,6 +802,28 @@ function checkAllServices() {
     });
 }
 
+function formatTimestamp(timestamp) {
+  if (!timestamp) return "Never updated";
+  
+  const now = new Date();
+  const updated = new Date(timestamp);
+  const diffMs = now - updated;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) {
+    return `${diffSec} seconds ago`;
+  } else if (diffMin < 60) {
+    return `${diffMin} minute${diffMin !== 1 ? 's' : ''} ago`;
+  } else if (diffHour < 24) {
+    return `${diffHour} hour${diffHour !== 1 ? 's' : ''} ago`;
+  } else {
+    return `${diffDay} day${diffDay !== 1 ? 's' : ''} ago`;
+  }
+}
+
 function updateApiLimits() {
   fetch('/api_limits.php')
   .then(response => response.json())
@@ -807,6 +832,11 @@ function updateApiLimits() {
     document.getElementById('shazam-count').innerText = data.shazam.requests_remaining;
     document.getElementById('exchange-count').innerText = data.exchangerate.requests_remaining;
     document.getElementById('weather-count').innerText = data.weather.requests_remaining;
+    
+    // Update the tooltips with the last updated times in a friendly format
+    document.getElementById('shazam-updated').innerText = formatTimestamp(data.shazam.last_updated);
+    document.getElementById('exchange-updated').innerText = formatTimestamp(data.exchangerate.last_updated);
+    document.getElementById('weather-updated').innerText = formatTimestamp(data.weather.last_updated);
   })
   .catch(error => {
     console.error('Error fetching API limits:', error);
@@ -924,6 +954,26 @@ document.addEventListener('DOMContentLoaded', function() {
   function deleteCookie(name) {
     document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
   }
+});
+
+// Tooltip functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const tooltipTriggers = document.querySelectorAll('.tooltip-trigger');
+  tooltipTriggers.forEach(trigger => {
+    trigger.addEventListener('mouseenter', function() {
+      const tooltipId = this.getAttribute('data-tooltip-id');
+      const tooltip = document.getElementById(tooltipId);
+      const rect = this.getBoundingClientRect();
+      tooltip.style.display = 'block';
+      tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
+      tooltip.style.left = `${rect.left + window.scrollX}px`;
+    });
+    trigger.addEventListener('mouseleave', function() {
+      const tooltipId = this.getAttribute('data-tooltip-id');
+      const tooltip = document.getElementById(tooltipId);
+      tooltip.style.display = 'none';
+    });
+  });
 });
 </script>
 
