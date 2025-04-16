@@ -650,3 +650,10 @@ input[type="checkbox"]:hover {
 .navbar-item.has-dropdown:hover .navbar-dropdown {
     display: block;
 }
+
+.has-equal-height {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 136px;
+}
