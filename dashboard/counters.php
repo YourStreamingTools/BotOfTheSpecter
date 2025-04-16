@@ -278,13 +278,36 @@ function loadData(type) {
   
   // Update active button state
   document.querySelectorAll('.buttons .button').forEach(button => {
+    // First reset all buttons to the default state
     button.classList.remove('is-primary');
     button.classList.add('is-info');
-    if (button.textContent.toLowerCase().includes(type.toLowerCase())) {
-      button.classList.remove('is-info');
-      button.classList.add('is-primary');
-    }
   });
+  
+  // Then find the button that corresponds to the current data type and highlight it
+  const buttonMapping = {
+    'lurkers': 'Lurkers',
+    'typos': 'Typo Counts',
+    'deaths': 'Deaths Overview',
+    'hugs': 'Hug Counts',
+    'kisses': 'Kiss Counts',
+    'highfives': 'High-Five Counts',
+    'customCounts': 'Custom Counts',
+    'userCounts': 'User Counts',
+    'rewardCounts': 'Reward Counts',
+    'watchTime': 'Watch Time',
+    'quotes': 'Quotes'
+  };
+  
+  const buttonText = buttonMapping[type];
+  if (buttonText) {
+    const activeButton = Array.from(document.querySelectorAll('.buttons .button')).find(
+      button => button.textContent.trim() === buttonText
+    );
+    if (activeButton) {
+      activeButton.classList.remove('is-info');
+      activeButton.classList.add('is-primary');
+    }
+  }
   
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
