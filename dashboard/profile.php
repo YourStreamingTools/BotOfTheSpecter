@@ -408,75 +408,77 @@ if ($is_admin) {
   </div>
 </div>
 
-<div class="modal" id="regen-api-key">
-  <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head has-background-dark">
-      <p class="modal-card-title has-text-white">Regenerating API Key Warning</p>
-      <button class="delete" aria-label="close" id="regen-api-key-close"></button>
-    </header>
-    <section class="modal-card-body has-background-dark has-text-white">
-        <p>Regenerating your API Key will require a restart of the entire system, including the Twitch Chat Bot, Discord Bot, and Stream Overlays.</p>
-        <p>Please ensure you go back to the dashboard to restart them.</p>
-        <br>
-        <button id="confirm-regen" class="button is-danger">Confirm</button>
-      </section>
-  </div>
-</div>
-
 <!-- Include the JavaScript files -->
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="/js/profile.js"></script>
 <script src="/js/timezone.js"></script>
 <script>
-  // Modal handling: Open and close modals
-  const modalIds = [
-    { open: "regen-api-key-open", close: "regen-api-key-close" }
-  ];
-
-  modalIds.forEach(modal => {
-    const openButton = document.getElementById(modal.open);
-    const closeButton = document.getElementById(modal.close);
-    if (openButton) {
-      openButton.addEventListener("click", function() {
-        document.getElementById(modal.close.replace('-close', '')).classList.add("is-active");
-      });
-    }
-    if (closeButton) {
-      closeButton.addEventListener("click", function() {
-        document.getElementById(modal.close.replace('-close', '')).classList.remove("is-active");
-      });
-    }
-  });
-
   // Reset cookie consent button
   document.getElementById('reset-cookie-consent').addEventListener('click', function() {
-    // Delete the cookie consent cookie
-    document.cookie = "cookie_consent=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "selectedBot=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    // Update the display
-    document.getElementById('cookie-consent-status').textContent = 'Not set';
-    // Show confirmation
-    alert('Cookie consent has been reset. The cookie consent banner will appear on your next page load.');
+    Swal.fire({
+      title: 'Reset Cookies',
+      text: 'This will reset your cookie consent preferences and selected bot settings. You will see the cookie consent banner on your next page load.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, reset cookies'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        // Delete the cookie consent cookie
+        document.cookie = "cookie_consent=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = "selectedBot=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        // Update the display
+        document.getElementById('cookie-consent-status').textContent = 'Not set';
+        // Show confirmation
+        Swal.fire(
+          'Cookies Reset',
+          'Cookie consent has been reset successfully.',
+          'success'
+        );
+      }
+    });
   });
 
-  // Confirm Regen button action
-  document.getElementById("confirm-regen").addEventListener("click", function() {
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "regen_api_key.php", true);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    // Handle the response when the API key is regenerated
-    xhr.onload = function() {
-        if (xhr.status == 200) {
+  // Regenerate API Key button action
+  document.getElementById("regen-api-key-open").addEventListener("click", function() {
+    Swal.fire({
+      title: 'Regenerate API Key',
+      text: 'Regenerating your API Key will require a restart of the entire system, including the Twitch Chat Bot, Discord Bot, and Stream Overlays. Please ensure you go back to the dashboard to restart them.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, regenerate key'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "regen_api_key.php", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        // Handle the response when the API key is regenerated
+        xhr.onload = function() {
+          if (xhr.status == 200) {
             // Update the displayed API Key with the new one
-            document.getElementById("api-key").textContent = xhr.responseText;
-            alert("Your API key has been successfully regenerated.");
-        } else {
-            alert("Error regenerating API key. Please try again.");
-        }
-    };
-    // Send the AJAX request to regenerate the API key
-    xhr.send("action=regen_api_key");
+            var apiKeyTag = document.getElementById("api-key");
+            apiKeyTag.setAttribute("data-key", xhr.responseText);
+            apiKeyTag.textContent = "••••••••••••••••••••••••••••••••••••••••••••••••";
+            Swal.fire(
+              'API Key Regenerated',
+              'Your API key has been successfully regenerated.',
+              'success'
+            );
+          } else {
+            Swal.fire(
+              'Error',
+              'Error regenerating API key. Please try again.',
+              'error'
+            );
+          }
+        };
+        // Send the AJAX request to regenerate the API key
+        xhr.send("action=regen_api_key");
+      }
+    });
   });
 
   // Function to convert UTC date to local date in the desired format
