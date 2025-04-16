@@ -23,6 +23,9 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 
+// Check for cookie consent
+$cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
+
 try {
   // Calculate lurk durations for each user
   foreach ($lurkers as $key => $lurker) {
@@ -100,6 +103,12 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 } else {
   $usernames = [];
 }
+
+// Get the default data type to display - either from cookie or default to 'lurkers'
+$defaultDataType = 'lurkers';
+if ($cookieConsent && isset($_COOKIE['preferred_data_type'])) {
+  $defaultDataType = $_COOKIE['preferred_data_type'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -151,7 +160,8 @@ if (isset($userData['data']) && is_array($userData['data'])) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    loadData('lurkers');
+    // Load the last viewed data type from cookie if enabled
+    loadData('<?php echo $defaultDataType; ?>');
 });
 
 function formatWatchTime(seconds) {
@@ -184,6 +194,12 @@ function loadData(type) {
   let countColumnVisible = false;
   let additionalColumnName;
   let output = '';
+  
+  // Store the user's preference in a cookie if consent is given
+  if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
+    setCookie('preferred_data_type', type, 30); // Store for 30 days
+  }
+  
   switch(type) {
     case 'lurkers':
       data = <?php echo json_encode($lurkers); ?>;
@@ -259,6 +275,17 @@ function loadData(type) {
       dataColumn = 'What was said';
       break;
   }
+  
+  // Update active button state
+  document.querySelectorAll('.buttons .button').forEach(button => {
+    button.classList.remove('is-primary');
+    button.classList.add('is-info');
+    if (button.textContent.toLowerCase().includes(type.toLowerCase())) {
+      button.classList.remove('is-info');
+      button.classList.add('is-primary');
+    }
+  });
+  
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
   if (countColumnVisible) {
@@ -296,6 +323,14 @@ function loadData(type) {
   });
   document.getElementById('table-title').innerText = title;
   document.getElementById('table-body').innerHTML = output;
+}
+
+// Function to set a cookie
+function setCookie(name, value, days) {
+  const d = new Date();
+  d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+  const expires = "expires=" + d.toUTCString();
+  document.cookie = name + "=" + value + ";" + expires + ";path=/";
 }
 </script>
 </body>
