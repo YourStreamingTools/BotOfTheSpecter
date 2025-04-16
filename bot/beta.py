@@ -162,7 +162,7 @@ global last_ad_break_time
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()                         # Translator instance 
-scheduled_tasks = []                                    # List for scheduled tasks
+scheduled_tasks = set()                                 # Set for scheduled tasks
 shoutout_queue = Queue()                                # Queue for shoutouts
 specterSocket = SocketClient()                          # Socket client instance for specter
 hyperateSocket = SocketClient()                         # Socket client instance for hyperate
@@ -173,6 +173,7 @@ pending_removals = {}                                   # Dictionary for pending
 shoutout_tracker = {}                                   # Dictionary for tracking shoutouts
 command_last_used = {}                                  # Dictionary for tracking command usage
 last_poll_progress_update = 0                           # Variable for last poll progress update
+last_message_time = 0                                   # Variable for last message time
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
 song_requests = {}                                      # Tracks song request from users
@@ -5850,8 +5851,12 @@ async def timed_message():
                             "chat_line_trigger": int(chat_line_trigger),
                             "message": message,
                             "last_trigger_count": chat_line_count,  # Start tracking from the current global counter
-                            "interval": interval  # Store the interval for later use
+                            "interval": interval,  # Store the interval for later use
                         }
+                    elif interval and int(interval) > 0: # handle interval based messages
+                        wait_time = int(interval) * 60
+                        task = asyncio.create_task(send_timed_message(message_id, message, wait_time))
+                        scheduled_tasks.add(task) # Add task to the set
             else:
                 # Cancel all scheduled tasks if the stream goes offline
                 bot_logger.info("Stream is offline. Resetting counters and cancelling all timed messages.")
@@ -5880,32 +5885,40 @@ async def handle_chat_message(messageAuthor):
         chat_line_trigger = trigger_info["chat_line_trigger"]
         last_trigger_count = trigger_info["last_trigger_count"]
         message = trigger_info["message"]
+        interval = trigger_info["interval"]
         # Check if enough new chat lines have occurred since the last trigger
         if chat_line_count - last_trigger_count >= chat_line_trigger:
             trigger_info["last_trigger_count"] = chat_line_count  # Update last trigger count
-            interval = trigger_info["interval"]
+            # interval check.
             if interval and int(interval) > 0:
                 wait_time = int(interval) * 60
-                chat_logger.info(f"Delaying Timed Message ID: {message_id} for {interval} minutes.")
                 asyncio.create_task(send_timed_message(message_id, message, wait_time))
+            else:
+                asyncio.create_task(send_timed_message(message_id, message, 0)) #send immediately
+            # Remove the task after it has been triggered
+            del chat_trigger_tasks[message_id] # Remove item.
 
 async def send_timed_message(message_id, message, delay):
     global stream_online, last_message_time
-    await asyncio.sleep(delay)
+    if delay > 0:
+        await asyncio.sleep(delay)
     if stream_online:
         # Ensure a delay between consecutive messages
         current_time = asyncio.get_event_loop().time()
         safe_gap = 60
-        if 'last_message_time' in globals():
+        if last_message_time != 0: # Check if last_message_time has been initialized
             elapsed = current_time - last_message_time
             if elapsed < safe_gap:
                 wait_time = safe_gap - elapsed
                 chat_logger.info(f"Waiting {wait_time} more seconds before sending Timed Message ID: {message_id}")
                 await asyncio.sleep(wait_time)
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
-        channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-        await channel.send(message)
-        last_message_time = asyncio.get_event_loop().time()
+        try:
+            channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
+            await channel.send(message)
+            last_message_time = asyncio.get_event_loop().time()
+        except Exception as e:
+            bot_logger.error(f"Error sending message: {e}")
     else:
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
