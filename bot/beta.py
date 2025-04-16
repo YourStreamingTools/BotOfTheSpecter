@@ -7857,28 +7857,56 @@ async def handle_upcoming_ads():
         await asyncio.sleep(60)
         if not stream_online:
             continue
-        time_now = datetime.now(pytz.timezone("UTC"))
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    ads_data = data.get("data", [])
-                    if ads_data:
-                        next_ad_str = ads_data[0].get("next_ad_break_time")
-                        last_ad_str = ads_data[0].get("last_ad_break_time")
-                        if next_ad_str and isinstance(next_ad_str, str):
-                            next_ad_break_time = datetime.fromtimestamp(int(next_ad_str), tz=pytz.timezone("UTC"))
-                            last_ad_break_time = datetime.fromtimestamp(int(last_ad_str), tz=pytz.timezone("UTC"))
-                            time_to_ad_seconds = int((next_ad_break_time - time_now).total_seconds())
-                            time_to_ad_minutes = time_to_ad_seconds // 60
-                            api_logger.info(f"Next ad break in {time_to_ad_minutes} minutes.")
-                            if last_ad_break_time < time_now and 0 < time_to_ad_seconds <= 300:
-                                if time_to_ad_minutes <= 5:
-                                    await channel.send(f"Upcoming ad break in {time_to_ad_minutes} minutes!")
-                    else:
-                        api_logger.warning("No ad data found.")
+        # Get ad notification settings from database
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT * FROM ad_notice_settings WHERE id = %s", (1,))
+                settings = await cursor.fetchone()
+                if settings:
+                    enable_ad_notice = settings.get("enable_ad_notice", True)
+                    ad_upcoming_message = settings.get("ad_upcoming_message", "Upcoming ad break in {minutes} minutes!")
                 else:
-                    api_logger.warning(f"Failed to fetch ad data. Status: {response.status}")
+                    # Default settings if not found in database
+                    enable_ad_notice = True
+                    ad_upcoming_message = "Upcoming ad break in {minutes} minutes!"
+        except Exception as e:
+            api_logger.error(f"Error retrieving ad notice settings: {e}")
+            enable_ad_notice = True
+            ad_upcoming_message = "Upcoming ad break in {minutes} minutes!"
+        finally:
+            await sqldb.ensure_closed()
+        # Skip if notifications are disabled
+        if not enable_ad_notice:
+            continue
+        time_now = datetime.now(pytz.timezone("UTC"))
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ads_data = data.get("data", [])
+                        if ads_data:
+                            next_ad_str = ads_data[0].get("next_ad_break_time")
+                            last_ad_str = ads_data[0].get("last_ad_break_time")
+                            if next_ad_str and isinstance(next_ad_str, str):
+                                next_ad_break_time = datetime.fromtimestamp(int(next_ad_str), tz=pytz.timezone("UTC"))
+                                last_ad_break_time = datetime.fromtimestamp(int(last_ad_str), tz=pytz.timezone("UTC"))
+                                time_to_ad_seconds = int((next_ad_break_time - time_now).total_seconds())
+                                time_to_ad_minutes = time_to_ad_seconds // 60
+                                api_logger.info(f"Next ad break in {time_to_ad_minutes} minutes ({time_to_ad_seconds} seconds).")
+                                # Only notify if the ad is within the next 5 minutes and we haven't sent a notification recently
+                                if last_ad_break_time < time_now and 0 < time_to_ad_seconds <= 300:
+                                    if time_to_ad_minutes <= 5:
+                                        message = ad_upcoming_message.format(minutes=time_to_ad_minutes)
+                                        await channel.send(message)
+                                        api_logger.info(f"Sent ad notification: {message}")
+                        else:
+                            api_logger.info("No upcoming ad breaks scheduled.")
+                    else:
+                        api_logger.warning(f"Failed to fetch ad data. Status: {response.status}, Response: {await response.text()}")
+        except Exception as e:
+            api_logger.error(f"Error in handle_upcoming_ads: {e}")
 
 # Here is the TwitchBot
 BOTS_TWITCH_BOT = TwitchBot(
