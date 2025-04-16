@@ -32,6 +32,29 @@ $stableLastRestartOutput = '';
 $alphaLastModifiedOutput = '';
 $alphaLastRestartOutput = '';
 
+// Determine which bot to display based on selection or cookie
+$selectedBot = $_GET['bot'] ?? null;
+
+// If bot is specified in URL, update the cookie only for stable, beta, or alpha
+if (isset($_GET['bot'])) {
+  if (in_array($_GET['bot'], ['stable', 'beta', 'alpha'])) {
+    setcookie('selectedBot', $_GET['bot'], time() + (86400 * 30), "/"); // Cookie for 30 days
+  }
+} 
+// If no bot specified in URL, try to get from cookie
+else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'alpha'])) {
+  $selectedBot = $_COOKIE['selectedBot'];
+} 
+// Default to stable if no selection or cookie
+else {
+  $selectedBot = 'stable';
+}
+
+// Validate selected bot
+if (!in_array($selectedBot, ['stable', 'beta', 'alpha', 'discord'])) {
+  $selectedBot = 'stable';
+}
+
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
@@ -51,12 +74,6 @@ $discordUserResult = $discordUserSTMT->get_result();
 $discordUser = $discordUserResult->fetch_assoc();
 $guild_id = $discordUser['guild_id'] ?? null;
 $live_channel_id = $discordUser['live_channel_id'] ?? null;
-
-// Determine which bot to display based on selection
-$selectedBot = $_GET['bot'] ?? 'stable';
-if (!in_array($selectedBot, ['stable', 'beta', 'alpha', 'discord'])) {
-  $selectedBot = 'stable';
-}
 
 // Display subscription warning for Beta or Alpha if no access
 $subscriptionWarning = '';
@@ -562,6 +579,23 @@ include "mod_access.php";
   </div>
 </div>
 
+<div id="cookie-consent-banner" class="notification is-dark has-text-centered" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; display: none; padding: 1rem; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+  <div class="columns is-vcentered">
+    <div class="column">
+      <p class="has-text-white">
+        We use cookies to enhance your experience on our site. By clicking "Accept", you consent to the use of cookies in accordance with our <a href="https://botofthespecter.com/privacy-policy.php" target="_blank" class="has-text-link">Privacy Policy</a>.<br>
+        We use cookies to remember your bot version preference. This helps us provide a better experience for you. If you choose to decline cookies, we will not be able to remember your preference and you may need to select your bot version each time you visit our site.
+      </p>
+    </div>
+    <div class="column is-narrow">
+      <div class="buttons">
+        <button id="accept-cookies" class="button is-success is-hoverable">Accept</button>
+        <button id="decline-cookies" class="button is-danger is-hoverable">Decline</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // Function to handle bot selection changes
 function changeBotSelection(bot) {
@@ -880,6 +914,46 @@ setInterval(updateApiLimits, 5000);
 checkBotStatus();
 checkAllServices();
 updateApiLimits();
+
+// Cookie consent management
+document.addEventListener('DOMContentLoaded', function() {
+  const cookieConsentBanner = document.getElementById('cookie-consent-banner');
+  // Check if user has already made a cookie consent choice
+  if (getCookie('cookie_consent') === '') {
+    // No decision has been made, show the banner
+    cookieConsentBanner.style.display = 'block';
+  }
+  // Accept cookies button
+  document.getElementById('accept-cookies').addEventListener('click', function() {
+    setCookie('cookie_consent', 'accepted', 365); // Remember for 1 year
+    cookieConsentBanner.style.display = 'none';
+  });
+  // Decline cookies button
+  document.getElementById('decline-cookies').addEventListener('click', function() {
+    setCookie('cookie_consent', 'declined', 365); // Remember the decline for 1 year
+    cookieConsentBanner.style.display = 'none';
+    // Delete any existing bot selection cookie
+    deleteCookie('selectedBot');
+  });
+  // Helper function to get cookie value
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+  }
+  // Helper function to set a cookie
+  function setCookie(name, value, days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = `expires=${date.toUTCString()}`;
+    document.cookie = `${name}=${value}; ${expires}; path=/`;
+  }
+  // Helper function to delete a cookie
+  function deleteCookie(name) {
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+  }
+});
 </script>
 
 <?php if ($showButtons): ?>
