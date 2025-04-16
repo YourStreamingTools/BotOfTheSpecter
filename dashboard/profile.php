@@ -294,14 +294,24 @@ if ($is_admin) {
       <ol>Display Name: <?php echo $twitchDisplayName; ?></ol>
       <ol>You Joined: <span id="localSignupDate"></span></ol>
       <ol>Your Last Login: <span id="localLastLogin"></span></ol>
+      <ol>Cookie Consent: <span id="cookie-consent-status"><?php echo isset($_COOKIE['cookie_consent']) ? ucfirst($_COOKIE['cookie_consent']) : 'Not set'; ?></span></ol>
       <ol>Time Zone: <?php echo $timezone; ?></ol>
       <ol>Weather Location: <?php echo $weather; ?></ol>
       <p>Your API Key: <span class="is-dark" id="api-key" data-key="<?php echo $api_key; ?>">••••••••••••••••••••••••••••••••••••••••••••••••</span></p>
       <br>
-      <button type="button" id="toggle-api-key" class="button is-info is-outlined is-rounded" style="width: 180px; margin-right: 10px;">
-        <span class="icon"><i class="fas fa-eye"></i></span><span>Show API Key</span>
-      </button>
-      <button type="button" class="button is-primary" id="regen-api-key-open" style="width: 180px;">Regenerate API Key</button>
+      <div class="buttons">
+        <button type="button" id="toggle-api-key" class="button is-info is-outlined is-rounded">
+          <span class="icon"><i class="fas fa-eye"></i></span><span>Show API Key</span>
+        </button>
+        <button type="button" id="regen-api-key-open" class="button is-primary is-rounded">
+          <span class="icon is-small"><i class="fas fa-sync-alt"></i></span>
+          <span>Regenerate API Key</span>
+        </button>
+        <button type="button" id="reset-cookie-consent" class="button is-primary is-rounded">
+          <span class="icon is-small"><i class="fas fa-redo"></i></span>
+          <span>Reset Cookies</span>
+        </button>
+      </div>
     </div>
     <div class="column bot-box is-5">
       <h4 class="label is-4">Update Profile</h4>
@@ -437,6 +447,17 @@ if ($is_admin) {
         document.getElementById(modal.close.replace('-close', '')).classList.remove("is-active");
       });
     }
+  });
+
+  // Reset cookie consent button
+  document.getElementById('reset-cookie-consent').addEventListener('click', function() {
+    // Delete the cookie consent cookie
+    document.cookie = "cookie_consent=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "selectedBot=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    // Update the display
+    document.getElementById('cookie-consent-status').textContent = 'Not set';
+    // Show confirmation
+    alert('Cookie consent has been reset. The cookie consent banner will appear on your next page load.');
   });
 
   // Confirm Regen button action
