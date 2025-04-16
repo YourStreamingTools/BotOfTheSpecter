@@ -208,6 +208,9 @@ require_once '/var/www/vendor/aws-autoloader.php';
 use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
 
+// Check for cookie consent
+$cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
+
 // Initialize S3 client for AWS
 $s3Client = new S3Client([
     'version' => 'latest',
@@ -224,7 +227,13 @@ $storage_files = [];
 $storage_error = null;
 
 // Server selection handling (default to AU SYD 1)
-$selected_server = isset($_GET['server']) ? $_GET['server'] : 'au-east-1';
+$selected_server = isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedStreamServer']) ? $_COOKIE['selectedStreamServer'] : 'au-east-1');
+
+// Set the cookie if the server is selected from the dropdown
+if (isset($_GET['server']) && $cookieConsent) {
+    setcookie('selectedStreamServer', $_GET['server'], time() + (86400 * 30), "/"); // Cookie for 30 days
+}
+
 $server_info = [
     'au-east-1' => [
         'name' => 'AU-EAST-1',
