@@ -300,12 +300,12 @@ include "mod_access.php";
           </div>
         </div>
         <div class="buttons is-flex is-flex-direction-column mt-3">
-          <a href="manage_custom_commands.php" class="button is-primary is-fullwidth mb-2 is-rounded">Manage Custom Commands</a>
-          <a href="timed_messages.php" class="button is-info is-fullwidth mb-2 is-rounded">Manage Chat Timers</a>
-          <!--<a href="" class="button is-warning is-fullwidth"></a>-->
+          <button class="button is-primary has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick='window.location="manage_custom_commands.php";'>Manage Custom Commands</button>
+          <button class="button is-info has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick='window.location="timed_messages.php";'>Manage Chat Timers</button>
+          <!-- <button class="button is-info has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick='window.location=".php";'></button> -->
           <label class="label">Force Your Status</label>
-          <button class="button is-primary is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
-          <button class="button is-danger is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
+          <button class="button is-success has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
+          <button class="button is-danger has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
         </div>
       </div>
       <!-- Bot version info box -->
@@ -369,9 +369,7 @@ include "mod_access.php";
             <?php echo $subscriptionWarning; ?>
             <?php if ($selectedBot === 'stable'): ?>
             <h3 class="title is-4">Stable Bot Controls (V<?php echo $newVersion; ?>)</h3>
-            <div class="content">
-              <p>The stable version is well-tested and reliable for everyday use. We recommend this version for every stream.</p>
-            </div>
+            <p class="has-text-centered mb-3">The stable version is well-tested and reliable for everyday use. We recommend this version for every stream.</p>
             <div id="stableStatus"><?php echo $statusOutput; ?></div>
             <div id="stableVersion"><?php echo $versionRunning; ?></div>
             <div class="buttons is-centered mt-4">
@@ -387,9 +385,7 @@ include "mod_access.php";
             </div>
             <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
             <h3 class="title is-4">Beta Bot Controls (V<?php echo $betaNewVersion; ?>B)</h3>
-            <div class="content">
-              <p>The beta version contains new features that are still being tested. Recommended for testing new functionality.</p>
-            </div>
+            <p class="has-text-centered mb-3">The beta version contains new features that are still being tested. Recommended for testing new functionality.</p>
             <div id="betaStatus"><?php echo $betaStatusOutput; ?></div>
             <div id="betaVersion"><?php echo $betaVersionRunning; ?></div>
             <div class="buttons is-centered mt-4">
@@ -405,9 +401,7 @@ include "mod_access.php";
             </div>
             <?php elseif ($selectedBot === 'alpha' && $betaAccess): ?>
             <h3 class="title is-4">Alpha Bot Controls (V<?php echo $alphaNewVersion; ?>A)</h3>
-            <div class="content">
-              <p>The alpha version contains experimental features. Not recommended for use during live streams.</p>
-            </div>
+            <p class="has-text-centered mb-3">The alpha version contains experimental features. Not recommended for use during live streams.</p>
             <div id="alphaStatus"><?php echo $alphaStatusOutput; ?></div>
             <div id="alphaVersion"><?php echo $alphaVersionRunning; ?></div>
             <div class="buttons is-centered mt-4">
@@ -423,9 +417,7 @@ include "mod_access.php";
             </div>
             <?php elseif ($selectedBot === 'discord' && $guild_id && $live_channel_id): ?>
             <h3 class="title is-4">Discord Bot Controls (V<?php echo htmlspecialchars($discordNewVersion); ?>)</h3>
-            <div class="content">
-              <p>The Discord bot integrates with your Discord server to provide stream notifications and other features.</p>
-            </div>
+            <p class="has-text-centered mb-3">The Discord bot integrates with your Discord server to provide stream notifications and other features.</p>
             <div id="discordStatus"><?php echo $discordStatusOutput; ?></div>
             <div id="discordVersion"><?php echo $discordVersionRunning; ?></div>
             <div class="buttons is-centered mt-4">
