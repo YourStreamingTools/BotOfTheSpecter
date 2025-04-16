@@ -23,6 +23,23 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 
+// Check for cookie consent
+$cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
+
+// Get filter preferences from cookies if they exist and consent was given
+$showEnabled = true; // Default value
+$showDisabled = true; // Default value
+
+if ($cookieConsent) {
+    // Read cookie values if they exist, otherwise use defaults
+    if (isset($_COOKIE['show_enabled_commands'])) {
+        $showEnabled = $_COOKIE['show_enabled_commands'] === 'true';
+    }
+    if (isset($_COOKIE['show_disabled_commands'])) {
+        $showDisabled = $_COOKIE['show_disabled_commands'] === 'true';
+    }
+}
+
 $permissionsMap = [
     "Everyone" => "everyone",
     "Mods" => "mod",
@@ -83,10 +100,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="field">
         <div class="control">
             <label class="checkbox">
-                <input type="checkbox" id="showEnabled" checked> Show Enabled Commands
+                <input type="checkbox" id="showEnabled" <?php echo $showEnabled ? 'checked' : ''; ?>> Show Enabled Commands
             </label>
             <label class="checkbox">
-                <input type="checkbox" id="showDisabled" checked> Show Disabled Commands
+                <input type="checkbox" id="showDisabled" <?php echo $showDisabled ? 'checked' : ''; ?>> Show Disabled Commands
             </label>
         </div>
     </div>
@@ -149,6 +166,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
+// Check for cookie consent
+const cookieConsent = <?php echo $cookieConsent ? 'true' : 'false'; ?>;
+
 // Remember search query using localStorage
 document.addEventListener('DOMContentLoaded', function() {
     var searchInput = document.getElementById('searchInput');
@@ -164,9 +184,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Helper function to set cookie
+function setCookie(name, value, days) {
+    if (!cookieConsent) return; // Only set cookies if user has given consent
+    
+    const d = new Date();
+    d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = "expires=" + d.toUTCString();
+    document.cookie = name + "=" + value + ";" + expires + ";path=/";
+}
+
 // Toggle visibility of commands based on status
-document.getElementById('showEnabled').addEventListener('change', toggleFilter);
-document.getElementById('showDisabled').addEventListener('change', toggleFilter);
+document.getElementById('showEnabled').addEventListener('change', function() {
+    toggleFilter();
+    // Save preference to cookie
+    setCookie('show_enabled_commands', this.checked ? 'true' : 'false', 30);
+});
+
+document.getElementById('showDisabled').addEventListener('change', function() {
+    toggleFilter();
+    // Save preference to cookie
+    setCookie('show_disabled_commands', this.checked ? 'true' : 'false', 30);
+});
+
 function toggleFilter() {
     const showEnabled = document.getElementById('showEnabled').checked;
     const showDisabled = document.getElementById('showDisabled').checked;
