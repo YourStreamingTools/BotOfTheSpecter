@@ -539,7 +539,7 @@ try {
             async_log("Default group $group_name ensured.");
         }
     }
-    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, enable_ad_notice) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 1 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
     }
     // Ensure default options for streamer_preferences exist
