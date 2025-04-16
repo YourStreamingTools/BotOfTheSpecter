@@ -74,8 +74,8 @@ date_default_timezone_set($timezone);
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Stream Ending Credits:</h4>
                 <p><em>The Stream Ending Credits display a scrolling list of all viewers who attended and supported the stream.
-                    <br>This includes followers, subscribers, donors, and cheerers to thank those who contributed.
-                    <br>(Coming Soon)</em></p>
+                    <br>This includes followers, subscribers, donors, and cheerers to thank those who contributed.</em>
+                    <br><span class="is-text-white has-text-weight-bold has-text-info">(coming soon)</span></p>
                 <code>https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -85,8 +85,8 @@ date_default_timezone_set($timezone);
                 <h4 class="title is-4">To Do List:</h4>
                 <p><em>Display a list of tasks to complete during the stream.
                     <br>This overlay helps you keep track of your goals and share them with your audience.
-                    <br>You can specify a category by adding it to the URL like this:
-                    <br>todolist.php?code=API_KEY&category=1</em></p>
+                    <br>You can specify a category by adding it to the URL like this:</em>
+                    <br><span class="is-text-white has-text-weight-bold has-text-info">todolist.php?code=API_KEY&category=1</span></p>
                 <code>https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -95,8 +95,8 @@ date_default_timezone_set($timezone);
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Death Overlay Only:</h4>
                 <p><em>Show only the death overlay for the death commands triggered in chat:
-                    <br>"!deaths", "!deathadd", and "!deathremove".
-                    <br>For best results, set Width to 450 and Height to 350:</em></p>
+                    <br>"!deaths", "!deathadd", and "!deathremove".</em>
+                    <br><span class="is-text-white has-text-weight-bold has-text-info">For best results, set Width to 450 and Height to 350</span></p>
                 <code>https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -113,8 +113,7 @@ date_default_timezone_set($timezone);
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Discord Join Notifications:</h4>
-                <p><em>Display notifications when a user joins your Discord server.
-                    <br>Add this URL as a browser source and append your API key.</em></p>
+                <p><em>Display notifications when a user joins your Discord server.</em></p>
                 <code>https://overlay.botofthespecter.com/discord.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -122,8 +121,7 @@ date_default_timezone_set($timezone);
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Subathon:</h4>
-                <p><em>Show a countdown timer for a subathon.
-                    <br>Add this URL as a browser source and append your API key.</em></p>
+                <p><em>Show a countdown timer for a subathon.</em></p>
                 <code>https://overlay.botofthespecter.com/subathon.php?code=API_KEY_HERE</code>
             </div>
         </div>
@@ -172,7 +170,8 @@ date_default_timezone_set($timezone);
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <h4 class="title is-4">Music Overlay:</h4>
-                <p><em>Stream DMCA-free music for your Twitch broadcasts and VODs.</em></p>
+                <p><em>Stream DMCA-free music for your Twitch broadcasts and VODs.</em>
+                    <span class="is-text-white has-text-weight-bold has-text-info">(coming soon)</span></p>
                 <code>https://overlay.botofthespecter.com/music.php?code=API_KEY_HERE</code>
             </div>
         </div>
