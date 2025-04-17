@@ -212,30 +212,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         foreach ($_POST['delete_files'] as $file_to_delete) {
             $file_basename = basename($file_to_delete);
             $file_path = $twitch_sound_alert_path . '/' . $file_basename;
-            // Check if file exists
-            if (!file_exists($file_path)) {
-                $status .= "Failed to delete " . htmlspecialchars($file_basename) . " - File does not exist.<br>";
-                continue;
-            }
-            // Check file permissions
-            if (!is_writable($file_path)) {
-                $status .= "Failed to delete " . htmlspecialchars($file_basename) . " - Permission denied.<br>";
-                // Try to fix permissions
-                chmod($file_path, 0644);
-                continue;
-            }
-            // Attempt to delete the file with detailed error handling
-            if (unlink($file_path)) {
+            if (is_file($file_path) && unlink($file_path)) {
                 $deletedFiles[] = $file_basename;
                 $status .= "The file " . htmlspecialchars($file_basename) . " has been deleted.<br>";
             } else {
-                $error_message = error_get_last();
-                $status .= "Failed to delete " . htmlspecialchars($file_basename) . " - ";
-                $status .= $error_message ? htmlspecialchars($error_message['message']) : "Unknown error";
-                $status .= "<br>";
-                
-                // Log the error
-                error_log("Failed to delete file: $file_path - " . ($error_message ? $error_message['message'] : "Unknown error"));
+                $status .= "Failed to delete " . htmlspecialchars($file_basename) . ".<br>";
             }
         }
         // Clean up database entries for deleted files
