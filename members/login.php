@@ -1,8 +1,7 @@
 <?php
 // Set your Twitch application credentials
-$clientID = ''; // CHANGE TO MAKE THIS WORK
-$redirectURI = ''; // CHANGE TO MAKE THIS WORK
-$clientSecret = ''; // CHANGE TO MAKE THIS WORK
+require_once "/var/www/config/twitch.php";
+$redirectURI = 'https://members.botofthespecter.com/login.php';
 $IDScope = 'openid user:read:email';
 $info = "Please wait while we redirect you to Twitch for authorization.";
 
