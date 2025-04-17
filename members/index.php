@@ -291,6 +291,42 @@ async function loadData(type) {
     let additionalColumnVisible4 = false;
     let additionalColumnVisible5 = false;
     let output = '';
+    
+    // Update active button state - highlight the currently selected button
+    document.querySelectorAll('.buttons .button').forEach(button => {
+        // First reset all buttons to the default state
+        button.classList.remove('is-primary');
+        button.classList.add('is-info');
+    });
+    
+    // Find the button that corresponds to the current data type and highlight it
+    const buttonMapping = {
+        'customCommands': 'Custom Commands',
+        'lurkers': 'Lurkers',
+        'typos': 'Typo Counts',
+        'deaths': 'Deaths Overview',
+        'hugs': 'Hug Counts',
+        'kisses': 'Kiss Counts',
+        'highfives': 'High-Five Counts',
+        'custom': 'Custom Counts',
+        'userCounts': 'User Counts',
+        'rewardCounts': 'Reward Counts',
+        'watchTime': 'Watch Time',
+        'quotes': 'Quotes',
+        'todos': 'To-Do Items'
+    };
+    
+    const buttonText = buttonMapping[type];
+    if (buttonText) {
+        const activeButton = Array.from(document.querySelectorAll('.buttons .button')).find(
+            button => button.textContent.trim() === buttonText
+        );
+        if (activeButton) {
+            activeButton.classList.remove('is-info');
+            activeButton.classList.add('is-primary');
+        }
+    }
+    
     switch(type) {
         case 'customCommands':
             additionalColumnVisible = true;
