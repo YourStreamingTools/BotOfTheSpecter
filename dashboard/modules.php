@@ -960,6 +960,58 @@ $(document).ready(function() {
         
         $('#dynamic-content-body').html(html);
     }
+
+    // Function to load Twitch Audio Alerts content
+    function loadTwitchAudioAlerts() {
+        $('#dynamic-content-title').text('Twitch Audio Alerts');
+        
+        // Build the content HTML
+        let html = `
+        <div class="columns is-desktop is-multiline box-container is-centered">
+            <div class="column is-4">
+                <h1 class="title is-4">Upload MP3 Files:</h1>
+                <form action="javascript:void(0);" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <label for="filesToUpload" class="drag-area" id="drag-area">
+                        <span>Drag & Drop files here or</span>
+                        <span>Browse Files</span>
+                        <input type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3">
+                    </label>
+                    <br>
+                    <div id="file-list"></div>
+                    <br>
+                    <button type="submit" class="button is-primary" id="uploadButton">Upload MP3 Files</button>
+                </form>
+                <br>
+                <div class="progress-bar-container">
+                    <div id="uploadProgressBar" class="progress-bar has-text-black-bis"></div>
+                </div>
+                <p id="storage-info"></p>
+                <div id="upload-status-messages"></div>
+            </div>
+            <div class="column is-8">
+                <div id="file-list-container">Loading file list...</div>
+            </div>
+        </div>`;
+        
+        $('#dynamic-content-body').html(html);
+        
+        // Get storage information
+        $.ajax({
+            url: 'get_storage_info.php',
+            type: 'GET',
+            success: function(response) {
+                const data = JSON.parse(response);
+                $('#uploadProgressBar').css('width', data.percentage + '%').text(data.percentage + '%');
+                $('#storage-info').text(data.used + ' of ' + data.max + ' used');
+            }
+        });
+        
+        // Initialize the upload form controls
+        initUploadFormHandlers();
+        
+        // Load the file list via AJAX
+        loadFileList();
+    }
 });
 </script>
 </body>
