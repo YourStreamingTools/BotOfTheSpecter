@@ -405,7 +405,8 @@ async function loadData(type) {
             data.forEach(item => {
                 output += `<tr>`;
                 if (type === 'customCommands') {
-                    output += `<td>!${item.command}</td><td>${item.response}</td><td>${item.status}</td><td>${item.cooldown}</td>`;
+                    const commandClass = item.status === 'Enabled' ? 'has-text-success' : 'has-text-danger';
+                    output += `<td>!${item.command}</td><td>${item.response}</td><td class="${commandClass}">${item.status}</td><td>${item.cooldown}</td>`;
                 } else if (type === 'typos') {
                     output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
                 } else if (type === 'deaths') {
