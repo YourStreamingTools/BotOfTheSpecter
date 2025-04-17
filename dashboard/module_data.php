@@ -2,13 +2,6 @@
 // Include the database credentials
 require_once "/var/www/config/database.php";
 
-// Check if user is logged in
-if (!isset($_SESSION['username'])) {
-    error_log("User not logged in when accessing module_data.php");
-    header("Location: login.php");
-    exit();
-}
-
 $db_name = $_SESSION['username'];
 
 // Create database connection using mysqli with credentials from database.php
