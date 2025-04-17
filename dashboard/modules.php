@@ -617,18 +617,6 @@ $(document).ready(function() {
             }
         });
     }
-
-    $('.delete-single').on('click', function() {
-        let fileName = $(this).data('file');
-        if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
-            $('<input>').attr({
-                type: 'hidden',
-                name: 'delete_files[]',
-                value: fileName
-            }).appendTo('#deleteForm');
-            $('#deleteForm').submit();
-        }
-    });
 });
 
 document.addEventListener("DOMContentLoaded", function () {
