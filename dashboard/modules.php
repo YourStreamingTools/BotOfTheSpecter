@@ -285,7 +285,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                                                 $mappedEvents[] = $mappedEvent;
                                             }
                                         }
-                                        $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription'];
+                                        $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
                                         $availableEvents = array_diff($allEvents, $mappedEvents);
                                         ?>
                                         <?php if ($current_reward_id): ?>
