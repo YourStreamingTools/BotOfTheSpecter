@@ -208,18 +208,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Handle file deletion
     if (isset($_POST['delete_files'])) {
         $status = "";
+        $deletedFiles = [];
         foreach ($_POST['delete_files'] as $file_to_delete) {
-            $file_to_delete = $twitch_sound_alert_path . '/' . basename($file_to_delete);
-            if (is_file($file_to_delete) && unlink($file_to_delete)) {
-                $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
+            $file_basename = basename($file_to_delete);
+            $file_path = $twitch_sound_alert_path . '/' . $file_basename;
+            if (is_file($file_path) && unlink($file_path)) {
+                $deletedFiles[] = $file_basename;
+                $status .= "The file " . htmlspecialchars($file_basename) . " has been deleted.<br>";
             } else {
-                $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+                $status .= "Failed to delete " . htmlspecialchars($file_basename) . ".<br>";
+            }
+        }
+        // Clean up database entries for deleted files
+        if (!empty($deletedFiles)) {
+            // Use prepared statement with multiple values
+            $placeholders = str_repeat('?,', count($deletedFiles) - 1) . '?';
+            $removeMapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping IN ($placeholders)");
+            // Dynamically bind parameters
+            $types = str_repeat('s', count($deletedFiles)); // 's' for each string
+            $removeMapping->bind_param($types, ...$deletedFiles);
+            if ($removeMapping->execute()) {
+                $affected = $removeMapping->affected_rows;
+                if ($affected > 0) {
+                    $status .= "Removed $affected database mappings for deleted files.<br>";
+                }
+            } else {
+                $status .= "Warning: Failed to clean up database mappings for deleted files. Error: " . $db->error . "<br>";
             }
         }
         $_SESSION['update_message'] = $status;
+        // If this is an AJAX request, return JSON response
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => $status]);
+            exit;
+        }
     }
-    
-    // Redirect back to the modules page
+    // If this is an AJAX request, return JSON response
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'message' => $_SESSION['update_message'] ?? 'Operation completed successfully']);
+        exit;
+    }
+    // Otherwise redirect back to the modules page
     header("Location: modules.php");
     exit();
 }
