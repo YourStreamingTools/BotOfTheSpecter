@@ -412,6 +412,129 @@ $(document).ready(function() {
     let fileInput = $('#filesToUpload');
     let fileList = $('#file-list');
 
+    // Handle all form submissions in the modals via AJAX
+    $('form').on('submit', function(e) {
+        // Special cases that shouldn't use AJAX
+        if ($(this).attr('id') === 'uploadForm') {
+            return true;
+        }
+        // Prevent default form submission for all other forms
+        e.preventDefault();
+        const form = $(this);
+        const formData = form.serialize();
+        $.ajax({
+            type: 'POST',
+            url: 'module_data_post.php',
+            data: formData,
+            success: function(response) {
+                // Show success message without closing the modal
+                const modal = form.closest('.modal');
+                if (!modal.find('.ajax-notification').length) {
+                    $('<div class="notification is-success ajax-notification">Settings saved successfully!</div>')
+                        .insertBefore(form)
+                        .delay(3000)
+                        .fadeOut(500, function() {
+                            $(this).remove();
+                        });
+                }
+            },
+            error: function() {
+                // Show error message
+                const modal = form.closest('.modal');
+                if (!modal.find('.ajax-notification').length) {
+                    $('<div class="notification is-danger ajax-notification">Error saving settings. Please try again.</div>')
+                        .insertBefore(form)
+                        .delay(3000)
+                        .fadeOut(500, function() {
+                            $(this).remove();
+                        });
+                }
+            }
+        });
+    });
+    // Special handling for the mapping-form which uses direct submission via select change
+    $('.mapping-form').on('change', '.mapping-select', function(e) {
+        e.preventDefault();
+        const form = $(this).closest('form');
+        const formData = form.serialize();
+        $.ajax({
+            type: 'POST',
+            url: 'module_data_post.php',
+            data: formData,
+            success: function(response) {
+                // Show temporary success notification near the select element
+                const selectElement = form.find('.mapping-select');
+                if (!selectElement.siblings('.ajax-notification').length) {
+                    $('<div class="notification is-success ajax-notification is-small" style="padding: 0.5rem; margin: 0.5rem 0;">Mapping updated!</div>')
+                        .insertAfter(selectElement)
+                        .delay(2000)
+                        .fadeOut(500, function() {
+                            $(this).remove();
+                        });
+                }
+                // Reload the page after a delay to update the mappings display
+                setTimeout(function() {
+                    location.reload();
+                }, 2500);
+            }
+        });
+    });
+    // Handle the delete form submission via AJAX
+    $('#deleteForm').on('submit', function(e) {
+        e.preventDefault();
+        const form = $(this);
+        const formData = form.serialize();
+        $.ajax({
+            type: 'POST',
+            url: 'module_data_post.php',
+            data: formData,
+            success: function(response) {
+                // Show success message without closing the modal
+                const modal = form.closest('.modal');
+                if (!modal.find('.ajax-notification').length) {
+                    $('<div class="notification is-success ajax-notification">Files deleted successfully!</div>')
+                        .insertBefore(form)
+                        .delay(2000)
+                        .fadeOut(500, function() {
+                            $(this).remove();
+                        });
+                }
+                // Reload the page after a delay to update the file list
+                setTimeout(function() {
+                    location.reload();
+                }, 2500);
+            }
+        });
+    });
+    // Handle the delete-single button clicks
+    $('.delete-single').on('click', function() {
+        let fileName = $(this).data('file');
+        if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
+            // Create a temporary form with the file to delete
+            const tempForm = $('<form></form>');
+            tempForm.append($('<input>').attr({
+                type: 'hidden',
+                name: 'delete_files[]',
+                value: fileName
+            }));
+            // Send AJAX request
+            $.ajax({
+                type: 'POST',
+                url: 'module_data_post.php',
+                data: tempForm.serialize(),
+                success: function(response) {
+                    // Show success message
+                    const button = $('[data-file="' + fileName + '"]');
+                    const row = button.closest('tr');
+                    row.fadeOut(500, function() {
+                        // Reload the page after row animation completes
+                        location.reload();
+                    });
+                }
+            });
+        }
+    });
+    // Rest of the existing dropArea code
     dropArea.on('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -443,9 +566,7 @@ $(document).ready(function() {
             fileList.append('<div>' + file.name + '</div>');
         });
     });
-
     $('#uploadForm').attr('action', ''); // Ensure action is empty
-
     $('#uploadForm').on('submit', function(e) {
         e.preventDefault(); 
         let files = fileInput.prop('files');
