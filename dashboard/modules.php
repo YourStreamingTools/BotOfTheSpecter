@@ -27,6 +27,9 @@ foreach ($profileData as $profile) {
     $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
+
+// Get active tab from URL parameter or default to first tab
+$activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
 ?>
 <!doctype html>
 <html lang="en">
@@ -44,123 +47,125 @@ date_default_timezone_set($timezone);
     <br>
     <h1 class="title is-3">Module Settings</h1>
     <br>
-    <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
-    <div class="columns is-desktop is-multiline is-centered box-container">
-        <div class="column is-5 bot-box" id="chat-protection-settings" style="position: relative;">
-            <h1 class="title is-3 has-text-centered">Chat Protection</h1>
-            <h1 class="subtitle is-5 has-text-centered">Manage chat protection settings</h1>
-            <button class="button is-primary" onclick="openModal('chatProtectionModal')">Open Settings</button>
-        </div>
-        <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
-            <h2 class="title is-3 has-text-centered">Manage Joke Blacklist</h2>
-            <h2 class="subtitle is-5 has-text-centered" style="text-align: center;">Set which category is blocked</h2>
-            <button class="button is-primary" onclick="openModal('jokeBlacklistModal')">Open Settings</button>
-        </div>
-        <div class="column is-5 bot-box" id="welcome-message-settings" style="position: relative;">
-            <h1 class="title is-3 has-text-centered">Custom Welcome Messages</h1>
-            <h1 class="subtitle is-5 has-text-centered">Set default welcome messages</h1>
-            <button class="button is-primary" onclick="openModal('welcomeMessageModal')">Open Settings</button>
-        </div>
-        <div class="column is-5 bot-box" id="" style="position: relative;">
-            <h1 class="title is-3 has-text-centered">Ad Notices (BETA v5.4)</h1>
-            <h1 class="subtitle is-5 has-text-centered">Set what the bot does when an ad plays on your channel</h1>
-            <button class="button is-primary" onclick="openModal('adNoticesModal')">Open Settings</button>
-        </div>
-        <div class="column is-5 bot-box" id="" style="position: relative;">
-            <h1 class="title is-3 has-text-centered">Twitch Audio Alerts<br>(Under Development)</h1>
-            <h1 class="subtitle is-5 has-text-centered">Twitch Sound Alerts: Followers, Cheers, Subs and Raids</h1>
-            <button class="button is-primary" onclick="openModal('twitchAudioAlertsModal')">Open Settings</button>
-        </div>
-        <div class="column is-5 bot-box" id="" style="position: relative;">
-            <h1 class="title is-3 has-text-centered">Twitch Chat Alerts<br>(Under Development)</h1>
-            <h1 class="subtitle is-5 has-text-centered">Twitch Chat alerts: Followers, Cheers, Subs and Raids</h1>
-            <button class="button is-primary" onclick="openModal('twitchChatAlertsModal')">Open Settings</button>
-        </div>
+    <?php if (isset($_SESSION['update_message'])): ?>
+        <div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div>
+    <?php endif; ?>
+    <!-- Tabs Navigation -->
+    <div class="tabs">
+        <ul>
+            <li class="tab <?php echo $activeTab == 'joke-blacklist' ? 'is-active' : ''; ?>" data-tab="joke-blacklist">
+                <a href="?tab=joke-blacklist">Joke Blacklist</a>
+            </li>
+            <li class="tab <?php echo $activeTab == 'welcome-messages' ? 'is-active' : ''; ?>" data-tab="welcome-messages">
+                <a href="?tab=welcome-messages">Welcome Messages</a>
+            </li>
+            <li class="tab <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>" data-tab="chat-protection">
+                <a href="?tab=chat-protection">Chat Protection</a>
+            </li>
+            <li class="tab <?php echo $activeTab == 'ad-notices' ? 'is-active' : ''; ?>" data-tab="ad-notices">
+                <a href="?tab=ad-notices">Ad Notices</a>
+            </li>
+            <li class="tab <?php echo $activeTab == 'twitch-audio-alerts' ? 'is-active' : ''; ?>" data-tab="twitch-audio-alerts">
+                <a href="?tab=twitch-audio-alerts">Twitch Event Alerts</a>
+            </li>
+            <li class="tab <?php echo $activeTab == 'twitch-chat-alerts' ? 'is-active' : ''; ?>" data-tab="twitch-chat-alerts">
+                <a href="?tab=twitch-chat-alerts">Twitch Chat Alerts</a>
+            </li>
+        </ul>
     </div>
-</div>
-
-<!-- Joke Blacklist Modal -->
-<div id="jokeBlacklistModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content" style="position: relative;">
-        <button class="modal-close is-large" aria-label="close" onclick="closeModal('jokeBlacklistModal')" style="position: absolute; top: 10px; right: 10px;"></button>
-        <div class="box">
+    
+    <!-- Tab Contents -->
+    <div class="tab-content <?php echo $activeTab == 'joke-blacklist' ? 'is-active' : ''; ?>" id="joke-blacklist">
+        <div class="module-container">
+            <h2 class="title is-4">Manage Joke Blacklist</h2>
+            <p class="subtitle is-6 has-text-danger">Any category selected here will not be allowed to be posted by the bot.</p>
             <form method="POST" action="module_data_post.php">
-                <h2 class="title is-3">Manage Joke Blacklist:</h2>
-                <h2 class="subtitle is-4 has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h2>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Miscellaneous"<?php echo in_array("Miscellaneous", $current_blacklist) ? " checked" : ""; ?>> Miscellaneous</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Coding"<?php echo in_array("Coding", $current_blacklist) ? " checked" : ""; ?>> Coding</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Development"<?php echo in_array("Development", $current_blacklist) ? " checked" : ""; ?>> Development</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Halloween"<?php echo in_array("Halloween", $current_blacklist) ? " checked" : ""; ?>> Halloween</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Pun"<?php echo in_array("Pun", $current_blacklist) ? " checked" : ""; ?>> Pun</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="nsfw"<?php echo in_array("nsfw", $current_blacklist) ? " checked" : ""; ?>> NSFW</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="religious"<?php echo in_array("religious", $current_blacklist) ? " checked" : ""; ?>> Religious</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political"<?php echo in_array("political", $current_blacklist) ? " checked" : ""; ?>> Political</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist"<?php echo in_array("racist", $current_blacklist) ? " checked" : ""; ?>> Racist</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist"<?php echo in_array("sexist", $current_blacklist) ? " checked" : ""; ?>> Sexist</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="dark"<?php echo in_array("dark", $current_blacklist) ? " checked" : ""; ?>> Dark</label></div>
-                <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="explicit"<?php echo in_array("explicit", $current_blacklist) ? " checked" : ""; ?>> Explicit</label></div>
-                <button class="button is-primary" type="submit">Save Settings</button>
+                <div class="columns is-multiline">
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Miscellaneous"<?php echo in_array("Miscellaneous", $current_blacklist) ? " checked" : ""; ?>> Miscellaneous</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Coding"<?php echo in_array("Coding", $current_blacklist) ? " checked" : ""; ?>> Coding</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Development"<?php echo in_array("Development", $current_blacklist) ? " checked" : ""; ?>> Development</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Halloween"<?php echo in_array("Halloween", $current_blacklist) ? " checked" : ""; ?>> Halloween</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Pun"<?php echo in_array("Pun", $current_blacklist) ? " checked" : ""; ?>> Pun</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="nsfw"<?php echo in_array("nsfw", $current_blacklist) ? " checked" : ""; ?>> NSFW</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="religious"<?php echo in_array("religious", $current_blacklist) ? " checked" : ""; ?>> Religious</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political"<?php echo in_array("political", $current_blacklist) ? " checked" : ""; ?>> Political</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist"<?php echo in_array("racist", $current_blacklist) ? " checked" : ""; ?>> Racist</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist"<?php echo in_array("sexist", $current_blacklist) ? " checked" : ""; ?>> Sexist</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="dark"<?php echo in_array("dark", $current_blacklist) ? " checked" : ""; ?>> Dark</label></div>
+                    </div>
+                    <div class="column is-3">
+                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="explicit"<?php echo in_array("explicit", $current_blacklist) ? " checked" : ""; ?>> Explicit</label></div>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Save Blacklist Settings</button>
+                    </div>
+                </div>
             </form>
         </div>
     </div>
-</div>
-
-<!-- Welcome Message Modal -->
-<div id="welcomeMessageModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content" style="position: relative;">
-        <button class="modal-close is-large" aria-label="close" onclick="closeModal('welcomeMessageModal')" style="position: absolute; top: 10px; right: 10px;"></button>
-        <div class="box">
-            <h2 class="title is-3 has-text-white">Custom Welcome Messages</h2>
+    
+    <div class="tab-content <?php echo $activeTab == 'welcome-messages' ? 'is-active' : ''; ?>" id="welcome-messages">
+        <div class="module-container">
+            <h2 class="title is-4">Custom Welcome Messages</h2>
+            <div class="notification is-info">
+                <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
+            </div>
             <form method="POST" action="module_data_post.php">
-                <div class="notification is-info">
-                    <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
-                </div>
                 <div class="field">
-                    <label class="has-text-white has-text-left">
-                        Default New Member Welcome Message
-                    </label>
+                    <label class="label">Default New Member Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_welcome_message" value="<?php echo $new_default_welcome_message ? $new_default_welcome_message : '(user) is new to the community, let\'s give them a warm welcome!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="has-text-white has-text-left">
-                        Default Returning Member Welcome Message
-                    </label>
+                    <label class="label">Default Returning Member Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="default_welcome_message" value="<?php echo $default_welcome_message ? $default_welcome_message : 'Welcome back (user), glad to see you again!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="has-text-white has-text-left">
-                        Default New VIP Welcome Message
-                    </label>
+                    <label class="label">Default New VIP Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_vip_welcome_message" value="<?php echo $new_default_vip_welcome_message ? $new_default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="has-text-white has-text-left">
-                        Default Returning VIP Welcome Message
-                    </label>
+                    <label class="label">Default Returning VIP Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="default_vip_welcome_message" value="<?php echo $default_vip_welcome_message ? $default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="has-text-white has-text-left">
-                        Default New Mod Welcome Message
-                    </label>
+                    <label class="label">Default New Mod Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_mod_welcome_message" value="<?php echo $new_default_mod_welcome_message ? $new_default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="has-text-white has-text-left">
-                        Default Returning Mod Welcome Message
-                    </label>
+                    <label class="label">Default Returning Mod Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="default_mod_welcome_message" value="<?php echo $default_mod_welcome_message ? $default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
                     </div>
@@ -170,19 +175,60 @@ date_default_timezone_set($timezone);
                         <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages ? 'checked' : ''; ?>> Enable welcome messages
                     </label>
                 </div>
-                <button class="button is-primary" type="submit">Save Welcome Settings</button>
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Save Welcome Settings</button>
+                    </div>
+                </div>
             </form>
         </div>
     </div>
-</div>
 
-<!-- Twitch Audio Alerts Modal -->
-<div id="twitchAudioAlertsModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content custom-width" style="position: relative;">
-        <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchAudioAlertsModal')" style="position: absolute; top: 10px; right: 10px;"></button>
-        <div class="box">
-            <h2 class="title is-3">Manage Twitch Event Sound Alerts:</h2>
+    <div class="tab-content <?php echo $activeTab == 'ad-notices' ? 'is-active' : ''; ?>" id="ad-notices">
+        <div class="module-container">
+            <h2 class="title is-4">Ad Notices</h2>
+            <div class="notification is-warning">This feature is currently in development and is available to beta users running version 5.4.</div>
+            <div class="notification is-info">
+                <p>You can use the variable <code>(duration)</code> which will be replaced with the ads' duration.</p>
+                <p>You can use the variable <code>(minutes)</code> which will be replaced with upcoming ads' duration in minutes.</p>
+            </div>
+            <form method="POST" action="module_data_post.php">
+                <div class="field">
+                    <label class="label">Ad Upcoming Message</label>
+                    <div class="control">
+                        <input class="input" type="text" name="ad_upcoming_message" placeholder="Message when ads are upcoming" value="<?php echo htmlspecialchars($ad_upcoming_message); ?>">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Ad Starting Message</label>
+                    <div class="control">
+                        <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="<?php echo htmlspecialchars($ad_start_message); ?>">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Ad Ended Message</label>
+                    <div class="control">
+                        <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="<?php echo htmlspecialchars($ad_end_message); ?>">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="checkbox">
+                        <input type="checkbox" name="enable_ad_notice" value="1" <?php echo $enable_ad_notice ? 'checked' : ''; ?>> Enable Ad Notice
+                    </label>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Save Ad Notice Settings</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="tab-content <?php echo $activeTab == 'twitch-audio-alerts' ? 'is-active' : ''; ?>" id="twitch-audio-alerts">
+        <div class="module-container">
+        <h2 class="title is-3">Manage Twitch Event Sound Alerts:</h2>
+            <div class="notification is-warning">This feature is currently under development and will be available to beta users soon.</div>
             <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
                 <div class="column is-4" id="walkon-upload" style="position: relative;">
                     <h1 class="title is-4">Upload MP3 Files:</h1>
@@ -285,228 +331,162 @@ date_default_timezone_set($timezone);
             </div>
         </div>
     </div>
-</div>
-
-<!-- Twitch Chat Alerts Modal -->
-<div id="twitchChatAlertsModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content custom-width" style="position: relative;">
-        <button class="modal-close is-large" aria-label="close" onclick="closeModal('twitchChatAlertsModal')" style="position: absolute; top: 10px; right: 10px;"></button>
-        <div class="box">
-            <h2 class="title is-3">Configure Chat Alerts:</h2>
-            <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
-                <div class="column is-12" id="chat-alerts-settings" style="position: relative;">
-                    <div class="notification is-info">
-                        <span class="has-text-weight-bold">Variables:</span><br>
-                        <ul>
-                            <li><span class="has-text-weight-bold">(user)</span> for the username of the user.</li>
-                            <li><span class="has-text-weight-bold">(bits)</span> for the number of bits for the cheer message.</li>
-                            <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
-                            <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
-                            <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.</li>
-                            <li><span class="has-text-weight-bold">(count)</span> for the number of gifted subscriptions.</li>
-                            <li><span class="has-text-weight-bold">(level)</span> for the hype train level.</li>
-                        </ul>
-                    </div>
-                    <form action="module_data_post.php" method="POST" id="chatAlertsForm">
-                        <div class="field">
-                            <label class="has-text-white has-text-left">Follower Alert</label>
-                            <div class="control"><input class="input" type="text" name="message_alert" value="Thank you (user) for following! Welcome to the channel!"></div>
-                        </div>
-                        <div class="field">
-                            <label class="has-text-white has-text-left">Cheer Alert</label>
-                            <div class="control"><input class="input" type="text" name="command_alert" value="Thank you (user) for (bits) bits!"></div>
-                        </div>
-                        <div class="field">
-                            <label class="has-text-white has-text-left">Raid Alert</label>
-                            <div class="control"><input class="input" type="text" name="mention_alert" value="Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!"></div>
-                        </div>
-                        <div class="field">
-                            <label class="has-text-white has-text-left">Subscription Alert</label>
-                            <div class="control"><input class="input" type="text" name="mention_alert" value="Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"></div>
-                        </div>
-                        <div class="field">
-                            <label class="has-text-white has-text-left">Gift Subscription Alert</label>
-                            <div class="control"><input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members!"></div>
-                        </div>
-                        <div class="field">
-                            <label class="has-text-white has-text-left">Hype Train Start</label>
-                            <div class="control"><input class="input" type="text" name="hype_train_start" value="The Hype Train has started! Starting at level: (level)"></div>
-                        </div>
-                        <div class="field">
-                            <label class="has-text-white has-text-left">Hype Train End</label>
-                            <div class="control"><input class="input" type="text" name="hype_train_end" value="The Hype Train has ended at level (level)!"></div>
-                        </div>
-                        <button class="button is-primary" type="submit" disabled>Save Chat Alert Settings</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Ad Notices Modal -->
-<div id="adNoticesModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content" style="position: relative;">
-        <button class="modal-close is-large" aria-label="close" onclick="closeModal('adNoticesModal')" style="position: absolute; top: 10px; right: 10px;"></button>
-        <div class="box">
-            <h2 class="title is-3">Ad Notices (BETA v5.4)</h2>
+    
+    <div class="tab-content <?php echo $activeTab == 'twitch-chat-alerts' ? 'is-active' : ''; ?>" id="twitch-chat-alerts">
+        <div class="module-container">
+            <h2 class="title is-4">Configure Chat Alerts</h2>
+            <div class="notification is-warning">This feature is currently under development and will be available to beta users soon.</div>
             <div class="notification is-info">
-                You can use the variable (duration) which will be replaced with the ads' duration.<br>
-                You can use the variable (minutes) which will be replaced with upcoming ads' duration in minutes.<br>
+                <span class="has-text-weight-bold">Variables:</span><br>
+                <ul>
+                    <li><span class="has-text-weight-bold">(user)</span> for the username of the user.</li>
+                    <li><span class="has-text-weight-bold">(bits)</span> for the number of bits for the cheer message.</li>
+                    <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
+                    <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
+                    <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.</li>
+                    <li><span class="has-text-weight-bold">(count)</span> for the number of gifted subscriptions.</li>
+                    <li><span class="has-text-weight-bold">(level)</span> for the hype train level.</li>
+                </ul>
             </div>
-            <form method="POST" action="module_data_post.php">
+            <form action="module_data_post.php" method="POST" id="chatAlertsForm">
                 <div class="field">
-                    <label class="label">Ad Upcoming Message</label>
+                    <label class="label">Follower Alert</label>
                     <div class="control">
-                        <input class="input" type="text" name="ad_upcoming_message" placeholder="Message when ads are upcoming" value="<?php echo htmlspecialchars($ad_upcoming_message); ?>">
+                        <input class="input" type="text" name="follower_alert" value="Thank you (user) for following! Welcome to the channel!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Ad Starting Message</label>
+                    <label class="label">Cheer Alert</label>
                     <div class="control">
-                        <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="<?php echo htmlspecialchars($ad_start_message); ?>">
+                        <input class="input" type="text" name="cheer_alert" value="Thank you (user) for (bits) bits!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Ad Ended Message</label>
+                    <label class="label">Raid Alert</label>
                     <div class="control">
-                        <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="<?php echo htmlspecialchars($ad_end_message); ?>">
+                        <input class="input" type="text" name="raid_alert" value="Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="checkbox">
-                        <input type="checkbox" name="enable_ad_notice" value="1" <?php echo $enable_ad_notice ? 'checked' : ''; ?>> Enable Ad Notice
-                    </label>
+                    <label class="label">Subscription Alert</label>
+                    <div class="control">
+                        <input class="input" type="text" name="subscription_alert" value="Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!">
+                    </div>
                 </div>
-                <button class="button is-primary" type="submit">Save Ad Notice Settings</button>
+                <div class="field">
+                    <label class="label">Gift Subscription Alert</label>
+                    <div class="control">
+                        <input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members!">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Hype Train Start</label>
+                    <div class="control">
+                        <input class="input" type="text" name="hype_train_start" value="The Hype Train has started! Starting at level: (level)">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Hype Train End</label>
+                    <div class="control">
+                        <input class="input" type="text" name="hype_train_end" value="The Hype Train has ended at level (level)!">
+                    </div>
+                </div>
             </form>
         </div>
     </div>
-</div>
 
-<!-- Chat Protection Modal -->
-<div id="chatProtectionModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-content custom-width" style="position: relative;">
-        <button class="modal-close is-large" aria-label="close" onclick="closeModal('chatProtectionModal')" style="position: absolute; top: 10px; right: 10px;"></button>
-        <div class="box">
+    <div class="tab-content <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>" id="chat-protection">
+        <div class="module-container">
             <?php include('protection.php'); ?>
         </div>
     </div>
 </div>
 
+<br><br>
+
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
-function openModal(modalId) {
-    document.getElementById(modalId).classList.add('is-active');
-}
-
-function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('is-active');
-}
-
-$(document).ready(function() {
-    let dropArea = $('#drag-area');
-    let fileInput = $('#filesToUpload');
-    let fileList = $('#file-list');
-
-    dropArea.on('dragover', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropArea.addClass('dragging');
-    });
-    dropArea.on('dragleave', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropArea.removeClass('dragging');
-    });
-    dropArea.on('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropArea.removeClass('dragging');
-        let files = e.originalEvent.dataTransfer.files;
-        fileInput.prop('files', files);
-        fileList.empty();
-        $.each(files, function(index, file) {
-            fileList.append('<div>' + file.name + '</div>');
-        });
-    });
-    dropArea.on('click', function() {
-        fileInput.click();
-    });
-    fileInput.on('change', function() {
-        let files = fileInput.prop('files');
-        fileList.empty();
-        $.each(files, function(index, file) {
-            fileList.append('<div>' + file.name + '</div>');
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle tab navigation
+    document.querySelectorAll('.tab a').forEach(function(tabLink) {
+        tabLink.addEventListener('click', function(e) {
+            // Let the default link behavior handle navigation
         });
     });
 
-    $('#uploadForm').attr('action', ''); // Ensure action is empty
+    // File upload handling
+    let dropArea = document.getElementById('drag-area');
+    let fileInput = document.getElementById('filesToUpload');
+    let fileList = document.getElementById('file-list');
 
-    $('#uploadForm').on('submit', function(e) {
-        e.preventDefault(); 
-        let files = fileInput.prop('files');
-        console.log("Form submitted. Files selected:", files);
-        if (files.length === 0) {
-            alert('No files selected!');
-            return;
-        }
-        uploadFiles(files);
-    });
-
-    function uploadFiles(files) {
-        console.log("Starting upload:", files);
-        let formData = new FormData();
-        $.each(files, function(index, file) {
-            formData.append('filesToUpload[]', file);
+    if (dropArea) {
+        dropArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.add('dragging');
         });
-        $.ajax({
-            url: '',
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            xhr: function() {
-                let xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        let percentComplete = (e.loaded / e.total) * 100;
-                        console.log("Upload progress: " + Math.round(percentComplete) + "%");
-                    }
-                }, false);
-                return xhr;
-            },
-            success: function(response) {
-                location.reload();
-            },
-            error: function(jqXHR, textStatus, errorThrown) {
-                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
-            }
+
+        dropArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('dragging');
+        });
+
+        dropArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('dragging');
+            
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            
+            fileInput.files = files;
+            updateFileList(files);
+        });
+
+        dropArea.addEventListener('click', function() {
+            fileInput.click();
         });
     }
 
-    $('.delete-single').on('click', function() {
-        let fileName = $(this).data('file');
-        if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
-            $('<input>').attr({
-                type: 'hidden',
-                name: 'delete_files[]',
-                value: fileName
-            }).appendTo('#deleteForm');
-            $('#deleteForm').submit();
-        }
-    });
-});
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            updateFileList(this.files);
+        });
+    }
 
-document.addEventListener("DOMContentLoaded", function () {
-    // Attach click event listeners to all Test buttons
-    document.querySelectorAll(".test-sound").forEach(function (button) {
-        button.addEventListener("click", function () {
-            const fileName = this.getAttribute("data-file");
-            sendStreamEvent("SOUND_ALERT", fileName);
+    function updateFileList(files) {
+        if (!fileList) return;
+        
+        fileList.innerHTML = '';
+        for (let i = 0; i < files.length; i++) {
+            let fileItem = document.createElement('div');
+            fileItem.textContent = files[i].name;
+            fileList.appendChild(fileItem);
+        }
+    }
+
+    // Test sound buttons
+    document.querySelectorAll('.test-sound').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const fileName = this.getAttribute('data-file');
+            sendStreamEvent('SOUND_ALERT', fileName);
+        });
+    });
+
+    // Delete single file buttons
+    document.querySelectorAll('.delete-single').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const fileName = this.getAttribute('data-file');
+            if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
+                let form = document.getElementById('deleteForm');
+                let input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'delete_files[]';
+                input.value = fileName;
+                form.appendChild(input);
+                form.submit();
+            }
         });
     });
 });
@@ -516,25 +496,30 @@ function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();
     const url = "notify_event.php";
     const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
+    
     xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                    console.log(`${eventType} event for ${fileName} sent successfully.`);
-                } else {
-                    console.error(`Error sending ${eventType} event: ${response.message}`);
+    
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        console.log(`${eventType} event for ${fileName} sent successfully.`);
+                    } else {
+                        console.error(`Error sending ${eventType} event: ${response.message}`);
+                    }
+                } catch (e) {
+                    console.error("Error parsing JSON response:", e);
+                    console.error("Response:", xhr.responseText);
                 }
-            } catch (e) {
-                console.error("Error parsing JSON response:", e);
-                console.error("Response:", xhr.responseText);
+            } else {
+                console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
             }
-        } else if (xhr.readyState === 4) {
-            console.error(`Error sending ${eventType} event: ${xhr.responseText}`);
         }
     };
+    
     xhr.send(params);
 }
 </script>
