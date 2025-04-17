@@ -7897,6 +7897,8 @@ async def handle_upcoming_ads():
                                 time_to_ad_minutes = int(time_to_ad / 60)
                                 # Check if the ad break is within the next 5 minutes
                                 message = ad_upcoming_message.format(minutes=time_to_ad_minutes)
+                                if time_to_ad_minutes == 1:
+                                    message = message.replace("minutes", "minute")
                                 await channel.send(message)
                                 api_logger.info(f"Sent ad notification: {message}")
                                 await asyncio.sleep(600)  # Wait for 10 minutes before checking again
