@@ -87,10 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
     }    
     // Handle channel point reward mapping
-    elseif (isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
+    elseif (isset($_POST['sound_file'])) {
         $status = "";
         $soundFile = htmlspecialchars($_POST['sound_file']);
-        $rewardId = htmlspecialchars($_POST['twitch_alert_id']);
+        $rewardId = isset($_POST['twitch_alert_id']) ? htmlspecialchars($_POST['twitch_alert_id']) : '';
         
         $db->begin_transaction();
         
@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if ($result->num_rows > 0) {
             // Update existing mapping
-            if ($rewardId) {
+            if (!empty($rewardId)) {
                 $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = ? WHERE sound_mapping = ?");
                 $updateMapping->bind_param('ss', $rewardId, $soundFile);
                 if (!$updateMapping->execute()) {
@@ -111,8 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
                 }
             } else {
-                // Clear the mapping if no reward is selected
-                $clearMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = ?");
+                // Delete the mapping if no reward is selected
+                $clearMapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
                 $clearMapping->bind_param('s', $soundFile);
                 if (!$clearMapping->execute()) {
                     $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>"; 
@@ -121,8 +121,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             }
         } else {
-            // Create a new mapping if it doesn't exist
-            if ($rewardId) {
+            // Create a new mapping if it doesn't exist and if rewardId is provided
+            if (!empty($rewardId)) {
                 $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (?, ?)");
                 $insertMapping->bind_param('ss', $soundFile, $rewardId);
                 if (!$insertMapping->execute()) {
@@ -199,16 +199,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['delete_files'])) {
         $status = "";
         foreach ($_POST['delete_files'] as $file_to_delete) {
-            $file_to_delete = $twitch_sound_alert_path . '/' . basename($file_to_delete);
-            if (is_file($file_to_delete) && unlink($file_to_delete)) {
-                $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
-            } else {
-                $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+            try {
+                // Before deleting the file, delete any associated mappings from the database
+                $file_name = basename($file_to_delete);
+                $delete_mapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
+                $delete_mapping->bind_param('s', $file_name);
+                $result = $delete_mapping->execute();
+                // Now delete the actual file
+                $file_to_delete = $twitch_sound_alert_path . '/' . basename($file_to_delete);
+                if (is_file($file_to_delete) && unlink($file_to_delete)) {
+                    $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
+                } else {
+                    $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+                }
+            } catch (Exception $e) {
+                $status .= "Error: " . $e->getMessage() . "<br>";
             }
         }
         $_SESSION['update_message'] = $status;
     }
-    
     // Redirect back to the modules page
     header("Location: modules.php");
     exit();
