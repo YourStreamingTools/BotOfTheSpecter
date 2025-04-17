@@ -95,7 +95,7 @@ foreach ($soundAlerts as $alert) {
 }
 
 // Define available Twitch alert events including the new GiftSub and HypeTrain events
-$availableTwitchEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'GiftSub', 'HypeTrain_Start', 'HypeTrain_End'];
+$availableTwitchEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'HypeTrain Start', 'HypeTrain End'];
 
 // Get the sound files
 $soundalert_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
