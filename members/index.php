@@ -92,9 +92,7 @@ function sanitize_custom_vars($response) {
 $title = "Members";
 
 // Database credentials
-$dbHost = 'sql.botofthespecter.com';
-$dbUsername = 'USERNAME';
-$dbPassword = 'PASSWORD';
+include '/var/www/config/database.php';
 
 $path = trim($_SERVER['REQUEST_URI'], '/');
 $path = parse_url($path, PHP_URL_PATH);
@@ -105,7 +103,7 @@ $notFound = false;
 
 if ($username) {
     try {
-        $checkDb = new mysqli($dbHost, $dbUsername, $dbPassword);
+        $checkDb = new mysqli($db_servername, $db_username, $db_password);
         if ($checkDb->connect_error) {
             throw new Exception("Connection failed: " . $checkDb->connect_error);
         }
@@ -213,19 +211,19 @@ if (isset($_GET['user'])) {
             <?php else: ?> 
                 <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username']; ?> </div>
                 <div class="buttons is-centered">
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('customCommands')">Custom Commands</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('lurkers')">Lurkers</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('typos')">Typo Counts</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('deaths')">Deaths Overview</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('hugs')">Hug Counts</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('kisses')">Kiss Counts</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('highfives')">High-Five Counts</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('custom')">Custom Counts</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('userCounts')">User Counts</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('rewardCounts')">Reward Counts</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('watchTime')">Watch Time</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('quotes')">Quotes</button>
-                    <button class="button is-info" style="width: 170px;" onclick="loadData('todos')">To-Do Items</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'customCommands')">Custom Commands</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'lurkers')">Lurkers</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'typos')">Typo Counts</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'deaths')">Deaths Overview</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'hugs')">Hug Counts</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'kisses')">Kiss Counts</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'highfives')">High-Five Counts</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'custom')">Custom Counts</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'userCounts')">User Counts</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'rewardCounts')">Reward Counts</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'watchTime')">Watch Time</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'quotes')">Quotes</button>
+                    <button class="button is-info" onclick="setActiveButton(this, 'todos')">To-Do Items</button>
                 </div>
                 <div class="content">
                     <div class="box">
@@ -391,24 +389,24 @@ async function loadData(type) {
             dataColumn = 'Used';
             break;
         case 'userCounts':
-            data = userCounts;
             additionalColumnVisible = true;
+            data = userCounts;
             title = 'User Counts for Commands';
             additionalColumnName = 'Count';
             infoColumn = 'User';
             dataColumn = 'Command';
             break;
         case 'rewardCounts':
-            data = rewardCounts;
             additionalColumnVisible = true;
+            data = rewardCounts;
             title = 'Reward Counts';
             infoColumn = 'Reward Name';
             dataColumn = 'Username';
             additionalColumnName = 'Count';
             break;
-        case 'watchTime': 
-            data = watchTimeData;
+        case 'watchTime':
             additionalColumnVisible = true;
+            data = watchTimeData;
             title = 'Watch Time';
             infoColumn = 'Username';
             dataColumn = 'Online Watch Time';
@@ -512,8 +510,8 @@ async function getTitchUsernames(userIds) {
 function calculateLurkDuration(startTime) {
     const start = new Date(startTime);
     const now = new Date();
+    if (isNaN(start)) { return 'Invalid Date'; }
     const diff = now - start;
-    if (isNaN(diff)) { return 'Invalid Date'; }
     const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
     const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
     const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
@@ -556,6 +554,17 @@ function formatDateTime(dateTime) {
     const date = new Date(dateTime);
     const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
     return date.toLocaleDateString(undefined, options);
+}
+
+function setActiveButton(button, type) {
+    document.querySelectorAll('.buttons .button').forEach(btn => {
+        btn.classList.remove('is-primary');
+        btn.classList.add('is-info');
+    });
+    button.classList.remove('is-info');
+    button.classList.add('is-primary');
+    console.log(`Button clicked: ${button.textContent.trim()}`);
+    loadData(type);
 }
 </script>
 </body>
