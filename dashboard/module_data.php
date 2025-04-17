@@ -13,6 +13,19 @@ if (!isset($_SESSION['username'])) {
 }
 
 $db_name = $_SESSION['username'];
+$username = $_SESSION['username'];
+
+// Define the file paths for the user
+$soundalert_path = "/var/www/soundalerts/" . $username;
+$twitch_sound_alert_path = $soundalert_path . "/twitch";
+
+// Ensure the directories exist
+if (!file_exists($soundalert_path)) {
+    mkdir($soundalert_path, 0755, true);
+}
+if (!file_exists($twitch_sound_alert_path)) {
+    mkdir($twitch_sound_alert_path, 0755, true);
+}
 
 // Create database connection using mysqli with credentials from database.php
 $db = new mysqli($db_servername, $db_username, $db_password, $db_name);
