@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $rewardId = htmlspecialchars($_POST['twitch_alert_id']);
         
         // Validate that the twitch_alert_id is one of our allowed events
-        $validEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'GiftSub', 'HypeTrain_Start', 'HypeTrain_End', ''];
+        $validEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'HypeTrain Start', 'HypeTrain End', ''];
         
         if (!in_array($rewardId, $validEvents) && $rewardId !== '') {
             $status .= "Invalid event type selected.<br>";
