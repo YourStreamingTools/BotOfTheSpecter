@@ -229,7 +229,7 @@ if (isset($_GET['user'])) {
                 </div>
                 <div class="content">
                     <div class="box">
-                        <h3 id="table-title" class="title" style="color: white;"></h3>
+                        <h3 id="table-title" class="title has-text-centered" style="color: white;"></h3>
                         <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
                             <thead>
                                 <tr>
