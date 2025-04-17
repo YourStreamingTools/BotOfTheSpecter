@@ -2,13 +2,6 @@
 // Include the database credentials
 require_once "/var/www/config/database.php";
 
-// Check if user is logged in
-if (!isset($_SESSION['username'])) {
-    error_log("User not logged in when accessing module_data_post.php");
-    header("Location: login.php");
-    exit();
-}
-
 $db_name = $_SESSION['username'];
 
 // Create database connection using mysqli with credentials from database.php
@@ -20,10 +13,14 @@ if ($db->connect_error) {
     die("Database connection failed. Please check the configuration.");
 }
 
+// Initialize the active tab variable
+$activeTab = "joke-blacklist"; // Default tab
+
 // Process POST requests
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Handle Joke Blacklist Update
+    // Determine which tab to return to based on POST data
     if (isset($_POST['blacklist'])) {
+        $activeTab = "joke-blacklist";
         $new_blacklist = isset($_POST['blacklist']) ? $_POST['blacklist'] : [];
         $new_blacklist_json = json_encode($new_blacklist);
         // Update the blacklist in the database
@@ -36,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // Handle Welcome Message Settings Update
     elseif (isset($_POST['send_welcome_messages'])) {
+        $activeTab = "welcome-messages";
         // Gather and save the updated welcome message data
         $send_welcome_messages = isset($_POST['send_welcome_messages']) ? 1 : 0;
         // Existing welcome messages
@@ -85,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }    
     // Handle channel point reward mapping
     elseif (isset($_POST['sound_file'])) {
+        $activeTab = "twitch-audio-alerts";
         $status = "";
         $soundFile = htmlspecialchars($_POST['sound_file']);
         $rewardId = isset($_POST['twitch_alert_id']) ? htmlspecialchars($_POST['twitch_alert_id']) : '';
@@ -136,6 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // Handle Ad Notices Update
     elseif (isset($_POST['ad_start_message'])) {
+        $activeTab = "ad-notices";
         $ad_upcoming_message = $_POST['ad_upcoming_message'];
         $ad_start_message = $_POST['ad_start_message'];
         $ad_end_message = $_POST['ad_end_message'];
@@ -164,9 +164,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt->close();
         $_SESSION['update_message'] = "Ad notice settings updated successfully.";
     }
+    
+    // Handle chat alerts settings update
+    elseif (isset($_POST['follower_alert'])) {
+        $activeTab = "twitch-chat-alerts";
+        // Handle twitch chat alerts settings
+    }
 
     // Handle file upload
     if (isset($_FILES["filesToUpload"])) {
+        $activeTab = "twitch-audio-alerts";
         $status = "";
         foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
             $fileSize = $_FILES["filesToUpload"]["size"][$key];
@@ -194,6 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // Handle file deletion
     if (isset($_POST['delete_files'])) {
+        $activeTab = "twitch-audio-alerts";
         $status = "";
         foreach ($_POST['delete_files'] as $file_to_delete) {
             try {
@@ -215,8 +223,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $_SESSION['update_message'] = $status;
     }
-    // Redirect back to the modules page
-    header("Location: modules.php");
+    // Redirect back to the modules page with the active tab
+    header("Location: modules.php?tab=" . $activeTab);
     exit();
 }
 ?>
