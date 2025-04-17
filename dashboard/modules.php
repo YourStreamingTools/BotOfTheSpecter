@@ -186,7 +186,7 @@ date_default_timezone_set($timezone);
             <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
                 <div class="column is-4" id="walkon-upload" style="position: relative;">
                     <h1 class="title is-4">Upload MP3 Files:</h1>
-                    <form action="module_data_post.php" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <form action="javascript:void(0);" method="POST" enctype="multipart/form-data" id="uploadForm">
                         <label for="filesToUpload" class="drag-area" id="drag-area">
                             <span>Drag & Drop files here or</span>
                             <span>Browse Files</span>
@@ -195,7 +195,7 @@ date_default_timezone_set($timezone);
                         <br>
                         <div id="file-list"></div>
                         <br>
-                        <input type="submit" value="Upload MP3 Files" name="submit">
+                        <button type="submit" class="button is-primary" id="uploadButton">Upload MP3 Files</button>
                     </form>
                     <br>
                     <div class="progress-bar-container">
@@ -239,7 +239,7 @@ date_default_timezone_set($timezone);
                                                 $mappedEvents[] = $mappedEvent;
                                             }
                                         }
-                                        $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription'];
+                                        $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'HypeTrain Start', 'HypeTrain End'];
                                         $availableEvents = array_diff($allEvents, $mappedEvents);
                                         ?>
                                         <?php if ($current_reward_id): ?>
@@ -583,9 +583,13 @@ $(document).ready(function() {
         let formData = new FormData();
         $.each(files, function(index, file) {
             formData.append('filesToUpload[]', file);
-        });
+        });        
+        // Add a notification to show upload is in progress
+        if (!$('#upload-status').length) {
+            $('#fileList').after('<div id="upload-status" class="notification is-info">Uploading files, please wait...</div>');
+        }
         $.ajax({
-            url: '',
+            url: 'module_data_post.php',
             type: 'POST',
             data: formData,
             contentType: false,
@@ -595,15 +599,20 @@ $(document).ready(function() {
                 xhr.upload.addEventListener('progress', function(e) {
                     if (e.lengthComputable) {
                         let percentComplete = (e.loaded / e.total) * 100;
-                        console.log("Upload progress: " + Math.round(percentComplete) + "%");
+                        $('#upload-status').html('Uploading: ' + Math.round(percentComplete) + '%');
                     }
                 }, false);
                 return xhr;
             },
             success: function(response) {
-                location.reload();
+                $('#upload-status').removeClass('is-info').addClass('is-success').html('Upload complete! Refreshing...');
+                setTimeout(function() {
+                    location.reload();
+                }, 1500);
             },
             error: function(jqXHR, textStatus, errorThrown) {
+                $('#upload-status').removeClass('is-info').addClass('is-danger')
+                    .html('Upload failed: ' + textStatus + '. Please try again.');
                 console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
             }
         });
