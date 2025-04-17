@@ -92,6 +92,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $soundFile = htmlspecialchars($_POST['sound_file']);
         $rewardId = htmlspecialchars($_POST['twitch_alert_id']);
         
+        // Validate that the twitch_alert_id is one of our allowed events
+        $validEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'GiftSub', 'HypeTrain_Start', 'HypeTrain_End', ''];
+        
+        if (!in_array($rewardId, $validEvents) && $rewardId !== '') {
+            $status .= "Invalid event type selected.<br>";
+            $_SESSION['update_message'] = $status;
+            header("Location: modules.php");
+            exit();
+        }
+        
         $db->begin_transaction();
         
         // Check if a mapping already exists for this sound file
