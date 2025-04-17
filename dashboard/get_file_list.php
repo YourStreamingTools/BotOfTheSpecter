@@ -12,7 +12,8 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-$db_name = $_SESSION['username'];
+$username = $_SESSION['username'];
+$db_name = $username;
 
 // Create database connection using mysqli with credentials from database.php
 $db = new mysqli($db_servername, $db_username, $db_password, $db_name);
@@ -23,17 +24,16 @@ if ($db->connect_error) {
     die("Database connection failed. Please check the configuration.");
 }
 
-// Include storage_used.php to get the path
-include 'storage_used.php';
+// Define the twitch sound alert path
+$soundalert_path = "/var/www/soundalerts/" . $username;
+$twitch_sound_alert_path = $soundalert_path . "/twitch";
 
 // Fetch sound alert mappings for the current user
 $getTwitchAlerts = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
 $getTwitchAlerts->execute();
 $result = $getTwitchAlerts->get_result();
 $soundAlerts = [];
-while ($row = $result->fetch_assoc()) {
-    $soundAlerts[] = $row;
-}
+while ($row = $result->fetch_assoc()) { $soundAlerts[] = $row; }
 $getTwitchAlerts->close();
 
 // Create an associative array for easy lookup: sound_mapping => twitch_alert_id
@@ -89,7 +89,7 @@ if (!empty($walkon_files)) :
         }
         echo '<br>';
         
-        if (!empty($availableEvents) || !$current_event) {
+        if (!empty($availableEvents) || $current_event) {
             echo '<form action="module_data_post.php" method="POST" class="mapping-form">';
             echo '<input type="hidden" name="sound_file" value="' . htmlspecialchars($file) . '">';
             echo '<select name="twitch_alert_id" class="mapping-select">';
