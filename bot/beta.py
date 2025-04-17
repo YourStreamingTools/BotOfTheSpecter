@@ -7883,7 +7883,6 @@ async def handle_upcoming_ads():
         # Skip if notifications are disabled
         if not enable_ad_notice:
             continue
-        time_now = datetime.now(pytz.timezone("UTC"))
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
