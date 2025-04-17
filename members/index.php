@@ -196,7 +196,7 @@ if (isset($_GET['user'])) {
 <div class="container mt-6">
     <br><br>
     <div class="columns is-centered">
-        <div class="column is-three-quarters">
+        <div class="column is-fullwidth">
             <?php if (!$username): ?> 
                 <br>
                 <div class="box">
