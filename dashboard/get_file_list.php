@@ -43,8 +43,6 @@ foreach ($soundAlerts as $alert) {
 }
 
 // Get the sound files
-$availableTwitchEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'HypeTrain Start', 'HypeTrain End'];
-clearstatcache();
 $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
 
 // HTML output
@@ -81,6 +79,8 @@ if (!empty($walkon_files)) :
                 $mappedEvents[] = $mappedEvent;
             }
         }
+        $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'GiftSub', 'HypeTrain_Start', 'HypeTrain_End'];
+        $availableEvents = array_diff($allEvents, $mappedEvents);
         
         if ($current_event) {
             echo '<em>' . htmlspecialchars($current_event) . '</em>';
@@ -88,9 +88,6 @@ if (!empty($walkon_files)) :
             echo '<em>Not Mapped</em>';
         }
         echo '<br>';
-        
-        // Get available events by filtering out already mapped events
-        $availableEvents = array_diff($availableTwitchEvents, $mappedEvents);
         
         if (!empty($availableEvents) || $current_event) {
             echo '<form action="module_data_post.php" method="POST" class="mapping-form">';
