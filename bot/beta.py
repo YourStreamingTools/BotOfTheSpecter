@@ -157,8 +157,6 @@ global TWITCH_SHOUTOUT_USER_COOLDOWN
 global last_shoutout_time
 global shoutout_user
 global last_message_time
-global next_ad_break_time
-global last_ad_break_time
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 translator = GoogleTranslator()                         # Translator instance 
@@ -7846,7 +7844,7 @@ async def remove_shoutout_user(username: str, delay: int):
 
 # Handel upcoming Twitch Ads
 async def handle_upcoming_ads():
-    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online, next_ad_break_time, last_ad_break_time
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     headers = {
         "Client-ID": CLIENT_ID,
@@ -7866,6 +7864,7 @@ async def handle_upcoming_ads():
                 if settings:
                     enable_ad_notice = settings.get("enable_ad_notice", True)
                     ad_upcoming_message = settings.get("ad_upcoming_message", "Upcoming ad break in {minutes} minutes!")
+                    ad_upcoming_message = ad_upcoming_message.replace("(minutes)", "{minutes}")
                 else:
                     # Default settings if not found in database
                     enable_ad_notice = True
@@ -7887,20 +7886,15 @@ async def handle_upcoming_ads():
                         data = await response.json()
                         ads_data = data.get("data", [])
                         if ads_data:
-                            next_ad_str = ads_data[0].get("next_ad_break_time")
-                            last_ad_str = ads_data[0].get("last_ad_break_time")
-                            if next_ad_str and isinstance(next_ad_str, str):
-                                next_ad_break_time = datetime.fromtimestamp(int(next_ad_str), tz=pytz.timezone("UTC"))
-                                last_ad_break_time = datetime.fromtimestamp(int(last_ad_str), tz=pytz.timezone("UTC"))
-                                time_to_ad_seconds = int((next_ad_break_time - time_now).total_seconds())
-                                time_to_ad_minutes = time_to_ad_seconds // 60
-                                api_logger.info(f"Next ad break in {time_to_ad_minutes} minutes ({time_to_ad_seconds} seconds).")
-                                # Only notify if the ad is within the next 5 minutes and we haven't sent a notification recently
-                                if last_ad_break_time < time_now and 0 < time_to_ad_seconds <= 300:
-                                    if time_to_ad_minutes <= 5:
-                                        message = ad_upcoming_message.format(minutes=time_to_ad_minutes)
-                                        await channel.send(message)
-                                        api_logger.info(f"Sent ad notification: {message}")
+                            preroll_free_time = ads_data[0].get("preroll_free_time")
+                            if preroll_free_time > 180 and preroll_free_time < 480:
+                                time_to_ad = preroll_free_time - 180
+                                time_to_ad_minutes = int(time_to_ad / 60)
+                                # Check if the ad break is within the next 5 minutes
+                                message = ad_upcoming_message.format(minutes=time_to_ad_minutes)
+                                await channel.send(message)
+                                api_logger.info(f"Sent ad notification: {message}")
+                                await asyncio.sleep(600)  # Wait for 10 minutes before checking again
                         else:
                             api_logger.info("No upcoming ad breaks scheduled.")
                     else:
