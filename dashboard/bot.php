@@ -163,7 +163,7 @@ if (file_exists($stableFile)) {
   elseif ($stableTimeAgo < 86400) $stableLastModifiedOutput = floor($stableTimeAgo / 3600) . ' hours ago';
   else $stableLastModifiedOutput = floor($stableTimeAgo / 86400) . ' days ago';
 } else {
-  $stableLastModifiedOutput = 'File not found';
+  $stableLastModifiedOutput = 'Never';
 }
 
 // Last Restarted Time for Stable
@@ -189,7 +189,7 @@ if (file_exists($betaFile)) {
   elseif ($timeAgo < 86400) $lastModifiedOutput = floor($timeAgo / 3600) . ' hours ago';
   else $lastModifiedOutput = floor($timeAgo / 86400) . ' days ago';
 } else {
-  $lastModifiedOutput = 'File not found';
+  $lastModifiedOutput = 'Never';
 }
 
 // Last Restarted Time for Beta
@@ -202,7 +202,7 @@ if (file_exists($restartLog)) {
   elseif ($restartTimeAgo < 86400) $lastRestartOutput = floor($restartTimeAgo / 3600) . ' hours ago';
   else $lastRestartOutput = floor($restartTimeAgo / 86400) . ' days ago';
 } else {
-  $lastRestartOutput = 'Never'; // Message if restart log file does not exist
+  $lastRestartOutput = 'Never';
 }
 
 // Last Changed Time for Alpha
@@ -215,7 +215,7 @@ if (file_exists($alphaFile)) {
   elseif ($alphaTimeAgo < 86400) $alphaLastModifiedOutput = floor($alphaTimeAgo / 3600) . ' hours ago';
   else $alphaLastModifiedOutput = floor($alphaTimeAgo / 86400) . ' days ago';
 } else {
-  $alphaLastModifiedOutput = 'File not found';
+  $alphaLastModifiedOutput = 'Never';
 }
 
 // Last Restarted Time for Alpha
