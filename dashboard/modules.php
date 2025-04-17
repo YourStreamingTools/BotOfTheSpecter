@@ -542,13 +542,61 @@ $(document).ready(function() {
                     const button = $('[data-file="' + fileName + '"]');
                     const row = button.closest('tr');
                     row.fadeOut(500, function() {
-                        // Reload the page after row animation completes
-                        location.reload();
+                        // After the fade animation completes, reload the file list
+                        $.ajax({
+                            url: 'get_file_list.php',
+                            type: 'GET',
+                            success: function(response) {
+                                // Update the table with fresh content
+                                const tableContainer = row.closest('tbody').parent().parent();
+                                tableContainer.html(response);
+                                // Reattach event handlers to new elements
+                                reattachEventHandlers();
+                            }
+                        });
                     });
                 }
             });
         }
     });
+
+    // Function to reattach event handlers after DOM updates
+    function reattachEventHandlers() {
+        // Reattach test sound buttons
+        $('.test-sound').on('click', function() {
+            let fileName = $(this).data('file');
+            sendStreamEvent("SOUND_ALERT", fileName);
+        });
+        
+        // Reattach delete buttons
+        $('.delete-single').on('click', function() {
+            let fileName = $(this).data('file');
+            if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
+                // Create a temporary form with the file to delete
+                const tempForm = $('<form></form>');
+                tempForm.append($('<input>').attr({
+                    type: 'hidden',
+                    name: 'delete_files[]',
+                    value: fileName
+                }));
+                // Send AJAX request
+                $.ajax({
+                    type: 'POST',
+                    url: 'module_data_post.php',
+                    data: tempForm.serialize(),
+                    success: function() {
+                        location.reload();
+                    }
+                });
+            }
+        });
+        
+        // Reattach mapping selects
+        $('.mapping-select').on('change', function() {
+            $(this).closest('form').submit();
+        });
+    }
+
     // Rest of the existing dropArea code
     dropArea.on('dragover', function(e) {
         e.preventDefault();
