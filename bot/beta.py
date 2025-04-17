@@ -175,6 +175,7 @@ last_message_time = 0                                   # Variable for last mess
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
 song_requests = {}                                      # Tracks song request from users
+looped_tasks = {}                                       # Set for looped tasks
 
 # Initialize global variables
 bot_started = datetime.now()                            # Time the bot started
@@ -1139,16 +1140,16 @@ class TwitchBot(commands.Bot):
         await check_stream_online()
         asyncio.create_task(known_users())
         asyncio.create_task(channel_point_rewards())
-        asyncio.get_event_loop().create_task(twitch_token_refresh())
-        asyncio.get_event_loop().create_task(spotify_token_refresh())
-        asyncio.get_event_loop().create_task(twitch_eventsub())
-        asyncio.get_event_loop().create_task(specter_websocket())
-        asyncio.get_event_loop().create_task(hyperate_websocket())
-        asyncio.get_event_loop().create_task(connect_to_tipping_services())
-        asyncio.get_event_loop().create_task(midnight())
-        asyncio.get_event_loop().create_task(shoutout_worker())
-        asyncio.get_event_loop().create_task(periodic_watch_time_update())
-        asyncio.get_event_loop().create_task(check_song_requests())
+        looped_tasks["twitch_token_refresh"] = asyncio.get_event_loop().create_task(twitch_token_refresh())
+        looped_tasks["spotify_token_refresh"] = asyncio.get_event_loop().create_task(spotify_token_refresh())
+        looped_tasks["twitch_eventsub"] = asyncio.get_event_loop().create_task(twitch_eventsub())
+        looped_tasks["specter_websocket"] = asyncio.get_event_loop().create_task(specter_websocket())
+        looped_tasks["hyperate_websocket"] = asyncio.get_event_loop().create_task(hyperate_websocket())
+        looped_tasks["connect_to_tipping_services"] = asyncio.get_event_loop().create_task(connect_to_tipping_services())
+        looped_tasks["midnight"] = asyncio.get_event_loop().create_task(midnight())
+        looped_tasks["shoutout_worker"] = asyncio.get_event_loop().create_task(shoutout_worker())
+        looped_tasks["periodic_watch_time_update"] = asyncio.get_event_loop().create_task(periodic_watch_time_update())
+        looped_tasks["check_song_requests"] = asyncio.get_event_loop().create_task(check_song_requests())
         await channel.send(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -5703,8 +5704,8 @@ async def process_weather_websocket(data):
 async def process_stream_online_websocket():
     global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
     stream_online = True
-    asyncio.get_event_loop().create_task(timed_message())
-    asyncio.get_event_loop().create_task(handle_upcoming_ads())
+    looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
+    looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
     await generate_winning_lotto_numbers()
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     # Reach out to the Twitch API to get stream data
@@ -5767,6 +5768,10 @@ async def delayed_clear_tables():
     await clear_credits_data()
     await clear_per_stream_deaths()
     await clear_lotto_numbers()
+    if "timed_message" in looped_tasks:
+        looped_tasks["timed_message"].cancel()
+    if "handle_upcoming_ads" in looped_tasks:
+        looped_tasks["handle_upcoming_ads"].cancel()
     bot_logger.info("Tables and lotto entries cleared after stream remained offline.")
 
 # Function to clear the seen users table at the end of stream
@@ -6892,8 +6897,8 @@ async def check_stream_online():
                 with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
                     file.write('False')
             else:
-                asyncio.get_event_loop().create_task(timed_message())
-                asyncio.get_event_loop().create_task(handle_upcoming_ads())
+                looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
+                looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
                 # Stream is online, extract the game name
                 stream_online = True
                 game = data['data'][0].get('game_name', None)
