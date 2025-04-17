@@ -20,6 +20,9 @@ $totalKisses = 0;
 $kissCounts = [];
 $customCounts = [];
 $userCounts = [];
+$highfiveCounts = [];
+$rewardCounts = [];
+$quotesData = [];
 $seenUsersData = [];
 $timedMessagesData = [];
 $channelPointRewards = [];
@@ -170,6 +173,9 @@ if (isset($_GET['user'])) {
         const watchTimeData = <?php echo json_encode($watchTimeData); ?>;
         const todos = <?php echo json_encode($todos); ?>;
         const todoCategories = <?php echo json_encode($todoCategories); ?>;
+        const highfiveCounts = <?php echo json_encode($highfiveCounts); ?>;
+        const rewardCounts = <?php echo json_encode($rewardCounts); ?>;
+        const quotesData = <?php echo json_encode($quotesData); ?>;
     </script>
 </head>
 <body>
@@ -213,9 +219,12 @@ if (isset($_GET['user'])) {
                     <button class="button is-info" style="width: 170px;" onclick="loadData('deaths')">Deaths Overview</button>
                     <button class="button is-info" style="width: 170px;" onclick="loadData('hugs')">Hug Counts</button>
                     <button class="button is-info" style="width: 170px;" onclick="loadData('kisses')">Kiss Counts</button>
+                    <button class="button is-info" style="width: 170px;" onclick="loadData('highfives')">High-Five Counts</button>
                     <button class="button is-info" style="width: 170px;" onclick="loadData('custom')">Custom Counts</button>
                     <button class="button is-info" style="width: 170px;" onclick="loadData('userCounts')">User Counts</button>
+                    <button class="button is-info" style="width: 170px;" onclick="loadData('rewardCounts')">Reward Counts</button>
                     <button class="button is-info" style="width: 170px;" onclick="loadData('watchTime')">Watch Time</button>
+                    <button class="button is-info" style="width: 170px;" onclick="loadData('quotes')">Quotes</button>
                     <button class="button is-info" style="width: 170px;" onclick="loadData('todos')">To-Do Items</button>
                 </div>
                 <div class="content">
@@ -333,6 +342,12 @@ async function loadData(type) {
             infoColumn = 'Username';
             dataColumn = 'Kiss Count';
             break;
+        case 'highfives':
+            data = highfiveCounts;
+            title = 'High-Five Counts';
+            infoColumn = 'Username';
+            dataColumn = 'High-Five Count';
+            break;
         case 'custom':
             data = customCounts;
             title = 'Custom Counts';
@@ -347,6 +362,14 @@ async function loadData(type) {
             infoColumn = 'User';
             dataColumn = 'Command';
             break;
+        case 'rewardCounts':
+            data = rewardCounts;
+            additionalColumnVisible = true;
+            title = 'Reward Counts';
+            infoColumn = 'Reward Name';
+            dataColumn = 'Username';
+            additionalColumnName = 'Count';
+            break;
         case 'watchTime': 
             data = watchTimeData;
             additionalColumnVisible = true;
@@ -355,6 +378,12 @@ async function loadData(type) {
             dataColumn = 'Online Watch Time';
             additionalColumnName = 'Offline Watch Time';
             data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
+            break;
+        case 'quotes':
+            data = quotesData;
+            title = 'Quotes';
+            infoColumn = 'ID';
+            dataColumn = 'What was said';
             break;
         case 'todos':
             data = todos;
@@ -385,12 +414,18 @@ async function loadData(type) {
                     output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
                 } else if (type === 'kisses') {
                     output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
+                } else if (type === 'highfives') {
+                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.highfive_count}</span></td>`;
                 } else if (type === 'custom') {
                     output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
                 } else if (type === 'userCounts') {
                     output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+                } else if (type === 'rewardCounts') {
+                    output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
                 } else if (type === 'watchTime') { 
                     output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+                } else if (type === 'quotes') {
+                    output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`;
                 } else if (type === 'todos') {
                     const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
                     output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${formatDateTime(item.created_at)}</td><td>${formatDateTime(item.updated_at)}</td>`;
