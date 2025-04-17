@@ -211,19 +211,19 @@ if (isset($_GET['user'])) {
             <?php else: ?> 
                 <div class="notification is-info"><?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username']; ?> </div>
                 <div class="buttons is-centered">
-                    <button class="button is-info" onclick="setActiveButton(this, 'customCommands')">Custom Commands</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'lurkers')">Lurkers</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'typos')">Typo Counts</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'deaths')">Deaths Overview</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'hugs')">Hug Counts</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'kisses')">Kiss Counts</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'highfives')">High-Five Counts</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'custom')">Custom Counts</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'userCounts')">User Counts</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'rewardCounts')">Reward Counts</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'watchTime')">Watch Time</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'quotes')">Quotes</button>
-                    <button class="button is-info" onclick="setActiveButton(this, 'todos')">To-Do Items</button>
+                    <button class="button is-info" onclick="loadData('customCommands')">Custom Commands</button>
+                    <button class="button is-info" onclick="loadData('lurkers')">Lurkers</button>
+                    <button class="button is-info" onclick="loadData('typos')">Typo Counts</button>
+                    <button class="button is-info" onclick="loadData('deaths')">Deaths Overview</button>
+                    <button class="button is-info" onclick="loadData('hugs')">Hug Counts</button>
+                    <button class="button is-info" onclick="loadData('kisses')">Kiss Counts</button>
+                    <button class="button is-info" onclick="loadData('highfives')">High-Five Counts</button>
+                    <button class="button is-info" onclick="loadData('custom')">Custom Counts</button>
+                    <button class="button is-info" onclick="loadData('userCounts')">User Counts</button>
+                    <button class="button is-info" onclick="loadData('rewardCounts')">Reward Counts</button>
+                    <button class="button is-info" onclick="loadData('watchTime')">Watch Time</button>
+                    <button class="button is-info" onclick="loadData('quotes')">Quotes</button>
+                    <button class="button is-info" onclick="loadData('todos')">To-Do Items</button>
                 </div>
                 <div class="content">
                     <div class="box">
