@@ -1,7 +1,4 @@
 <?php
-// Initialize the session
-session_start();
-
 // Include the database credentials
 require_once "/var/www/config/database.php";
 
