@@ -44,8 +44,6 @@ date_default_timezone_set($timezone);
     <br>
     <h1 class="title is-3">Module Settings</h1>
     <br>
-    <div class="notification is-danger">This page is currently under maintenance. Features will remain unavailable until the update is complete. The absence of this notice will indicate that the work is finished.</div>
-    <br>
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-5 bot-box" id="chat-protection-settings" style="position: relative;">
