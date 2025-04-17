@@ -1013,6 +1013,231 @@ $(document).ready(function() {
         loadFileList();
     }
 });
+
+// Initialize upload form handlers
+function initUploadFormHandlers() {
+    let dropArea = $('#drag-area');
+    let fileInput = $('#filesToUpload');
+    let fileList = $('#file-list');
+    
+    // Handle drag and drop
+    dropArea.on('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.addClass('dragging');
+    });
+    
+    dropArea.on('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.removeClass('dragging');
+    });
+    
+    dropArea.on('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropArea.removeClass('dragging');
+        let files = e.originalEvent.dataTransfer.files;
+        fileInput.prop('files', files);
+        fileList.empty();
+        $.each(files, function(index, file) {
+            fileList.append('<div>' + file.name + '</div>');
+        });
+    });
+    
+    dropArea.on('click', function() {
+        fileInput.click();
+    });
+    
+    fileInput.on('change', function() {
+        let files = fileInput.prop('files');
+        fileList.empty();
+        $.each(files, function(index, file) {
+            fileList.append('<div>' + file.name + '</div>');
+        });
+    });
+    
+    // Handle form submission
+    $('#uploadForm').on('submit', function(e) {
+        e.preventDefault();
+        let files = fileInput.prop('files');
+        if (files.length === 0) {
+            alert('No files selected!');
+            return;
+        }
+        uploadFiles(files);
+    });
+}
+
+// Function to load the file list via AJAX
+function loadFileList() {
+    $.ajax({
+        url: 'get_file_list.php',
+        type: 'GET',
+        success: function(response) {
+            $('#file-list-container').html(response);
+            // Re-attach event handlers for delete and test buttons
+            attachFileActionHandlers();
+        },
+        error: function() {
+            $('#file-list-container').html('<div class="notification is-danger">Failed to load file list. Please try refreshing the page.</div>');
+        }
+    });
+}
+
+// Attach handlers for file actions (delete, test)
+function attachFileActionHandlers() {
+    // Delete single file
+    $('.delete-single').on('click', function() {
+        let fileName = $(this).data('file');
+        if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
+            deleteFile(fileName);
+        }
+    });
+    
+    // Test sound button
+    $('.test-sound').on('click', function() {
+        let fileName = $(this).data('file');
+        sendStreamEvent("SOUND_ALERT", fileName);
+    });
+    
+    // Handle mapping select changes
+    $('.mapping-select').on('change', function() {
+        const form = $(this).closest('form');
+        const formData = form.serialize();
+        $.ajax({
+            type: 'POST',
+            url: 'module_data_post.php',
+            data: formData,
+            success: function() {
+                // Show success notification
+                const select = form.find('.mapping-select');
+                $('<div class="notification is-success is-light" style="padding: 0.5rem; margin-top: 0.5rem;">Mapping updated!</div>')
+                    .insertAfter(select)
+                    .delay(2000)
+                    .fadeOut(500, function() {
+                        $(this).remove();
+                    });
+                
+                // Reload file list to show updated mappings
+                setTimeout(function() {
+                    loadFileList();
+                }, 2500);
+            }
+        });
+    });
+    
+    // Handle delete selected button
+    $('#delete-selected').on('click', function() {
+        const checkedBoxes = $('input[name="delete_files[]"]:checked');
+        if (checkedBoxes.length === 0) {
+            alert('No files selected for deletion.');
+            return;
+        }
+        
+        if (confirm('Are you sure you want to delete ' + checkedBoxes.length + ' file(s)?')) {
+            const formData = $('#deleteForm').serialize();
+            $.ajax({
+                type: 'POST',
+                url: 'module_data_post.php',
+                data: formData,
+                success: function() {
+                    // Reload file list
+                    loadFileList();
+                    $('#upload-status-messages').html('<div class="notification is-success">Selected files deleted successfully!</div>')
+                        .delay(3000)
+                        .fadeOut(500);
+                }
+            });
+        }
+    });
+}
+
+// Function to delete a file via AJAX
+function deleteFile(fileName) {
+    const tempForm = $('<form></form>');
+    tempForm.append($('<input>').attr({
+        type: 'hidden',
+        name: 'delete_files[]',
+        value: fileName
+    }));
+    
+    $.ajax({
+        type: 'POST',
+        url: 'module_data_post.php',
+        data: tempForm.serialize(),
+        success: function() {
+            // Show success message
+            $('#upload-status-messages').html('<div class="notification is-success">File deleted successfully!</div>')
+                .delay(3000)
+                .fadeOut(500);
+                
+            // Reload file list
+            loadFileList();
+            
+            // Update storage info
+            updateStorageInfo();
+        }
+    });
+}
+
+// Function to upload files via AJAX
+function uploadFiles(files) {
+    let formData = new FormData();
+    $.each(files, function(index, file) {
+        formData.append('filesToUpload[]', file);
+    });
+    
+    // Show upload status
+    $('#upload-status-messages').html('<div class="notification is-info">Uploading files, please wait...</div>');
+    
+    $.ajax({
+        url: 'module_data_post.php',
+        type: 'POST',
+        data: formData,
+        contentType: false,
+        processData: false,
+        xhr: function() {
+            let xhr = new window.XMLHttpRequest();
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    let percentComplete = (e.loaded / e.total) * 100;
+                    $('#upload-status-messages').html('<div class="notification is-info">Uploading: ' + Math.round(percentComplete) + '%</div>');
+                }
+            }, false);
+            return xhr;
+        },
+        success: function() {
+            $('#upload-status-messages').html('<div class="notification is-success">Upload complete!</div>');
+            
+            // Clear file input
+            $('#filesToUpload').val('');
+            $('#file-list').empty();
+            
+            // Reload file list
+            loadFileList();
+            
+            // Update storage info
+            updateStorageInfo();
+        },
+        error: function(xhr, status, error) {
+            $('#upload-status-messages').html('<div class="notification is-danger">Upload failed: ' + error + '</div>');
+        }
+    });
+}
+
+// Function to update storage info
+function updateStorageInfo() {
+    $.ajax({
+        url: 'get_storage_info.php',
+        type: 'GET',
+        success: function(response) {
+            const data = JSON.parse(response);
+            $('#uploadProgressBar').css('width', data.percentage + '%').text(data.percentage + '%');
+            $('#storage-info').text(data.used + ' of ' + data.max + ' used');
+        }
+    });
+}
 </script>
 </body>
 </html>
