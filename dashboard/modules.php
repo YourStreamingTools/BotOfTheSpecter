@@ -44,37 +44,52 @@ date_default_timezone_set($timezone);
     <br>
     <h1 class="title is-3">Module Settings</h1>
     <br>
+    <div class="notification is-danger">This page is currently under maintenance. Features will remain unavailable until the update is complete. The absence of this notice will indicate that the work is finished.</div>
+    <br>
     <?php if (isset($_SESSION['update_message'])): ?><div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div><?php endif; ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-5 bot-box" id="chat-protection-settings" style="position: relative;">
             <h1 class="title is-3 has-text-centered">Chat Protection</h1>
             <h1 class="subtitle is-5 has-text-centered">Manage chat protection settings</h1>
-            <button class="button is-primary" onclick="openModal('chatProtectionModal')">Open Settings</button>
+            <button class="button is-primary load-content" data-content="chat-protection">Load Settings</button>
         </div>
         <div class="column is-5 bot-box" id="stable-bot-status" style="position: relative;">
             <h2 class="title is-3 has-text-centered">Manage Joke Blacklist</h2>
             <h2 class="subtitle is-5 has-text-centered" style="text-align: center;">Set which category is blocked</h2>
-            <button class="button is-primary" onclick="openModal('jokeBlacklistModal')">Open Settings</button>
+            <button class="button is-primary load-content" data-content="joke-blacklist">Load Settings</button>
         </div>
         <div class="column is-5 bot-box" id="welcome-message-settings" style="position: relative;">
             <h1 class="title is-3 has-text-centered">Custom Welcome Messages</h1>
             <h1 class="subtitle is-5 has-text-centered">Set default welcome messages</h1>
-            <button class="button is-primary" onclick="openModal('welcomeMessageModal')">Open Settings</button>
+            <button class="button is-primary load-content" data-content="welcome-messages">Load Settings</button>
         </div>
         <div class="column is-5 bot-box" id="" style="position: relative;">
             <h1 class="title is-3 has-text-centered">Ad Notices (BETA v5.4)</h1>
             <h1 class="subtitle is-5 has-text-centered">Set what the bot does when an ad plays on your channel</h1>
-            <button class="button is-primary" onclick="openModal('adNoticesModal')">Open Settings</button>
+            <button class="button is-primary load-content" data-content="ad-notices">Load Settings</button>
         </div>
-        <div class="column is-5 bot-box" id="" style="position: relative;">
-            <h1 class="title is-3 has-text-centered">Twitch Audio Alerts<br>(Under Development)</h1>
-            <h1 class="subtitle is-5 has-text-centered">Twitch Sound Alerts: Followers, Cheers, Subs and Raids</h1>
-            <button class="button is-primary" onclick="openModal('twitchAudioAlertsModal')">Open Settings</button>
+        <div class="column is-5 bot-box" id="twitch-audio-alerts" style="position: relative;">
+            <h1 class="title is-3 has-text-centered">Twitch Audio Alerts</h1>
+            <h1 class="subtitle is-5 has-text-centered">Twitch Sound Alerts: Followers, Cheers, Subs, Raids, Gift Subs and Hype Trains</h1>
+            <button class="button is-primary load-content" data-content="twitch-audio-alerts">Load Sound Alerts</button>
         </div>
         <div class="column is-5 bot-box" id="" style="position: relative;">
             <h1 class="title is-3 has-text-centered">Twitch Chat Alerts<br>(Under Development)</h1>
             <h1 class="subtitle is-5 has-text-centered">Twitch Chat alerts: Followers, Cheers, Subs and Raids</h1>
-            <button class="button is-primary" onclick="openModal('twitchChatAlertsModal')">Open Settings</button>
+            <button class="button is-primary load-content" data-content="twitch-chat-alerts">Load Settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- Content Containers for Dynamic Loading -->
+<div class="container">
+    <div id="dynamic-content" class="mt-5" style="display: none;">
+        <div class="box">
+            <div class="is-flex is-justify-content-space-between">
+                <h2 class="title is-3" id="dynamic-content-title"></h2>
+                <button class="button is-danger close-dynamic-content">Close</button>
+            </div>
+            <div id="dynamic-content-body"></div>
         </div>
     </div>
 </div>
@@ -655,6 +670,297 @@ function sendStreamEvent(eventType, fileName) {
     };
     xhr.send(params);
 }
+
+// Dynamic content loading functionality
+$(document).ready(function() {
+    // Handle dynamic content loading buttons
+    $('.load-content').on('click', function() {
+        const contentType = $(this).data('content');
+        $('#dynamic-content-title').text('');
+        $('#dynamic-content-body').html('<div class="has-text-centered"><p>Loading content...</p><progress class="progress is-primary" max="100"></progress></div>');
+        $('#dynamic-content').show();
+        
+        // Load different content based on the button clicked
+        if (contentType === 'twitch-audio-alerts') {
+            loadTwitchAudioAlerts();
+        } else if (contentType === 'joke-blacklist') {
+            loadJokeBlacklist();
+        } else if (contentType === 'welcome-messages') {
+            loadWelcomeMessages();
+        } else if (contentType === 'ad-notices') {
+            loadAdNotices();
+        } else if (contentType === 'chat-protection') {
+            loadChatProtection();
+        } else if (contentType === 'twitch-chat-alerts') {
+            loadTwitchChatAlerts();
+        }
+    });
+    
+    // Close dynamic content area when close button clicked
+    $('.close-dynamic-content').on('click', function() {
+        $('#dynamic-content').hide();
+    });
+    
+    // Function to load Joke Blacklist content
+    function loadJokeBlacklist() {
+        $('#dynamic-content-title').text('Manage Joke Blacklist');
+        
+        let html = `
+        <form method="POST" action="module_data_post.php" id="jokeBlacklistForm">
+            <h2 class="subtitle is-4 has-text-danger" style="text-align: center;">Any category selected here will not be allowed to be posted by the bot.</h2>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Miscellaneous"<?php echo in_array("Miscellaneous", $current_blacklist) ? " checked" : ""; ?>> Miscellaneous</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Coding"<?php echo in_array("Coding", $current_blacklist) ? " checked" : ""; ?>> Coding</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Development"<?php echo in_array("Development", $current_blacklist) ? " checked" : ""; ?>> Development</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Halloween"<?php echo in_array("Halloween", $current_blacklist) ? " checked" : ""; ?>> Halloween</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Pun"<?php echo in_array("Pun", $current_blacklist) ? " checked" : ""; ?>> Pun</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="nsfw"<?php echo in_array("nsfw", $current_blacklist) ? " checked" : ""; ?>> NSFW</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="religious"<?php echo in_array("religious", $current_blacklist) ? " checked" : ""; ?>> Religious</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political"<?php echo in_array("political", $current_blacklist) ? " checked" : ""; ?>> Political</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist"<?php echo in_array("racist", $current_blacklist) ? " checked" : ""; ?>> Racist</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist"<?php echo in_array("sexist", $current_blacklist) ? " checked" : ""; ?>> Sexist</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="dark"<?php echo in_array("dark", $current_blacklist) ? " checked" : ""; ?>> Dark</label></div>
+            <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="explicit"<?php echo in_array("explicit", $current_blacklist) ? " checked" : ""; ?>> Explicit</label></div>
+            <div id="blacklist-status-message"></div>
+            <button class="button is-primary" type="submit">Save Settings</button>
+        </form>`;
+        
+        $('#dynamic-content-body').html(html);
+        
+        // Handle form submission via AJAX
+        $('#jokeBlacklistForm').on('submit', function(e) {
+            e.preventDefault();
+            const form = $(this);
+            const formData = form.serialize();
+            
+            $.ajax({
+                type: 'POST',
+                url: 'module_data_post.php',
+                data: formData,
+                success: function() {
+                    $('#blacklist-status-message').html('<div class="notification is-success">Settings saved successfully!</div>');
+                    setTimeout(function() {
+                        $('#blacklist-status-message .notification').fadeOut();
+                    }, 3000);
+                },
+                error: function() {
+                    $('#blacklist-status-message').html('<div class="notification is-danger">Error saving settings. Please try again.</div>');
+                }
+            });
+        });
+    }
+    
+    // Function to load Welcome Messages content
+    function loadWelcomeMessages() {
+        $('#dynamic-content-title').text('Custom Welcome Messages');
+        
+        let html = `
+        <form method="POST" action="module_data_post.php" id="welcomeMessagesForm">
+            <div class="notification is-info">
+                <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
+            </div>
+            <div class="field">
+                <label class="label">Default New Member Welcome Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="new_default_welcome_message" value="<?php echo htmlspecialchars($new_default_welcome_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Default Returning Member Welcome Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="default_welcome_message" value="<?php echo htmlspecialchars($default_welcome_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Default New VIP Welcome Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="new_default_vip_welcome_message" value="<?php echo htmlspecialchars($new_default_vip_welcome_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Default Returning VIP Welcome Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="default_vip_welcome_message" value="<?php echo htmlspecialchars($default_vip_welcome_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Default New Mod Welcome Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="new_default_mod_welcome_message" value="<?php echo htmlspecialchars($new_default_mod_welcome_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Default Returning Mod Welcome Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="default_mod_welcome_message" value="<?php echo htmlspecialchars($default_mod_welcome_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="checkbox">
+                    <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages ? 'checked' : ''; ?>> Enable welcome messages
+                </label>
+            </div>
+            <div id="welcome-status-message"></div>
+            <button class="button is-primary" type="submit">Save Welcome Settings</button>
+        </form>`;
+        
+        $('#dynamic-content-body').html(html);
+        
+        // Handle form submission via AJAX
+        $('#welcomeMessagesForm').on('submit', function(e) {
+            e.preventDefault();
+            const form = $(this);
+            const formData = form.serialize();
+            
+            $.ajax({
+                type: 'POST',
+                url: 'module_data_post.php',
+                data: formData,
+                success: function() {
+                    $('#welcome-status-message').html('<div class="notification is-success">Settings saved successfully!</div>');
+                    setTimeout(function() {
+                        $('#welcome-status-message .notification').fadeOut();
+                    }, 3000);
+                },
+                error: function() {
+                    $('#welcome-status-message').html('<div class="notification is-danger">Error saving settings. Please try again.</div>');
+                }
+            });
+        });
+    }
+    
+    // Function to load Ad Notices content
+    function loadAdNotices() {
+        $('#dynamic-content-title').text('Ad Notices (BETA v5.4)');
+        
+        let html = `
+        <form method="POST" action="module_data_post.php" id="adNoticesForm">
+            <div class="notification is-info">
+                You can use the variable (duration) which will be replaced with the ads' duration.<br>
+                You can use the variable (minutes) which will be replaced with upcoming ads' duration in minutes.<br>
+            </div>
+            <div class="field">
+                <label class="label">Ad Upcoming Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="ad_upcoming_message" placeholder="Message when ads are upcoming" value="<?php echo htmlspecialchars($ad_upcoming_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Ad Starting Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="<?php echo htmlspecialchars($ad_start_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Ad Ended Message</label>
+                <div class="control">
+                    <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="<?php echo htmlspecialchars($ad_end_message); ?>">
+                </div>
+            </div>
+            <div class="field">
+                <label class="checkbox">
+                    <input type="checkbox" name="enable_ad_notice" value="1" <?php echo $enable_ad_notice ? 'checked' : ''; ?>> Enable Ad Notice
+                </label>
+            </div>
+            <div id="ad-notices-status-message"></div>
+            <button class="button is-primary" type="submit">Save Ad Notice Settings</button>
+        </form>`;
+        
+        $('#dynamic-content-body').html(html);
+        
+        // Handle form submission via AJAX
+        $('#adNoticesForm').on('submit', function(e) {
+            e.preventDefault();
+            const form = $(this);
+            const formData = form.serialize();
+            
+            $.ajax({
+                type: 'POST',
+                url: 'module_data_post.php',
+                data: formData,
+                success: function() {
+                    $('#ad-notices-status-message').html('<div class="notification is-success">Settings saved successfully!</div>');
+                    setTimeout(function() {
+                        $('#ad-notices-status-message .notification').fadeOut();
+                    }, 3000);
+                },
+                error: function() {
+                    $('#ad-notices-status-message').html('<div class="notification is-danger">Error saving settings. Please try again.</div>');
+                }
+            });
+        });
+    }
+    
+    // Function to load Chat Protection content
+    function loadChatProtection() {
+        $('#dynamic-content-title').text('Chat Protection');
+        
+        // Load the protection.php content via AJAX
+        $.ajax({
+            url: 'protection.php',
+            type: 'GET',
+            success: function(response) {
+                $('#dynamic-content-body').html(response);
+            },
+            error: function() {
+                $('#dynamic-content-body').html('<div class="notification is-danger">Failed to load chat protection settings.</div>');
+            }
+        });
+    }
+    
+    // Function to load Twitch Chat Alerts content
+    function loadTwitchChatAlerts() {
+        $('#dynamic-content-title').text('Twitch Chat Alerts');
+        
+        let html = `
+        <div class="notification is-info">
+            <span class="has-text-weight-bold">Variables:</span><br>
+            <ul>
+                <li><span class="has-text-weight-bold">(user)</span> for the username of the user.</li>
+                <li><span class="has-text-weight-bold">(bits)</span> for the number of bits for the cheer message.</li>
+                <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
+                <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
+                <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.</li>
+                <li><span class="has-text-weight-bold">(count)</span> for the number of gifted subscriptions.</li>
+                <li><span class="has-text-weight-bold">(level)</span> for the hype train level.</li>
+            </ul>
+        </div>
+        <form action="module_data_post.php" method="POST" id="chatAlertsForm">
+            <div class="field">
+                <label class="label">Follower Alert</label>
+                <div class="control"><input class="input" type="text" name="message_alert" value="Thank you (user) for following! Welcome to the channel!"></div>
+            </div>
+            <div class="field">
+                <label class="label">Cheer Alert</label>
+                <div class="control"><input class="input" type="text" name="command_alert" value="Thank you (user) for (bits) bits!"></div>
+            </div>
+            <div class="field">
+                <label class="label">Raid Alert</label>
+                <div class="control"><input class="input" type="text" name="mention_alert" value="Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!"></div>
+            </div>
+            <div class="field">
+                <label class="label">Subscription Alert</label>
+                <div class="control"><input class="input" type="text" name="subscription_alert" value="Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"></div>
+            </div>
+            <div class="field">
+                <label class="label">Gift Subscription Alert</label>
+                <div class="control"><input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members!"></div>
+            </div>
+            <div class="field">
+                <label class="label">Hype Train Start</label>
+                <div class="control"><input class="input" type="text" name="hype_train_start" value="The Hype Train has started! Starting at level: (level)"></div>
+            </div>
+            <div class="field">
+                <label class="label">Hype Train End</label>
+                <div class="control"><input class="input" type="text" name="hype_train_end" value="The Hype Train has ended at level (level)!"></div>
+            </div>
+            <div id="chat-alerts-status-message"></div>
+            <button class="button is-primary" type="submit" disabled>Save Chat Alert Settings</button>
+            <p><em>Coming soon: Chat alerts will be available in a future update.</em></p>
+        </form>`;
+        
+        $('#dynamic-content-body').html(html);
+    }
+});
 </script>
 </body>
 </html>
