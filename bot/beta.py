@@ -7868,16 +7868,15 @@ async def handle_upcoming_ads():
                 settings = await cursor.fetchone()
                 if settings:
                     enable_ad_notice = settings.get("enable_ad_notice", True)
-                    ad_upcoming_message = settings.get("ad_upcoming_message", "Upcoming ad break in {minutes} minutes!")
-                    ad_upcoming_message = ad_upcoming_message.replace("(minutes)", "{minutes}")
+                    ad_upcoming_message = settings.get("ad_upcoming_message", "Upcoming ad break in (minutes) minutes!")
                 else:
                     # Default settings if not found in database
                     enable_ad_notice = True
-                    ad_upcoming_message = "Upcoming ad break in {minutes} minutes!"
+                    ad_upcoming_message = "Upcoming ad break in (minutes) minutes!"
         except Exception as e:
             api_logger.error(f"Error retrieving ad notice settings: {e}")
             enable_ad_notice = True
-            ad_upcoming_message = "Upcoming ad break in {minutes} minutes!"
+            ad_upcoming_message = "Upcoming ad break in (minutes) minutes!"
         finally:
             await sqldb.ensure_closed()
         # Skip if notifications are disabled
@@ -7891,16 +7890,42 @@ async def handle_upcoming_ads():
                         ads_data = data.get("data", [])
                         if ads_data:
                             preroll_free_time = ads_data[0].get("preroll_free_time")
-                            if preroll_free_time > 180 and preroll_free_time < 480:
+                            ad_duration = ads_data[0].get("ad_duration")
+                            initial_snooze_count = ads_data[0].get("snooze_count")
+                            max_time = ad_duration + 300  # Allow a 5-minute buffer
+                            if preroll_free_time > ad_duration and preroll_free_time < max_time:
                                 time_to_ad = preroll_free_time - 180
                                 time_to_ad_minutes = int(time_to_ad / 60)
-                                # Check if the ad break is within the next 5 minutes
-                                message = ad_upcoming_message.format(minutes=time_to_ad_minutes)
+                                message = ad_upcoming_message.replace("(minutes)", str(time_to_ad_minutes))
                                 if time_to_ad_minutes == 1:
                                     message = message.replace("minutes", "minute")
                                 await channel.send(message)
                                 api_logger.info(f"Sent ad notification: {message}")
-                                await asyncio.sleep(600)  # Wait for 10 minutes before checking again
+                                # Start monitoring for snoozes until the ad starts
+                                elapsed_time = 0
+                                ad_window = preroll_free_time
+                                last_snooze_count = initial_snooze_count
+                                while elapsed_time < ad_window:
+                                    await asyncio.sleep(30)
+                                    elapsed_time += 30
+                                    async with session.get(url, headers=headers) as check_response:
+                                        if check_response.status == 200:
+                                            check_data = await check_response.json()
+                                            check_ads = check_data.get("data", [])
+                                            if check_ads:
+                                                current_snooze_count = check_ads[0].get("snooze_count")
+                                                if current_snooze_count < last_snooze_count:
+                                                    await channel.send("Ad break snoozed.")
+                                                    api_logger.info("Ad break snoozed detected.")
+                                                    last_snooze_count = current_snooze_count
+                                                # Update the remaining preroll free time
+                                                preroll_free_time = check_ads[0].get("preroll_free_time")
+                                                if preroll_free_time <= 0:
+                                                    api_logger.info("Ad break should have started.")
+                                                    break
+                                        else:
+                                            api_logger.warning(f"Failed to fetch ad data during snooze check. Status: {check_response.status}, Response: {await check_response.text()}")
+                                await asyncio.sleep(600)  # Wait 10 minutes before next check
                         else:
                             api_logger.info("No upcoming ad breaks scheduled.")
                     else:
