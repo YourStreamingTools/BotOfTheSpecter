@@ -234,7 +234,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
     <div class="tab-content <?php echo $activeTab == 'twitch-audio-alerts' ? 'is-active' : ''; ?>" id="twitch-audio-alerts">
         <div class="module-container">
         <h2 class="title is-3">Manage Twitch Event Sound Alerts:</h2>
-            <div class="notification is-warning">This feature is currently under development and will be available to beta users soon.</div>
+            <div class="notification is-warning">This feature is currently in development and is available to beta users running version 5.4.</div>
             <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
                 <div class="column is-4" id="walkon-upload" style="position: relative;">
                     <h1 class="title is-4">Upload MP3 Files:</h1>
