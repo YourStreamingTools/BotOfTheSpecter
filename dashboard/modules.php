@@ -22,11 +22,15 @@ include 'storage_used.php';
 include 'module_data.php';
 include 'module_data_post.php';
 include "mod_access.php";
+include "file_paths.php";
 foreach ($profileData as $profile) {
     $timezone = $profile['timezone'];
     $weather = $profile['weather_location'];
 }
 date_default_timezone_set($timezone);
+
+// Make sure sound alert directory exists and is writable
+ensure_upload_directories_exist();
 
 // Get active tab from URL parameter or default to first tab
 $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
@@ -242,12 +246,12 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                         <label for="filesToUpload" class="drag-area" id="drag-area">
                             <span>Drag & Drop files here or</span>
                             <span>Browse Files</span>
-                            <input type="file" name="filesToUpload[]" id="filesToUpload" multiple>
+                            <input type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3">
                         </label>
                         <br>
                         <div id="file-list"></div>
                         <br>
-                        <input type="submit" value="Upload MP3 Files" name="submit">
+                        <input type="submit" value="Upload MP3 Files" name="submit" class="button is-primary">
                     </form>
                     <br>
                     <div class="progress-bar-container">
