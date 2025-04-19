@@ -135,37 +135,37 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
             </div>
             <form method="POST" action="module_data_post.php">
                 <div class="field">
-                    <label class="label">Default New Member Welcome Message</label>
+                    <label class="has-text-white">Default New Member Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_welcome_message" value="<?php echo $new_default_welcome_message ? $new_default_welcome_message : '(user) is new to the community, let\'s give them a warm welcome!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default Returning Member Welcome Message</label>
+                    <label class="has-text-white">Default Returning Member Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="default_welcome_message" value="<?php echo $default_welcome_message ? $default_welcome_message : 'Welcome back (user), glad to see you again!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default New VIP Welcome Message</label>
+                    <label class="has-text-white">Default New VIP Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_vip_welcome_message" value="<?php echo $new_default_vip_welcome_message ? $new_default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default Returning VIP Welcome Message</label>
+                    <label class="has-text-white">Default Returning VIP Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="default_vip_welcome_message" value="<?php echo $default_vip_welcome_message ? $default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default New Mod Welcome Message</label>
+                    <label class="has-text-white">Default New Mod Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="new_default_mod_welcome_message" value="<?php echo $new_default_mod_welcome_message ? $new_default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Default Returning Mod Welcome Message</label>
+                    <label class="has-text-white">Default Returning Mod Welcome Message</label>
                     <div class="control">
                         <input class="input" type="text" name="default_mod_welcome_message" value="<?php echo $default_mod_welcome_message ? $default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
                     </div>
@@ -184,6 +184,12 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
         </div>
     </div>
 
+    <div class="tab-content <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>" id="chat-protection">
+        <div class="module-container">
+            <?php include('protection.php'); ?>
+        </div>
+    </div>
+
     <div class="tab-content <?php echo $activeTab == 'ad-notices' ? 'is-active' : ''; ?>" id="ad-notices">
         <div class="module-container">
             <h2 class="title is-4">Ad Notices</h2>
@@ -194,19 +200,19 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
             </div>
             <form method="POST" action="module_data_post.php">
                 <div class="field">
-                    <label class="label">Ad Upcoming Message</label>
+                    <label class="has-text-white">Ad Upcoming Message</label>
                     <div class="control">
                         <input class="input" type="text" name="ad_upcoming_message" placeholder="Message when ads are upcoming" value="<?php echo htmlspecialchars($ad_upcoming_message); ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Ad Starting Message</label>
+                    <label class="has-text-white">Ad Starting Message</label>
                     <div class="control">
                         <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="<?php echo htmlspecialchars($ad_start_message); ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Ad Ended Message</label>
+                    <label class="has-text-white">Ad Ended Message</label>
                     <div class="control">
                         <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="<?php echo htmlspecialchars($ad_end_message); ?>">
                     </div>
@@ -350,54 +356,54 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
             </div>
             <form action="module_data_post.php" method="POST" id="chatAlertsForm">
                 <div class="field">
-                    <label class="label">Follower Alert</label>
+                    <label class="has-text-white">Follower Alert</label>
                     <div class="control">
                         <input class="input" type="text" name="follower_alert" value="Thank you (user) for following! Welcome to the channel!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Cheer Alert</label>
+                    <label class="has-text-white">Cheer Alert</label>
                     <div class="control">
                         <input class="input" type="text" name="cheer_alert" value="Thank you (user) for (bits) bits!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Raid Alert</label>
+                    <label class="has-text-white">Raid Alert</label>
                     <div class="control">
                         <input class="input" type="text" name="raid_alert" value="Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Subscription Alert</label>
+                    <label class="has-text-white">Subscription Alert</label>
                     <div class="control">
                         <input class="input" type="text" name="subscription_alert" value="Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Gift Subscription Alert</label>
+                    <label class="has-text-white">Gift Subscription Alert</label>
                     <div class="control">
                         <input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members!">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Hype Train Start</label>
+                    <label class="has-text-white">Hype Train Start</label>
                     <div class="control">
                         <input class="input" type="text" name="hype_train_start" value="The Hype Train has started! Starting at level: (level)">
                     </div>
                 </div>
-                <div class="field">
-                    <label class="label">Hype Train End</label>
+                <di class="field">
+                    <label class="has-text-white">Hype Train End</label>
                     <div class="control">
                         <input class="input" type="text" name="hype_train_end" value="The Hype Train has ended at level (level)!">
                     </div>
                 </div>
+                <br>
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-primary" type="submit" disabled>Save Settings</button>
+                    </div>
+                </div>
             </form>
-        </div>
-    </div>
-
-    <div class="tab-content <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>" id="chat-protection">
-        <div class="module-container">
-            <?php include('protection.php'); ?>
         </div>
     </div>
 </div>
