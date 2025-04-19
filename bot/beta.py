@@ -717,8 +717,7 @@ async def process_twitch_eventsub_message(message):
                 if event_type == "channel.follow":
                     asyncio.create_task(process_followers_event(
                         event_data["user_id"],
-                        event_data["user_name"],
-                        event_data["followed_at"]
+                        event_data["user_name"]
                     ))
                 # Subscription Event
                 elif event_type == "channel.subscribe":
@@ -6501,11 +6500,10 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
         await sqldb.ensure_closed()
 
 # Function for FOLLOWERS
-async def process_followers_event(user_id, user_name, followed_at_twitch):
+async def process_followers_event(user_id, user_name):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
-        followed_at_twitch = followed_at_twitch[:26]
         time_now = datetime.now()
         followed_at = time_now.strftime("%Y-%m-%d %H:%M:%S")
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
