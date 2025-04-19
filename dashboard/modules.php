@@ -322,7 +322,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                                         <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
                                     </td>
                                     <td>
-                                        <button type="button" class="test-sound button is-primary" data-file="<?php echo htmlspecialchars($file); ?>">Test</button>
+                                        <button type="button" class="test-sound button is-primary" data-file="twitch/<?php echo htmlspecialchars($file); ?>">Test</button>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
