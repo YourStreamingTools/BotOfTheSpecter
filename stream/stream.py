@@ -4,6 +4,7 @@ import logging
 import ssl
 import asyncio
 import argparse
+import time
 from asyncio import subprocess
 import aiomysql
 from dotenv import load_dotenv
@@ -221,31 +222,103 @@ class RTMP2FLVController(SimpleRTMPController):
                 twitch_url
             ]
             logger.info(f"Forwarding stream to Twitch: {twitch_url}")
+            # Record the start time for monitoring
+            session.twitch_forward_start_time = datetime.datetime.now()
+            session.last_health_check = time.time()
             # Start the FFmpeg process and store in session for cleanup
             session.ffmpeg_process = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
+            logger.info(f"FFmpeg process started with PID: {session.ffmpeg_process.pid}")
+            # Start health monitoring task
+            health_monitor_task = asyncio.create_task(self.monitor_ffmpeg_health(session))
+            session.health_monitor_task = health_monitor_task
             # Wait for the process to complete
             stdout, stderr = await session.ffmpeg_process.communicate()
+            # Calculate duration of the forwarding
+            end_time = datetime.datetime.now()
+            duration = end_time - session.twitch_forward_start_time
+            hours, remainder = divmod(duration.seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
             if session.ffmpeg_process.returncode != 0:
-                logger.error(f"FFmpeg error (code {session.ffmpeg_process.returncode}):\n{stderr.decode()}")
+                logger.error(f"FFmpeg process terminated with code {session.ffmpeg_process.returncode} after {hours}h {minutes}m {seconds}s")
+                logger.error(f"FFmpeg stderr output: {stderr.decode()}")
+                # Log the last 100 lines of stderr for detailed debugging
+                stderr_lines = stderr.decode().splitlines()
+                if len(stderr_lines) > 100:
+                    logger.error(f"Last 100 lines of FFmpeg stderr: {stderr_lines[-100:]}")
+                else:
+                    logger.error(f"Complete FFmpeg stderr: {stderr_lines}")
             else:
-                logger.info(f"FFmpeg output:\n{stdout.decode()}")
+                logger.info(f"FFmpeg process completed normally after {hours}h {minutes}m {seconds}s")
                 logger.info("Finished forwarding stream to Twitch.")
+            # Cancel health monitoring task if it's still running
+            if not health_monitor_task.done():
+                health_monitor_task.cancel()
+                try:
+                    await health_monitor_task
+                except asyncio.CancelledError:
+                    pass
         except asyncio.CancelledError:
             logger.info("Twitch forwarding task was cancelled")
             await self.terminate_ffmpeg(session)
         except Exception as e:
-            logger.error(f"Exception while running FFmpeg: {e}")
+            logger.error(f"Exception while running FFmpeg: {e}", exc_info=True)
             await self.terminate_ffmpeg(session)
+
+    async def monitor_ffmpeg_health(self, session):
+        try:
+            check_interval = 300  # Check every 5 minutes
+            while True:
+                await asyncio.sleep(check_interval)
+                current_time = time.time()
+                if not hasattr(session, 'ffmpeg_process') or session.ffmpeg_process is None:
+                    logger.error("FFmpeg process reference lost, monitoring stopping")
+                    return
+                if session.ffmpeg_process.returncode is not None:
+                    logger.error(f"FFmpeg process terminated unexpectedly with code {session.ffmpeg_process.returncode}")
+                    return
+                # Calculate uptime
+                uptime = datetime.datetime.now() - session.twitch_forward_start_time
+                hours, remainder = divmod(uptime.seconds + uptime.days * 86400, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                # Log process status
+                logger.info(f"FFmpeg health check: Process is running (PID: {session.ffmpeg_process.pid}, Uptime: {hours}h {minutes}m {seconds}s)")
+                # Check if the stream file is still growing
+                if hasattr(session, 'flv_file_path') and os.path.exists(session.flv_file_path):
+                    current_size = os.path.getsize(session.flv_file_path)
+                    logger.info(f"Current FLV file size: {current_size / (1024*1024):.2f} MB")
+                # If approaching 8 hours, log more frequently
+                if 7 <= hours < 8:
+                    logger.warning(f"Stream approaching 8 hour mark: {hours}h {minutes}m {seconds}s - monitoring closely")
+                    check_interval = 60  # Check every minute when approaching the 8-hour mark
+                session.last_health_check = current_time
+        except asyncio.CancelledError:
+            logger.info("FFmpeg health monitoring cancelled")
+        except Exception as e:
+            logger.error(f"Error in FFmpeg health monitoring: {e}", exc_info=True)
 
     async def terminate_ffmpeg(self, session):
         if hasattr(session, 'ffmpeg_process') and session.ffmpeg_process:
             try:
+                # Cancel health monitoring task if it exists
+                if hasattr(session, 'health_monitor_task') and session.health_monitor_task:
+                    if not session.health_monitor_task.done():
+                        session.health_monitor_task.cancel()
+                        try:
+                            await asyncio.wait_for(session.health_monitor_task, timeout=1.0)
+                        except (asyncio.CancelledError, asyncio.TimeoutError):
+                            pass
                 if session.ffmpeg_process.returncode is None:  # Process is still running
                     logger.info("Terminating FFmpeg process...")
+                    # Log duration before terminating
+                    if hasattr(session, 'twitch_forward_start_time'):
+                        duration = datetime.datetime.now() - session.twitch_forward_start_time
+                        hours, remainder = divmod(duration.seconds, 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        logger.info(f"FFmpeg process ran for {hours}h {minutes}m {seconds}s before termination")
                     session.ffmpeg_process.terminate()
                     try:
                         # Wait for a short time for graceful termination
@@ -255,8 +328,14 @@ class RTMP2FLVController(SimpleRTMPController):
                         session.ffmpeg_process.kill()
                     finally:
                         logger.info("FFmpeg process terminated")
+                elif hasattr(session, 'twitch_forward_start_time'):
+                    # Log info about terminated process
+                    duration = datetime.datetime.now() - session.twitch_forward_start_time
+                    hours, remainder = divmod(duration.seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    logger.info(f"FFmpeg process already terminated with code {session.ffmpeg_process.returncode} after running for {hours}h {minutes}m {seconds}s")
             except Exception as e:
-                logger.error(f"Error while terminating FFmpeg: {e}")
+                logger.error(f"Error while terminating FFmpeg: {e}", exc_info=True)
 
     async def on_metadata(self, session, message) -> None:
         session.state.write(0, message.to_raw_meta(), FLVMediaType.OBJECT)
