@@ -351,6 +351,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                     <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
                     <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
                     <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.<span style="vertical-align: middle; line-height: 1; display: inline-block;" class="is-size-4 has-text-weight-bold has-text-danger">*</span></li>
+                    <li><span class="has-text-weight-bold">(total-gifted)</span> for the total number of gifted subscriptions.<span style="vertical-align: middle; line-height: 1; display: inline-block;" class="is-size-4 has-text-weight-bold has-text-danger">*</span></li>
                     <li><span class="has-text-weight-bold">(count)</span> for the number of gifted subscriptions.</li>
                     <li><span class="has-text-weight-bold">(level)</span> for the hype train level.</li>
                 </ul>
@@ -381,9 +382,9 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                     </div>
                 </div>
                 <div class="field">
-                    <label class="has-text-white">Gift Subscription Alert</label>
+                    <label class="has-text-white">Gift Subscription Alert <span class="is-size-4 has-text-weight-bold has-text-danger">*</span></label>
                     <div class="control">
-                        <input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members!">
+                        <input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!">
                     </div>
                 </div>
                 <div class="field">
