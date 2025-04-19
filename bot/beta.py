@@ -770,7 +770,14 @@ async def process_twitch_eventsub_message(message):
                 elif event_type == "channel.hype_train.begin":
                     event_logger.info(f"Hype Train Start Event Data: {event_data}")
                     level = event_data["level"]
-                    await channel.send(f"The Hype Train has started! Starting at level: {level}")
+                    await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("hype_train_start",))
+                    result = await cursor.fetchone()
+                    if result and result.get("alert_message"):
+                        alert_message = result.get("alert_message")
+                    else:
+                        alert_message = "The Hype Train has started! Starting at level: (level)"
+                    alert_message = alert_message.replace("(level)", str(level))
+                    await channel.send(alert_message)
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train Start",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
@@ -780,7 +787,14 @@ async def process_twitch_eventsub_message(message):
                 elif event_type == "channel.hype_train.end":
                     event_logger.info(f"Hype Train End Event Data: {event_data}")
                     level = event_data["level"]
-                    await channel.send(f"The Hype Train has ended at level {level}!")
+                    await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("hype_train_end",))
+                    result = await cursor.fetchone()
+                    if result and result.get("alert_message"):
+                        alert_message = result.get("alert_message")
+                    else:
+                        alert_message = "The Hype Train has ended at level: (level)!"
+                    alert_message = alert_message.replace("(level)", str(level))
+                    await channel.send(alert_message)
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train End",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
@@ -6238,7 +6252,15 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             discord_message = f"{from_broadcaster_name} has raided with {viewer_count} viewers!"
             await send_to_discord(discord_message, "New Raid!", "raid.png")
             asyncio.create_task(websocket_notice("TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
-            await channel.send(f"Incredible! {from_broadcaster_name} and {viewer_count} viewers have joined the party! Let's give them a warm welcome!")
+            # Send a message to the Twitch channel
+            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("raid_alert",))
+            result = await cursor.fetchone()
+            if result and result.get("alert_message"):
+                alert_message = result.get("alert_message")
+            else:
+                alert_message = "Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!"
+            alert_message = alert_message.replace("(user)", from_broadcaster_name).replace("(viewers)", str(viewer_count))
+            await channel.send(alert_message)
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6258,6 +6280,12 @@ async def process_cheer_event(user_id, user_name, bits):
     sqldb = await get_mysql_connection()
     try:
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("cheer_alert",))
+            result = await cursor.fetchone()
+            if result and result.get("alert_message"):
+                alert_message = result.get("alert_message")
+            else:
+                alert_message = "Thank you (user) for (bits) bits! You've given a total of (total-bits) bits."
             # Check existing bits data
             await cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (user_id, user_name))
             existing_bits = await cursor.fetchone()
@@ -6266,8 +6294,9 @@ async def process_cheer_event(user_id, user_name, bits):
                 total_bits = existing_bits["bits"] + bits
                 await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (total_bits, user_id, user_name))
                 total_bits = "{:,}".format(total_bits)
-                await channel.send(f"Thank you {user_name} for {bits} bits! You've given a total of {total_bits} bits.")
             else:
+                total_bits = bits
+                total_bits = "{:,}".format(total_bits)
                 await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (user_id, user_name, bits))
                 discord_message = f"{user_name} just cheered {bits} bits!"
                 if bits < 100:
@@ -6276,6 +6305,8 @@ async def process_cheer_event(user_id, user_name, bits):
                     image = "cheer100.png"
                 else:
                     image = "cheer1000.png"
+            alert_message = alert_message.replace("(user)", user_name).replace("(bits)", str(bits)).replace("(total-bits)", str(total_bits))
+            await channel.send(alert_message)
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
@@ -6306,7 +6337,6 @@ async def process_cheer_event(user_id, user_name, bits):
                 await addtime_subathon(channel, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Discord Logs, Twitch Chat, and Websocket
             await send_to_discord(discord_message, "New Cheer!", image)
-            await channel.send(f"Thank you {user_name} for {bits} bits!")
             asyncio.create_task(websocket_notice("TWITCH_CHEER", user=user_name, cheer_amount=bits))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
@@ -6378,7 +6408,13 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                     sub_add_time = 0  # Default to 0 if no matching tier
                 await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
-            message = f"Thank you {user_name} for subscribing! You are now a {sub_plan} subscriber for {event_months} months!"
+            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
+            result = await cursor.fetchone()
+            if result and result.get("alert_message"):
+                alert_message = result.get("alert_message")
+            else:
+                alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+            alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             discord_message = f"{user_name} just subscribed at {sub_plan}!"
             try:
                 await send_to_discord(discord_message, "New Subscriber!", "sub.png")
@@ -6392,7 +6428,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
             try:
-                await channel.send(message)
+                await channel.send(alert_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6467,7 +6503,13 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                     sub_add_time = 0  # Default to 0 if no matching tier
                 await addtime_subathon(channel, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages
-            message = f"Thank you {user_name} for resubscribing! You are now a {sub_plan} subscriber for {event_months} months! {subscriber_message}"
+            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
+            result = await cursor.fetchone()
+            if result and result.get("alert_message"):
+                alert_message = result.get("alert_message")
+            else:
+                alert_message = "Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!"
+            alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
             discord_message = f"{user_name} just resubscribed at {sub_plan}!"
             try:
                 await send_to_discord(discord_message, "New Resubscription!", "sub.png")
@@ -6481,7 +6523,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, subsc
                 event_logger.error(f"Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
             try:
-                await channel.send(message)
+                await channel.send(alert_message)
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6507,20 +6549,22 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (gifter_user_name, "Gift Subscriptions", f"{number_gifts} - GIFT SUBSCRIPTIONS"))
             await sqldb.commit()
+            await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_subscription_alert",))
+            result = await cursor.fetchone()
+            if result and result.get("alert_message"):
+                alert_message = result.get("alert_message")
+            else:
+                alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
             if anonymous:
-                message = f"Thank you for gifting a {givent_sub_plan} subscription to {number_gifts} members! {number_gifts} members are now a {givent_sub_plan} subscriber!"
                 discord_message = f"An Anonymous Gifter just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
                 giftsubfrom = "Anonymous"
             else:
                 giftsubfrom = gifter_user_name
-                if total_gifted > 1:
-                    message = f"Thank you {giftsubfrom} for gifting a {givent_sub_plan} subscription to {number_gifts} members! You have gifted a total of {total_gifted} to the community!"
-                else:
-                    message = f"Thank you {giftsubfrom} for gifting a {givent_sub_plan} subscription to {number_gifts} members!"
                 discord_message = f"{giftsubfrom} just gifted {number_gifts} of gift subscriptions!"
                 await send_to_discord(discord_message, "New Gifted Subscription!", "sub.png")
-            await channel.send(message)
+            alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
+            await channel.send(alert_message)
             marker_description = f"New Gift Subs from {giftsubfrom}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -6569,11 +6613,17 @@ async def process_followers_event(user_id, user_name):
                 )
             await sqldb.commit()
         # Send follow notification to Discord Logs, Twitch Chat and Websocket
-        message = f"Thank you {user_name} for following! Welcome to the channel!"
+        await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("follower_alert",))
+        result = await cursor.fetchone()
+        if result and result.get("alert_message"):
+            alert_message = result.get("alert_message")
+        else:
+            alert_message = "Thank you (user) for following! Welcome to the channel!"
+        alert_message = alert_message.replace("(user)", user_name)
+        await channel.send(alert_message)
         discord_message = f"{user_name} just followed!"
         await send_to_discord(discord_message, "New Follower!", "follow.png")
         asyncio.create_task(websocket_notice("TWITCH_FOLLOW", user=user_name))
-        await channel.send(message)
         marker_description = f"New Twitch Follower: {user_name}"
         if await make_stream_marker(marker_description):
             twitch_logger.info(f"A stream marker was created: {marker_description}.")
