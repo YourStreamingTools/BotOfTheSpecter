@@ -400,7 +400,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                 <br>
                 <div class="field">
                     <div class="control">
-                        <button class="button is-primary" type="submit" disabled>Save Settings</button>
+                        <button class="button is-primary" type="submit">Save Settings</button>
                     </div>
                 </div>
             </form>
