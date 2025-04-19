@@ -176,9 +176,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['update_message'] = "Ad notice settings updated successfully.";
     }
     // Handle chat alerts settings update
-    elseif (isset($_POST['follower_alert'])) {
+    elseif (
+            isset($_POST['follower_alert']) || isset($_POST['cheer_alert']) || isset($_POST['raid_alert']) || isset($_POST['subscription_alert'])
+            || isset($_POST['gift_subscription_alert']) || isset($_POST['hype_train_start']) || isset($_POST['hype_train_end'])
+        ) {
         $activeTab = "twitch-chat-alerts";
-        // Handle twitch chat alerts settings
+        $alertTypes = [
+            'follower_alert', 
+            'cheer_alert', 
+            'raid_alert', 
+            'subscription_alert', 
+            'gift_subscription_alert', 
+            'hype_train_start', 
+            'hype_train_end'
+        ];
+        foreach ($alertTypes as $alertType) {
+            if (isset($_POST[$alertType])) {
+                $alertMessage = $_POST[$alertType];
+                $update_sql = "INSERT INTO twitch_chat_alerts (alert_type, alert_message) VALUES (?, ?) ON DUPLICATE KEY UPDATE alert_message = ?";
+                $update_stmt = $db->prepare($update_sql);
+                $update_stmt->bind_param('sss', $alertType, $alertMessage, $alertMessage);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+        }
+        $_SESSION['update_message'] = "Twitch Chat Alert settings updated successfully.";
     }
     // Handle file upload for Twitch Sound Alerts
     if (isset($_FILES["filesToUpload"]) && is_array($_FILES["filesToUpload"]["tmp_name"])) {
