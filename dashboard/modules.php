@@ -284,7 +284,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                                     <td>
                                         <?php
                                         // Determine the current mapped reward (if any)
-                                        $current_reward_id = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
+                                        $current_mapped = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
                                         $mappedEvents = [];
                                         foreach ($twitchSoundAlertMappings as $mappedFile => $mappedEvent) {
                                             if ($mappedFile !== $file && $mappedEvent) {
@@ -294,20 +294,20 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                                         $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
                                         $availableEvents = array_diff($allEvents, $mappedEvents);
                                         ?>
-                                        <?php if ($current_reward_id): ?>
-                                            <em><?php echo htmlspecialchars($current_reward_id); ?></em>
+                                        <?php if ($current_mapped): ?>
+                                            <em><?php echo htmlspecialchars($current_mapped); ?></em>
                                         <?php else: ?>
                                             <em>Not Mapped</em>
                                         <?php endif; ?>
                                         <br>
-                                        <?php if (!empty($availableEvents) || !$current_reward_id): ?>
+                                        <?php if (!empty($availableEvents) || !$current_mapped): ?>
                                             <form action="module_data_post.php" method="POST" class="mapping-form">
                                                 <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                                 <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
                                                     <option value="">-- Select Event --</option>
                                                     <?php
                                                     foreach ($availableEvents as $evt) {
-                                                        if ($current_reward_id !== $evt) {
+                                                        if ($current_mapped !== $evt) {
                                                             echo '<option value="' . htmlspecialchars($evt) . '">' . htmlspecialchars($evt) . '</option>';
                                                         }
                                                     }
