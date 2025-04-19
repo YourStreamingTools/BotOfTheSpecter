@@ -1,4 +1,6 @@
 <?php
+include 'file_paths.php';
+
 // Define the user's directories
 $walkon_path = "/var/www/walkons/" . $username;
 $soundalert_path = "/var/www/soundalerts/" . $username;
@@ -55,17 +57,38 @@ if (!is_dir($twitch_sound_alert_path)) {
     }
 }
 
-// Calculate total storage used by the user across both directories
+// Function to calculate the total size of files in specified directories
 function calculateStorageUsed($directories) {
-    $size = 0;
+    $totalSize = 0;
     foreach ($directories as $directory) {
-        foreach (glob(rtrim($directory, '/').'/*', GLOB_NOSORT) as $file) {
-            $size += is_file($file) ? filesize($file) : calculateStorageUsed([$file]);
+        if (is_dir($directory)) {
+            $files = scandir($directory);
+            foreach ($files as $file) {
+                if ($file != "." && $file != "..") {
+                    $path = $directory . '/' . $file;
+                    if (is_file($path)) {
+                        $totalSize += filesize($path);
+                    } elseif (is_dir($path) && $file != "twitch") {
+                        $subDirFiles = scandir($path);
+                        foreach ($subDirFiles as $subFile) {
+                            if ($subFile != "." && $subFile != "..") {
+                                $subPath = $path . '/' . $subFile;
+                                if (is_file($subPath)) {
+                                    $totalSize += filesize($subPath);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
-    return $size;
+    return $totalSize;
 }
 
-$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path]);
+// Calculate the current storage used directly from directories
+$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path]);
+
+// Calculate percentage for progress bar
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 ?>
