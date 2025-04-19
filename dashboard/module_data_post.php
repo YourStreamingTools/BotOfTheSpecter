@@ -1,4 +1,33 @@
 <?php
+// Function to calculate the total size of files in specified directories
+function calculateStorageUsed($directories) {
+    $totalSize = 0;
+    foreach ($directories as $directory) {
+        if (is_dir($directory)) {
+            $files = scandir($directory);
+            foreach ($files as $file) {
+                if ($file != "." && $file != "..") {
+                    $path = $directory . '/' . $file;
+                    if (is_file($path)) {
+                        $totalSize += filesize($path);
+                    } elseif (is_dir($path) && $file != "twitch") {
+                        $subDirFiles = scandir($path);
+                        foreach ($subDirFiles as $subFile) {
+                            if ($subFile != "." && $subFile != "..") {
+                                $subPath = $path . '/' . $subFile;
+                                if (is_file($subPath)) {
+                                    $totalSize += filesize($subPath);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return $totalSize;
+}
+
 // Initialize the session if not already
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -229,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $error = error_get_last();
                 $status .= "Sorry, there was an error uploading " . htmlspecialchars($fileName) . ".<br>";
                 if ($error) {
-                    $status .= "Error details: " . print_r($error, true) . "<br>";
+                    $status .= "Error details: " . htmlspecialchars(print_r($error, true)) . "<br>";
                 }
             }
         }
@@ -241,7 +270,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // If this is an AJAX request, return JSON
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             header('Content-Type: application/json');
-            echo json_encode(['status' => $status, 'success' => true, 'storage_used' => $current_storage_used, 'max_storage' => $max_storage_size]);
+            echo json_encode([
+                'status' => $status, 
+                'success' => true, 
+                'storage_used' => $current_storage_used, 
+                'max_storage' => $max_storage_size,
+                'storage_percentage' => $storage_percentage
+            ]);
             exit;
         }
     }
