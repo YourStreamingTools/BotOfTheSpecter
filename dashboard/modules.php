@@ -29,9 +29,6 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 
-// Make sure sound alert directory exists and is writable
-ensure_upload_directories_exist();
-
 // Get active tab from URL parameter or default to first tab
 $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
 ?>
@@ -400,7 +397,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                     <div class="control">
                         <input class="input" type="text" name="hype_train_end" value="The Hype Train has ended at level (level)!">
                     </div>
-                </div>
+                </di>
                 <br>
                 <div class="field">
                     <div class="control">
@@ -446,12 +443,11 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             e.stopPropagation();
             this.classList.remove('dragging');
-            
             let dt = e.dataTransfer;
             let files = dt.files;
-            
             fileInput.files = files;
             updateFileList(files);
+            uploadFiles(files);
         });
 
         dropArea.addEventListener('click', function() {
@@ -462,6 +458,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (fileInput) {
         fileInput.addEventListener('change', function() {
             updateFileList(this.files);
+            if(this.files.length > 0) {
+                uploadFiles(this.files);
+            }
         });
     }
 
@@ -474,6 +473,36 @@ document.addEventListener('DOMContentLoaded', function() {
             fileItem.textContent = files[i].name;
             fileList.appendChild(fileItem);
         }
+    }
+    
+    function uploadFiles(files) {
+        let formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('filesToUpload[]', files[i]);
+        }
+        $.ajax({
+            url: 'module_data_post.php',
+            type: 'POST',
+            data: formData,
+            contentType: false,
+            processData: false,
+            xhr: function() {
+                let xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        let percentComplete = (e.loaded / e.total) * 100;
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                location.reload();
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
+                alert('Upload failed: ' + textStatus);
+            }
+        });
     }
 
     // Test sound buttons
@@ -499,6 +528,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+    // Add event listener for mapping select boxes
+    $('.mapping-select').on('change', function() {
+        $(this).closest('form').submit();
+    });
 });
 
 // Function to send a stream event
@@ -506,10 +539,8 @@ function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();
     const url = "notify_event.php";
     const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
-    
     xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4) {
             if (xhr.status === 200) {
@@ -529,7 +560,6 @@ function sendStreamEvent(eventType, fileName) {
             }
         }
     };
-    
     xhr.send(params);
 }
 </script>
