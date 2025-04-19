@@ -1,33 +1,4 @@
 <?php
-// Function to calculate the total size of files in specified directories
-function calculateStorageUsed($directories) {
-    $totalSize = 0;
-    foreach ($directories as $directory) {
-        if (is_dir($directory)) {
-            $files = scandir($directory);
-            foreach ($files as $file) {
-                if ($file != "." && $file != "..") {
-                    $path = $directory . '/' . $file;
-                    if (is_file($path)) {
-                        $totalSize += filesize($path);
-                    } elseif (is_dir($path) && $file != "twitch") {
-                        $subDirFiles = scandir($path);
-                        foreach ($subDirFiles as $subFile) {
-                            if ($subFile != "." && $subFile != "..") {
-                                $subPath = $path . '/' . $subFile;
-                                if (is_file($subPath)) {
-                                    $totalSize += filesize($subPath);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return $totalSize;
-}
-
 // Initialize the session if not already
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -38,6 +9,7 @@ require_once "/var/www/config/database.php";
 require_once "/var/www/config/db_connect.php";
 include 'user_db.php';
 include 'file_paths.php';
+include 'storage_used.php';
 
 $db_name = isset($_SESSION['username']) ? $_SESSION['username'] : null;
 
@@ -216,8 +188,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!is_dir($twitch_sound_alert_path)) {
             mkdir($twitch_sound_alert_path, 0755, true);
         }
+        // Define user-specific storage limits (backup in case storage_used.php wasn't included properly)
+        if (!isset($max_storage_size)) {
+            $tier = $_SESSION['tier'] ?? "None";
+            switch ($tier) {
+                case "1000": $max_storage_size = 50 * 1024 * 1024; break;
+                case "2000": $max_storage_size = 100 * 1024 * 1024; break;
+                case "3000": $max_storage_size = 200 * 1024 * 1024; break;
+                case "4000": $max_storage_size = 500 * 1024 * 1024; break;
+                default: $max_storage_size = 20 * 1024 * 1024; break;
+            }
+        }
         // Recalculate current storage used to ensure accuracy
-        $current_storage_used = calculateStorageUsed([$soundalert_path, $twitch_sound_alert_path]);
+        $walkon_path = "/var/www/walkons/" . $username;
+        $videoalert_path = "/var/www/videoalerts/" . $username;
+        $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path]);
         foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
             if (empty($tmp_name)) continue;
             $fileName = $_FILES["filesToUpload"]["name"][$key];
@@ -246,13 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Move file to destination
             if (move_uploaded_file($tmp_name, $targetFile)) {
                 $current_storage_used += $fileSize;
-                // Update storage in database
-                $stmt = $db->prepare("UPDATE storage_usage SET storage_used = ? WHERE user_id = ?");
-                if ($stmt) {
-                    $stmt->bind_param('ii', $current_storage_used, $user_id);
-                    $stmt->execute();
-                    $stmt->close();
-                }
+                // Remove the database update since the table doesn't exist
                 $status .= "The file " . htmlspecialchars($fileName) . " has been uploaded.<br>";
             } else {
                 $error = error_get_last();
@@ -270,13 +249,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // If this is an AJAX request, return JSON
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             header('Content-Type: application/json');
-            echo json_encode([
+            $responseData = [
                 'status' => $status, 
-                'success' => true, 
+                'success' => strpos($status, 'Failed to upload') === false, 
                 'storage_used' => $current_storage_used, 
                 'max_storage' => $max_storage_size,
-                'storage_percentage' => $storage_percentage
-            ]);
+                'storage_percentage' => $storage_percentage,
+                'tier' => $_SESSION['tier'] ?? 'None'
+            ];
+            // Debug values to help determine what's going wrong
+            if (strpos($status, 'Failed to upload') !== false) {
+                error_log("Upload Failed - Storage Debug: current=$current_storage_used, max=$max_storage_size, tier={$_SESSION['tier']}");
+            }
+            echo json_encode($responseData);
             exit;
         }
     }
@@ -311,15 +296,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             } catch (Exception $e) {
                 $status .= "Error: " . $e->getMessage() . "<br>";
-            }
-        }
-        // Update storage in database
-        if ($totalFreed > 0) {
-            $updateStorage = $db->prepare("UPDATE storage_usage SET storage_used = ? WHERE user_id = ?");
-            if ($updateStorage) {
-                $updateStorage->bind_param('ii', $current_storage_used, $user_id);
-                $updateStorage->execute();
-                $updateStorage->close();
             }
         }
         // Calculate storage percentage
