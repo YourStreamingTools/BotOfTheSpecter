@@ -360,45 +360,45 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                 <div class="field">
                     <label class="has-text-white">Follower Alert</label>
                     <div class="control">
-                        <input class="input" type="text" name="follower_alert" value="Thank you (user) for following! Welcome to the channel!">
+                        <input class="input" type="text" name="follower_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['follower_alert']) ? $chat_alerts['follower_alert'] : $default_chat_alerts['follower_alert']); ?>">
                     </div>
                 </div>
                 <div class="field">
                     <label class="has-text-white">Cheer Alert</label>
                     <div class="control">
-                        <input class="input" type="text" name="cheer_alert" value="Thank you (user) for (bits) bits! You've given a total of (total-bits) bits.">
+                        <input class="input" type="text" name="cheer_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['cheer_alert']) ? $chat_alerts['cheer_alert'] : $default_chat_alerts['cheer_alert']); ?>">
                     </div>
                 </div>
                 <div class="field">
                     <label class="has-text-white">Raid Alert</label>
                     <div class="control">
-                        <input class="input" type="text" name="raid_alert" value="Incredible! (user) and (viewers) viewers have joined the party! Let's give them a warm welcome!">
+                        <input class="input" type="text" name="raid_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['raid_alert']) ? $chat_alerts['raid_alert'] : $default_chat_alerts['raid_alert']); ?>">
                     </div>
                 </div>
                 <div class="field">
                     <label class="has-text-white">Subscription Alert <span class="is-size-4 has-text-weight-bold has-text-danger">*</span></label>
                     <div class="control">
-                        <input class="input" type="text" name="subscription_alert" value="Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!">
+                        <input class="input" type="text" name="subscription_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['subscription_alert']) ? $chat_alerts['subscription_alert'] : $default_chat_alerts['subscription_alert']); ?>">
                     </div>
                 </div>
                 <div class="field">
                     <label class="has-text-white">Gift Subscription Alert <span class="is-size-4 has-text-weight-bold has-text-danger">*</span></label>
                     <div class="control">
-                        <input class="input" type="text" name="gift_subscription_alert" value="Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!">
+                        <input class="input" type="text" name="gift_subscription_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['gift_subscription_alert']) ? $chat_alerts['gift_subscription_alert'] : $default_chat_alerts['gift_subscription_alert']); ?>">
                     </div>
                 </div>
                 <div class="field">
                     <label class="has-text-white">Hype Train Start</label>
                     <div class="control">
-                        <input class="input" type="text" name="hype_train_start" value="The Hype Train has started! Starting at level: (level)">
+                        <input class="input" type="text" name="hype_train_start" value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_start']) ? $chat_alerts['hype_train_start'] : $default_chat_alerts['hype_train_start']); ?>">
                     </div>
                 </div>
-                <di class="field">
+                <div class="field">
                     <label class="has-text-white">Hype Train End</label>
                     <div class="control">
-                        <input class="input" type="text" name="hype_train_end" value="The Hype Train has ended at level (level)!">
+                        <input class="input" type="text" name="hype_train_end" value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_end']) ? $chat_alerts['hype_train_end'] : $default_chat_alerts['hype_train_end']); ?>">
                     </div>
-                </di>
+                </div>
                 <br>
                 <div class="field">
                     <div class="control">
