@@ -341,7 +341,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
     <div class="tab-content <?php echo $activeTab == 'twitch-chat-alerts' ? 'is-active' : ''; ?>" id="twitch-chat-alerts">
         <div class="module-container">
             <h2 class="title is-4">Configure Chat Alerts</h2>
-            <div class="notification is-warning">This feature is currently under development and will be available to beta users soon.</div>
+            <div class="notification is-warning">This feature is currently in development and is available to beta users running version 5.4.</div>
             <div class="notification is-dark">
                 <span class="has-text-weight-bold">Variables:</span><br>
                 <ul>
