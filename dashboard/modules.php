@@ -20,7 +20,6 @@ include 'bot_control.php';
 include 'user_db.php';
 include 'storage_used.php';
 include 'module_data.php';
-include 'module_data_post.php';
 include "mod_access.php";
 include "file_paths.php";
 foreach ($profileData as $profile) {
@@ -447,7 +446,6 @@ document.addEventListener('DOMContentLoaded', function() {
             let files = dt.files;
             fileInput.files = files;
             updateFileList(files);
-            uploadFiles(files);
         });
 
         dropArea.addEventListener('click', function() {
@@ -480,6 +478,8 @@ document.addEventListener('DOMContentLoaded', function() {
         for (let i = 0; i < files.length; i++) {
             formData.append('filesToUpload[]', files[i]);
         }
+        // Show upload status indicator
+        $('#file-list').append('<div class="notification is-info">Uploading files, please wait...</div>');
         $.ajax({
             url: 'module_data_post.php',
             type: 'POST',
@@ -496,11 +496,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 return xhr;
             },
             success: function(response) {
-                location.reload();
+                // Check if response is JSON
+                let result;
+                try {
+                    if (typeof response === 'string') {
+                        result = JSON.parse(response);
+                    } else {
+                        result = response;
+                    }
+                    if (result.success) {
+                        // Update the progress bar with new storage values
+                        if (result.storage_percentage) {
+                            $('#uploadProgressBar').css('width', result.storage_percentage + '%');
+                            $('#uploadProgressBar').text(Math.round(result.storage_percentage * 100) / 100 + '%');
+                        }
+                        // Show success message
+                        $('#file-list').html('<div class="notification is-success">Upload completed successfully!</div>');
+                        // Reload the page after a short delay
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        $('#file-list').html('<div class="notification is-danger">Upload failed: ' + (result.status || 'Unknown error') + '</div>');
+                    }
+                } catch (e) {
+                    console.error("Error parsing response:", e);
+                    $('#file-list').html('<div class="notification is-danger">Error processing server response</div>');
+                    setTimeout(function() {
+                        location.reload();
+                    }, 2000);
+                }
             },
             error: function(jqXHR, textStatus, errorThrown) {
                 console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
-                alert('Upload failed: ' + textStatus);
+                console.error('Response:', jqXHR.responseText);
+                $('#file-list').html('<div class="notification is-danger">Upload failed: ' + textStatus + '<br>Please check file size limits and try again.</div>');
             }
         });
     }
