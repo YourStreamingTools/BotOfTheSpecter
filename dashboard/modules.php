@@ -342,14 +342,14 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
         <div class="module-container">
             <h2 class="title is-4">Configure Chat Alerts</h2>
             <div class="notification is-warning">This feature is currently under development and will be available to beta users soon.</div>
-            <div class="notification is-info">
+            <div class="notification is-dark">
                 <span class="has-text-weight-bold">Variables:</span><br>
                 <ul>
                     <li><span class="has-text-weight-bold">(user)</span> for the username of the user.</li>
                     <li><span class="has-text-weight-bold">(bits)</span> for the number of bits for the cheer message.</li>
                     <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
                     <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
-                    <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.</li>
+                    <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.<span style="vertical-align: middle; line-height: 1; display: inline-block;" class="is-size-4 has-text-weight-bold has-text-danger">*</span></li>
                     <li><span class="has-text-weight-bold">(count)</span> for the number of gifted subscriptions.</li>
                     <li><span class="has-text-weight-bold">(level)</span> for the hype train level.</li>
                 </ul>
@@ -374,7 +374,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                     </div>
                 </div>
                 <div class="field">
-                    <label class="has-text-white">Subscription Alert</label>
+                    <label class="has-text-white">Subscription Alert <span class="is-size-4 has-text-weight-bold has-text-danger">*</span></label>
                     <div class="control">
                         <input class="input" type="text" name="subscription_alert" value="Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!">
                     </div>
