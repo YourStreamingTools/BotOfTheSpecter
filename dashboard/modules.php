@@ -347,6 +347,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                 <ul>
                     <li><span class="has-text-weight-bold">(user)</span> for the username of the user.</li>
                     <li><span class="has-text-weight-bold">(bits)</span> for the number of bits for the cheer message.</li>
+                    <li><span class="has-text-weight-bold">(total-bits)</span> for the total amount of bits the user has given.</li>
                     <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
                     <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
                     <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.<span style="vertical-align: middle; line-height: 1; display: inline-block;" class="is-size-4 has-text-weight-bold has-text-danger">*</span></li>
@@ -364,7 +365,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
                 <div class="field">
                     <label class="has-text-white">Cheer Alert</label>
                     <div class="control">
-                        <input class="input" type="text" name="cheer_alert" value="Thank you (user) for (bits) bits!">
+                        <input class="input" type="text" name="cheer_alert" value="Thank you (user) for (bits) bits! You've given a total of (total-bits) bits.">
                     </div>
                 </div>
                 <div class="field">
