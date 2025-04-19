@@ -100,14 +100,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $status = "";
         $soundFile = htmlspecialchars($_POST['sound_file']);
         $rewardId = isset($_POST['twitch_alert_id']) ? htmlspecialchars($_POST['twitch_alert_id']) : '';
-        
         $db->begin_transaction();
         // Check if a mapping already exists for this sound file
         $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = ?");
         $checkExisting->bind_param('s', $soundFile);
         $checkExisting->execute();
         $result = $checkExisting->get_result();
-        
         if ($result->num_rows > 0) {
             // Update existing mapping
             if (!empty($rewardId)) {
@@ -181,46 +179,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $activeTab = "twitch-chat-alerts";
         // Handle twitch chat alerts settings
     }
-    
     // Handle file upload for Twitch Sound Alerts
     if (isset($_FILES["filesToUpload"]) && is_array($_FILES["filesToUpload"]["tmp_name"])) {
         $activeTab = "twitch-audio-alerts";
         $status = "";
-        
         // Ensure directory exists
         if (!is_dir($twitch_sound_alert_path)) {
             mkdir($twitch_sound_alert_path, 0755, true);
         }
-        
+        // Recalculate current storage used to ensure accuracy
+        $current_storage_used = calculateStorageUsed([$soundalert_path, $twitch_sound_alert_path]);
         foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
             if (empty($tmp_name)) continue;
-            
             $fileName = $_FILES["filesToUpload"]["name"][$key];
             $fileSize = $_FILES["filesToUpload"]["size"][$key];
             $fileError = $_FILES["filesToUpload"]["error"][$key];
-            
-            // Check if file size exceeds storage limit
+            // Check file size with accurate storage used calculation
             if ($current_storage_used + $fileSize > $max_storage_size) {
-                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Storage limit exceeded.<br>";
+                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Storage limit exceeded. Using " . 
+                    round($current_storage_used / 1024 / 1024, 2) . "MB of " . 
+                    round($max_storage_size / 1024 / 1024, 2) . "MB.<br>";
                 continue;
             }
-            
             // Verify file is an MP3
             $fileType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
             if ($fileType != "mp3") {
                 $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Only MP3 files are allowed.<br>";
                 continue;
             }
-            
             // Check for upload errors
             if ($fileError !== 0) {
                 $status .= "Error uploading " . htmlspecialchars($fileName) . ". Error code: $fileError<br>";
                 continue;
             }
-            
             // Full path for the destination file
             $targetFile = $twitch_sound_alert_path . '/' . basename($fileName);
-            
             // Move file to destination
             if (move_uploaded_file($tmp_name, $targetFile)) {
                 $current_storage_used += $fileSize;
@@ -231,7 +224,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->execute();
                     $stmt->close();
                 }
-                
                 $status .= "The file " . htmlspecialchars($fileName) . " has been uploaded.<br>";
             } else {
                 $error = error_get_last();
@@ -241,18 +233,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             }
         }
-        
         // Calculate storage percentage
         if (isset($max_storage_size) && $max_storage_size > 0) {
             $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
         }
-        
         $_SESSION['update_message'] = $status;
-        
         // If this is an AJAX request, return JSON
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             header('Content-Type: application/json');
-            echo json_encode(['status' => $status, 'success' => true]);
+            echo json_encode(['status' => $status, 'success' => true, 'storage_used' => $current_storage_used, 'max_storage' => $max_storage_size]);
             exit;
         }
     }
@@ -262,14 +251,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $activeTab = "twitch-audio-alerts";
         $status = "";
         $totalFreed = 0;
-        
         foreach ($_POST['delete_files'] as $file_to_delete) {
             $file_name = basename($file_to_delete);
             $full_path = $twitch_sound_alert_path . '/' . $file_name;
-            
             // Get file size before deletion
             $fileSize = is_file($full_path) ? filesize($full_path) : 0;
-            
             try {
                 // First delete any database mappings
                 $delete_mapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
@@ -278,15 +264,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $delete_mapping->execute();
                     $delete_mapping->close();
                 }
-                
                 // Now delete the actual file
                 if (is_file($full_path) && unlink($full_path)) {
                     $status .= "The file " . htmlspecialchars($file_name) . " has been deleted.<br>";
-                    
                     // Update storage used
                     $current_storage_used -= $fileSize;
                     if ($current_storage_used < 0) $current_storage_used = 0;
-                    
                     $totalFreed += $fileSize;
                 } else {
                     $status .= "Failed to delete " . htmlspecialchars($file_name) . ".<br>";
@@ -295,7 +278,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $status .= "Error: " . $e->getMessage() . "<br>";
             }
         }
-        
         // Update storage in database
         if ($totalFreed > 0) {
             $updateStorage = $db->prepare("UPDATE storage_usage SET storage_used = ? WHERE user_id = ?");
@@ -305,12 +287,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $updateStorage->close();
             }
         }
-        
         // Calculate storage percentage
         if (isset($max_storage_size) && $max_storage_size > 0) {
             $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
         }
-        
         $_SESSION['update_message'] = $status;
     }
 
