@@ -87,15 +87,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $status = "";
         $soundFile = htmlspecialchars($_POST['sound_file']);
         $rewardId = isset($_POST['twitch_alert_id']) ? htmlspecialchars($_POST['twitch_alert_id']) : '';
-        
         $db->begin_transaction();
-        
         // Check if a mapping already exists for this sound file
         $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = ?");
         $checkExisting->bind_param('s', $soundFile);
         $checkExisting->execute();
         $result = $checkExisting->get_result();
-        
         if ($result->num_rows > 0) {
             // Update existing mapping
             if (!empty($rewardId)) {
@@ -164,13 +161,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $update_stmt->close();
         $_SESSION['update_message'] = "Ad notice settings updated successfully.";
     }
-    
     // Handle chat alerts settings update
     elseif (isset($_POST['follower_alert'])) {
         $activeTab = "twitch-chat-alerts";
         // Handle twitch chat alerts settings
     }
-
     // Handle file upload
     if (isset($_FILES["filesToUpload"])) {
         $activeTab = "twitch-audio-alerts";
@@ -199,6 +194,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['update_message'] = $status;
     }
 
+    // File Upload Handling for Twitch Sound Alerts
+    if (isset($_FILES['filesToUpload'])) {
+        $status = '';
+        $fileCount = count($_FILES['filesToUpload']['name']);
+        $uploadedCount = 0;
+        // Ensure upload directory exists
+        if (!is_dir($twitch_sound_alert_path)) {
+            mkdir($twitch_sound_alert_path, 0755, true);
+        }
+        // Check if directory is writable
+        if (!is_writable($twitch_sound_alert_path)) {
+            $_SESSION['update_message'] = "Error: Upload directory is not writable. Please check permissions.";
+            header('Location: modules.php?tab=twitch-audio-alerts');
+            exit;
+        }
+        for ($i = 0; $i < $fileCount; $i++) {
+            $fileName = $_FILES['filesToUpload']['name'][$i];
+            $fileTmpName = $_FILES['filesToUpload']['tmp_name'][$i];
+            $fileSize = $_FILES['filesToUpload']['size'][$i];
+            $fileError = $_FILES['filesToUpload']['error'][$i];
+            // Check if the file is an MP3
+            $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if ($fileExt != 'mp3') {
+                $status .= "Error: $fileName is not an MP3 file.<br>";
+                continue;
+            }
+            // Check for errors
+            if ($fileError !== 0) {
+                $status .= "Error uploading $fileName. Error code: $fileError<br>";
+                continue;
+            }
+            // Check file size (5MB limit)
+            if ($fileSize > 5000000) {
+                $status .= "Error: $fileName exceeds the 5MB size limit.<br>";
+                continue;
+            }
+            // Calculate new storage usage
+            $newStorageUsed = $current_storage_used + $fileSize;
+            if ($newStorageUsed > $max_storage_size) {
+                $status .= "Error: You have reached your storage limit. Delete some files first.<br>";
+                continue;
+            }
+            // Create a unique filename to prevent overwriting
+            $destination = $twitch_sound_alert_path . '/' . $fileName;
+            // Move the file
+            if (move_uploaded_file($fileTmpName, $destination)) {
+                $uploadedCount++;
+                // Update storage used in database
+                $current_storage_used += $fileSize;
+                $stmt = $pdo->prepare("UPDATE storage_usage SET storage_used = ? WHERE user_id = ?");
+                $stmt->execute([$current_storage_used, $user_id]);
+            } else {
+                $status .= "Error moving $fileName to destination.<br>";
+            }
+        }
+        if ($uploadedCount > 0) {
+            $_SESSION['update_message'] = "$uploadedCount file(s) uploaded successfully." . ($status ? "<br>$status" : "");
+        } else {
+            $_SESSION['update_message'] = "No files were uploaded. $status";
+        }
+        header('Location: modules.php?tab=twitch-audio-alerts');
+        exit;
+    }
+
     // Handle file deletion
     if (isset($_POST['delete_files'])) {
         $activeTab = "twitch-audio-alerts";
@@ -222,6 +281,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
         $_SESSION['update_message'] = $status;
+    }
+
+    // Delete Sound Alert Files
+    if (isset($_POST['submit_delete']) && isset($_POST['delete_files'])) {
+        $deletedCount = 0;
+        foreach ($_POST['delete_files'] as $file) {
+            $filePath = $twitch_sound_alert_path . '/' . $file;
+            if (file_exists($filePath)) {
+                // Get file size before deletion for storage calculation
+                $fileSize = filesize($filePath);
+                
+                if (unlink($filePath)) {
+                    $deletedCount++;
+                    // Update storage used
+                    $current_storage_used -= $fileSize;
+                    if ($current_storage_used < 0) $current_storage_used = 0;
+                }
+            }
+        }
+        // Update database with new storage value
+        $stmt = $pdo->prepare("UPDATE storage_usage SET storage_used = ? WHERE user_id = ?");
+        $stmt->execute([$current_storage_used, $user_id]);
+        $_SESSION['update_message'] = "$deletedCount file(s) deleted successfully.";
+        header('Location: modules.php?tab=twitch-audio-alerts');
+        exit;
     }
     // Redirect back to the modules page with the active tab
     header("Location: modules.php?tab=" . $activeTab);
