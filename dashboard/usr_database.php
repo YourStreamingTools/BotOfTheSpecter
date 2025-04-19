@@ -413,7 +413,12 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 twitch_key VARCHAR(255),
                 forward_to_twitch TINYINT(1)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'twitch_chat_alerts' => "
+            CREATE TABLE IF NOT EXISTS twitch_chat_alerts (
+                alert_type VARCHAR(255) PRIMARY KEY,
+                alert_message TEXT
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
     // List of columns to check for each table (table_name => columns)
     $columns = [
