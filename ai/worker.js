@@ -376,7 +376,7 @@ async function runAI(payload, env, timeout = 20000) {
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(
-      `https://gateway.ai.cloudflare.com/v1/${env.ACCOUNT_ID}/specterai/workers-ai/@cf/meta/llama-3.1-70b-instruct`,
+      `https://gateway.ai.cloudflare.com/v1/${env.ACCOUNT_ID}/specterai/workers-ai/@cf/meta/llama-4-scout-17b-16e-instruct`,
       {
         method: 'POST',
         headers: {
