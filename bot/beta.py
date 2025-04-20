@@ -738,7 +738,6 @@ async def process_twitch_eventsub_message(message):
                         event_data["user_id"],
                         event_data["user_name"],
                         tier_name,
-                        subscription_message,
                         event_data.get("cumulative_months", 1)
                     ))
                 # Subscription Gift Event
@@ -6447,7 +6446,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
         await sqldb.ensure_closed()
 
 # Function for Resubscriptions with Messages
-async def process_subscription_message_event(user_id, user_name, sub_plan, subscriber_message, event_months):
+async def process_subscription_message_event(user_id, user_name, sub_plan, event_months):
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
     sqldb = await get_mysql_connection()
     try:
