@@ -601,6 +601,18 @@ export default {
             headers: { 'content-type': 'text/plain' },
           });
         }
+        const songRequestPattern = /(?:^|\s)@bot\s+(?:add|request)\s+"([^"]+)"(?:\s+to\s+the\s+queue)?/i;
+        const match = userMessage.match(songRequestPattern);
+        if (match) {
+          const requestedSong = match[1]; // Extract the song title from the message
+          const commandResponse = `You can use the command '!song' to view the currently playing song or '!songrequest' to make a song request for "${requestedSong}".`;
+          conversationHistory.push({ role: 'assistant', content: commandResponse });
+          await saveConversationHistory(channel, message_user, conversationHistory, env);
+          console.log('Song Request Response:', commandResponse);
+          return new Response(commandResponse, {
+            headers: { 'content-type': 'text/plain' },
+          });
+        }
         // Prepare the AI chat prompt with conversation history
         const chatPrompt = {
           messages: [
