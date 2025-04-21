@@ -36,17 +36,17 @@ switch ($service) {
         break;
     case 'streamingService':
         // AU-EAST-1 Streaming Service
-        $pingStatus = pingServer('10.240.0.211', 80);
+        $pingStatus = pingServer('10.240.0.211', 1935);
         $status = $pingStatus >= 0 ? 'OK' : 'OFF';
         break;
     case 'streamingServiceWest':
         // US-WEST-1 Streaming Service
-        $pingStatus = pingServer('5.78.129.75', 80);
+        $pingStatus = pingServer('5.78.129.75', 1935);
         $status = $pingStatus >= 0 ? 'OK' : 'OFF';
         break;
     case 'streamingServiceEast':
         // US-EAST-1 Streaming Service
-        $pingStatus = pingServer('5.161.201.91', 80);
+        $pingStatus = pingServer('5.161.201.91', 1935);
         $status = $pingStatus >= 0 ? 'OK' : 'OFF';
         break;
 }
