@@ -87,10 +87,11 @@ builtin_commands = {
 }
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
-    "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto"
+    "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
+    "skipsong"
 }
 builtin_aliases = {
-    "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader"
+    "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip"
 }
 
 # Logs
@@ -150,6 +151,7 @@ global stream_title
 global bot_started
 global SPOTIFY_REFRESH_TOKEN
 global SPOTIFY_ACCESS_TOKEN
+global SPOTIFY_ERROR_MESSAGES
 global next_spotify_refresh_time
 global HEARTRATE
 global TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
@@ -190,6 +192,17 @@ TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for sh
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
 bot_owner = "gfaundead"                                 # Bot owner's username
+
+SPOTIFY_ERROR_MESSAGES = {
+    400: "It looks like something went wrong with the request. Please try again.",
+    401: "I couldn't connect to Spotify. Looks like the authentication failed. Please check the bot's credentials.",
+    403: "Spotify says I don't have permission to do that. Check your Spotify account settings.",
+    404: "I couldn't find what you were looking for. Please double-check the song or playlist.",
+    429: "Spotify is saying we're sending too many requests. Let's wait a moment and try again.",
+    500: "Spotify is having server issues. Please try again in a bit.",
+    502: "Spotify is having a temporary issue. Please try again in a bit.",
+    503: "Spotify's service is currently down. We'll need to wait until it's back online.",
+}
 
 # Function to handle termination signals
 async def signal_handler(sig, frame):
@@ -2469,7 +2482,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN, song_requests, bot_owner
+        global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2487,7 +2500,7 @@ class TwitchBot(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
-            headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
+            headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
             message = ctx.message.content
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
@@ -2518,23 +2531,8 @@ class TwitchBot(commands.Bot):
                                 await ctx.send(f"No song found: {message_content}")
                                 return
                     else:
-                        # Map Spotify API response codes to plain English explanations
-                        SPOTIFY_ERROR_MESSAGES = {
-                            400: "It looks like something went wrong with the request. Please try again.",
-                            401: "I couldn't connect to Spotify. Looks like the authentication failed. Please check the bot's credentials.",
-                            403: "Spotify says I don't have permission to do that. Check your Spotify account settings.",
-                            404: "I couldn't find what you were looking for. Please double-check the song or playlist.",
-                            429: "Spotify is saying we're sending too many requests. Let's wait a moment and try again.",
-                            500: "Spotify is having server issues. Please try again in a bit.",
-                            502: "Spotify is having a temporary issue. Please try again in a bit.",
-                            503: "Spotify's service is currently down. We'll need to wait until it's back online.",
-                        }
-                        # Spotify API error handling
                         api_logger.error(f"Spotify returned response code: {response.status}")
-                        error_message = SPOTIFY_ERROR_MESSAGES.get(
-                            response.status, 
-                            "Spotify gave me an unknown error. Try again in a moment."
-                        )
+                        error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
                         await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
                         return
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
@@ -2544,8 +2542,45 @@ class TwitchBot(commands.Bot):
                         await ctx.send(f"The song {song_name} by {artist_name} has been added to the queue.")
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
+                        error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
+                        await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the songrequest command: {e}")
+            await ctx.send("An unexpected error occurred. Please try again later.")
+        finally:
+            await sqldb.ensure_closed()
+
+    @commands.cooldown(rate=1, per=60, bucket=commands.Bucket.member)
+    @commands.command(name='skipsong', aliases=['skip'])
+    async def skipsong_command(self, ctx):
+        global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
+        sqldb = await get_mysql_connection()
+        try:
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission FROM builtin_commands WHERE command=%s", ("skipsong",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        await ctx.send(f"Skipping songs is currently disabled.")
+                        return
+                if not await command_permissions(permissions, ctx.author):
+                    await ctx.send("You do not have the required permissions to use this command.")
+                    return
+            headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
+            url = "https://api.spotify.com/v1/me/player/next"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers) as response:
+                    if response.status == 204:
+                        api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
+                        await ctx.send("Song skipped successfully.")
+                    else:
+                        api_logger.error(f"Spotify returned response code: {response.status}")
+                        error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
+                        await ctx.send(f"Sorry, I couldn't skip the song. {error_message}")
+        except Exception as e:
+            chat_logger.error(f"An error occurred during the execution of the skipsong command: {e}")
             await ctx.send("An unexpected error occurred. Please try again later.")
         finally:
             await sqldb.ensure_closed()
@@ -2553,7 +2588,7 @@ class TwitchBot(commands.Bot):
     @commands.cooldown(rate=1, per=30, bucket=commands.Bucket.member)
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(self, ctx):
-        global SPOTIFY_ACCESS_TOKEN, song_requests, bot_owner
+        global SPOTIFY_ACCESS_TOKEN, SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         sqldb = await get_mysql_connection()
         try:
             async with sqldb.cursor(aiomysql.DictCursor) as cursor:
@@ -2571,8 +2606,8 @@ class TwitchBot(commands.Bot):
                 if not await command_permissions(permissions, ctx.author):
                     await ctx.send("You do not have the required permissions to use this command.")
                     return
-            headers = { "Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}" }
             # Request the queue information from Spotify
+            headers = {"Authorization": f"Bearer {SPOTIFY_ACCESS_TOKEN}"}
             queue_url = "https://api.spotify.com/v1/me/player/queue"
             async with aiohttp.ClientSession() as queue_session:
                 async with queue_session.get(queue_url, headers=headers) as response:
@@ -2583,11 +2618,7 @@ class TwitchBot(commands.Bot):
                             queue_length = len(queue)
                             # Get the currently playing song
                             song_name, artist_name, song_id = await get_spotify_current_song()
-                            # Check if the current song was requested by someone
-                            current_song_requester = None
-                            if song_id in song_requests:
-                                current_song_requester = song_requests[song_id].get("user")
-                            # Send message for the current song
+                            current_song_requester = song_requests.get(song_id, {}).get("user") if song_id in song_requests else None
                             if song_name and artist_name:
                                 if current_song_requester:
                                     await ctx.send(f"🎵 Now Playing: {song_name} by {artist_name} (requested by {current_song_requester})")
@@ -2599,16 +2630,12 @@ class TwitchBot(commands.Bot):
                                 song_id = song['uri']
                                 song_name = song['name']
                                 artist_name = song['artists'][0]['name']
-                                requester = None
-                                # Check if a song is in the requests list and fetch the requester
-                                if song_id in song_requests:
-                                    requester = song_requests[song_id].get("user")
-                                # Format the song entry with the requester
+                                requester = song_requests.get(song_id, {}).get("user") if song_id in song_requests else None
                                 if requester:
-                                    song_list.append(f"{idx}. {song_name} by {artist_name} (requested by {requester}) ")
+                                    song_list.append(f"{idx}. {song_name} by {artist_name} (requested by {requester})")
                                 else:
-                                    song_list.append(f"{idx}. {song_name} by {artist_name} ")
-                                if idx >= 3:  # Limit the display to the first 3 songs
+                                    song_list.append(f"{idx}. {song_name} by {artist_name}")
+                                if idx >= 3:
                                     break
                             # Add a note if there are more songs in the queue
                             if queue_length > 3:
@@ -2621,13 +2648,7 @@ class TwitchBot(commands.Bot):
                         else:
                             await ctx.send("It seems like nothing is playing on Spotify right now.")
                     else:
-                        error_message = {
-                            401: "I lost access to Spotify. Please reauthorize the bot.",
-                            403: "Spotify says I can't access the queue. Please check permissions.",
-                            404: "I couldn't find any queue. Is Spotify open and playing?",
-                            429: "Spotify is overloaded right now. Try again in a moment.",
-                            500: "Spotify is having technical difficulties. Let's try later.",
-                        }.get(response.status, "Something went wrong with Spotify. Please try again soon.")
+                        error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Something went wrong with Spotify. Please try again soon.")
                         await ctx.send(f"Sorry, I couldn't fetch the queue. {error_message}")
                         api_logger.error(f"Spotify returned response code: {response.status}")
         except Exception as e:
