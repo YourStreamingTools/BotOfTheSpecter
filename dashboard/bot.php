@@ -560,15 +560,17 @@ include "mod_access.php";
     <section class="modal-card-body has-background-dark has-text-white">
       <p>
         <span class="has-text-weight-bold variable-title">Song Identifications Left:</span>
-        Indicates the number of song identification requests we have remaining.
+        Indicates the number of song identification requests we have remaining, this dose not count towards users with Spotify Connection.
       </p>
+      <br>
       <p>
         <span class="has-text-weight-bold variable-title">Exchange Rate Checks Left:</span>
-        Represents the number of exchange rate checks available.
+        Represents the number of exchange rate checks available to use to convert currency values.
       </p>
+      <br>
       <p>
         <span class="has-text-weight-bold variable-title">Weather Requests Left:</span>
-        Shows how many weather requests we can make.
+        Shows how many weather requests we can make to the weather API. This is used to provide weather information in the chat.
       </p>
     </section>
   </div>
