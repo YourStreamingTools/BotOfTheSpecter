@@ -23,9 +23,6 @@ foreach ($profileData as $profile) {
 }
 date_default_timezone_set($timezone);
 
-// Include S3-compatible API library
-require_once '/var/www/vendor/aws-autoloader.php';
-
 // Check connection
 if ($billing_conn->connect_error) {
     die("Billing connection failed: " . $billing_conn->connect_error);
@@ -87,94 +84,100 @@ if (isset($email)) {
 }
 $billing_conn->close();
 
+// Include S3-compatible API library
+require_once '/var/www/vendor/aws-autoloader.php';
 use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
 
-// Initialize S3 client for AWS
-$s3Client = new S3Client([
-    'version' => 'latest',
-    'region' => 'us-east-1',
-    'endpoint' => "https://" . $bucket_url,
-    'credentials' => [
-        'key' => $access_key,
-        'secret' => $secret_key
-    ]
-]);
-
-// Function to fetch files from S3 bucket
-function getS3Files($bucketName) {
-    global $s3Client;
-    $files = [];
-    try {
-        $result = $s3Client->listObjectsV2([
-            'Bucket' => $bucketName
-        ]);
-        if (!empty($result['Contents'])) {
-            foreach ($result['Contents'] as $object) {
-                $key = $object['Key'];
-                $sizeBytes = $object['Size'];
-                $lastModified = $object['LastModified']->getTimestamp();
-                // Format file size
-                $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
-                    ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
-                    round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
-                // Format creation date
-                $createdAt = date('d-m-Y H:i:s', $lastModified);
-                $files[] = [
-                    'name' => pathinfo(basename($key), PATHINFO_FILENAME),
-                    'size' => $size,
-                    'created_at' => $createdAt,
-                    'path' => $key
-                ];
-            }
-        }
-    } catch (AwsException $e) {
-        return ['error' => $e->getMessage()];
-    }
-    return $files;
-}
-
-// Fetch persistent storage files
+// Initialize S3 client and fetch files only if the user has an active subscription
 $persistent_storage_files = [];
 $persistent_storage_error = null;
 $total_used_storage = 0; // Initialize total used storage
 
-$result = getS3Files($username);
-if (isset($result['error'])) {
-    $persistent_storage_error = "Persistent storage is not available at the moment. Please try again later.";
-} else {
-    $persistent_storage_files = $result;
-    // Calculate total used storage
-    foreach ($persistent_storage_files as $file) {
-        if (isset($file['size'])) {
-            // Convert size to bytes for calculation
-            $size = $file['size'];
-            if (strpos($size, 'KB') !== false) {
-                $total_used_storage += floatval($size) * 1024;
-            } elseif (strpos($size, 'MB') !== false) {
-                $total_used_storage += floatval($size) * 1024 * 1024;
-            } elseif (strpos($size, 'GB') !== false) {
-                $total_used_storage += floatval($size) * 1024 * 1024 * 1024;
+// Only initialize S3 client and attempt operations if user has an active subscription
+if ($is_subscribed) {
+    // Initialize S3 client for AWS
+    $s3Client = new S3Client([
+        'version' => 'latest',
+        'region' => 'us-east-1',
+        'endpoint' => "https://" . $bucket_url,
+        'credentials' => [
+            'key' => $access_key,
+            'secret' => $secret_key
+        ]
+    ]);
+    
+    // Function to fetch files from S3 bucket
+    function getS3Files($bucketName) {
+        global $s3Client;
+        $files = [];
+        try {
+            $result = $s3Client->listObjectsV2([
+                'Bucket' => $bucketName
+            ]);
+            if (!empty($result['Contents'])) {
+                foreach ($result['Contents'] as $object) {
+                    $key = $object['Key'];
+                    $sizeBytes = $object['Size'];
+                    $lastModified = $object['LastModified']->getTimestamp();
+                    // Format file size
+                    $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
+                        ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
+                        round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
+                    // Format creation date
+                    $createdAt = date('d-m-Y H:i:s', $lastModified);
+                    $files[] = [
+                        'name' => pathinfo(basename($key), PATHINFO_FILENAME),
+                        'size' => $size,
+                        'created_at' => $createdAt,
+                        'path' => $key
+                    ];
+                }
+            }
+        } catch (AwsException $e) {
+            return ['error' => $e->getMessage()];
+        }
+        return $files;
+    }
+
+    // Fetch persistent storage files
+    $result = getS3Files($username);
+    if (isset($result['error'])) {
+        $persistent_storage_error = "Persistent storage is not available at the moment. Please try again later.";
+    } else {
+        $persistent_storage_files = $result;
+        // Calculate total used storage
+        foreach ($persistent_storage_files as $file) {
+            if (isset($file['size'])) {
+                // Convert size to bytes for calculation
+                $size = $file['size'];
+                if (strpos($size, 'KB') !== false) {
+                    $total_used_storage += floatval($size) * 1024;
+                } elseif (strpos($size, 'MB') !== false) {
+                    $total_used_storage += floatval($size) * 1024 * 1024;
+                } elseif (strpos($size, 'GB') !== false) {
+                    $total_used_storage += floatval($size) * 1024 * 1024 * 1024;
+                }
             }
         }
+        // Convert total used storage to GB for display
+        $total_used_storage = round($total_used_storage / (1024 * 1024 * 1024), 2);
     }
-    // Convert total used storage to GB for display
-    $total_used_storage = round($total_used_storage / (1024 * 1024 * 1024), 2);
-}
-
-// Handle file deletion if requested
-if (isset($_GET['delete']) && !empty($_GET['delete'])) {
-    $fileToDelete = $_GET['delete'];
-    try {
-        $s3Client->deleteObject([
-            'Bucket' => $username,
-            'Key' => $fileToDelete
-        ]);
-        $_SESSION['delete_success'] = true;
-        header('Location: persistent_storage_page.php');
-        exit();
-    } catch (AwsException $e) {
-        $delete_error = "Error deleting file: " . $e->getMessage();
+    
+    // Handle file deletion if requested
+    if (isset($_GET['delete']) && !empty($_GET['delete'])) {
+        $fileToDelete = $_GET['delete'];
+        try {
+            $s3Client->deleteObject([
+                'Bucket' => $username,
+                'Key' => $fileToDelete
+            ]);
+            $_SESSION['delete_success'] = true;
+            header('Location: persistent_storage_page.php');
+            exit();
+        } catch (AwsException $e) {
+            $delete_error = "Error deleting file: " . $e->getMessage();
+        }
     }
 }
 ?>
