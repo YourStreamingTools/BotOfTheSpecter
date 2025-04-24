@@ -30,6 +30,7 @@ if ($billing_conn->connect_error) {
 
 // Check subscription status
 $is_subscribed = false;
+$is_canceled = false;
 $subscription_status = 'Inactive';
 $suspend_reason = null;
 $canceled_at = null;
@@ -61,6 +62,7 @@ if (isset($email)) {
         if ($row = $result->fetch_assoc()) {
             $subscription_status = ucfirst($row['status']);
             $is_subscribed = ($row['status'] === 'active');
+            $is_canceled = ($row['status'] === 'canceled');
             $suspend_reason = $row['reason'] ?? '';
             // Handle canceled status and set deletion time
             if ($row['status'] === 'canceled' && !empty($row['canceled_at'])) {
@@ -89,13 +91,13 @@ require_once '/var/www/vendor/aws-autoloader.php';
 use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
 
-// Initialize S3 client and fetch files only if the user has an active subscription
+// Initialize S3 client and fetch files only if the user has an active subscription or canceled subscription
 $persistent_storage_files = [];
 $persistent_storage_error = null;
 $total_used_storage = 0; // Initialize total used storage
 
-// Only initialize S3 client and attempt operations if user has an active subscription
-if ($is_subscribed) {
+// Only initialize S3 client and attempt operations if user has an active or canceled subscription
+if ($is_subscribed || $is_canceled) {
     // Initialize S3 client for AWS
     $s3Client = new S3Client([
         'version' => 'latest',
@@ -254,7 +256,7 @@ if ($is_subscribed) {
                     </a>
                 </p>
             </div>
-            <?php if ($is_subscribed): ?>
+            <?php if ($is_subscribed || $is_canceled): ?>
             <div class="table-container">
                 <table class="table is-fullwidth">
                     <thead>
