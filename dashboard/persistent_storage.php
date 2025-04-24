@@ -209,11 +209,8 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
 
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-10 bot-box">
-            <div class="columns is-vcentered">
-                <div class="column is-half">
-                    <h2 class="subtitle has-text-white">Your Persistent Storage</h2>
-                </div>
-                <div class="column is-half has-text-right">
+            <div class="notification is-info" style="position: relative;">
+                <div style="position: absolute; top: 10px; right: 10px; text-align: right;">
                     <p class="has-text-white">
                         <span class="has-text-weight-bold has-text-white">Subscription Status:</span> 
                         <span class="tag is-medium 
@@ -231,11 +228,14 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                         <p class="has-text-white">
                             <span class="has-text-weight-bold has-text-white">Total Used Storage:</span> <?php echo $total_used_storage; ?> GB
                         </p>
+                        <p class="has-text-white mt-2">
+                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary is-rounded">
+                                <span class="icon"><i class="fas fa-cog"></i></span>
+                                <span>Manage Subscription</span>
+                            </a>
+                        </p>
                     <?php endif; ?>
                 </div>
-            </div>
-
-            <div class="notification is-info">
                 <p class="has-text-weight-bold has-text-black">Persistent Storage Information</p>
                 <p class="has-text-black">This storage keeps your files safe and accessible for as long as your subscription is active:</p>
                 <ul style="list-style-type: disc; padding-left: 20px;">
@@ -245,13 +245,12 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
                 </ul>
                 <p class="has-text-black">Need to upload a new file from the streaming page? You can do so directly from your recorded streams.</p>
                 <p class="has-text-black mt-2">
-                    <a href="streaming.php" class="button is-primary">
+                    <a href="streaming.php" class="button is-primary is-rounded">
                         <span class="icon"><i class="fas fa-video"></i></span>
                         <span>Go to Streaming</span>
                     </a>
                 </p>
             </div>
-
             <?php if ($is_subscribed): ?>
             <div class="table-container">
                 <table class="table is-fullwidth">
