@@ -13,6 +13,7 @@ import json
 import time
 import random
 import base64
+from turtle import title
 import uuid
 from urllib.parse import urlencode
 import ast
@@ -181,8 +182,6 @@ looped_tasks = {}                                       # Set for looped tasks
 # Initialize global variables
 bot_started = datetime.now()                            # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
-current_game = None                                     # Current game being streamed 
-stream_title = None                                     # Title of the stream 
 SPOTIFY_REFRESH_TOKEN = None                            # Spotify API refresh token 
 SPOTIFY_ACCESS_TOKEN = None                             # Spotify API access token 
 next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
@@ -6987,39 +6986,36 @@ async def update_version_control():
         bot_logger.error(f"An error occurred in update_version_control: {e}")
 
 async def check_stream_online():
-    global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
+    global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
     async with aiohttp.ClientSession() as session:
         headers = {
             'Client-ID': CLIENT_ID,
             'Authorization': f'Bearer {CHANNEL_AUTH}'
         }
-        params = {
-            'user_login': CHANNEL_NAME,
-            'type': 'live'
-        }
-        async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
+        async with session.get(f'https://api.twitch.tv/helix/streams?user_login={CHANNEL_NAME}&type=live', headers=headers) as response:
             data = await response.json()
             # Check if the stream is offline
             if not data.get('data'):
                 stream_online = False
-                current_game = None
-                bot_logger.info(f"Bot Starting, Stream is offline.")
                 # Log the status to the file
                 os.makedirs(f'/var/www/logs/online', exist_ok=True)
                 with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
                     file.write('False')
+                bot_logger.info(f"Bot Starting, Stream is offline.")
             else:
+                stream_online = True
                 looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
                 looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
-                # Stream is online, extract the game name
-                stream_online = True
-                game = data['data'][0].get('game_name', None)
-                current_game = game
-                bot_logger.info(f"Bot Starting, Stream is online. Game: {current_game}")
                 # Log the status to the file
                 os.makedirs(f'/var/www/logs/online', exist_ok=True)
                 with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
                     file.write('True')
+                bot_logger.info(f"Bot Starting, Stream is online.")
+        async with session.get(f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}", headers=headers) as channel_response:
+            channel_data = await channel_response.json()
+            if channel_data.get('data'):
+                current_game = channel_data['data'][0].get('game_name', None)
+                stream_title = channel_data['data'][0].get('title', None)
     return
 
 async def convert_currency(amount, from_currency, to_currency):
