@@ -165,7 +165,6 @@ translator = GoogleTranslator()                         # Translator instance
 scheduled_tasks = set()                                 # Set for scheduled tasks
 shoutout_queue = Queue()                                # Queue for shoutouts
 specterSocket = SocketClient()                          # Socket client instance for specter
-hyperateSocket = SocketClient()                         # Socket client instance for hyperate
 ureg = UnitRegistry()                                   # Unit registry instance
 permitted_users = {}                                    # Dictionary for permitted users
 connected = set()                                       # Set for connected users
@@ -207,8 +206,13 @@ SPOTIFY_ERROR_MESSAGES = {
 # Function to handle termination signals
 async def signal_handler(sig, frame):
     bot_logger.info("Received termination signal. Shutting down gracefully...")
-    await specterSocket.disconnect()      # Disconnect the SocketClient
-    await hyperateSocket.disconnect()     # Disconnect the SocketClient
+    await specterSocket.disconnect() # Disconnect the SocketClient
+    for task in scheduled_tasks:
+        task.cancel()
+    for task in looped_tasks:
+        task.cancel()
+    for task in shoutout_queue:
+        task.cancel()
     sys.exit(0)  # Exit the program
 
 # Register the signal handler
