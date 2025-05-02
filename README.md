@@ -59,7 +59,7 @@ Here are some tips for pull requests:
 - Open a pull request with a title and description that explain your changes. Link the issue your pull request addresses if at all.
 
 ### Code of Conduct
-By helping with this project, you agree to follow our [Code of Conduct](CODEOFCONDUCT.md). This code helps make sure everyone is treated with respect. If you see someone behaving badly, please let us know at code@botofthespecter.com.
+By helping with this project, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md). This code helps make sure everyone is treated with respect. If you see someone behaving badly, please let us know at code@botofthespecter.com.
 
 ### Questions?
 If you have any questions about contributing, please feel free to ask! You can open an issue with the tag "question" or contact questions@botofthespecter.com.
