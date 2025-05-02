@@ -1106,8 +1106,8 @@ async def check_key(api_key: str = Query(...)):
         admin_valid = await verify_admin_key(api_key)
         if not admin_valid:
             return {"status": "Invalid API Key"}
-        return {"status": "Invalid API Key"}
-    return {"status": "Valid API Key"}
+        return {"status": "Valid API Key", "username": "ADMIN"}
+    return {"status": "Valid API Key", "username": valid}
 
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
