@@ -122,7 +122,12 @@ async def update_api_count(count_type, new_count):
     conn = await get_mysql_connection()
     try:
         async with conn.cursor() as cur:
-            await cur.execute("UPDATE api_counts SET count=%s WHERE type=%s", (new_count, count_type))
+            # Update the count, even if it's the same value, to trigger the ON UPDATE CURRENT_TIMESTAMP
+            await cur.execute("""
+                UPDATE api_counts 
+                SET count = %s 
+                WHERE type = %s AND (count != %s OR count = %s)
+            """, (new_count, count_type, new_count, new_count))
             await conn.commit()
         # Update the corresponding text file
         file_path = f"/home/fastapi/api/{count_type}_requests.txt"
