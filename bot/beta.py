@@ -2506,37 +2506,62 @@ class TwitchBot(commands.Bot):
             message = ctx.message.content
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
-                await ctx.send("Please provide a song title and optionally the artist. Example: !songrequest [song title] by [artist]")
+                await ctx.send("Please provide a song title, artist, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://open.spotify.com/track/...")
                 return
             message_content = parts[1].strip()
-            search = message_content.replace(" ", "%20")
-            search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
-            async with aiohttp.ClientSession() as search_session:
-                async with search_session.get(search_url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        tracks = data.get("tracks", {}).get("items", [])
-                        for track in tracks:
+            spotify_url_pattern = re.compile(r'https?://open\.spotify\.com/track/([a-zA-Z0-9]+)')
+            spotify_uri_pattern = re.compile(r'spotify:track:([a-zA-Z0-9]+)')
+            spotify_url_match = spotify_url_pattern.search(message_content)
+            spotify_uri_match = spotify_uri_pattern.search(message_content)
+            if spotify_url_match or spotify_uri_match:
+                # Extract the track ID from the URL or URI
+                track_id = spotify_url_match.group(1) if spotify_url_match else spotify_uri_match.group(1)
+                track_url = f"https://api.spotify.com/v1/tracks/{track_id}"
+                async with aiohttp.ClientSession() as track_session:
+                    async with track_session.get(track_url, headers=headers) as response:
+                        if response.status == 200:
+                            track_data = await response.json()
+                            song_id = track_data["uri"]
+                            song_name = track_data["name"]
+                            artist_name = track_data["artists"][0]["name"]
+                            unwanted_keywords = ["instrumental", "karaoke version"]
+                            if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
+                                await ctx.send(f"Sorry, I don't accept karaoke or instrumental versions.")
+                                return
+                            api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
+                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": datetime.now() }
+                        else:
+                            api_logger.error(f"Spotify returned response code: {response.status}")
+                            error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
+                            await ctx.send(f"Sorry, I couldn't find that song. {error_message}")
+                            return
+            else:
+                # Use search as before for non-URL requests
+                search = message_content.replace(" ", "%20")
+                search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
+                async with aiohttp.ClientSession() as search_session:
+                    async with search_session.get(search_url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            tracks = data.get("tracks", {}).get("items", [])
+                            if not tracks:
+                                await ctx.send(f"No song found: {message_content}")
+                                return
+                            track = tracks[0]
                             song_id = track["uri"]
                             song_name = track["name"]
                             artist_name = track["artists"][0]["name"]
                             unwanted_keywords = ["instrumental", "karaoke version"]
-                            if not any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
-                                api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
-                                song_requests[song_id] = {
-                                    "user": ctx.message.author.name,
-                                    "song_name": song_name,
-                                    "artist_name": artist_name,
-                                    "timestamp": datetime.now()
-                                }
-                            else:
+                            if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await ctx.send(f"No song found: {message_content}")
                                 return
-                    else:
-                        api_logger.error(f"Spotify returned response code: {response.status}")
-                        error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
-                        await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
-                        return
+                            api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
+                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": datetime.now() }
+                        else:
+                            api_logger.error(f"Spotify returned response code: {response.status}")
+                            error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
+                            await ctx.send(f"Sorry, I couldn't add the song to the queue. {error_message}")
+                            return
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
             async with aiohttp.ClientSession() as queue_session:
                 async with queue_session.post(request_url, headers=headers) as response:
