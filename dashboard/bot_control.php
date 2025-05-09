@@ -100,8 +100,17 @@ if (($file = fopen($alphaLogPath, 'w')) === false) {
 }
 fclose($file);
 
+// Define a timeout for bot shutdown
+$shutdownTimeoutSeconds = 30;
+
 // Handle standard bot actions
 if (isset($_POST['runBot'])) {
+    $waited = 0;
+    while (checkBotsRunning($statusScriptPath, $username, $logPath) && $waited < $shutdownTimeoutSeconds) {
+        sleep(1);
+        $waited++;
+    }
+    if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */  }
     $statusOutput = handleTwitchBotAction('run', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
     // The version running will be updated in the handleTwitchBotAction function
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
@@ -120,6 +129,12 @@ if (isset($_POST['restartBot'])) {
 
 // Handle beta bot actions
 if (isset($_POST['runBetaBot'])) {
+    $waited = 0;
+    while (checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath) && $waited < $shutdownTimeoutSeconds) {
+        sleep(1);
+        $waited++;
+    }
+    if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
     $betaStatusOutput = handleTwitchBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
     // The version running will be updated in the handleTwitchBotAction function
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
@@ -138,6 +153,12 @@ if (isset($_POST['restartBetaBot'])) {
 
 // Handle Discord bot actions
 if (isset($_POST['runDiscordBot'])) {
+    $waited = 0;
+    while (checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath) && $waited < $shutdownTimeoutSeconds) {
+        sleep(1);
+        $waited++;
+    }
+    if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
     $discordStatusOutput = handleDiscordBotAction('run', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
     // Get the updated version running after action is performed
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
@@ -158,6 +179,12 @@ if (isset($_POST['restartDiscordBot'])) {
 
 // Handle Alpha bot actions
 if (isset($_POST['runAlphaBot'])) {
+    $waited = 0;
+    while (checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath) && $waited < $shutdownTimeoutSeconds) {
+        sleep(1);
+        $waited++;
+    }
+    if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
     $alphaStatusOutput = handleTwitchBotAction('run', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
     // The version running will be updated in the handleTwitchBotAction function
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
