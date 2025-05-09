@@ -271,8 +271,8 @@ if (
   ($selectedBot === 'alpha' && ($stableRunning || $betaRunning))
 ) {
   $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">
-    <span class="has-text-weight-bold">Warning:</span> You are running more than one version of the bot (Stable, Beta, or Alpha) at the same time.<br>
-    <span>This can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time.</span>
+    <span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta, or Alpha) at the same time can cause data conflicts and unexpected behavior.<br>
+    <span>Please ensure only one version is running at a time for best results.</span>
   </div>';
 }
 
@@ -420,7 +420,7 @@ include "mod_access.php";
           <?php echo $BotModMessage; ?>
           <?php echo $setupMessage; ?>
           <?php if ($showButtons): ?>
-          <div class="box">
+          <div class="box"></div>
             <?php echo $subscriptionWarning; ?>
             <?php if (in_array($selectedBot, ['stable', 'beta', 'alpha'])) { echo $multiBotWarning; }?>
             <?php if ($selectedBot === 'stable'): ?>
