@@ -271,8 +271,7 @@ if (
   ($selectedBot === 'alpha' && ($stableRunning || $betaRunning))
 ) {
   $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">
-    <span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta, or Alpha) at the same time can cause data conflicts and unexpected behavior.<br>
-    <span>Please ensure only one version is running at a time for best results.</span>
+    <span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta, or Alpha) at the same time can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time for best results.</span>
   </div>';
 }
 
