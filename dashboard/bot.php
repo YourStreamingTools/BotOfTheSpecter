@@ -275,6 +275,22 @@ if (
   </div>';
 }
 
+// Check if the bot "knows" the user is online
+$onlineStatusFile = "/var/www/logs/online/{$username}.txt";
+$userOnlineStatus = null;
+if (file_exists($onlineStatusFile)) {
+    $status = trim(file_get_contents($onlineStatusFile));
+    if ($status === 'True') {
+        $userOnlineStatus = '<span class="tag is-success is-light mb-2" style="font-weight:bold;">Status: ONLINE</span>';
+    } elseif ($status === 'False') {
+        $userOnlineStatus = '<span class="tag is-warning is-light mb-2" style="font-weight:bold;">Status: OFFLINE</span>';
+    } else {
+        $userOnlineStatus = '<span class="tag is-warning is-light mb-2" style="font-weight:bold;">Status: Unknown</span>';
+    }
+} else {
+    $userOnlineStatus = '<span class="tag is-warning is-light mb-2" style="font-weight:bold;">Status: N/A</span>';
+}
+
 // Check only the selected bot's status
 if ($selectedBot === 'stable') {
   $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
@@ -348,6 +364,7 @@ include "mod_access.php";
           <button class="button is-info has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick='window.location="timed_messages.php";'>Manage Chat Timers</button>
           <!-- <button class="button is-info has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick='window.location=".php";'></button> -->
           <label class="label">Force Your Status</label>
+          <?php echo $userOnlineStatus; ?>
           <button class="button is-success has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_ONLINE')" title="Clicking this button will force the entire system to show you as online.">Force Online Status</button>
           <button class="button is-danger has-text-black has-text-weight-bold is-fullwidth mb-2 is-rounded" onclick="sendStreamEvent('STREAM_OFFLINE')" title="Clicking this button will force the entire system to show you as offline.">Force Offline Status</button>
         </div>
@@ -420,6 +437,7 @@ include "mod_access.php";
           <?php echo $setupMessage; ?>
           <?php if ($showButtons): ?>
           <div class="box">
+            <?php echo $userOnlineStatus; ?>
             <?php echo $subscriptionWarning; ?>
             <?php if (in_array($selectedBot, ['stable', 'beta', 'alpha'])) { echo $multiBotWarning; }?>
             <?php if ($selectedBot === 'stable'): ?>
