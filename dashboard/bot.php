@@ -438,7 +438,6 @@ include "mod_access.php";
           <?php echo $setupMessage; ?>
           <?php if ($showButtons): ?>
           <div class="box">
-            <?php echo $userOnlineStatus; ?>
             <?php echo $subscriptionWarning; ?>
             <?php if (in_array($selectedBot, ['stable', 'beta', 'alpha'])) { echo $multiBotWarning; }?>
             <?php if ($selectedBot === 'stable'): ?>
