@@ -234,7 +234,7 @@ if (file_exists($alphaRestartLog)) {
 }
 
 // Last Changed Time for Discord
-$discordFile = '/var/www/bot/discord.py';
+$discordFile = '/var/www/bot/discordbot.py';
 if (file_exists($discordFile)) {
   $discordFileModifiedTime = filemtime($discordFile);
   $discordTimeAgo = time() - $discordFileModifiedTime;
