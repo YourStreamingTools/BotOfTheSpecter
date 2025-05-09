@@ -278,18 +278,18 @@ if (
 // Check if the bot "knows" the user is online
 $onlineStatusFile = "/var/www/logs/online/{$username}.txt";
 $userOnlineStatus = null;
-$statusDivClass = 'has-text-weight-bold is-fullwidth mb-2 is-rounded p-3 has-text-centered';
+$tagClass = 'tag is-large is-fullwidth mb-2 has-text-weight-bold has-text-centered';
 if (file_exists($onlineStatusFile)) {
     $status = trim(file_get_contents($onlineStatusFile));
     if ($status === 'True') {
-        $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#d4f5e9;color:#218838;">STATUS: ONLINE</div>';
+        $userOnlineStatus = '<span class="' . $tagClass . ' is-success is-light" style="width:100%;">STATUS: ONLINE</span>';
     } elseif ($status === 'False') {
-        $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#fff3cd;color:#856404;">STATUS: OFFLINE</div>';
+        $userOnlineStatus = '<span class="' . $tagClass . ' is-warning is-light" style="width:100%;">STATUS: OFFLINE</span>';
     } else {
-        $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#fff3cd;color:#856404;">STATUS: UNKNOWN</div>';
+        $userOnlineStatus = '<span class="' . $tagClass . ' is-warning is-light" style="width:100%;">STATUS: UNKNOWN</span>';
     }
 } else {
-    $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#fff3cd;color:#856404;">STATUS: N/A</div>';
+    $userOnlineStatus = '<span class="' . $tagClass . ' is-warning is-light" style="width:100%;">STATUS: N/A</span>';
 }
 
 // Check only the selected bot's status
