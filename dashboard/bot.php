@@ -278,18 +278,18 @@ if (
 // Check if the bot "knows" the user is online
 $onlineStatusFile = "/var/www/logs/online/{$username}.txt";
 $userOnlineStatus = null;
-$statusBtnClass = 'button is-fullwidth mb-2 is-rounded has-text-weight-bold';
+$statusDivClass = 'has-text-weight-bold is-fullwidth mb-2 is-rounded p-3 has-text-centered';
 if (file_exists($onlineStatusFile)) {
     $status = trim(file_get_contents($onlineStatusFile));
     if ($status === 'True') {
-        $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-success is-light" disabled>STATUS: ONLINE</button>';
+        $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#d4f5e9;color:#218838;">STATUS: ONLINE</div>';
     } elseif ($status === 'False') {
-        $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-warning is-light" disabled>STATUS: OFFLINE</button>';
+        $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#fff3cd;color:#856404;">STATUS: OFFLINE</div>';
     } else {
-        $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-warning is-light" disabled>STATUS: UNKNOWN</button>';
+        $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#fff3cd;color:#856404;">STATUS: UNKNOWN</div>';
     }
 } else {
-    $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-warning is-light" disabled>STATUS: N/A</button>';
+    $userOnlineStatus = '<div class="' . $statusDivClass . '" style="background-color:#fff3cd;color:#856404;">STATUS: N/A</div>';
 }
 
 // Check only the selected bot's status
