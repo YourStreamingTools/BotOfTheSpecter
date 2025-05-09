@@ -31,6 +31,8 @@ $stableLastModifiedOutput = '';
 $stableLastRestartOutput = '';
 $alphaLastModifiedOutput = '';
 $alphaLastRestartOutput = '';
+$discordLastModifiedOutput = '';
+$discordLastRestartOutput = '';
 
 // Determine which bot to display based on selection or cookie
 $selectedBot = $_GET['bot'] ?? null;
@@ -231,6 +233,32 @@ if (file_exists($alphaRestartLog)) {
   $alphaLastRestartOutput = 'Never';
 }
 
+// Last Changed Time for Discord
+$discordFile = '/var/www/bot/discord.py';
+if (file_exists($discordFile)) {
+  $discordFileModifiedTime = filemtime($discordFile);
+  $discordTimeAgo = time() - $discordFileModifiedTime;
+  if ($discordTimeAgo < 60) $discordLastModifiedOutput = $discordTimeAgo . ' seconds ago';
+  elseif ($discordTimeAgo < 3600) $discordLastModifiedOutput = floor($discordTimeAgo / 60) . ' minutes ago';
+  elseif ($discordTimeAgo < 86400) $discordLastModifiedOutput = floor($discordTimeAgo / 3600) . ' hours ago';
+  else $discordLastModifiedOutput = floor($discordTimeAgo / 86400) . ' days ago';
+} else {
+  $discordLastModifiedOutput = 'Never';
+}
+
+// Last Restarted Time for Discord
+$discordRestartLog = '/var/www/logs/version/' . $username . '_discord_version_control.txt';
+if (file_exists($discordRestartLog)) {
+  $discordRestartFileTime = filemtime($discordRestartLog);
+  $discordRestartTimeAgo = time() - $discordRestartFileTime;
+  if ($discordRestartTimeAgo < 60) $discordLastRestartOutput = $discordRestartTimeAgo . ' seconds ago';
+  elseif ($discordRestartTimeAgo < 3600) $discordLastRestartOutput = floor($discordRestartTimeAgo / 60) . ' minutes ago';
+  elseif ($discordRestartTimeAgo < 86400) $discordLastRestartOutput = floor($discordRestartTimeAgo / 3600) . ' hours ago';
+  else $discordLastRestartOutput = floor($discordRestartTimeAgo / 86400) . ' days ago';
+} else {
+  $discordLastRestartOutput = 'Never';
+}
+
 // Check only the selected bot's status
 if ($selectedBot === 'stable') {
   $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
@@ -328,6 +356,13 @@ include "mod_access.php";
         <h3 class="title is-5">Alpha Version Info</h3>
         <p><span class="has-text-weight-bold">Last Updated:</span> <span id="alpha-last-modified-time"><?php echo $alphaLastModifiedOutput; ?></span></p>
         <p><span class="has-text-weight-bold">Last Ran:</span> <span id="alpha-last-restart-time"><?php echo $alphaLastRestartOutput; ?></span></p>
+        <p class="is-size-7 mt-2">Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
+      </div>
+      <?php elseif ($selectedBot === 'discord'): ?>
+      <div class="box">
+        <h3 class="title is-5">Discord Version Info</h3>
+        <p><span class="has-text-weight-bold">Last Updated:</span> <span id="discord-last-modified-time"><?php echo $discordLastModifiedOutput; ?></span></p>
+        <p><span class="has-text-weight-bold">Last Ran:</span> <span id="discord-last-restart-time"><?php echo $discordLastRestartOutput; ?></span></p>
         <p class="is-size-7 mt-2">Ensure the 'Last Run' time is either equal to or earlier than the 'Last Updated' time to apply the latest improvements.</p>
       </div>
       <?php endif; ?>
