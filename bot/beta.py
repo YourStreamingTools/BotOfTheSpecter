@@ -6858,13 +6858,18 @@ async def websocket_notice(
                 }
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
+                    found = False
                     for ext in ['.mp3', '.mp4']:
                         walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
                         if os.path.exists(walkon_file_path):
                             params['channel'] = CHANNEL_NAME
                             params['user'] = user
                             params['ext'] = ext
+                            websocket_logger.info(f"WALKON triggered for {user}: found file {walkon_file_path}")
+                            found = True
                             break
+                    if not found:
+                        websocket_logger.warning(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/")
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
                     params['game'] = game
