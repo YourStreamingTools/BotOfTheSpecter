@@ -1054,15 +1054,20 @@ document.addEventListener('DOMContentLoaded', function() {
       btn.innerHTML = 'Working <i class="fas fa-spinner fa-spin"></i>';
     });
   });
-
   // Attach submit handler to disable buttons on form submit
   const forms = document.querySelectorAll('form');
   forms.forEach(form => {
     form.addEventListener('submit', function(event) {
-      // Slight delay to ensure submit signal is sent
-      setTimeout(() => {
-        document.querySelectorAll('.bot-button').forEach(btn => btn.disabled = true);
-      }, 10);
+      setTimeout(() => { document.querySelectorAll('.bot-button').forEach(btn => btn.disabled = true); }, 10);
+      const stopActions = [
+        'killBot', 'restartBot',
+        'killBetaBot', 'restartBetaBot',
+        'killAlphaBot', 'restartAlphaBot',
+        'killDiscordBot', 'restartDiscordBot'
+      ];
+      let shouldCheck = false;
+      stopActions.forEach(action => { if (form.querySelector(`[name="${action}"]`)) shouldCheck = true; });
+      if (shouldCheck) { setTimeout(() => { checkBotStatus(); }, 2000); }
     });
   });
 });
