@@ -278,17 +278,18 @@ if (
 // Check if the bot "knows" the user is online
 $onlineStatusFile = "/var/www/logs/online/{$username}.txt";
 $userOnlineStatus = null;
+$statusBtnClass = 'button is-fullwidth mb-2 is-rounded has-text-weight-bold';
 if (file_exists($onlineStatusFile)) {
     $status = trim(file_get_contents($onlineStatusFile));
     if ($status === 'True') {
-        $userOnlineStatus = '<span class="tag is-success is-light mb-2" style="font-weight:bold;">Status: ONLINE</span>';
+        $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-success is-light" disabled>STATUS: ONLINE</button>';
     } elseif ($status === 'False') {
-        $userOnlineStatus = '<span class="tag is-warning is-light mb-2" style="font-weight:bold;">Status: OFFLINE</span>';
+        $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-warning is-light" disabled>STATUS: OFFLINE</button>';
     } else {
-        $userOnlineStatus = '<span class="tag is-warning is-light mb-2" style="font-weight:bold;">Status: Unknown</span>';
+        $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-warning is-light" disabled>STATUS: UNKNOWN</button>';
     }
 } else {
-    $userOnlineStatus = '<span class="tag is-warning is-light mb-2" style="font-weight:bold;">Status: N/A</span>';
+    $userOnlineStatus = '<button class="' . $statusBtnClass . ' is-warning is-light" disabled>STATUS: N/A</button>';
 }
 
 // Check only the selected bot's status
