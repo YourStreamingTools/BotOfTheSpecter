@@ -101,7 +101,7 @@ if (($file = fopen($alphaLogPath, 'w')) === false) {
 fclose($file);
 
 // Define a timeout for bot shutdown
-$shutdownTimeoutSeconds = 30;
+$shutdownTimeoutSeconds = 5;
 
 // Handle standard bot actions
 if (isset($_POST['runBot'])) {
