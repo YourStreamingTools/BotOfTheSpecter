@@ -1563,6 +1563,7 @@ class TwitchBot(commands.Bot):
                 # Add user to `seen_today`
                 await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
                 await sqldb.commit()
+                asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
                 if user_status_enabled and send_welcome_messages:
                     if user_data is None:
                         if is_vip:
@@ -1581,8 +1582,6 @@ class TwitchBot(commands.Bot):
                                 message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
                             else:
                                 message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
-                    # Send the welcome message
-                    asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
                     await self.send_message_to_channel(message_to_send)
                 else:
                     chat_logger.info(f"User status for {messageAuthor} is disabled or welcome messages are turned off.")
