@@ -85,6 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <tr>
               <th style="width: 200px;" class="has-text-centered">Command</th>
               <th class="has-text-centered">Response</th>
+              <th style="width: 150px;" class="has-text-centered">Usage Level</th>
               <th style="width: 100px;" class="has-text-centered">Cooldown</th>
               <th style="width: 100px;" class="has-text-centered">Status</th>
               <th style="width: 100px;" class="has-text-centered">Action</th>
@@ -96,6 +97,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
               <tr>
                 <td style="vertical-align: middle;">!<?php echo $command['command']; ?></td>
                 <td style="vertical-align: middle;"><?php echo $command['response']; ?></td>
+                <td class="has-text-centered" style="vertical-align: middle;">Everyone</td>
                 <td class="has-text-centered" style="vertical-align: middle;"><?php echo $command['cooldown']; ?>s</td>
                 <td class="has-text-centered" style="vertical-align: middle; color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;">
                   <?php echo $command['status']; ?>
