@@ -45,8 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $deleteStmt->execute();
         // Success message 
         $status = "Command removed successfully";
-        // Reload the page after 1 seconds
-        header("Refresh: 1; url={$_SERVER['PHP_SELF']}");
+        header("Refresh: 1; url=" . $_SERVER['REQUEST_URI']);
         exit();
     } catch (PDOException $e) {
         // Handle potential errors here
@@ -85,6 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <tr>
               <th style="width: 200px;">Command</th>
               <th>Response</th>
+              <th style="width: 150px;">Usage Level</th>
               <th style="width: 100px;">Cooldown</th>
               <th style="width: 100px;">Status</th>
               <th style="width: 100px;">Action</th>
@@ -96,9 +96,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
               <tr>
                 <td>!<?php echo $command['command']; ?></td>
                 <td><?php echo $command['response']; ?></td>
-                <td><?php echo $command['cooldown']; ?>s</td>
-                <td style="color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;"><?php echo $command['status']; ?></td>
-                <td>
+                <td class="has-text-centered" style="vertical-align: middle;">Everyone</td>
+                <td class="has-text-centered" style="vertical-align: middle;"><?php echo $command['cooldown']; ?>s</td>
+                <td  class="has-text-centered" style="vertical-align: middle; color: <?php echo ($command['status'] == 'Enabled') ? 'green' : 'red'; ?>;"><?php echo $command['status']; ?></td>
+                <td class="has-text-centered" style="vertical-align: middle;">
                   <label class="checkbox">
                     <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked)">
                     <span class="icon is-small">
@@ -106,7 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </span>
                   </label>
                 </td>
-                <td>
+                <td class="has-text-centered" style="vertical-align: middle;">
                   <form method="POST" style="display:inline;">
                     <input type="hidden" name="remove_command" value="<?php echo $command['command']; ?>">
                     <button type="submit" class="button is-small is-danger"><i class="fas fa-trash-alt"></i></button>
@@ -125,7 +126,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 function toggleStatus(command, isChecked) {
   var status = isChecked ? 'Enabled' : 'Disabled';
   var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
+  xhr.open("POST", window.location.pathname + window.location.search, true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
