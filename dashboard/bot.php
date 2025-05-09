@@ -259,6 +259,23 @@ if (file_exists($discordRestartLog)) {
   $discordLastRestartOutput = 'Never';
 }
 
+// Check running status for all three bots to prevent conflicts
+$stableRunning = checkBotsRunning($statusScriptPath, $username, $logPath);
+$betaRunning = checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath);
+$alphaRunning = checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath);
+
+$multiBotWarning = '';
+if (
+  ($selectedBot === 'stable' && ($betaRunning || $alphaRunning)) ||
+  ($selectedBot === 'beta' && ($stableRunning || $alphaRunning)) ||
+  ($selectedBot === 'alpha' && ($stableRunning || $betaRunning))
+) {
+  $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">
+    <span class="has-text-weight-bold">Warning:</span> You are running more than one version of the bot (Stable, Beta, or Alpha) at the same time.<br>
+    <span>This can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time.</span>
+  </div>';
+}
+
 // Check only the selected bot's status
 if ($selectedBot === 'stable') {
   $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
@@ -405,6 +422,7 @@ include "mod_access.php";
           <?php if ($showButtons): ?>
           <div class="box">
             <?php echo $subscriptionWarning; ?>
+            <?php if (in_array($selectedBot, ['stable', 'beta', 'alpha'])) { echo $multiBotWarning; }?>
             <?php if ($selectedBot === 'stable'): ?>
             <h3 class="title is-4">Stable Bot Controls (V<?php echo $newVersion; ?>)</h3>
             <p class="has-text-centered mb-3">The stable version is well-tested and reliable for everyday use. We recommend this version for every stream.</p>
