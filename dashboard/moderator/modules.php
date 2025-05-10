@@ -5,7 +5,7 @@ $today = new DateTime();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
+    header('Location: ../login.php');
     exit();
 }
 
