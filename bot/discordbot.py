@@ -12,23 +12,24 @@ import socketio
 from dotenv import load_dotenv
 from urllib.parse import urlencode
 
+# Version control
+VERSION = "4.3.5"
+
 # Load environment variables from .env file
 load_dotenv()
 
-# Define logging directory
+# Define logging directories
 logs_directory = "/var/www/logs"
-discord_logs = os.path.join(logs_directory, "discord")
+discord_logs   = os.path.join(logs_directory, "discord")
 
-# Ensure directory exists
-for directory in [logs_directory, discord_logs]:
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+# Ensure directories exist
+for directory in (logs_directory, discord_logs):
+    os.makedirs(directory, exist_ok=True)
 
 # Function to setup logger
 def setup_logger(name, log_file, level=logging.INFO):
     log_dir = os.path.dirname(log_file)
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    os.makedirs(log_dir, exist_ok=True)
     handler = logging.FileHandler(log_file)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
@@ -211,24 +212,16 @@ class BotOfTheSpecter(commands.Bot):
         await self.update_version_control()
 
     async def update_version_control(self):
-        global VERSION
-        VERSION = "4.3.4"
         try:
-            # Define the directory path for Discord bot version control
             directory = "/var/www/logs/version/"
-            # Ensure the directory exists, create it if it doesn't
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            # Define the file path with the channel name
+            os.makedirs(directory, exist_ok=True)
             file_path = os.path.join(directory, f"{self.channel_name}_discord_version_control.txt")
-            # Delete the file if it exists
             if os.path.exists(file_path):
                 os.remove(file_path)
-            # Write the new version to the file
             with open(file_path, "w") as file:
-                file.write(str(VERSION))
+                file.write(VERSION)
         except Exception as e:
-            self.logger.error(f"An error occurred: {e}")
+            self.logger.error(f"Version write error: {e}")
 
     async def on_member_join(self, member):
         if member.guild.id != config.guild_id:
