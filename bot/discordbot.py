@@ -11,6 +11,8 @@ import aiomysql
 import socketio
 from dotenv import load_dotenv
 from urllib.parse import urlencode
+import time
+from logging.handlers import RotatingFileHandler
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,13 +31,16 @@ def setup_logger(name, log_file, level=logging.INFO):
     log_dir = os.path.dirname(log_file)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    handler = logging.FileHandler(log_file)
+    handler = RotatingFileHandler(log_file, maxBytes=int(os.getenv("LOG_MAX_BYTES",5*1024*1024)), backupCount=int(os.getenv("LOG_BACKUPS",5)))
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger
+
+# Global cache + pool
+db_pool = None
 
 # Global configuration class
 class Config:
@@ -46,31 +51,48 @@ class Config:
         self.api_token = None
         self.online_text = None
         self.offline_text = None
+        self._last_fetch = 0
+        self._cache_ttl = int(os.getenv("DISCORD_CACHE_TTL", 300))
+
+    def needs_refresh(self):
+        return time.time() - self._last_fetch > self._cache_ttl
 
 config = Config()
 
 # MySQL connection
 async def get_mysql_connection(logger):
-    sql_host = os.getenv('SQL_HOST')
-    sql_user = os.getenv('SQL_USER')
-    sql_password = os.getenv('SQL_PASSWORD')
-    if not sql_host or not sql_user or not sql_password:
-        logger.error("Missing SQL connection parameters. Please check the .env file.")
-        return None
-    try:
-        conn = await aiomysql.connect(
-            host=sql_host,
-            user=sql_user,
-            password=sql_password,
-            db='website'
+    global db_pool
+    if db_pool is None:
+        # pull creds once
+        sql_host = os.getenv('SQL_HOST'); sql_user = os.getenv('SQL_USER'); sql_password = os.getenv('SQL_PASSWORD')
+        if not sql_host or not sql_user or not sql_password:
+            logger.error("Missing SQL connection parameters.")
+            return None
+        db_pool = await aiomysql.create_pool(
+            host=sql_host, user=sql_user, password=sql_password,
+            db='website',
+            minsize=int(os.getenv("DB_MIN_POOL", 1)),
+            maxsize=int(os.getenv("DB_MAX_POOL", 10)),
+            max_idle_time=int(os.getenv("DB_MAX_IDLE_TIME", 300))
         )
+    try:
+        conn = await db_pool.acquire()
+        try:
+            await conn.ping()
+        except Exception:
+            db_pool.close()
+            await db_pool.wait_closed()
+            db_pool = None
+            return await get_mysql_connection(logger)
         return conn
     except Exception as e:
-        logger.error(f"Error connecting to MySQL: {e}")
+        logger.error(f"Error acquiring DB connection: {e}")
         return None
 
-# Fetch admin user ID, live channel ID, guild ID, online text, and offline text from the database
+# Cache results to avoid hitting DB on every status update
 async def fetch_discord_details(username, logger):
+    if not config.needs_refresh():
+        return
     connection = await get_mysql_connection(logger)
     if connection is None:
         return
@@ -91,13 +113,15 @@ async def fetch_discord_details(username, logger):
             config.guild_id = result[2]
             config.online_text = result[3]
             config.offline_text = result[4]
+            config._last_fetch = time.time()
         else:
             logger.error("No results found for discord details")
     except Exception as e:
         logger.error(f"Error fetching discord details: {e}")
 
-# Fetch API token from the database
 async def fetch_api_token(username, logger):
+    if not config.needs_refresh():
+        return
     connection = await get_mysql_connection(logger)
     if connection is None:
         return
@@ -112,6 +136,7 @@ async def fetch_api_token(username, logger):
         await connection.ensure_closed()
         if result:
             config.api_token = result[0]
+            config._last_fetch = time.time()
         else:
             logger.error("No results found for API token")
     except Exception as e:
@@ -212,7 +237,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def update_version_control(self):
         global VERSION
-        VERSION = "4.3.4"
+        VERSION = "4.3.5"
         try:
             # Define the directory path for Discord bot version control
             directory = "/var/www/logs/version/"
