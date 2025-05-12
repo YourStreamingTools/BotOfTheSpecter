@@ -28,44 +28,60 @@ $notification_status = "";
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Editing a Custom Command
-    if ((isset($_POST['command_to_edit'])) && ($_POST['command_response']) && (isset($_POST['cooldown_response']))) {
-        // Update the response for the selected command
+    if (
+        isset($_POST['command_to_edit']) && 
+        isset($_POST['command_response']) && 
+        isset($_POST['cooldown_response']) &&
+        isset($_POST['new_command_name'])
+    ) {
         $command_to_edit = $_POST['command_to_edit'];
         $command_response = $_POST['command_response'];
         $cooldown = $_POST['cooldown_response'];
+        // Remove all non-alphanumeric characters
+        $new_command_name = strtolower(str_replace(' ', '', $_POST['new_command_name']));
+        $new_command_name = preg_replace('/[^a-z0-9]/', '', $new_command_name);
         try {
-            $updateSTMT = $db->prepare("UPDATE custom_commands SET response = ?, cooldown = ? WHERE command = ?");
-            $updateSTMT->bindParam(1, $command_response);
-            $updateSTMT->bindParam(2, $cooldown);
-            $updateSTMT->bindParam(3, $command_to_edit);
+            $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ? WHERE command = ?");
+            $updateSTMT->bindParam(1, $new_command_name);
+            $updateSTMT->bindParam(2, $command_response);
+            $updateSTMT->bindParam(3, $cooldown);
+            $updateSTMT->bindParam(4, $command_to_edit);
             $updateSTMT->execute();
             if ($updateSTMT->rowCount() > 0) {
                 $status = "Command ". $command_to_edit . " updated successfully!";
                 $notification_status = "is-success";
             } else {
-                // No rows updated, which means the command was not found
                 $status = $command_to_edit . " not found or no changes made.";
                 $notification_status = "is-danger";
             }
         } catch (Exception $e) {
-            // Catch any exceptions and display an error message
             $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
             $notification_status = "is-danger";
         }
     }
-    // Adding a new custom command
+    // Adding a new custom command (sanitize name)
     if (isset($_POST['command']) && isset($_POST['response']) && isset($_POST['cooldown'])) {
         $newCommand = strtolower(str_replace(' ', '', $_POST['command']));
+        $newCommand = preg_replace('/[^a-z0-9]/', '', $newCommand);
         $newResponse = $_POST['response'];
         $cooldown = $_POST['cooldown'];
-        // Insert new command into MySQL database
         try {
             $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
             $insertSTMT->execute([$newCommand, $newResponse, $cooldown]);
         } catch (PDOException $e) {
             echo 'Error adding ' . $newCommand . ': ' . $e->getMessage();
         }
+        // Refresh the commands list after adding
+        $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+        $commandsSTMT->execute();
+        $commands = $commandsSTMT->fetchAll(PDO::FETCH_ASSOC);
     }
+}
+
+if (!isset($commands)) {
+    $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+    $commandsSTMT->execute();
+    $commands = $commandsSTMT->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
 <!DOCTYPE html>
@@ -159,6 +175,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="new_command_name">New Command Name:</label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="text" name="new_command_name" id="new_command_name" value="" required>
+                            <div class="icon is-small is-left"><i class="fas fa-terminal"></i></div>
+                            <p class="help">Skip the "!" - only letters and numbers allowed.</p>
                         </div>
                     </div>
                     <div class="field">
@@ -283,10 +307,12 @@ function showResponse() {
     var commands = <?php echo json_encode($commands); ?>;
     var responseInput = document.getElementById('command_response');
     var cooldownInput = document.getElementById('cooldown_response');
+    var newCommandInput = document.getElementById('new_command_name');
     // Find the response for the selected command and display it in the text box
     var commandData = commands.find(c => c.command === command);
     responseInput.value = commandData ? commandData.response : '';
     cooldownInput.value = commandData ? commandData.cooldown : 15;
+    newCommandInput.value = commandData ? commandData.command : '';
     // Update character count for the edit response field
     updateCharCount('command_response', 'editResponseCharCount');
 }
