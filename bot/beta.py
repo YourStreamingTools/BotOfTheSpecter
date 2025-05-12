@@ -1509,6 +1509,7 @@ class TwitchBot(commands.Bot):
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser):
         if messageAuthor in [bannedUser, None, ""]:
+            chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
             return
         sqldb = await get_mysql_connection()
         try:
@@ -1518,36 +1519,38 @@ class TwitchBot(commands.Bot):
                 is_mod = await is_user_mod(messageAuthorID)
                 is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
                 user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
-                # Insert into the database the number of chats during the stream
+                # Update message count
                 await cursor.execute(
                     'INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) '
                     'ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s',
                     (messageAuthor, user_level, user_level)
                 )
                 await sqldb.commit()
-                # Has the user been seen during this stream
+                # Check if user is already in seen_today
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
-                if await cursor.fetchone():
-                    return
-                # Check if the user is the broadcaster
-                if messageAuthor.lower() == CHANNEL_NAME.lower():
+                seen_today_result = await cursor.fetchone()
+                already_seen_today = seen_today_result is not None
+                # Skip further handling for broadcaster
+                if is_broadcaster:
+                    chat_logger.info(f"Skipping welcome for broadcaster: {messageAuthor}")
                     return
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
                 if user_data:
-                    # The user is returning
-                    has_welcome_message = user_data["welcome_message"]
+                    has_welcome_message = user_data.get("welcome_message")
                     user_status_enabled = user_data.get("status", 'True') == 'True'
                 else:
-                    # The user is new
-                    user_data = None
+                    # Insert new user
                     has_welcome_message = None
                     user_status_enabled = True
-                    # Insert the new user into the seen_users table
-                    await cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (messageAuthor, "True"))
+                    await cursor.execute(
+                        'INSERT INTO seen_users (username, status) VALUES (%s, %s)', 
+                        (messageAuthor, "True")
+                    )
                     await sqldb.commit()
-                # Query the streamer preferences for the welcome message settings
+                    chat_logger.info(f"Added new user to seen_users: {messageAuthor}")
+                # Load streamer preferences
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
                 preferences = await cursor.fetchone()
                 send_welcome_messages = int(preferences["send_welcome_messages"])
@@ -1557,15 +1560,29 @@ class TwitchBot(commands.Bot):
                 default_welcome_message = preferences["default_welcome_message"]
                 default_vip_welcome_message = preferences["default_vip_welcome_message"]
                 default_mod_welcome_message = preferences["default_mod_welcome_message"]
-                # Replace (user) in the welcome messages with the actual username
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
-                # Add user to `seen_today`
-                await cursor.execute('INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', (messageAuthorID, messageAuthor))
-                await sqldb.commit()
-                asyncio.create_task(websocket_notice(event="WALKON", user=messageAuthor))
+                # Insert into seen_today if not already seen
+                if not already_seen_today:
+                    await cursor.execute(
+                        'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', 
+                        (messageAuthorID, messageAuthor)
+                    )
+                    await sqldb.commit()
+                    chat_logger.info(f"Marked {messageAuthor} as seen today.")
+                else:
+                    chat_logger.info(f"{messageAuthor} already seen today, skipping insertion.")
+                # Send walkon notice safely
+                async def safe_walkon(user):
+                    try:
+                        await websocket_notice(event="WALKON", user=user)
+                        chat_logger.info(f"Sent WALKON notice for {user}")
+                    except Exception as e:
+                        chat_logger.error(f"Failed to send WALKON for {user}: {e}")
+                asyncio.create_task(safe_walkon(messageAuthor))
+                # Send welcome message
                 if user_status_enabled and send_welcome_messages:
-                    if user_data is None:
+                    if not user_data:
                         if is_vip:
                             message_to_send = replace_user_placeholder(new_default_vip_welcome_message, messageAuthor)
                         elif is_mod:
@@ -1583,8 +1600,9 @@ class TwitchBot(commands.Bot):
                             else:
                                 message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                     await self.send_message_to_channel(message_to_send)
+                    chat_logger.info(f"Sent welcome message to {messageAuthor}")
                 else:
-                    chat_logger.info(f"User status for {messageAuthor} is disabled or welcome messages are turned off.")
+                    chat_logger.info(f"Welcome message not sent for {messageAuthor} — disabled or opted out.")
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
