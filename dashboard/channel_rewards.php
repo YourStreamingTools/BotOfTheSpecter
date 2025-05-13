@@ -107,6 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
         <ul>
           <li><span class="has-text-weight-bold">(user)</span>: This will tag the user that has used the channel point reward.</li>
           <li><span class="has-text-weight-bold">(usercount)</span>: This will count how many times a user has used the channel point reward. </li>
+          <li><span class="has-text-weight-bold" style="color: #000000;">(userstreak)</span>: This will count how many times in a row the user has used this channel point reward.</li>
         </ul>
       </td>
     </table>
