@@ -422,7 +422,7 @@ try {
         'reward_streaks' => "
             CREATE TABLE IF NOT EXISTS reward_streaks (
                 reward_id VARCHAR(255) PRIMARY KEY,
-                current_user VARCHAR(255),
+                `current_user` VARCHAR(255),
                 streak INT DEFAULT 1
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
@@ -469,6 +469,7 @@ try {
         'stream_lotto' => ['winning_numbers' => 'VARCHAR(255)', 'supplementary_numbers' => 'VARCHAR(255)'],
         'stream_lotto_winning_numbers' => ['winning_numbers' => 'VARCHAR(255)', 'supplementary_numbers' => 'VARCHAR(255)'],
         'ad_notice_settings' => ['ad_start_message' => 'VARCHAR(255)', 'ad_end_message' => 'VARCHAR(255)', 'ad_upcoming_message' => 'VARCHAR(255)', 'enable_ad_notice' => 'TINYINT(1) DEFAULT 1'],
+        'reward_streaks' => ['current_user' => 'VARCHAR(255)', 'streak' => 'INT DEFAULT 1'],
     ];
     // Execute each table creation and validation
     foreach ($tables as $table_name => $sql) {
