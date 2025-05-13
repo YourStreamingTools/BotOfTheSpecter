@@ -7110,44 +7110,6 @@ async def process_channel_point_rewards(event_data, event_type):
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
             asyncio.create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
-            # Check for TTS reward
-            if "tts" in reward_title.lower():
-                tts_message = event_data["user_input"]
-                asyncio.create_task(websocket_notice(event="TTS", text=tts_message))
-                return
-            # Check for Lotto Numbers reward
-            elif "lotto" in reward_title.lower():
-                winning_numbers_str = await generate_user_lotto_numbers(user_name)
-                # Handling errors (check if the result is an error message)
-                if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
-                    await channel.send(f"Error: {winning_numbers_str['error']}")
-                    return
-                # Send the combined numbers (winning and supplementary) as one message
-                await channel.send(f"{user_name} here are your Lotto numbers! {winning_numbers_str}")
-                # Log the generated numbers for debugging and records
-                chat_logger.info(f"Lotto numbers generated: {user_name} - {winning_numbers_str}")
-                return
-            # Check for Fortune reward
-            elif "fortune" in reward_title.lower():
-                fortune_message = await tell_fortune()
-                fortune_message = fortune_message[0].lower() + fortune_message[1:]
-                await channel.send(f"{user_name}, {fortune_message}")
-                chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
-                return
-            # Sound alert logic
-            await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
-            sound_result = await cursor.fetchone()
-            if sound_result and sound_result["sound_mapping"]:
-                sound_file = sound_result.get("sound_mapping")
-                event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
-            # Video alert logic
-            await cursor.execute("SELECT video_mapping FROM video_alerts WHERE reward_id = %s", (reward_id,))
-            video_result = await cursor.fetchone()
-            if video_result and video_result["video_mapping"]:
-                video_file = video_result.get("video_mapping")
-                event_logger.info(f"Got {event_type} - Found Video Mapping - {reward_id} - {video_file}")
-                asyncio.create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
@@ -7207,6 +7169,44 @@ async def process_channel_point_rewards(event_data, event_type):
                             chat_logger.error(f"Error while handling (userstreak): {e}")
                             custom_message = custom_message.replace('(userstreak)', "Error")
                 await channel.send(custom_message)
+            # Check for TTS reward
+            if "tts" in reward_title.lower():
+                tts_message = event_data["user_input"]
+                asyncio.create_task(websocket_notice(event="TTS", text=tts_message))
+                return
+            # Check for Lotto Numbers reward
+            elif "lotto" in reward_title.lower():
+                winning_numbers_str = await generate_user_lotto_numbers(user_name)
+                # Handling errors (check if the result is an error message)
+                if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
+                    await channel.send(f"Error: {winning_numbers_str['error']}")
+                    return
+                # Send the combined numbers (winning and supplementary) as one message
+                await channel.send(f"{user_name} here are your Lotto numbers! {winning_numbers_str}")
+                # Log the generated numbers for debugging and records
+                chat_logger.info(f"Lotto numbers generated: {user_name} - {winning_numbers_str}")
+                return
+            # Check for Fortune reward
+            elif "fortune" in reward_title.lower():
+                fortune_message = await tell_fortune()
+                fortune_message = fortune_message[0].lower() + fortune_message[1:]
+                await channel.send(f"{user_name}, {fortune_message}")
+                chat_logger.info(f'Fortune told "{fortune_message}" for {user_name}')
+                return
+            # Sound alert logic
+            await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
+            sound_result = await cursor.fetchone()
+            if sound_result and sound_result["sound_mapping"]:
+                sound_file = sound_result.get("sound_mapping")
+                event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
+                asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+            # Video alert logic
+            await cursor.execute("SELECT video_mapping FROM video_alerts WHERE reward_id = %s", (reward_id,))
+            video_result = await cursor.fetchone()
+            if video_result and video_result["video_mapping"]:
+                video_file = video_result.get("video_mapping")
+                event_logger.info(f"Got {event_type} - Found Video Mapping - {reward_id} - {video_file}")
+                asyncio.create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
         finally:
