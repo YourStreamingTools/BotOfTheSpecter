@@ -7137,21 +7137,21 @@ async def process_channel_point_rewards(event_data, event_type):
             # Sound alert logic
             await cursor.execute("SELECT sound_mapping FROM sound_alerts WHERE reward_id = %s", (reward_id,))
             sound_result = await cursor.fetchone()
-            if (sound_result and sound_result["sound_mapping"]):
+            if sound_result and sound_result["sound_mapping"]:
                 sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
                 asyncio.create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
             # Video alert logic
             await cursor.execute("SELECT video_mapping FROM video_alerts WHERE reward_id = %s", (reward_id,))
             video_result = await cursor.fetchone()
-            if (video_result and video_result["video_mapping"]):
+            if video_result and video_result["video_mapping"]:
                 video_file = video_result.get("video_mapping")
                 event_logger.info(f"Got {event_type} - Found Video Mapping - {reward_id} - {video_file}")
                 asyncio.create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
-            if (custom_message_result and custom_message_result["custom_message"]):
+            if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
                     if '(user)' in custom_message:
@@ -7173,18 +7173,39 @@ async def process_channel_point_rewards(event_data, event_type):
                             user_count += 1
                             await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
                             await sqldb.commit()
-                            # Fetch the updated count
-                            await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
-                            updated_result = await cursor.fetchone()
-                            if updated_result:
-                                updated_user_count = updated_result.get("count")
-                            else:
-                                updated_user_count = 0
-                            # Replace the (usercount) placeholder with the updated user count
-                            custom_message = custom_message.replace('(usercount)', str(updated_user_count))
+                            custom_message = custom_message.replace('(usercount)', str(user_count))
                         except Exception as e:
-                            chat_logger.error(f"Error while handling (usercount) in channel points: {e}")
+                            chat_logger.error(f"Error while handling (usercount): {e}")
                             custom_message = custom_message.replace('(usercount)', "Error")
+                    # Handle (userstreak)
+                    if '(userstreak)' in custom_message:
+                        try:
+                            await cursor.execute("SELECT current_user, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
+                            streak_row = await cursor.fetchone()
+                            if streak_row:
+                                current_user = streak_row['current_user']
+                                current_streak = streak_row['streak']
+                                if current_user == user_name:
+                                    current_streak += 1
+                                else:
+                                    current_user = user_name
+                                    current_streak = 1
+                                await cursor.execute(
+                                    "UPDATE reward_streaks SET current_user = %s, streak = %s WHERE reward_id = %s",
+                                    (current_user, current_streak, reward_id)
+                                )
+                            else:
+                                current_user = user_name
+                                current_streak = 1
+                                await cursor.execute(
+                                    "INSERT INTO reward_streaks (reward_id, current_user, streak) VALUES (%s, %s, %s)",
+                                    (reward_id, current_user, current_streak)
+                                )
+                            await sqldb.commit()
+                            custom_message = custom_message.replace('(userstreak)', str(current_streak))
+                        except Exception as e:
+                            chat_logger.error(f"Error while handling (userstreak): {e}")
+                            custom_message = custom_message.replace('(userstreak)', "Error")
                 await channel.send(custom_message)
         except Exception as e:
             event_logger.error(f"An error occurred while processing the reward: {str(e)}")
