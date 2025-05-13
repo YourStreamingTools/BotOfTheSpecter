@@ -338,8 +338,6 @@ include "mod_access.php";
 
 <div class="container">
 <br>
-  <?php if ($betaAccess && $showButtons && $selectedBot === 'beta'): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before starting the Beta version, ensure the Stable version is stopped to avoid data conflicts.</div><?php endif; ?>
-  <?php if ($betaAccess && $showButtons && $selectedBot === 'alpha'): ?><div class="notification is-danger has-text-black has-text-weight-bold">Before using the Alpha version of the bot, please be aware that it is highly experimental and may contain features that are incomplete or unstable.</div><?php endif; ?>
   <div class="columns is-desktop">
     <!-- Left sidebar -->
     <div class="column is-3">
@@ -402,7 +400,6 @@ include "mod_access.php";
       <?php endif; ?>
       <!-- API Limits Section -->
       <div class="box" style="position: relative;">
-        <i class="fas fa-question-circle" id="api-limits-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-5">API Limits</h4>
         <div class="status-message" style="font-size: 14px; padding: 10px; background-color: #2c3e50; color: #ecf0f1; border-radius: 8px;">
           <!-- Song Identification Section -->
@@ -434,12 +431,21 @@ include "mod_access.php";
       <div class="columns">
         <!-- Bot Controls Section -->
         <div class="column is-12">
-          <?php echo $BotModMessage; ?>
-          <?php echo $setupMessage; ?>
+          <?php
+            echo $BotModMessage;
+            echo $setupMessage;
+          ?>
+          <?php if ($betaAccess && $selectedBot === 'beta'): ?>
+            <div class="notification is-danger has-text-black has-text-weight-bold">
+              <span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta, or Alpha) at the same time can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time for best results.</span>
+            </div>
+          <?php endif; ?>
+          <?php
+            echo $subscriptionWarning;
+            if (in_array($selectedBot, ['stable','beta','alpha'])) echo $multiBotWarning;
+          ?>
           <?php if ($showButtons): ?>
           <div class="box">
-            <?php echo $subscriptionWarning; ?>
-            <?php if (in_array($selectedBot, ['stable', 'beta', 'alpha'])) { echo $multiBotWarning; }?>
             <?php if ($selectedBot === 'stable'): ?>
             <h3 class="title is-4">Stable Bot Controls (V<?php echo $newVersion; ?>)</h3>
             <p class="has-text-centered mb-3">The stable version is well-tested and reliable for everyday use. We recommend this version for every stream.</p>
@@ -511,7 +517,6 @@ include "mod_access.php";
       </div>
       <!-- System Status Section -->
       <div class="box" style="position: relative;">
-        <i class="fas fa-question-circle" id="websocket-service-modal-open" style="position: absolute; top: 10px; right: 10px; cursor: pointer;"></i>
         <h4 class="title is-4 has-text-centered">System Status</h4>
         <div class="columns is-mobile is-multiline">
           <div class="column is-4">
@@ -588,64 +593,6 @@ include "mod_access.php";
   </div>
 </div>
 
-<!-- Modal components -->
-<div class="modal" id="websocket-service-modal">
-  <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head has-background-dark">
-      <p class="modal-card-title has-text-white">System Status Information</p>
-      <button class="delete" aria-label="close" id="websocket-service-modal-close"></button>
-    </header>
-    <section class="modal-card-body has-background-dark has-text-white">
-      <p>
-        <span class="has-text-weight-bold variable-title">API Service</span>:<br>
-        The API service is responsible for providing system data and managing events. It is currently active as shown by the green heartbeat icon. If the service status is offline, the icon will turn red.
-      </p>
-      <br>
-      <p>
-        <span class="has-text-weight-bold variable-title">Database Service</span>:<br>
-        The database service handles all data storage and retrieval tasks. The service is currently running as indicated by the green heartbeat icon. If the service is down, the icon will display red.
-      </p>
-      <br>
-      <p>
-        <span class="has-text-weight-bold variable-title">Notification Service</span>:<br>
-        This service ensures that notifications are sent out properly. The service is operational if the green heartbeat icon is visible. A red icon means the notification service is currently unavailable.
-      </p>
-      <br>
-      <p>
-        <span class="has-text-weight-bold variable-title">Streaming Services</span>:<br>
-        The streaming service(s) is responsible for our streaming server. The green heartbeat icon indicates that the service is active. If the icon turns red, it means the streaming service is currently offline.
-      </p>
-    </section>
-  </div>
-</div>
-
-<div class="modal" id="api-limits-modal">
-  <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head has-background-dark">
-      <p class="modal-card-title has-text-white">API Limits</p>
-      <button class="delete" aria-label="close" id="api-limits-modal-close"></button>
-    </header>
-    <section class="modal-card-body has-background-dark has-text-white">
-      <p>
-        <span class="has-text-weight-bold variable-title">Song Identifications Left:</span>
-        Indicates the number of song identification requests we have remaining, this dose not count towards users with Spotify Connection.
-      </p>
-      <br>
-      <p>
-        <span class="has-text-weight-bold variable-title">Exchange Rate Checks Left:</span>
-        Represents the number of exchange rate checks available to use to convert currency values.
-      </p>
-      <br>
-      <p>
-        <span class="has-text-weight-bold variable-title">Weather Requests Left:</span>
-        Shows how many weather requests we can make to the weather API. This is used to provide weather information in the chat.
-      </p>
-    </section>
-  </div>
-</div>
-
 <div id="cookie-consent-banner" class="notification is-dark has-text-centered" style="position: fixed; bottom: 1rem; right: 1rem; z-index: 100; display: none; padding: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.3); max-width: 350px; border-radius: 6px;">
   <div class="content">
     <p class="has-text-white">
@@ -664,36 +611,6 @@ include "mod_access.php";
 function changeBotSelection(bot) {
   window.location.href = 'bot.php?bot=' + bot;
 }
-
-const modalIds = [
-  { open: "websocket-service-modal-open", close: "websocket-service-modal-close" },
-  { open: "api-limits-modal-open", close: "api-limits-modal-close" },
-  { open: "alpha-bot-modal-open", close: "alpha-bot-modal-close" }
-];
-
-modalIds.forEach(modal => {
-  const openButton = document.getElementById(modal.open);
-  const closeButton = document.getElementById(modal.close);
-  const modalElement = document.getElementById(modal.close.replace('-close', ''));
-  
-  if (openButton) {
-    openButton.addEventListener("click", function() {
-      modalElement.classList.add("is-active");
-    });
-  }
-  if (closeButton) {
-    closeButton.addEventListener("click", function() {
-      modalElement.classList.remove("is-active");
-    });
-  }
-  if (modalElement) {
-    modalElement.addEventListener("click", function(event) {
-      if (event.target === modalElement) {
-        modalElement.classList.remove("is-active");
-      }
-    });
-  }
-});
 
 window.addEventListener('error', function(event) {
   console.error('Error message:', event.message);
