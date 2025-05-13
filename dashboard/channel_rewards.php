@@ -75,13 +75,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
   <br>
   <h1 class="title is-4">Channel Point Rewards:</h1>
   <div class="notification is-info">
-    <form method="POST" class="is-flex is-align-items-center is-justify-content-space-between">
+    <form method="POST" class="is-flex is-align-items-center is-justify-content-space-between" id="sync-form">
       <div>
         Pressing the sync button will sync your Twitch channel point rewards to the Specter System.
         This process can take up to 30 seconds to complete.<br>
         If you have removed a reward from Twitch, it will not be removed from the Specter System, and you will need to manually delete it.
       </div>
-      <button class="button is-primary" name="syncRewards" type="submit">Sync Rewards</button>
+      <button class="button is-primary" name="syncRewards" type="submit" id="sync-btn">
+        <span id="sync-btn-spinner" class="icon is-small" style="display:none;">
+          <i class="fas fa-spinner fa-spin"></i>
+        </span>
+        <span id="sync-btn-text">Sync Rewards</span>
+      </button>
     </form>
   </div>
   <div class="notification is-info mt-4">
@@ -196,6 +201,16 @@ function deleteReward(rewardid) {
   };
   xhr.send("deleteRewardId=" + encodeURIComponent(rewardid));
 }
+
+// Sync Rewards button spinner and disable logic
+document.getElementById('sync-form').addEventListener('submit', function(e) {
+  var btn = document.getElementById('sync-btn');
+  var spinner = document.getElementById('sync-btn-spinner');
+  var text = document.getElementById('sync-btn-text');
+  btn.disabled = true;
+  spinner.style.display = '';
+  text.textContent = 'Syncing Rewards...';
+});
 </script>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 </body>
