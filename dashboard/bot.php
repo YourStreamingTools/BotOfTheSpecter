@@ -296,49 +296,31 @@ if (file_exists($onlineStatusFile)) {
 echo "<br><br>";
 if ($selectedBot === 'stable') {
   $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath, 'stable');
-  if (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-      $debugPid = intval($matches[1]);
-  } else {
-      $debugPid = 0;
-  }
-  echo "<pre>DEBUG: $statusOutput\nDEBUG PID: $debugPid</pre>";
-  $botSystemStatus = ($debugPid > 0);
+  // For debug only, you can extract PID from the HTML if you want, but do not use it for UI logic
+  echo "<pre>DEBUG: $statusOutput</pre>";
+  // $statusOutput is already correct for the UI
+  $botSystemStatus = strpos($statusOutput, 'PID') !== false;
   if ($botSystemStatus) {
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
   }
 } elseif ($selectedBot === 'beta') {
   $betaStatusOutput = getBotsStatus($statusScriptPath, $username, $BetaLogPath, 'beta');
-  if (preg_match('/PID\s+(\d+)/i', $betaStatusOutput, $matches)) {
-      $debugPid = intval($matches[1]);
-  } else {
-      $debugPid = 0;
-  }
-  echo "<pre>DEBUG: $betaStatusOutput\nDEBUG PID: $debugPid</pre>";
-  $betaBotSystemStatus = ($debugPid > 0);
+  echo "<pre>DEBUG: $betaStatusOutput</pre>";
+  $betaBotSystemStatus = strpos($betaStatusOutput, 'PID') !== false;
   if ($betaBotSystemStatus) {
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
   }
 } elseif ($selectedBot === 'alpha') {
   $alphaStatusOutput = getBotsStatus($statusScriptPath, $username, $alphaLogPath, 'alpha');
-  if (preg_match('/PID\s+(\d+)/i', $alphaStatusOutput, $matches)) {
-      $debugPid = intval($matches[1]);
-  } else {
-      $debugPid = 0;
-  }
-  echo "<pre>DEBUG: $alphaStatusOutput\nDEBUG PID: $debugPid</pre>";
-  $alphaBotSystemStatus = ($debugPid > 0);
+  echo "<pre>DEBUG: $alphaStatusOutput</pre>";
+  $alphaBotSystemStatus = strpos($alphaStatusOutput, 'PID') !== false;
   if ($alphaBotSystemStatus) {
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
   }
 } elseif ($selectedBot === 'discord') {
   $discordStatusOutput = getBotsStatus($statusScriptPath, $username, $discordLogPath, 'discord');
-  if (preg_match('/PID\s+(\d+)/i', $discordStatusOutput, $matches)) {
-      $debugPid = intval($matches[1]);
-  } else {
-      $debugPid = 0;
-  }
-  echo "<pre>DEBUG: $discordStatusOutput\nDEBUG PID: $debugPid</pre>";
-  $discordBotSystemStatus = ($debugPid > 0);
+  echo "<pre>DEBUG: $discordStatusOutput</pre>";
+  $discordBotSystemStatus = strpos($discordStatusOutput, 'PID') !== false;
   if ($discordBotSystemStatus) {
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
   }
