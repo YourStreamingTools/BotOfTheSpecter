@@ -1,5 +1,6 @@
 import psutil
 import argparse
+import os
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Check if a bot process is running for a specific channel username and system")
@@ -29,10 +30,21 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
     cmdline = [arg.lower() for arg in (process.info['cmdline'] or [])]
     if not cmdline:
         continue
-    script_match = any(arg.endswith(script_name) for arg in cmdline)
-    channel_flag_match = "-channel" in cmdline
-    channel_value_match = channel_username in cmdline
-    if script_match and channel_flag_match and channel_value_match:
+    script_match = False
+    for arg in cmdline:
+        if arg.endswith(script_name):
+            base_name = os.path.basename(arg)
+            if base_name == script_name:
+                script_match = True
+                break
+    channel_index = -1
+    if "-channel" in cmdline:
+        channel_index = cmdline.index("-channel")
+    channel_value_match = False
+    if channel_index >= 0 and channel_index + 1 < len(cmdline):
+        if cmdline[channel_index + 1] == channel_username:
+            channel_value_match = True
+    if script_match and channel_value_match:
         print(f"Bot is running with process ID: {process.info['pid']}")
         break
 else:
