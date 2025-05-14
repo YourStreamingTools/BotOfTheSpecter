@@ -438,7 +438,8 @@ function getBotsStatus($statusScriptPath, $username, $logPath = '', $system = 's
     $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+    if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
+        preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
     } else {
         $pid = 0;
@@ -509,7 +510,8 @@ function checkBotsRunning($statusScriptPath, $username, $logPath = '', $system =
     $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+    if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
+        preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
     } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
