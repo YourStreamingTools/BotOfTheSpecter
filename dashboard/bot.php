@@ -293,31 +293,26 @@ if (file_exists($onlineStatusFile)) {
 }
 
 // Check only the selected bot's status
-echo "<br><br>";
 if ($selectedBot === 'stable') {
   $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath, 'stable');
-  echo "<pre>DEBUG: $statusOutput</pre>";
   $botSystemStatus = strpos($statusOutput, 'PID') !== false;
   if ($botSystemStatus) {
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
   }
 } elseif ($selectedBot === 'beta') {
   $betaStatusOutput = getBotsStatus($statusScriptPath, $username, $BetaLogPath, 'beta');
-  echo "<pre>DEBUG: $betaStatusOutput</pre>";
   $betaBotSystemStatus = strpos($betaStatusOutput, 'PID') !== false;
   if ($betaBotSystemStatus) {
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
   }
 } elseif ($selectedBot === 'alpha') {
   $alphaStatusOutput = getBotsStatus($statusScriptPath, $username, $alphaLogPath, 'alpha');
-  echo "<pre>DEBUG: $alphaStatusOutput</pre>";
   $alphaBotSystemStatus = strpos($alphaStatusOutput, 'PID') !== false;
   if ($alphaBotSystemStatus) {
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
   }
 } elseif ($selectedBot === 'discord') {
   $discordStatusOutput = getBotsStatus($statusScriptPath, $username, $discordLogPath, 'discord');
-  echo "<pre>DEBUG: $discordStatusOutput</pre>";
   $discordBotSystemStatus = strpos($discordStatusOutput, 'PID') !== false;
   if ($discordBotSystemStatus) {
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
@@ -343,9 +338,6 @@ include "mod_access.php";
 
 <div class="container">
 <br>
-  <div class="notification is-danger has-text-black has-text-weight-bold">
-    <span class="has-text-weight-bold">We’re currently upgrading our status notification system. While the bot may be active, it might not appear as running. Please bear with us as we implement these updates and allow some time for the changes to reflect on the website.</span>
-  </div>
   <div class="columns is-desktop">
     <!-- Left sidebar -->
     <div class="column is-3">
