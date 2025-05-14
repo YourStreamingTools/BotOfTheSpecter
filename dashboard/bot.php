@@ -260,9 +260,9 @@ if (file_exists($discordRestartLog)) {
 }
 
 // Check running status for all three bots to prevent conflicts
-$stableRunning = checkBotsRunning($statusScriptPath, $username, $logPath);
-$betaRunning = checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath);
-$alphaRunning = checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath);
+$stableRunning = checkBotsRunning($statusScriptPath, $username, $logPath, 'stable');
+$betaRunning = checkBotsRunning($statusScriptPath, $username, $BetaLogPath, 'beta');
+$alphaRunning = checkBotsRunning($statusScriptPath, $username, $alphaLogPath, 'alpha');
 
 $multiBotWarning = '';
 if (
@@ -294,26 +294,26 @@ if (file_exists($onlineStatusFile)) {
 
 // Check only the selected bot's status
 if ($selectedBot === 'stable') {
-  $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
-  $botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath);
+  $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath, 'stable');
+  $botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath, 'stable');
   if ($botSystemStatus) {
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
   }
 } elseif ($selectedBot === 'beta') {
-  $betaStatusOutput = getBotsStatus($BetaStatusScriptPath, $username, $BetaLogPath);
-  $betaBotSystemStatus = checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath);
+  $betaStatusOutput = getBotsStatus($statusScriptPath, $username, $BetaLogPath, 'beta');
+  $betaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, $BetaLogPath, 'beta');
   if ($betaBotSystemStatus) {
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
   }
 } elseif ($selectedBot === 'alpha') {
-  $alphaStatusOutput = getBotsStatus($alphaStatusScriptPath, $username, $alphaLogPath);
-  $alphaBotSystemStatus = checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath);
+  $alphaStatusOutput = getBotsStatus($statusScriptPath, $username, $alphaLogPath, 'alpha');
+  $alphaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, $alphaLogPath, 'alpha');
   if ($alphaBotSystemStatus) {
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
   }
 } elseif ($selectedBot === 'discord') {
-  $discordStatusOutput = getBotsStatus($discordStatusScriptPath, $username, $discordLogPath);
-  $discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath);
+  $discordStatusOutput = getBotsStatus($statusScriptPath, $username, $discordLogPath, 'discord');
+  $discordBotSystemStatus = checkBotsRunning($statusScriptPath, $username, $discordLogPath, 'discord');
   if ($discordBotSystemStatus) {
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
   }
