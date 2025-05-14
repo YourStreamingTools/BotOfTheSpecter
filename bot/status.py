@@ -29,11 +29,10 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
     cmdline = [arg.lower() for arg in (process.info['cmdline'] or [])]
     if not cmdline:
         continue
-    if (
-        script_name in cmdline
-        and "-channel" in cmdline
-        and channel_username in cmdline
-    ):
+    script_match = any(arg.endswith(script_name) for arg in cmdline)
+    channel_flag_match = "-channel" in cmdline
+    channel_value_match = channel_username in cmdline
+    if script_match and channel_flag_match and channel_value_match:
         print(f"Bot is running with process ID: {process.info['pid']}")
         break
 else:
