@@ -2,18 +2,31 @@ import psutil
 import argparse
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="Check if a bot process is running for a specific channel username")
+parser = argparse.ArgumentParser(description="Check if a bot process is running for a specific channel username and system")
+parser.add_argument(
+    "-system",
+    dest="system",
+    required=True,
+    choices=["stable", "alpha", "beta", "discord"],
+    help="System to check (stable, alpha, beta, discord)"
+)
 parser.add_argument("-channel", dest="channel_username", required=True, help="Channel username to check")
 args = parser.parse_args()
 
-# Check if a process is running for the specified channel username
-channel_username = args.channel_username.lower()  # Convert to lowercase for consistent comparison
+channel_username = args.channel_username.lower()
 
-# Define the expected command line for both bot versions
-expected_command_v1 = f"python /var/www/bot/bot.py -channel {channel_username}"
-expected_command_v2 = f"python bot.py -channel {channel_username}"
+# Map system to script names
+script_map = {
+    "stable": "bot.py",
+    "alpha": "alpha.py",
+    "beta": "beta.py",
+    "discord": "discordbot.py"
+}
 
-# Iterate through all running processes
+script_name = script_map[args.system]
+expected_command_v1 = f"python /var/www/bot/{script_name} -channel {channel_username}"
+expected_command_v2 = f"python {script_name} -channel {channel_username}"
+
 for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
     process_cmdline = ' '.join(process.info['cmdline']).lower() if process.info['cmdline'] else ""
     if expected_command_v1 in process_cmdline or expected_command_v2 in process_cmdline:
