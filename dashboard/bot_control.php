@@ -13,32 +13,29 @@ $logPath = "/var/www/logs/script/$username.txt";
 $betaVersionFilePath = '/var/www/logs/version/' . $username . '_beta_version_control.txt';
 $betaNewVersion = file_get_contents("/var/www/api/beta_version_control.txt") ?: 'N/A';
 $BetaBotScriptPath = "/var/www/bot/beta.py";
-$BetaStatusScriptPath = "/var/www/bot/beta_status.py";
 $BetaLogPath = "/var/www/logs/script/{$username}_beta.txt";
 
 // Define variables for Discord bot
 $discordVersionFilePath = '/var/www/logs/version/' . $username . '_discord_version_control.txt';
 $discordNewVersion = file_get_contents("/var/www/api/discord_version_control.txt") ?: 'N/A';
 $discordBotScriptPath = "/var/www/bot/discordbot.py";
-$discordStatusScriptPath = "/var/www/bot/discordstatus.py";
 $discordLogPath = "/var/www/logs/script/{$username}_discord.txt";
 
 // Define variables for Alpha bot
 $alphaVersionFilePath = '/var/www/logs/version/' . $username . '_alpha_version_control.txt';
 $alphaNewVersion = file_get_contents("/var/www/api/alpha_version_control.txt") ?: 'N/A';
 $alphaBotScriptPath = "/var/www/bot/alpha.py";
-$alphaStatusScriptPath = "/var/www/bot/alpha_status.py";
 $alphaLogPath = "/var/www/logs/script/{$username}_alpha.txt";
 
 // Get bot status and check if it's running
-$statusOutput = getBotsStatus($statusScriptPath, $username, $logPath);
-$botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath);
-$betaStatusOutput = getBotsStatus($BetaStatusScriptPath, $username, $BetaLogPath);
-$betaBotSystemStatus = checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath);
-$alphaStatusOutput = getBotsStatus($alphaStatusScriptPath, $username, $alphaLogPath);
-$alphaBotSystemStatus = checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath);
-$discordStatusOutput = getBotsStatus($discordStatusScriptPath, $username, $discordLogPath);
-$discordBotSystemStatus = checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath);
+$statusOutput = getBotsStatus($statusScriptPath, $username, $logPath, 'stable');
+$botSystemStatus = checkBotsRunning($statusScriptPath, $username, $logPath, 'stable');
+$betaStatusOutput = getBotsStatus($statusScriptPath, $username, $BetaLogPath, 'beta');
+$betaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, $BetaLogPath, 'beta');
+$alphaStatusOutput = getBotsStatus($statusScriptPath, $username, $alphaLogPath, 'alpha');
+$alphaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, $alphaLogPath, 'alpha');
+$discordStatusOutput = getBotsStatus($statusScriptPath, $username, $discordLogPath, 'discord');
+$discordBotSystemStatus = checkBotsRunning($statusScriptPath, $username, $discordLogPath, 'discord');
 
 // Check if log directories exist, if not, create them
 $directory = dirname($logPath);
@@ -106,7 +103,7 @@ $shutdownTimeoutSeconds = 5;
 // Handle standard bot actions
 if (isset($_POST['runBot'])) {
     $waited = 0;
-    while (checkBotsRunning($statusScriptPath, $username, $logPath) && $waited < $shutdownTimeoutSeconds) {
+    while (checkBotsRunning($statusScriptPath, $username, $logPath, 'stable') && $waited < $shutdownTimeoutSeconds) {
         sleep(1);
         $waited++;
     }
@@ -130,23 +127,23 @@ if (isset($_POST['restartBot'])) {
 // Handle beta bot actions
 if (isset($_POST['runBetaBot'])) {
     $waited = 0;
-    while (checkBotsRunning($BetaStatusScriptPath, $username, $BetaLogPath) && $waited < $shutdownTimeoutSeconds) {
+    while (checkBotsRunning($statusScriptPath, $username, $BetaLogPath, 'beta') && $waited < $shutdownTimeoutSeconds) {
         sleep(1);
         $waited++;
     }
     if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
-    $betaStatusOutput = handleTwitchBotAction('run', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
+    $betaStatusOutput = handleTwitchBotAction('run', $BetaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
     // The version running will be updated in the handleTwitchBotAction function
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
 
 if (isset($_POST['killBetaBot'])) {
-    $betaStatusOutput = handleTwitchBotAction('kill', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
+    $betaStatusOutput = handleTwitchBotAction('kill', $BetaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
     $betaVersionRunning = "";
 }
 
 if (isset($_POST['restartBetaBot'])) {
-    $betaStatusOutput = handleTwitchBotAction('restart', $BetaBotScriptPath, $BetaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
+    $betaStatusOutput = handleTwitchBotAction('restart', $BetaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
     // The version running will be updated in the handleTwitchBotAction function
     $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
 }
@@ -154,25 +151,25 @@ if (isset($_POST['restartBetaBot'])) {
 // Handle Discord bot actions
 if (isset($_POST['runDiscordBot'])) {
     $waited = 0;
-    while (checkBotsRunning($discordStatusScriptPath, $username, $discordLogPath) && $waited < $shutdownTimeoutSeconds) {
+    while (checkBotsRunning($statusScriptPath, $username, $discordLogPath, 'discord') && $waited < $shutdownTimeoutSeconds) {
         sleep(1);
         $waited++;
     }
     if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
-    $discordStatusOutput = handleDiscordBotAction('run', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
+    $discordStatusOutput = handleDiscordBotAction('run', $discordBotScriptPath, $statusScriptPath, $username, $discordLogPath);
     // Get the updated version running after action is performed
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
 }
 
 // Handling Discord bot stop
 if (isset($_POST['killDiscordBot'])) {
-    $discordStatusOutput = handleDiscordBotAction('kill', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
+    $discordStatusOutput = handleDiscordBotAction('kill', $discordBotScriptPath, $statusScriptPath, $username, $discordLogPath);
     $discordVersionRunning = "";
 }
 
 // Handling Discord bot restart
 if (isset($_POST['restartDiscordBot'])) {
-    $discordStatusOutput = handleDiscordBotAction('restart', $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath);
+    $discordStatusOutput = handleDiscordBotAction('restart', $discordBotScriptPath, $statusScriptPath, $username, $discordLogPath);
     // Get the updated version running after action is performed
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
 }
@@ -180,36 +177,36 @@ if (isset($_POST['restartDiscordBot'])) {
 // Handle Alpha bot actions
 if (isset($_POST['runAlphaBot'])) {
     $waited = 0;
-    while (checkBotsRunning($alphaStatusScriptPath, $username, $alphaLogPath) && $waited < $shutdownTimeoutSeconds) {
+    while (checkBotsRunning($statusScriptPath, $username, $alphaLogPath, 'alpha') && $waited < $shutdownTimeoutSeconds) {
         sleep(1);
         $waited++;
     }
     if ($waited >= $shutdownTimeoutSeconds) { /* timeout warning */ }
-    $alphaStatusOutput = handleTwitchBotAction('run', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
+    $alphaStatusOutput = handleTwitchBotAction('run', $alphaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
     // The version running will be updated in the handleTwitchBotAction function
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
 }
 
 if (isset($_POST['killAlphaBot'])) {
-    $alphaStatusOutput = handleTwitchBotAction('kill', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
+    $alphaStatusOutput = handleTwitchBotAction('kill', $alphaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
     $alphaVersionRunning = "";
 }
 
 if (isset($_POST['restartAlphaBot'])) {
-    $alphaStatusOutput = handleTwitchBotAction('restart', $alphaBotScriptPath, $alphaStatusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
+    $alphaStatusOutput = handleTwitchBotAction('restart', $alphaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
     // The version running will be updated in the handleTwitchBotAction function
     $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
 }
 
 // Function to handle Discord bot actions
-function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusScriptPath, $username, $discordLogPath) {
+function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPath, $username, $discordLogPath) {
     global $ssh_host, $ssh_username, $ssh_password, $discordVersionFilePath, $discordNewVersion;
     $connection = ssh2_connect($ssh_host, 22);
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
     // Get PID of the running bot
-    $command = "python $discordStatusScriptPath -channel $username";
+    $command = "python $statusScriptPath -system discord -channel $username";
     $statusOutput = ssh2_exec($connection, $command);
     if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
     stream_set_blocking($statusOutput, true);
@@ -225,7 +222,7 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
             } else {
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
                 sleep(2);
-                $statusOutput = ssh2_exec($connection, "python $discordStatusScriptPath -channel $username");
+                $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
                 if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
                 stream_set_blocking($statusOutput, true);
                 $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
@@ -254,7 +251,7 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $discordStatusSc
             if ($pid > 0) {
                 killBot($pid);
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
-                $statusOutput = ssh2_exec($connection, "python $discordStatusScriptPath -channel $username");
+                $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
                 if (!$statusOutput) {
                     throw new Exception('Failed to check bot status after restart');
                 }
@@ -288,7 +285,13 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
     // Get PID of the running bot
-    $command = "python $statusScriptPath -channel $username";
+    $system = 'stable';
+    if (strpos($botScriptPath, 'beta.py') !== false) {
+        $system = 'beta';
+    } elseif (strpos($botScriptPath, 'alpha.py') !== false) {
+        $system = 'alpha';
+    }
+    $command = "python $statusScriptPath -system $system -channel $username";
     $statusOutput = ssh2_exec($connection, $command);
     if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
     stream_set_blocking($statusOutput, true);
@@ -318,7 +321,7 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                 } else {
                     startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
                     sleep(2);
-                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -channel $username");
+                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
                     if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
                     stream_set_blocking($statusOutput, true);
                     $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
@@ -345,7 +348,7 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     killBot($pid);
                     startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
                     sleep(2);
-                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -channel $username");
+                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
                     if (!$statusOutput) { throw new Exception('Failed to check bot status after restart'); }
                     stream_set_blocking($statusOutput, true);
                     $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
@@ -377,7 +380,7 @@ function updateVersionFile($versionFilePath, $newVersion) {
     return true;
 }
 
-function getBotsStatus($statusScriptPath, $username) {
+function getBotsStatus($statusScriptPath, $username, $logPath = '', $system = 'stable') {
     global $ssh_host, $ssh_username, $ssh_password;
     $connection = ssh2_connect($ssh_host, 22);
     if (!$connection) { throw new Exception('SSH connection failed'); }
@@ -385,7 +388,7 @@ function getBotsStatus($statusScriptPath, $username) {
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
     // Run the command to get the bot's status
-    $command = "python $statusScriptPath -channel $username";
+    $command = "python $statusScriptPath -system $system -channel $username";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     // Set stream to blocking mode to read the output
@@ -408,7 +411,7 @@ function isBotRunning($statusScriptPath, $username) {
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
-    $command = "python $statusScriptPath -channel $username";
+    $command = "python $statusScriptPath -system stable -channel $username";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     stream_set_blocking($stream, true);
@@ -425,7 +428,7 @@ function getBotPID($statusScriptPath, $username) {
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
-    $command = "python $statusScriptPath -channel $username";
+    $command = "python $statusScriptPath -system stable -channel $username";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     stream_set_blocking($stream, true);
@@ -436,13 +439,13 @@ function getBotPID($statusScriptPath, $username) {
     return $pid;
 }
 
-function checkBotsRunning($statusScriptPath, $username, $logPath) {
+function checkBotsRunning($statusScriptPath, $username, $logPath = '', $system = 'stable') {
     global $ssh_host, $ssh_username, $ssh_password;
     $connection = ssh2_connect($ssh_host, 22);
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
-    $command = "python $statusScriptPath -channel $username";
+    $command = "python $statusScriptPath -system $system -channel $username";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     stream_set_blocking($stream, true);
