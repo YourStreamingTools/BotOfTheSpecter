@@ -438,11 +438,6 @@ include "mod_access.php";
             echo $BotModMessage;
             echo $setupMessage;
           ?>
-          <?php if ($betaAccess && $selectedBot === 'beta'): ?>
-            <div class="notification is-danger has-text-black has-text-weight-bold">
-              <span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta, or Alpha) at the same time can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time for best results.</span>
-            </div>
-          <?php endif; ?>
           <?php
             echo $subscriptionWarning;
             if (in_array($selectedBot, ['stable','beta','alpha'])) echo $multiBotWarning;
