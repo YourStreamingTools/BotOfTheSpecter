@@ -440,8 +440,6 @@ function getBotsStatus($statusScriptPath, $username, $logPath = '', $system = 's
     ssh2_disconnect($connection);
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
-    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-        $pid = intval($matches[1]);
     } else {
         $pid = 0;
     }

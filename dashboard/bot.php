@@ -296,9 +296,7 @@ if (file_exists($onlineStatusFile)) {
 echo "<br><br>";
 if ($selectedBot === 'stable') {
   $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath, 'stable');
-  // For debug only, you can extract PID from the HTML if you want, but do not use it for UI logic
   echo "<pre>DEBUG: $statusOutput</pre>";
-  // $statusOutput is already correct for the UI
   $botSystemStatus = strpos($statusOutput, 'PID') !== false;
   if ($botSystemStatus) {
     $versionRunning = getRunningVersion($versionFilePath, $newVersion);
