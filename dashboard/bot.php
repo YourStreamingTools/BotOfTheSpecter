@@ -264,15 +264,13 @@ $stableRunning = checkBotsRunning($statusScriptPath, $username, $logPath, 'stabl
 $betaRunning = checkBotsRunning($statusScriptPath, $username, $BetaLogPath, 'beta');
 $alphaRunning = checkBotsRunning($statusScriptPath, $username, $alphaLogPath, 'alpha');
 
+// Count how many bots are running
+$runningBotCount = ($stableRunning ? 1 : 0) + ($betaRunning ? 1 : 0) + ($alphaRunning ? 1 : 0);
 $multiBotWarning = '';
-if (
-  ($selectedBot === 'stable' && ($betaRunning || $alphaRunning)) ||
-  ($selectedBot === 'beta' && ($stableRunning || $alphaRunning)) ||
-  ($selectedBot === 'alpha' && ($stableRunning || $betaRunning))
-) {
+if (($stableRunning || $betaRunning || $alphaRunning) && $selectedBot !== 'discord') {
   $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">
-    <span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta, or Alpha) at the same time can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time for best results.</span>
-  </div>';
+    <span class="has-text-weight-bold">Notice:</span> Running multiple versions of the bot (Stable, Beta, or Alpha) at the same time can cause data conflicts and unexpected behavior. Please ensure only one version is running at a time for best results.
+    </div>';
 }
 
 // Check if the bot "knows" the user is online
@@ -437,7 +435,7 @@ include "mod_access.php";
           ?>
           <?php
             echo $subscriptionWarning;
-            if (in_array($selectedBot, ['stable','beta','alpha'])) echo $multiBotWarning;
+            echo $multiBotWarning;
           ?>
           <?php if ($showButtons): ?>
           <div class="box">
