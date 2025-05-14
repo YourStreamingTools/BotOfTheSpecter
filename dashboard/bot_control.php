@@ -210,8 +210,12 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
     $statusOutput = ssh2_exec($connection, $command);
     if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
     stream_set_blocking($statusOutput, true);
-    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+    $statusOutput = trim(stream_get_contents($statusOutput));
     fclose($statusOutput);
+    // Extract PID using regex
+    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else { $pid = 0; }
     $message = '';
     switch ($action) {
         case 'run':
@@ -225,8 +229,11 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
                 $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
                 if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
                 stream_set_blocking($statusOutput, true);
-                $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                $statusOutput = trim(stream_get_contents($statusOutput));
                 fclose($statusOutput);
+                if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+                    $pid = intval($matches[1]);
+                } else { $pid = 0; }
                 if ($pid > 0) {
                     // Update version file with latest version when bot is started
                     updateVersionFile($discordVersionFilePath, $discordNewVersion);
@@ -256,8 +263,11 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
                     throw new Exception('Failed to check bot status after restart');
                 }
                 stream_set_blocking($statusOutput, true);
-                $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                $statusOutput = trim(stream_get_contents($statusOutput));
                 fclose($statusOutput);
+                if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+                    $pid = intval($matches[1]);
+                } else { $pid = 0; }
                 if ($pid > 0) {
                     // Update version file with latest version on restart
                     updateVersionFile($discordVersionFilePath, $discordNewVersion);
@@ -295,8 +305,12 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
     $statusOutput = ssh2_exec($connection, $command);
     if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
     stream_set_blocking($statusOutput, true);
-    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+    $statusOutput = trim(stream_get_contents($statusOutput));
     fclose($statusOutput);
+    // Extract PID using regex
+    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else { $pid = 0; }
     $message = '';
     // Determine which version file to update based on the bot script path
     $currentVersionFilePath = "";
@@ -324,8 +338,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
                     if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
                     stream_set_blocking($statusOutput, true);
-                    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                    $statusOutput = trim(stream_get_contents($statusOutput));
                     fclose($statusOutput);
+                    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+                        $pid = intval($matches[1]);
+                    } else { $pid = 0; }
                     if ($pid > 0) {
                         // Update version file with latest version on successful start
                         updateVersionFile($currentVersionFilePath, $currentNewVersion);
@@ -351,8 +368,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
                     if (!$statusOutput) { throw new Exception('Failed to check bot status after restart'); }
                     stream_set_blocking($statusOutput, true);
-                    $pid = intval(preg_replace('/\D/', '', stream_get_contents($statusOutput)));
+                    $statusOutput = trim(stream_get_contents($statusOutput));
                     fclose($statusOutput);
+                    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+                        $pid = intval($matches[1]);
+                    } else { $pid = 0; }
                     if ($pid > 0) {
                         // Update version file with latest version on successful restart
                         updateVersionFile($currentVersionFilePath, $currentNewVersion);
@@ -393,11 +413,13 @@ function getBotsStatus($statusScriptPath, $username, $logPath = '', $system = 's
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     // Set stream to blocking mode to read the output
     stream_set_blocking($stream, true);
-    $statusOutput = stream_get_contents($stream);
+    $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    // Process the output to extract PID
-    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    // Extract PID using regex
+    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else { $pid = 0; }
     if ($pid > 0) {
         return "<div class='status-message'>Status: PID $pid.</div>";
     } else {
@@ -415,10 +437,12 @@ function isBotRunning($statusScriptPath, $username) {
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     stream_set_blocking($stream, true);
-    $statusOutput = stream_get_contents($stream);
+    $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else { $pid = 0; }
     return ($pid > 0);
 }
 
@@ -432,10 +456,12 @@ function getBotPID($statusScriptPath, $username) {
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     stream_set_blocking($stream, true);
-    $statusOutput = stream_get_contents($stream);
+    $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else { $pid = 0; }
     return $pid;
 }
 
@@ -449,10 +475,12 @@ function checkBotsRunning($statusScriptPath, $username, $logPath = '', $system =
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('SSH command execution failed'); }
     stream_set_blocking($stream, true);
-    $statusOutput = stream_get_contents($stream);
+    $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    $pid = intval(preg_replace('/\D/', '', $statusOutput));
+    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else { $pid = 0; }
     return ($pid > 0);
 }
 
