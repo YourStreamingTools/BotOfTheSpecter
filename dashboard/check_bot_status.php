@@ -46,23 +46,19 @@ function getBotsStatus($statusScriptPath, $username, $logPath = '', $system = 's
     global $ssh_host, $ssh_username, $ssh_password;
     $connection = ssh2_connect($ssh_host, 22);
     if (!$connection) { return json_encode(['error' => 'SSH connection failed']); }
-    
     // Authenticate using username and password
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         return json_encode(['error' => 'SSH authentication failed']); 
     }
-    
     // Run the command to get the bot's status
     $command = "python $statusScriptPath -system $system -channel $username";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { return json_encode(['error' => 'SSH command execution failed']); }
-    
     // Set stream to blocking mode to read the output
     stream_set_blocking($stream, true);
     $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    
     // Use the updated regex pattern that matches "Bot is running with process ID: X"
     if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
         preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
