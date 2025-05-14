@@ -338,6 +338,9 @@ include "mod_access.php";
 
 <div class="container">
 <br>
+  <div class="notification is-danger has-text-black has-text-weight-bold">
+    <span class="has-text-weight-bold">We’re currently upgrading our status notification system. While the bot may be active, it might not appear as running. Please bear with us as we implement these updates and allow some time for the changes to reflect on the website.</span>
+  </div>
   <div class="columns is-desktop">
     <!-- Left sidebar -->
     <div class="column is-3">
