@@ -296,14 +296,10 @@ if (file_exists($onlineStatusFile)) {
 echo "<br><br>";
 if ($selectedBot === 'stable') {
   $statusOutput = getBotsStatus($statusScriptPath, $username, $logPath, 'stable');
-  // Extract PID from the debug output, not from the HTML returned by getBotsStatus
   if (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
       $debugPid = intval($matches[1]);
-      // Show running status if PID found
-      $statusOutput = "<div class='status-message'>Status: PID $debugPid.</div>";
   } else {
       $debugPid = 0;
-      $statusOutput = "<div class='status-message error'>Status: NOT RUNNING</div>";
   }
   echo "<pre>DEBUG: $statusOutput\nDEBUG PID: $debugPid</pre>";
   $botSystemStatus = ($debugPid > 0);
@@ -314,10 +310,8 @@ if ($selectedBot === 'stable') {
   $betaStatusOutput = getBotsStatus($statusScriptPath, $username, $BetaLogPath, 'beta');
   if (preg_match('/PID\s+(\d+)/i', $betaStatusOutput, $matches)) {
       $debugPid = intval($matches[1]);
-      $betaStatusOutput = "<div class='status-message'>Status: PID $debugPid.</div>";
   } else {
       $debugPid = 0;
-      $betaStatusOutput = "<div class='status-message error'>Status: NOT RUNNING</div>";
   }
   echo "<pre>DEBUG: $betaStatusOutput\nDEBUG PID: $debugPid</pre>";
   $betaBotSystemStatus = ($debugPid > 0);
@@ -328,10 +322,8 @@ if ($selectedBot === 'stable') {
   $alphaStatusOutput = getBotsStatus($statusScriptPath, $username, $alphaLogPath, 'alpha');
   if (preg_match('/PID\s+(\d+)/i', $alphaStatusOutput, $matches)) {
       $debugPid = intval($matches[1]);
-      $alphaStatusOutput = "<div class='status-message'>Status: PID $debugPid.</div>";
   } else {
       $debugPid = 0;
-      $alphaStatusOutput = "<div class='status-message error'>Status: NOT RUNNING</div>";
   }
   echo "<pre>DEBUG: $alphaStatusOutput\nDEBUG PID: $debugPid</pre>";
   $alphaBotSystemStatus = ($debugPid > 0);
@@ -342,10 +334,8 @@ if ($selectedBot === 'stable') {
   $discordStatusOutput = getBotsStatus($statusScriptPath, $username, $discordLogPath, 'discord');
   if (preg_match('/PID\s+(\d+)/i', $discordStatusOutput, $matches)) {
       $debugPid = intval($matches[1]);
-      $discordStatusOutput = "<div class='status-message'>Status: PID $debugPid.</div>";
   } else {
       $debugPid = 0;
-      $discordStatusOutput = "<div class='status-message error'>Status: NOT RUNNING</div>";
   }
   echo "<pre>DEBUG: $discordStatusOutput\nDEBUG PID: $debugPid</pre>";
   $discordBotSystemStatus = ($debugPid > 0);
