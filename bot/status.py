@@ -24,12 +24,11 @@ script_map = {
 }
 
 script_name = script_map[args.system]
-expected_command_v1 = f"python /var/www/bot/{script_name} -channel {channel_username}"
-expected_command_v2 = f"python {script_name} -channel {channel_username}"
+channel_arg = f"-channel {channel_username}"
 
 for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
     process_cmdline = ' '.join(process.info['cmdline']).lower() if process.info['cmdline'] else ""
-    if expected_command_v1 in process_cmdline or expected_command_v2 in process_cmdline:
+    if script_name in process_cmdline and channel_arg in process_cmdline:
         print(f"Bot is running with process ID: {process.info['pid']}")
         break
 else:
