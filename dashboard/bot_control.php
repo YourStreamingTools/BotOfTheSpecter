@@ -207,11 +207,11 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
         throw new Exception('SSH authentication failed'); }
     // Get PID of the running bot
     $command = "python $statusScriptPath -system discord -channel $username";
-    $statusOutput = ssh2_exec($connection, $command);
-    if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
-    stream_set_blocking($statusOutput, true);
-    $statusOutput = trim(stream_get_contents($statusOutput));
-    fclose($statusOutput);
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('Failed to get bot status'); }
+    stream_set_blocking($stream, true);
+    $statusOutput = trim(stream_get_contents($stream));
+    fclose($stream);
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
     } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -229,11 +229,11 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
             } else {
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
                 sleep(2);
-                $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
-                if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
-                stream_set_blocking($statusOutput, true);
-                $statusOutput = trim(stream_get_contents($statusOutput));
-                fclose($statusOutput);
+                $stream = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
+                if (!$stream) { throw new Exception('Failed to check bot status after start'); }
+                stream_set_blocking($stream, true);
+                $statusOutput = trim(stream_get_contents($stream));
+                fclose($stream);
                 if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                     $pid = intval($matches[1]);
                 } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -265,13 +265,13 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
             if ($pid > 0) {
                 killBot($pid);
                 startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
-                $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
-                if (!$statusOutput) {
+                $stream = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
+                if (!$stream) {
                     throw new Exception('Failed to check bot status after restart');
                 }
-                stream_set_blocking($statusOutput, true);
-                $statusOutput = trim(stream_get_contents($statusOutput));
-                fclose($statusOutput);
+                stream_set_blocking($stream, true);
+                $statusOutput = trim(stream_get_contents($stream));
+                fclose($stream);
                 if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                     $pid = intval($matches[1]);
                 } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
