@@ -212,10 +212,13 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
     stream_set_blocking($statusOutput, true);
     $statusOutput = trim(stream_get_contents($statusOutput));
     fclose($statusOutput);
-    // Extract PID using regex
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
-    } else { $pid = 0; }
+    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else {
+        $pid = 0;
+    }
     $message = '';
     switch ($action) {
         case 'run':
@@ -233,7 +236,11 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
                 fclose($statusOutput);
                 if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                     $pid = intval($matches[1]);
-                } else { $pid = 0; }
+                } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+                    $pid = intval($matches[1]);
+                } else {
+                    $pid = 0;
+                }
                 if ($pid > 0) {
                     // Update version file with latest version when bot is started
                     updateVersionFile($discordVersionFilePath, $discordNewVersion);
@@ -267,7 +274,11 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
                 fclose($statusOutput);
                 if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                     $pid = intval($matches[1]);
-                } else { $pid = 0; }
+                } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+                    $pid = intval($matches[1]);
+                } else {
+                    $pid = 0;
+                }
                 if ($pid > 0) {
                     // Update version file with latest version on restart
                     updateVersionFile($discordVersionFilePath, $discordNewVersion);
@@ -307,10 +318,13 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
     stream_set_blocking($statusOutput, true);
     $statusOutput = trim(stream_get_contents($statusOutput));
     fclose($statusOutput);
-    // Extract PID using regex
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
-    } else { $pid = 0; }
+    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else {
+        $pid = 0;
+    }
     $message = '';
     // Determine which version file to update based on the bot script path
     $currentVersionFilePath = "";
@@ -342,7 +356,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     fclose($statusOutput);
                     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                         $pid = intval($matches[1]);
-                    } else { $pid = 0; }
+                    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+                        $pid = intval($matches[1]);
+                    } else {
+                        $pid = 0;
+                    }
                     if ($pid > 0) {
                         // Update version file with latest version on successful start
                         updateVersionFile($currentVersionFilePath, $currentNewVersion);
@@ -372,7 +390,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     fclose($statusOutput);
                     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                         $pid = intval($matches[1]);
-                    } else { $pid = 0; }
+                    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+                        $pid = intval($matches[1]);
+                    } else {
+                        $pid = 0;
+                    }
                     if ($pid > 0) {
                         // Update version file with latest version on successful restart
                         updateVersionFile($currentVersionFilePath, $currentNewVersion);
@@ -416,10 +438,13 @@ function getBotsStatus($statusScriptPath, $username, $logPath = '', $system = 's
     $statusOutput = trim(stream_get_contents($stream));
     fclose($stream);
     ssh2_disconnect($connection);
-    // Extract PID using regex
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
-    } else { $pid = 0; }
+    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else {
+        $pid = 0;
+    }
     if ($pid > 0) {
         return "<div class='status-message'>Status: PID $pid.</div>";
     } else {
@@ -442,7 +467,11 @@ function isBotRunning($statusScriptPath, $username) {
     ssh2_disconnect($connection);
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
-    } else { $pid = 0; }
+    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else {
+        $pid = 0;
+    }
     return ($pid > 0);
 }
 
@@ -461,7 +490,11 @@ function getBotPID($statusScriptPath, $username) {
     ssh2_disconnect($connection);
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
-    } else { $pid = 0; }
+    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else {
+        $pid = 0;
+    }
     return $pid;
 }
 
@@ -480,7 +513,11 @@ function checkBotsRunning($statusScriptPath, $username, $logPath = '', $system =
     ssh2_disconnect($connection);
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
-    } else { $pid = 0; }
+    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+        $pid = intval($matches[1]);
+    } else {
+        $pid = 0;
+    }
     return ($pid > 0);
 }
 
