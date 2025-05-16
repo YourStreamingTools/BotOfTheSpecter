@@ -675,7 +675,40 @@ class BotOfTheSpecter_WebsocketServer:
         if not code:
             self.logger.warning(f"MUSIC_COMMAND from unknown SID [{sid}]")
             return
-        # Save volume to settings file if set, and emit to all clients (including sender)
+        if command == "repeat":
+            repeat_value = data.get("value")
+            if repeat_value is not None:
+                self.save_music_settings(code, {"repeat": bool(repeat_value)})
+                self.logger.info(f"Saved repeat {repeat_value} for code {code}")
+                settings = self.load_music_settings(code)
+                if settings:
+                    for client in self.registered_clients[code]:
+                        await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
+        if command == "shuffle":
+            shuffle_value = data.get("value")
+            if shuffle_value is not None:
+                self.save_music_settings(code, {"shuffle": bool(shuffle_value)})
+                self.logger.info(f"Saved shuffle {shuffle_value} for code {code}")
+                settings = self.load_music_settings(code)
+                if settings:
+                    for client in self.registered_clients[code]:
+                        await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
+        if command == "MUSIC_SETTINGS":
+            # Accept and save any provided settings
+            settings_to_save = {}
+            for key in ("volume", "repeat", "shuffle"):
+                if key in data:
+                    settings_to_save[key] = data[key]
+            if settings_to_save:
+                self.save_music_settings(code, settings_to_save)
+                self.logger.info(f"Saved MUSIC_SETTINGS {settings_to_save} for code {code}")
+            # Emit updated settings to all clients for this code
+            settings = self.load_music_settings(code)
+            if settings:
+                for client in self.registered_clients[code]:
+                    await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
+                self.logger.info(f"Emitted MUSIC_SETTINGS live update for code {code}")
+            return
         if command == "volume":
             volume_value = data.get("value")
             if volume_value is not None:
@@ -728,6 +761,9 @@ class BotOfTheSpecter_WebsocketServer:
                     current = json.load(f)
             else:
                 current = {}
+            for k in ("repeat", "shuffle"):
+                if k in settings:
+                    settings[k] = bool(settings[k])
             current.update(settings)
             with open(settings_file, "w") as f:
                 json.dump(current, f)
@@ -740,7 +776,11 @@ class BotOfTheSpecter_WebsocketServer:
         try:
             if os.path.exists(settings_file):
                 with open(settings_file, "r") as f:
-                    return json.load(f)
+                    settings = json.load(f)
+                    for k in ("repeat", "shuffle"):
+                        if k in settings:
+                            settings[k] = bool(settings[k])
+                    return settings
         except Exception as e:
             self.logger.error(f"Failed to load music settings for {code}: {e}")
         return None
