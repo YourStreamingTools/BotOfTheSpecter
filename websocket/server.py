@@ -740,7 +740,7 @@ class BotOfTheSpecter_WebsocketServer:
                     found_overlay = True
             if not found_overlay:
                 self.logger.warning(f"No overlay client found to answer WHAT_IS_PLAYING for code {code}")
-                await self.sio.emit("NOW_PLAYING", {"error": "No overlay client found for this code."}, to=sid)
+                await self.sio.emit("NOW_PLAYING", {"error": "No overlay client found for this code."})
         elif command == "MUSIC_SETTINGS":
             # Try to load settings from file and send to requester
             settings = self.load_music_settings(code)
@@ -768,6 +768,13 @@ class BotOfTheSpecter_WebsocketServer:
             for k in ("repeat", "shuffle"):
                 if k in settings:
                     settings[k] = bool(settings[k])
+            # Add validation for volume to ensure it's an integer between 0-100
+            if 'volume' in settings:
+                try:
+                    settings['volume'] = max(0, min(100, int(settings['volume'])))
+                except ValueError:
+                    settings.pop('volume')
+                    self.logger.warning(f"Invalid volume value in settings for {code}")
             current.update(settings)
             with open(settings_file, "w") as f:
                 json.dump(current, f)
