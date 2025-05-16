@@ -447,6 +447,11 @@ $musicFiles = getR2MusicFiles();
             initializeSocketListeners();
         });
 
+        // Log all events and their data to the browser console
+        socket.onAny((event, ...args) => {
+            console.log('Event:', event, ...args);
+        });
+
         // Handle disconnection event
         socket.on('disconnect', () => {
             console.log('Disconnected from WebSocket server');
