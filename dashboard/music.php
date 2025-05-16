@@ -158,8 +158,8 @@ $musicFiles = getR2MusicFiles();
                             </span>
                         </div>
                         <div class="column has-text-centered">
-                            <input id="volume-range" type="range" min="0" max="100" value="10" class="slider is-small">
-                            <p id="volume-percentage" class="has-text-white">Volume: 10%</p>
+                            <input id="volume-range" type="range" min="0" max="100" value="0" class="slider is-small">
+                            <p id="volume-percentage" class="has-text-white">Volume: Loading...</p>
                         </div>
                     </div>
                 </div>
@@ -197,6 +197,8 @@ $musicFiles = getR2MusicFiles();
     const retryInterval = 5000;
     let reconnectAttempts = 0;
     let isPlaying = false;
+    let volumeInitialized = false;
+    let settingsTimeout;
 
     function initializeSocketListeners() {
         // Event listener for play/pause toggle
@@ -237,12 +239,28 @@ $musicFiles = getR2MusicFiles();
         // Add click event listener to playlist rows
         document.querySelectorAll('tbody tr').forEach((row, index) => {
             row.addEventListener('click', () => {
-                socket.emit('MUSIC_COMMAND', { command: 'play_index', index: index });
-                // Update play button to "pause" state
-                const icon = document.getElementById('play-pause-icon');
-                icon.classList.remove('fa-play-circle');
-                icon.classList.add('fa-pause-circle');
-                isPlaying = true;
+                if (localPlayback) {
+                    playSongLocal(index);
+                    const icon = document.getElementById('play-pause-icon');
+                    icon.classList.remove('fa-play-circle');
+                    icon.classList.add('fa-pause-circle');
+                    isPlaying = true;
+                } else {
+                    // Get the song title for the selected index
+                    const song = playlist[index];
+                    const songTitle = song.replace('.mp3', '').replace(/_/g, ' ');
+                    // Emit event to play the selected file by index and update now playing
+                    socket.emit('MUSIC_COMMAND', { command: 'play_index', index: index });
+                    socket.emit('NOW_PLAYING', { song: { title: songTitle, file: song } });
+                    console.log('Sent MUSIC_COMMAND play_index:', index, 'and NOW_PLAYING:', songTitle);
+                    // Immediately update the UI for Now Playing
+                    const nowPlayingElement = document.getElementById('now-playing');
+                    nowPlayingElement.textContent = `🎵 ${songTitle}`;
+                    const icon = document.getElementById('play-pause-icon');
+                    icon.classList.remove('fa-play-circle');
+                    icon.classList.add('fa-pause-circle');
+                    isPlaying = true;
+                }
             });
         });
 
@@ -352,7 +370,15 @@ $musicFiles = getR2MusicFiles();
                     icon.classList.add('fa-pause-circle');
                     isPlaying = true;
                 } else {
+                    // Get the song title for the selected index
+                    const song = playlist[index];
+                    const songTitle = song.replace('.mp3', '').replace(/_/g, ' ');
                     socket.emit('MUSIC_COMMAND', { command: 'play_index', index: index });
+                    socket.emit('NOW_PLAYING', { song: { title: songTitle, file: song } });
+                    console.log('Sent MUSIC_COMMAND play_index:', index, 'and NOW_PLAYING:', songTitle);
+                    // Immediately update the UI for Now Playing
+                    const nowPlayingElement = document.getElementById('now-playing');
+                    nowPlayingElement.textContent = `🎵 ${songTitle}`;
                     const icon = document.getElementById('play-pause-icon');
                     icon.classList.remove('fa-play-circle');
                     icon.classList.add('fa-pause-circle');
@@ -416,6 +442,7 @@ $musicFiles = getR2MusicFiles();
             const volumePercentage = document.getElementById('volume-percentage');
             volumeRange.value = settings.volume;
             volumePercentage.textContent = `Volume: ${settings.volume}%`;
+            volumeInitialized = true;
         }
         // Update now playing if present
         if (settings && settings.now_playing) {
@@ -445,6 +472,19 @@ $musicFiles = getR2MusicFiles();
 
             // Only initialize event listeners after connection
             initializeSocketListeners();
+
+            // Set a timeout to fallback to default volume if no settings received
+            settingsTimeout = setTimeout(() => {
+                if (!volumeInitialized) {
+                    const volumeRange = document.getElementById('volume-range');
+                    const volumePercentage = document.getElementById('volume-percentage');
+                    volumeRange.value = 10;
+                    volumePercentage.textContent = 'Volume: 10%';
+                    socket.emit('MUSIC_COMMAND', { command: 'volume', value: 10 });
+                    console.log('No MUSIC_SETTINGS received, defaulting volume to 10% and emitting to server.');
+                    volumeInitialized = true;
+                }
+            }, 3000); // 3 seconds
         });
 
         // Log all events and their data to the browser console
@@ -472,6 +512,7 @@ $musicFiles = getR2MusicFiles();
         // Handle MUSIC_SETTINGS event
         socket.on('MUSIC_SETTINGS', (settings) => {
             applyMusicSettings(settings);
+            if (settingsTimeout) clearTimeout(settingsTimeout);
         });
 
         // Handle NOW_PLAYING event
