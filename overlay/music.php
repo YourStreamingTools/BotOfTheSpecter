@@ -117,12 +117,59 @@ $musicFiles = getR2MusicFiles();
             currentIndex = idx;
             const song = playlist[currentIndex];
             playSong(`https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`, song);
+            if (socket && song && song.file) {
+                socket.emit('NOW_PLAYING', {
+                    song: {
+                        title: song.title || song.file.replace('.mp3','').replace(/_/g,' '),
+                        file: song.file
+                    }
+                });
+            }
         }
 
         function autoStartFirstSong() {
             if (playlist.length > 0) {
                 playSongByIndex(0);
             }
+        }
+
+        // Try to auto-start, but fallback to user gesture if autoplay fails
+        function tryAutoStartFirstSong() {
+            audioPlayer.muted = false;
+            autoStartFirstSong();
+            audioPlayer.play().catch(() => {
+                waitForUserGestureThenAutoplay();
+            });
+        }
+
+        // Prompt the user for interaction before unmuting and starting playback
+        function waitForUserGestureThenAutoplay() {
+            document.body.onclick = null;
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.background = 'rgba(0,0,0,0.85)';
+            overlay.style.color = '#fff';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.flexDirection = 'column';
+            overlay.style.zIndex = '9999';
+            overlay.innerHTML = `
+                <h2 style="font-size:2em;margin-bottom:1em;">Click anywhere to start music playback</h2>
+            `;
+            document.body.appendChild(overlay);
+
+            const handler = () => {
+                audioPlayer.muted = false;
+                autoStartFirstSong();
+                overlay.remove();
+                document.body.removeEventListener('click', handler);
+            };
+            document.body.addEventListener('click', handler, { once: true });
         }
 
         function connectWebSocket() {
@@ -138,8 +185,7 @@ $musicFiles = getR2MusicFiles();
                 const code = urlParams.get('code');
                 if (!code) return;
                 socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'DMCA' });
-                // Auto start first song after registration
-                autoStartFirstSong();
+                tryAutoStartFirstSong();
             });
 
             socket.on('disconnect', () => {
@@ -152,7 +198,6 @@ $musicFiles = getR2MusicFiles();
 
             socket.on('SUCCESS', () => {
                 socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
-                // Removed: socket.emit('MUSIC_COMMAND', { command: 'WHAT_IS_PLAYING' });
             });
 
             socket.on('MUSIC_SETTINGS', (settings) => {
@@ -239,6 +284,17 @@ $musicFiles = getR2MusicFiles();
             if (repeat) {
                 audioPlayer.currentTime = 0;
                 audioPlayer.play();
+                if (playlist.length) {
+                    const song = playlist[currentIndex];
+                    if (socket && song && song.file) {
+                        socket.emit('NOW_PLAYING', {
+                            song: {
+                                title: song.title || song.file.replace('.mp3','').replace(/_/g,' '),
+                                file: song.file
+                            }
+                        });
+                    }
+                }
             } else if (shuffle && playlist.length > 1) {
                 let next;
                 do {
