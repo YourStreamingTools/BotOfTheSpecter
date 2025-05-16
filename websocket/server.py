@@ -675,7 +675,6 @@ class BotOfTheSpecter_WebsocketServer:
         if not code:
             self.logger.warning(f"MUSIC_COMMAND from unknown SID [{sid}]")
             return
-
         # Save volume to settings file if set, and emit to all clients (including sender)
         if command == "volume":
             volume_value = data.get("value")
@@ -688,7 +687,6 @@ class BotOfTheSpecter_WebsocketServer:
                     for client in self.registered_clients[code]:
                         await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
                     self.logger.info(f"Emitted MUSIC_SETTINGS live update for code {code}")
-
         # Broadcast music control commands to all clients for this code except the sender
         broadcast_commands = [
             "play", "pause", "next", "prev", "repeat", "shuffle", "volume", "play_index"
@@ -698,7 +696,6 @@ class BotOfTheSpecter_WebsocketServer:
                 if client['sid'] != sid:
                     await self.sio.emit("MUSIC_COMMAND", data, to=client['sid'])
             self.logger.info(f"Broadcasted MUSIC_COMMAND '{command}' for code {code}")
-
         # Handle special dashboard requests
         if command == "WHAT_IS_PLAYING":
             for client in self.registered_clients[code]:
