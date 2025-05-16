@@ -111,9 +111,23 @@ $musicFiles = getR2MusicFiles();
         <div class="card-content">
             <div class="columns is-mobile is-vcentered">
                 <!-- Now Playing Section -->
-                <div class="column is-half has-text-left">
+                <div class="column is-half has-text-centered">
                     <h2 class="title is-5">Now Playing</h2>
-                    <p id="now-playing" class="subtitle is-6">No song is currently playing</p>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <p id="now-playing" class="subtitle is-6" style="margin-bottom:0;">No song is currently playing</p>
+                            <a id="refresh-now-playing" title="Refresh Now Playing" style="cursor:pointer; color:#209cee; display:flex; align-items:center;">
+                                <span class="icon is-small"><i class="fas fa-sync-alt"></i></span>
+                            </a>
+                        </div>
+                        <!-- Local playback toggle -->
+                        <div>
+                            <label class="checkbox" style="user-select:none;">
+                                <input type="checkbox" id="local-playback-toggle" style="accent-color:#48c774;">
+                                <span style="margin-left: 6px;">Play music locally on this page</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 <!-- Controls Section -->
                 <div class="column is-half">
@@ -173,111 +187,57 @@ $musicFiles = getR2MusicFiles();
     </div>
 </div>
 
-<!-- Audio element for music playback -->
+<!-- Add hidden audio element for local playback -->
 <audio id="audio-player" style="display: none;"></audio>
 
 <!-- Music control scripts -->
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
-    // Establish WebSocket connection
     let socket;
     const retryInterval = 5000;
     let reconnectAttempts = 0;
     let isPlaying = false;
-    let audioContext, gainNode;
-
-    // Set default volume to 10% on page load
-    document.addEventListener('DOMContentLoaded', () => {
-        const audioPlayer = document.getElementById('audio-player');
-        const volumePercentage = document.getElementById('volume-percentage');
-        audioPlayer.volume = 0.1;
-        volumePercentage.textContent = "Volume: 10%";
-        // Initialize Web Audio API for normalization
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaElementSource(audioPlayer);
-        gainNode = audioContext.createGain();
-        source.connect(gainNode).connect(audioContext.destination);
-    });
 
     function initializeSocketListeners() {
         // Event listener for play/pause toggle
         document.getElementById('play-pause-btn').addEventListener('click', function() {
-            const audioPlayer = document.getElementById('audio-player');
             const icon = document.getElementById('play-pause-icon');
             if (isPlaying) {
-                console.log('Pause clicked');
-                audioPlayer.pause();
-                socket.emit('COMMAND', { command: 'pause' });
+                socket.emit('MUSIC_COMMAND', { command: 'pause' });
                 icon.classList.remove('fa-pause-circle');
                 icon.classList.add('fa-play-circle');
             } else {
-                console.log('Play clicked');
-                playSong(currentIndex);
-                socket.emit('COMMAND', { command: 'play' });
+                socket.emit('MUSIC_COMMAND', { command: 'play' });
                 icon.classList.remove('fa-play-circle');
                 icon.classList.add('fa-pause-circle');
             }
             isPlaying = !isPlaying;
         });
 
-        // Event listener for volume control
-        document.getElementById('volume-range').addEventListener('input', function() {
-            const audioPlayer = document.getElementById('audio-player');
-            const volumePercentage = document.getElementById('volume-percentage');
-            audioPlayer.volume = this.value / 100; // Set volume (0.0 to 1.0)
-            volumePercentage.textContent = `Volume: ${this.value}%`; // Update volume text
-            console.log('Volume set to:', this.value);
-            socket.emit('COMMAND', { command: 'volume', value: this.value });
-        });
-
         document.getElementById('prev-btn').addEventListener('click', function() {
-            console.log('Previous clicked');
-            currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-            playSong(currentIndex);
+            socket.emit('MUSIC_COMMAND', { command: 'prev' });
         });
 
         document.getElementById('next-btn').addEventListener('click', function() {
-            console.log('Next clicked');
-            if (shuffle) {
-                currentIndex = Math.floor(Math.random() * playlist.length);
-            } else {
-                currentIndex = (currentIndex + 1) % playlist.length;
-            }
-            playSong(currentIndex);
+            socket.emit('MUSIC_COMMAND', { command: 'next' });
         });
 
         document.getElementById('repeat-btn').addEventListener('click', function() {
             repeat = !repeat;
-            console.log('Repeat:', repeat);
+            socket.emit('MUSIC_COMMAND', { command: 'repeat', value: repeat });
             this.classList.toggle('has-text-danger', repeat);
         });
 
         document.getElementById('shuffle-btn').addEventListener('click', function() {
             shuffle = !shuffle;
-            console.log('Shuffle:', shuffle);
+            socket.emit('MUSIC_COMMAND', { command: 'shuffle', value: shuffle });
             this.classList.toggle('has-text-danger', shuffle);
-        });
-
-        socket.on('NOW_PLAYING', (data) => {
-            if (data && data.song) {
-                console.log('Server updated now playing:', data.song);
-            }
-        });
-
-        // Automatically play the next song when the current one ends
-        socket.on('SONG_ENDED', () => {
-            if (repeat) {
-                playSong(currentIndex);
-            } else {
-                document.getElementById('next-btn').click();
-            }
         });
 
         // Add click event listener to playlist rows
         document.querySelectorAll('tbody tr').forEach((row, index) => {
             row.addEventListener('click', () => {
-                console.log(`Playing file from playlist: ${row.dataset.file}`);
-                playSong(index); // Play the clicked file
+                socket.emit('MUSIC_COMMAND', { command: 'play_index', index: index });
                 // Update play button to "pause" state
                 const icon = document.getElementById('play-pause-icon');
                 icon.classList.remove('fa-play-circle');
@@ -285,6 +245,187 @@ $musicFiles = getR2MusicFiles();
                 isPlaying = true;
             });
         });
+
+        // Restore volume control event listener
+        document.getElementById('volume-range').addEventListener('input', function() {
+            const volumePercentage = document.getElementById('volume-percentage');
+            volumePercentage.textContent = `Volume: ${this.value}%`;
+            socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
+        });
+
+        // Only declare refreshBtn once at the top of this function
+        const refreshBtn = document.getElementById('refresh-now-playing');
+
+        // Update refresh icon to show loading (spin) when loading
+        refreshBtn.addEventListener('click', function() {
+            const icon = refreshBtn.querySelector('i');
+            icon.classList.add('fa-spin');
+            socket.emit('MUSIC_COMMAND', { command: 'WHAT_IS_PLAYING' });
+        });
+
+        // Local playback toggle
+        const localPlaybackToggle = document.getElementById('local-playback-toggle');
+        const audioPlayer = document.getElementById('audio-player');
+        let localPlayback = false;
+        let playlist = <?php echo json_encode($musicFiles); ?>;
+        let currentIndex = 0;
+
+        localPlaybackToggle.addEventListener('change', function() {
+            localPlayback = this.checked;
+            // Optionally show/hide audio element or give user feedback
+        });
+
+        // Play/Pause
+        document.getElementById('play-pause-btn').addEventListener('click', function() {
+            const icon = document.getElementById('play-pause-icon');
+            if (localPlayback) {
+                if (audioPlayer.paused) {
+                    audioPlayer.play();
+                    icon.classList.remove('fa-play-circle');
+                    icon.classList.add('fa-pause-circle');
+                    isPlaying = true;
+                } else {
+                    audioPlayer.pause();
+                    icon.classList.remove('fa-pause-circle');
+                    icon.classList.add('fa-play-circle');
+                    isPlaying = false;
+                }
+            } else {
+                if (isPlaying) {
+                    socket.emit('MUSIC_COMMAND', { command: 'pause' });
+                    icon.classList.remove('fa-pause-circle');
+                    icon.classList.add('fa-play-circle');
+                } else {
+                    socket.emit('MUSIC_COMMAND', { command: 'play' });
+                    icon.classList.remove('fa-play-circle');
+                    icon.classList.add('fa-pause-circle');
+                }
+                isPlaying = !isPlaying;
+            }
+        });
+
+        // Previous
+        document.getElementById('prev-btn').addEventListener('click', function() {
+            if (localPlayback) {
+                currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+                playSongLocal(currentIndex);
+            } else {
+                socket.emit('MUSIC_COMMAND', { command: 'prev' });
+            }
+        });
+
+        // Next
+        document.getElementById('next-btn').addEventListener('click', function() {
+            if (localPlayback) {
+                currentIndex = (currentIndex + 1) % playlist.length;
+                playSongLocal(currentIndex);
+            } else {
+                socket.emit('MUSIC_COMMAND', { command: 'next' });
+            }
+        });
+
+        // Repeat
+        document.getElementById('repeat-btn').addEventListener('click', function() {
+            repeat = !repeat;
+            if (!localPlayback) {
+                socket.emit('MUSIC_COMMAND', { command: 'repeat', value: repeat });
+            }
+            this.classList.toggle('has-text-danger', repeat);
+        });
+
+        // Shuffle
+        document.getElementById('shuffle-btn').addEventListener('click', function() {
+            shuffle = !shuffle;
+            if (!localPlayback) {
+                socket.emit('MUSIC_COMMAND', { command: 'shuffle', value: shuffle });
+            }
+            this.classList.toggle('has-text-danger', shuffle);
+        });
+
+        // Playlist row click
+        document.querySelectorAll('tbody tr').forEach((row, index) => {
+            row.addEventListener('click', () => {
+                if (localPlayback) {
+                    playSongLocal(index);
+                    const icon = document.getElementById('play-pause-icon');
+                    icon.classList.remove('fa-play-circle');
+                    icon.classList.add('fa-pause-circle');
+                    isPlaying = true;
+                } else {
+                    socket.emit('MUSIC_COMMAND', { command: 'play_index', index: index });
+                    const icon = document.getElementById('play-pause-icon');
+                    icon.classList.remove('fa-play-circle');
+                    icon.classList.add('fa-pause-circle');
+                    isPlaying = true;
+                }
+            });
+        });
+
+        // Volume
+        document.getElementById('volume-range').addEventListener('input', function() {
+            const volumePercentage = document.getElementById('volume-percentage');
+            volumePercentage.textContent = `Volume: ${this.value}%`;
+            if (localPlayback) {
+                audioPlayer.volume = this.value / 100;
+            } else {
+                socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
+            }
+        });
+
+        // Refresh Now Playing button
+        refreshBtn.addEventListener('click', function() {
+            refreshBtn.classList.add('is-loading');
+            socket.emit('MUSIC_COMMAND', { command: 'WHAT_IS_PLAYING' });
+        });
+
+        // Local audio ended event
+        audioPlayer.addEventListener('ended', function() {
+            if (repeat) {
+                playSongLocal(currentIndex);
+            } else if (shuffle) {
+                currentIndex = Math.floor(Math.random() * playlist.length);
+                playSongLocal(currentIndex);
+            } else {
+                currentIndex = (currentIndex + 1) % playlist.length;
+                playSongLocal(currentIndex);
+            }
+        });
+    }
+
+    function playSongLocal(index) {
+        currentIndex = index;
+        const nowPlayingElement = document.getElementById('now-playing');
+        const song = playlist[currentIndex];
+        const formattedTitle = song.replace('.mp3', '').replace(/_/g, ' ');
+        nowPlayingElement.textContent = `🎵 ${formattedTitle}`;
+        const audioPlayer = document.getElementById('audio-player');
+        audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
+        audioPlayer.volume = document.getElementById('volume-range').value / 100;
+        audioPlayer.play();
+        isPlaying = true;
+        // Update play/pause icon
+        const icon = document.getElementById('play-pause-icon');
+        icon.classList.remove('fa-play-circle');
+        icon.classList.add('fa-pause-circle');
+    }
+
+    function applyMusicSettings(settings) {
+        // Update volume if present
+        if (settings && typeof settings.volume !== 'undefined') {
+            const volumeRange = document.getElementById('volume-range');
+            const volumePercentage = document.getElementById('volume-percentage');
+            volumeRange.value = settings.volume;
+            volumePercentage.textContent = `Volume: ${settings.volume}%`;
+        }
+        // Update now playing if present
+        if (settings && settings.now_playing) {
+            const nowPlayingElement = document.getElementById('now-playing');
+            nowPlayingElement.textContent = `🎵 ${settings.now_playing.title || settings.now_playing}`;
+            const icon = document.getElementById('play-pause-icon');
+            icon.classList.remove('fa-play-circle');
+            icon.classList.add('fa-pause-circle');
+            isPlaying = true;
+        }
     }
 
     function connectWebSocket() {
@@ -292,7 +433,6 @@ $musicFiles = getR2MusicFiles();
             reconnection: false
         });
 
-        // Handle connection event
         socket.on('connect', () => {
             console.log('Connected to WebSocket server');
             reconnectAttempts = 0;
@@ -303,13 +443,8 @@ $musicFiles = getR2MusicFiles();
                 name: 'Music Controller' 
             });
 
-            // Initialize event listeners after connection
+            // Only initialize event listeners after connection
             initializeSocketListeners();
-        });
-
-        // Log all events
-        socket.onAny((event, ...args) => {
-            console.log(`Event: ${event}`, args);
         });
 
         // Handle disconnection event
@@ -329,14 +464,36 @@ $musicFiles = getR2MusicFiles();
             console.log('Server says:', data.message);
         });
 
+        // Handle MUSIC_SETTINGS event
+        socket.on('MUSIC_SETTINGS', (settings) => {
+            applyMusicSettings(settings);
+        });
+
         // Handle NOW_PLAYING event
         socket.on('NOW_PLAYING', (data) => {
             const nowPlayingElement = document.getElementById('now-playing');
+            const refreshBtn = document.getElementById('refresh-now-playing');
             if (data && data.song) {
-                nowPlayingElement.textContent = `🎵 ${data.song.title} by ${data.song.artist}`;
+                nowPlayingElement.textContent = `🎵 ${data.song.title || data.song}`;
+                // Optionally update play/pause icon based on playing state
+                const icon = document.getElementById('play-pause-icon');
+                icon.classList.remove('fa-play-circle');
+                icon.classList.add('fa-pause-circle');
+                isPlaying = true;
             } else {
                 nowPlayingElement.textContent = 'No song is currently playing';
+                const icon = document.getElementById('play-pause-icon');
+                icon.classList.remove('fa-pause-circle');
+                icon.classList.add('fa-play-circle');
+                isPlaying = false;
             }
+            if (refreshBtn) refreshBtn.querySelector('i').classList.remove('fa-spin');
+        });
+
+        // On SUCCESS, request music settings
+        socket.on('SUCCESS', () => {
+            // Only call settings after SUCCESS event
+            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
         });
     }
 
@@ -349,50 +506,6 @@ $musicFiles = getR2MusicFiles();
             connectWebSocket();
         }, delay);
     }
-    // Event listeners to send commands via WebSocket
-    let repeat = false;
-    let shuffle = false;
-    let playlist = <?php echo json_encode($musicFiles); ?>;
-    let currentIndex = 0;
-
-    function normalizeAudio() {
-        const audioPlayer = document.getElementById('audio-player');
-        const analyser = audioContext.createAnalyser();
-        const source = audioContext.createMediaElementSource(audioPlayer);
-        source.connect(analyser);
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-        const gainValue = 1 / (average / 255); // Normalize gain based on average loudness
-        gainNode.gain.value = Math.min(gainValue, 2); // Cap gain to avoid distortion
-        console.log('Normalized gain:', gainNode.gain.value);
-    }
-
-    function playSong(index) {
-        currentIndex = index;
-        const nowPlayingElement = document.getElementById('now-playing');
-        const song = playlist[currentIndex];
-        const formattedTitle = song.replace('.mp3', '').replace(/_/g, ' ');
-        nowPlayingElement.textContent = `🎵 ${formattedTitle}`;
-        const audioPlayer = document.getElementById('audio-player');
-        audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
-        audioPlayer.play().then(() => {
-            console.log(`Playing: ${formattedTitle}`);
-            normalizeAudio(); // Normalize audio when playback starts
-            socket.emit('NOW_PLAYING', { song: formattedTitle });
-        }).catch(error => {
-            console.error('Error playing audio:', error);
-        });
-    }
-
-    // Automatically play the next song when the current one ends
-    document.getElementById('audio-player').addEventListener('ended', () => {
-        if (repeat) {
-            playSong(currentIndex);
-        } else {
-            document.getElementById('next-btn').click();
-        }
-    });
 
     // Start initial connection
     connectWebSocket();
