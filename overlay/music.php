@@ -96,22 +96,34 @@ $musicFiles = getR2MusicFiles();
             audioPlayer.src = url;
             audioPlayer.volume = volume / 100;
             audioPlayer.play().then(() => {
-                if (songData) currentSongData = songData;
-                if (socket && songData && songData.file) {
-                    socket.emit('NOW_PLAYING', {
+                if (songData && songData.file) {
+                    currentSongData = {
+                        file: songData.file,
+                        title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' ')
+                    };
+                }
+                if (socket && currentSongData && currentSongData.file) {
+                    socket.emit('MUSIC_COMMAND', {
+                        command: 'NOW_PLAYING',
                         song: {
-                            title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' '),
-                            file: songData.file
+                            title: currentSongData.title,
+                            file: currentSongData.file
                         }
                     });
                 }
             }).catch(() => {
-                if (songData) currentSongData = songData;
-                if (socket && songData && songData.file) {
-                    socket.emit('NOW_PLAYING', {
+                if (songData && songData.file) {
+                    currentSongData = {
+                        file: songData.file,
+                        title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' ')
+                    };
+                }
+                if (socket && currentSongData && currentSongData.file) {
+                    socket.emit('MUSIC_COMMAND', {
+                        command: 'NOW_PLAYING',
                         song: {
-                            title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' '),
-                            file: songData.file
+                            title: currentSongData.title,
+                            file: currentSongData.file
                         }
                     });
                 }
@@ -275,10 +287,19 @@ $musicFiles = getR2MusicFiles();
             });
 
             socket.on('WHAT_IS_PLAYING', () => {
-                if (currentSongData) {
-                    socket.emit('NOW_PLAYING', { song: currentSongData });
+                if (currentSongData && currentSongData.file) {
+                    socket.emit('MUSIC_COMMAND', {
+                        command: 'NOW_PLAYING',
+                        song: {
+                            title: currentSongData.title,
+                            file: currentSongData.file
+                        }
+                    });
                 } else {
-                    socket.emit('NOW_PLAYING', { song: null });
+                    socket.emit('MUSIC_COMMAND', {
+                        command: 'NOW_PLAYING',
+                        song: null
+                    });
                 }
             });
         }
@@ -290,7 +311,8 @@ $musicFiles = getR2MusicFiles();
                     if (playlist.length) {
                         const song = playlist[currentIndex];
                         if (socket && song && song.file) {
-                            socket.emit('NOW_PLAYING', {
+                            socket.emit('MUSIC_COMMAND', {
+                                command: 'NOW_PLAYING',
                                 song: {
                                     title: song.title || song.file.replace('.mp3','').replace(/_/g,' '),
                                     file: song.file
