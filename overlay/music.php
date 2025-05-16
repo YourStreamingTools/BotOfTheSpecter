@@ -5,10 +5,6 @@
     <title>Overlay DMCA Music</title>
     <link rel="stylesheet" href="index.css">
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <style>
-        html, body { background: transparent !important; }
-        body { margin: 0; padding: 0; }
-    </style>
 </head>
 <body>
     <audio id="audio-player" preload="auto"></audio>
@@ -19,7 +15,6 @@
         let volume = 80;
         let ttsQueue = [];
         let ttsPlaying = false;
-
         const audioPlayer = document.getElementById('audio-player');
         const ttsPlayer = document.getElementById('tts-player');
 
@@ -72,13 +67,6 @@
                 audioPlayer.pause();
             });
 
-            socket.on('TTS', (data) => {
-                if (data && data.audio_file) {
-                    enqueueTTS(data.audio_file);
-                }
-            });
-
-            // Respond to WHAT_IS_PLAYING with current song info
             socket.on('WHAT_IS_PLAYING', () => {
                 if (currentSongData) {
                     socket.emit('NOW_PLAYING', { song: currentSongData });
@@ -99,23 +87,6 @@
         function stopSong() {
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
-        }
-
-        function enqueueTTS(url) {
-            ttsQueue.push(url);
-            if (!ttsPlaying) playNextTTS();
-        }
-
-        function playNextTTS() {
-            if (ttsQueue.length === 0) {
-                ttsPlaying = false;
-                return;
-            }
-            ttsPlaying = true;
-            const url = ttsQueue.shift();
-            ttsPlayer.src = url;
-            ttsPlayer.volume = volume / 100;
-            ttsPlayer.play().catch(() => { ttsPlaying = false; });
         }
 
         ttsPlayer.addEventListener('ended', () => {
