@@ -199,6 +199,108 @@ $musicFiles = getR2MusicFiles();
     let isPlaying = false;
     let volumeInitialized = false;
     let settingsTimeout;
+    let repeat = false;
+    let shuffle = false;
+    let localPlayback = false;
+    let playlist = <?php echo json_encode($musicFiles); ?>;
+    let currentIndex = 0;
+
+    function getNextIndex() {
+        if (shuffle) {
+            let next;
+            do {
+                next = Math.floor(Math.random() * playlist.length);
+            } while (playlist.length > 1 && next === currentIndex);
+            return next;
+        } else {
+            return (currentIndex + 1) % playlist.length;
+        }
+    }
+
+    function playSongLocal(index) {
+        currentIndex = index;
+        const nowPlayingElement = document.getElementById('now-playing');
+        const song = playlist[currentIndex];
+        const formattedTitle = song.replace('.mp3', '').replace(/_/g, ' ');
+        nowPlayingElement.textContent = `🎵 ${formattedTitle}`;
+        const audioPlayer = document.getElementById('audio-player');
+        audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
+        audioPlayer.volume = document.getElementById('volume-range').value / 100;
+        audioPlayer.play();
+        isPlaying = true;
+        // Update play/pause icon
+        const icon = document.getElementById('play-pause-icon');
+        icon.classList.remove('fa-play-circle');
+        icon.classList.add('fa-pause-circle');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const audioPlayer = document.getElementById('audio-player');
+        audioPlayer.addEventListener('ended', function() {
+            if (repeat) {
+                playSongLocal(currentIndex);
+            } else {
+                const nextIndex = getNextIndex();
+                if (!shuffle && nextIndex === 0 && currentIndex === playlist.length - 1) {
+                    // End of playlist, do not repeat unless repeat is enabled
+                    isPlaying = false;
+                    const icon = document.getElementById('play-pause-icon');
+                    icon.classList.remove('fa-pause-circle');
+                    icon.classList.add('fa-play-circle');
+                } else {
+                    playSongLocal(nextIndex);
+                }
+            }
+        });
+    });
+
+    document.getElementById('repeat-btn').addEventListener('click', function() {
+        repeat = !repeat;
+        if (!localPlayback) {
+            socket.emit('MUSIC_COMMAND', { command: 'repeat', value: repeat });
+        }
+        // Save repeat setting to backend
+        socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
+        this.classList.toggle('has-text-danger', repeat);
+    });
+
+    document.getElementById('shuffle-btn').addEventListener('click', function() {
+        shuffle = !shuffle;
+        if (!localPlayback) {
+            socket.emit('MUSIC_COMMAND', { command: 'shuffle', value: shuffle });
+        }
+        // Save shuffle setting to backend
+        socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
+        this.classList.toggle('has-text-danger', shuffle);
+    });
+
+    function applyMusicSettings(settings) {
+        // Update volume if present
+        if (settings && typeof settings.volume !== 'undefined') {
+            const volumeRange = document.getElementById('volume-range');
+            const volumePercentage = document.getElementById('volume-percentage');
+            volumeRange.value = settings.volume;
+            volumePercentage.textContent = `Volume: ${settings.volume}%`;
+            volumeInitialized = true;
+        }
+        // Update now playing if present
+        if (settings && settings.now_playing) {
+            const nowPlayingElement = document.getElementById('now-playing');
+            nowPlayingElement.textContent = `🎵 ${settings.now_playing.title || settings.now_playing}`;
+            const icon = document.getElementById('play-pause-icon');
+            icon.classList.remove('fa-play-circle');
+            icon.classList.add('fa-pause-circle');
+            isPlaying = true;
+        }
+        if (settings && typeof settings.repeat !== 'undefined') {
+            repeat = !!settings.repeat;
+            document.getElementById('repeat-btn').classList.toggle('has-text-danger', repeat);
+        }
+        if (settings && typeof settings.shuffle !== 'undefined') {
+            shuffle = !!settings.shuffle;
+            document.getElementById('shuffle-btn').classList.toggle('has-text-danger', shuffle);
+        }
+    }
 
     function initializeSocketListeners() {
         // Event listener for play/pause toggle
@@ -287,10 +389,11 @@ $musicFiles = getR2MusicFiles();
         let localPlayback = false;
         let playlist = <?php echo json_encode($musicFiles); ?>;
         let currentIndex = 0;
-
         localPlaybackToggle.addEventListener('change', function() {
             localPlayback = this.checked;
-            // Optionally show/hide audio element or give user feedback
+            if (!localPlayback && socket) {
+                socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
+            }
         });
 
         // Play/Pause
@@ -348,6 +451,8 @@ $musicFiles = getR2MusicFiles();
             if (!localPlayback) {
                 socket.emit('MUSIC_COMMAND', { command: 'repeat', value: repeat });
             }
+            // Save repeat setting to backend
+            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
             this.classList.toggle('has-text-danger', repeat);
         });
 
@@ -357,6 +462,8 @@ $musicFiles = getR2MusicFiles();
             if (!localPlayback) {
                 socket.emit('MUSIC_COMMAND', { command: 'shuffle', value: shuffle });
             }
+            // Save shuffle setting to backend
+            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
             this.classList.toggle('has-text-danger', shuffle);
         });
 
