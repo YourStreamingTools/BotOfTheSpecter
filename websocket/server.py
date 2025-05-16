@@ -698,10 +698,12 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.info(f"Broadcasted MUSIC_COMMAND '{command}' for code {code}")
         # Handle special dashboard requests
         if command == "WHAT_IS_PLAYING":
+            # Only send to the SID with name "Overlay - DMCA"
             for client in self.registered_clients[code]:
-                if client['sid'] != sid:
+                if client['name'] == "Overlay - DMCA":
                     await self.sio.emit("WHAT_IS_PLAYING", {}, to=client['sid'])
-            self.logger.info(f"Requested WHAT_IS_PLAYING for code {code}")
+                    self.logger.info(f"Requested WHAT_IS_PLAYING from Overlay - DMCA for code {code}")
+                    break
         elif command == "MUSIC_SETTINGS":
             # Try to load settings from file and send to requester
             settings = self.load_music_settings(code)
