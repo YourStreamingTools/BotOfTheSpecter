@@ -12,7 +12,6 @@
 </head>
 <body>
     <audio id="audio-player" preload="auto"></audio>
-    <audio id="tts-player" preload="auto" style="display:none;"></audio>
     <script>
         let socket;
         let currentSong = null;
