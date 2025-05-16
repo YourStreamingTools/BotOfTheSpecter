@@ -13,10 +13,7 @@
         let currentSong = null;
         let currentSongData = null; // Store song data for replay
         let volume = 80;
-        let ttsQueue = [];
-        let ttsPlaying = false;
         const audioPlayer = document.getElementById('audio-player');
-        const ttsPlayer = document.getElementById('tts-player');
 
         function connectWebSocket() {
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
@@ -45,7 +42,6 @@
                 if (settings && typeof settings.volume !== 'undefined') {
                     volume = settings.volume;
                     audioPlayer.volume = volume / 100;
-                    ttsPlayer.volume = volume / 100;
                 }
             });
 
@@ -89,13 +85,8 @@
             audioPlayer.currentTime = 0;
         }
 
-        ttsPlayer.addEventListener('ended', () => {
-            playNextTTS();
-        });
-
         document.body.addEventListener('click', () => {
             audioPlayer.play().catch(()=>{});
-            ttsPlayer.play().catch(()=>{});
         }, { once: true });
 
         connectWebSocket();
