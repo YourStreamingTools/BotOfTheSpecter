@@ -95,16 +95,27 @@ $musicFiles = getR2MusicFiles();
             currentSong = url;
             audioPlayer.src = url;
             audioPlayer.volume = volume / 100;
-            audioPlayer.play().catch(()=>{});
-            if (songData) currentSongData = songData;
-            if (socket && songData && songData.file) {
-                socket.emit('NOW_PLAYING', {
-                    song: {
-                        title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' '),
-                        file: songData.file
-                    }
-                });
-            }
+            audioPlayer.play().then(() => {
+                if (songData) currentSongData = songData;
+                if (socket && songData && songData.file) {
+                    socket.emit('NOW_PLAYING', {
+                        song: {
+                            title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' '),
+                            file: songData.file
+                        }
+                    });
+                }
+            }).catch(() => {
+                if (songData) currentSongData = songData;
+                if (socket && songData && songData.file) {
+                    socket.emit('NOW_PLAYING', {
+                        song: {
+                            title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' '),
+                            file: songData.file
+                        }
+                    });
+                }
+            });
         }
 
         function stopSong() {
@@ -117,14 +128,6 @@ $musicFiles = getR2MusicFiles();
             currentIndex = idx;
             const song = playlist[currentIndex];
             playSong(`https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`, song);
-            if (socket && song && song.file) {
-                socket.emit('NOW_PLAYING', {
-                    song: {
-                        title: song.title || song.file.replace('.mp3','').replace(/_/g,' '),
-                        file: song.file
-                    }
-                });
-            }
         }
 
         function autoStartFirstSong() {
@@ -283,18 +286,19 @@ $musicFiles = getR2MusicFiles();
         audioPlayer.addEventListener('ended', function() {
             if (repeat) {
                 audioPlayer.currentTime = 0;
-                audioPlayer.play();
-                if (playlist.length) {
-                    const song = playlist[currentIndex];
-                    if (socket && song && song.file) {
-                        socket.emit('NOW_PLAYING', {
-                            song: {
-                                title: song.title || song.file.replace('.mp3','').replace(/_/g,' '),
-                                file: song.file
-                            }
-                        });
+                audioPlayer.play().then(() => {
+                    if (playlist.length) {
+                        const song = playlist[currentIndex];
+                        if (socket && song && song.file) {
+                            socket.emit('NOW_PLAYING', {
+                                song: {
+                                    title: song.title || song.file.replace('.mp3','').replace(/_/g,' '),
+                                    file: song.file
+                                }
+                            });
+                        }
                     }
-                }
+                });
             } else if (shuffle && playlist.length > 1) {
                 let next;
                 do {
