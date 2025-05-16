@@ -256,20 +256,12 @@ $musicFiles = getR2MusicFiles();
 
     document.getElementById('repeat-btn').addEventListener('click', function() {
         repeat = !repeat;
-        if (!localPlayback) {
-            socket.emit('MUSIC_COMMAND', { command: 'repeat', value: repeat });
-        }
-        // Save repeat setting to backend
         socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
         this.classList.toggle('has-text-danger', repeat);
     });
 
     document.getElementById('shuffle-btn').addEventListener('click', function() {
         shuffle = !shuffle;
-        if (!localPlayback) {
-            socket.emit('MUSIC_COMMAND', { command: 'shuffle', value: shuffle });
-        }
-        // Save shuffle setting to backend
         socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
         this.classList.toggle('has-text-danger', shuffle);
     });
@@ -328,13 +320,13 @@ $musicFiles = getR2MusicFiles();
 
         document.getElementById('repeat-btn').addEventListener('click', function() {
             repeat = !repeat;
-            socket.emit('MUSIC_COMMAND', { command: 'repeat', value: repeat });
+            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
             this.classList.toggle('has-text-danger', repeat);
         });
 
         document.getElementById('shuffle-btn').addEventListener('click', function() {
             shuffle = !shuffle;
-            socket.emit('MUSIC_COMMAND', { command: 'shuffle', value: shuffle });
+            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
             this.classList.toggle('has-text-danger', shuffle);
         });
 
@@ -448,10 +440,6 @@ $musicFiles = getR2MusicFiles();
         // Repeat
         document.getElementById('repeat-btn').addEventListener('click', function() {
             repeat = !repeat;
-            if (!localPlayback) {
-                socket.emit('MUSIC_COMMAND', { command: 'repeat', value: repeat });
-            }
-            // Save repeat setting to backend
             socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
             this.classList.toggle('has-text-danger', repeat);
         });
@@ -459,10 +447,6 @@ $musicFiles = getR2MusicFiles();
         // Shuffle
         document.getElementById('shuffle-btn').addEventListener('click', function() {
             shuffle = !shuffle;
-            if (!localPlayback) {
-                socket.emit('MUSIC_COMMAND', { command: 'shuffle', value: shuffle });
-            }
-            // Save shuffle setting to backend
             socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
             this.classList.toggle('has-text-danger', shuffle);
         });
