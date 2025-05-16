@@ -12,6 +12,7 @@ import ipaddress
 import paramiko
 import uuid
 from dotenv import load_dotenv, find_dotenv
+import json
 
 # Load ENV file
 load_dotenv(find_dotenv("/home/websocket/.env"))
@@ -102,6 +103,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("KOFI", self.handle_kofi_event),
             ("PATREON", self.handle_patreon_event),
             ("SEND_OBS_EVENT", self.handle_obs_event),
+            ("MUSIC_COMMAND", self.music_command),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -122,6 +124,25 @@ class BotOfTheSpecter_WebsocketServer:
     async def event(self, sid, event, data):
         # Handle generic events for SocketIO.
         self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
+        # Relay NOW_PLAYING and MUSIC_SETTINGS to all clients with same code
+        if event in ("NOW_PLAYING", "MUSIC_SETTINGS"):
+            code = None
+            for c, clients in self.registered_clients.items():
+                for client in clients:
+                    if client['sid'] == sid:
+                        code = c
+                        break
+                if code:
+                    break
+            if code:
+                for client in self.registered_clients[code]:
+                    if client['sid'] != sid:
+                        await self.sio.emit(event, data, to=client['sid'])
+                self.logger.info(f"Relayed {event} from SID [{sid}] to other clients for code {code}")
+            # Save settings if MUSIC_SETTINGS event received
+            if event == "MUSIC_SETTINGS" and code:
+                self.save_music_settings(code, data)
+                self.logger.info(f"Saved MUSIC_SETTINGS from event for code {code}")
 
     async def connect(self, sid, environ, auth):
         # Handle the connect event for SocketIO.
@@ -638,6 +659,92 @@ class BotOfTheSpecter_WebsocketServer:
         # Get the IP address of the current machine.
         hostname = socket.gethostname()
         return socket.gethostbyname(hostname)
+
+    async def music_command(self, sid, data):
+        self.logger.info(f"MUSIC_COMMAND from SID [{sid}]: {data}")
+        command = data.get("command")
+        code = None
+        # Find the code for this sid
+        for c, clients in self.registered_clients.items():
+            for client in clients:
+                if client['sid'] == sid:
+                    code = c
+                    break
+            if code:
+                break
+        if not code:
+            self.logger.warning(f"MUSIC_COMMAND from unknown SID [{sid}]")
+            return
+
+        # Save volume to settings file if set, and emit to all clients (including sender)
+        if command == "volume":
+            volume_value = data.get("value")
+            if volume_value is not None:
+                self.save_music_settings(code, {"volume": int(volume_value)})
+                self.logger.info(f"Saved volume {volume_value} for code {code}")
+                # Emit updated settings to all clients for this code
+                settings = self.load_music_settings(code)
+                if settings:
+                    for client in self.registered_clients[code]:
+                        await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
+                    self.logger.info(f"Emitted MUSIC_SETTINGS live update for code {code}")
+
+        # Broadcast music control commands to all clients for this code except the sender
+        broadcast_commands = [
+            "play", "pause", "next", "prev", "repeat", "shuffle", "volume", "play_index"
+        ]
+        if command in broadcast_commands and command != "volume":
+            for client in self.registered_clients[code]:
+                if client['sid'] != sid:
+                    await self.sio.emit("MUSIC_COMMAND", data, to=client['sid'])
+            self.logger.info(f"Broadcasted MUSIC_COMMAND '{command}' for code {code}")
+
+        # Handle special dashboard requests
+        if command == "WHAT_IS_PLAYING":
+            for client in self.registered_clients[code]:
+                if client['sid'] != sid:
+                    await self.sio.emit("WHAT_IS_PLAYING", {}, to=client['sid'])
+            self.logger.info(f"Requested WHAT_IS_PLAYING for code {code}")
+        elif command == "MUSIC_SETTINGS":
+            # Try to load settings from file and send to requester
+            settings = self.load_music_settings(code)
+            if settings:
+                await self.sio.emit("MUSIC_SETTINGS", settings, to=sid)
+                self.logger.info(f"Sent MUSIC_SETTINGS from file for code {code}")
+            else:
+                # Ask all other clients for settings if not found
+                for client in self.registered_clients[code]:
+                    if client['sid'] != sid:
+                        await self.sio.emit("MUSIC_SETTINGS_REQUEST", {}, to=client['sid'])
+                self.logger.info(f"Requested MUSIC_SETTINGS from clients for code {code}")
+
+    def save_music_settings(self, code, settings):
+        MUSIC_SETTINGS_DIR = "/home/websocket/music-settings"
+        os.makedirs(MUSIC_SETTINGS_DIR, exist_ok=True)
+        settings_file = os.path.join(MUSIC_SETTINGS_DIR, f"{code}.json")
+        try:
+            # If file exists, update existing settings
+            if os.path.exists(settings_file):
+                with open(settings_file, "r") as f:
+                    current = json.load(f)
+            else:
+                current = {}
+            current.update(settings)
+            with open(settings_file, "w") as f:
+                json.dump(current, f)
+        except Exception as e:
+            self.logger.error(f"Failed to save music settings for {code}: {e}")
+
+    def load_music_settings(self, code):
+        MUSIC_SETTINGS_DIR = "/home/websocket/music-settings"
+        settings_file = os.path.join(MUSIC_SETTINGS_DIR, f"{code}.json")
+        try:
+            if os.path.exists(settings_file):
+                with open(settings_file, "r") as f:
+                    return json.load(f)
+        except Exception as e:
+            self.logger.error(f"Failed to load music settings for {code}: {e}")
+        return None
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
