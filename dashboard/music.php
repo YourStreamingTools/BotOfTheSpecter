@@ -599,12 +599,14 @@ $musicFiles = getR2MusicFiles();
             const nowPlayingElement = document.getElementById('now-playing');
             const refreshBtn = document.getElementById('refresh-now-playing');
             if (data && data.song) {
-                nowPlayingElement.textContent = `🎵 ${data.song.title || data.song}`;
-                // Optionally update play/pause icon based on playing state
+                nowPlayingElement.textContent = `🎵 ${data.song.title || data.song.file || data.song}`;
                 const icon = document.getElementById('play-pause-icon');
                 icon.classList.remove('fa-play-circle');
                 icon.classList.add('fa-pause-circle');
                 isPlaying = true;
+            } else if (data && data.error) {
+                nowPlayingElement.textContent = data.error;
+                isPlaying = false;
             } else {
                 nowPlayingElement.textContent = 'No song is currently playing';
                 const icon = document.getElementById('play-pause-icon');
