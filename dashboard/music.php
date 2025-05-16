@@ -254,18 +254,6 @@ $musicFiles = getR2MusicFiles();
         });
     });
 
-    document.getElementById('repeat-btn').addEventListener('click', function() {
-        repeat = !repeat;
-        socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
-        this.classList.toggle('has-text-danger', repeat);
-    });
-
-    document.getElementById('shuffle-btn').addEventListener('click', function() {
-        shuffle = !shuffle;
-        socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
-        this.classList.toggle('has-text-danger', shuffle);
-    });
-
     function applyMusicSettings(settings) {
         // Update volume if present
         if (settings && typeof settings.volume !== 'undefined') {
