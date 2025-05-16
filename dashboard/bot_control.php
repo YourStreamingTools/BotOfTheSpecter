@@ -313,11 +313,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
         $system = 'alpha';
     }
     $command = "python $statusScriptPath -system $system -channel $username";
-    $statusOutput = ssh2_exec($connection, $command);
-    if (!$statusOutput) { throw new Exception('Failed to get bot status'); }
-    stream_set_blocking($statusOutput, true);
-    $statusOutput = trim(stream_get_contents($statusOutput));
-    fclose($statusOutput);
+    $stream = ssh2_exec($connection, $command);
+    if (!$stream) { throw new Exception('Failed to get bot status'); }
+    stream_set_blocking($stream, true);
+    $statusOutput = trim(stream_get_contents($stream));
+    fclose($stream);
     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
         $pid = intval($matches[1]);
     } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -349,11 +349,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                 } else {
                     startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
                     sleep(2);
-                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
-                    if (!$statusOutput) { throw new Exception('Failed to check bot status after start'); }
-                    stream_set_blocking($statusOutput, true);
-                    $statusOutput = trim(stream_get_contents($statusOutput));
-                    fclose($statusOutput);
+                    $stream = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
+                    if (!$stream) { throw new Exception('Failed to check bot status after start'); }
+                    stream_set_blocking($stream, true);
+                    $statusOutput = trim(stream_get_contents($stream));
+                    fclose($stream);
                     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                         $pid = intval($matches[1]);
                     } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -383,11 +383,11 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                     killBot($pid);
                     startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
                     sleep(2);
-                    $statusOutput = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
-                    if (!$statusOutput) { throw new Exception('Failed to check bot status after restart'); }
-                    stream_set_blocking($statusOutput, true);
-                    $statusOutput = trim(stream_get_contents($statusOutput));
-                    fclose($statusOutput);
+                    $stream = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
+                    if (!$stream) { throw new Exception('Failed to check bot status after restart'); }
+                    stream_set_blocking($stream, true);
+                    $statusOutput = trim(stream_get_contents($stream));
+                    fclose($stream);
                     if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
                         $pid = intval($matches[1]);
                     } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
