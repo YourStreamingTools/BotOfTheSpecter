@@ -38,6 +38,13 @@ class BotOfTheSpecter_WebsocketServer:
         self.app = web.Application(middlewares=[self.ip_restriction_middleware])
         self.app.on_shutdown.append(self.on_shutdown)
         self.setup_routes()
+        self.music_handler = MusicHandler(
+            sio=self.sio,
+            logger=self.logger,
+            get_clients=lambda: self.registered_clients,
+            save_settings=self.save_music_settings,
+            load_settings=self.load_music_settings,
+        )
         self.setup_event_handlers()
         self.sio.attach(self.app)
         self.loop = None
@@ -48,13 +55,6 @@ class BotOfTheSpecter_WebsocketServer:
         self.processing_task = None
         ips_file = "/home/websocket/ips.txt"
         self.allowed_ips = self.load_ips(ips_file)
-        self.music_handler = MusicHandler(
-            sio=self.sio,
-            logger=self.logger,
-            get_clients=lambda: self.registered_clients,
-            save_settings=self.save_music_settings,
-            load_settings=self.load_music_settings,
-        )
 
     def load_ips(self, ips_file):
         allowed_ips = []
