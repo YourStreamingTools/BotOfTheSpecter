@@ -38,7 +38,7 @@ class MusicHandler:
     async def _broadcast_command(self, code, sid, data):
         command = data.get("command")
         broadcast_commands = [
-            "play", "pause", "next", "prev", "repeat", "shuffle", "volume", "play_index"
+            "play", "pause", "next", "prev", "repeat", "shuffle", "volume", "play_index", "NOW_PLAYING"
         ]
         if command in broadcast_commands and command != "volume":
             for client in self.get_clients().get(code, []):
@@ -98,6 +98,14 @@ class MusicHandler:
         if not found:
             self.logger.warning(f"No overlay client found to answer WHAT_IS_PLAYING for code {code}")
             await self.sio.emit("NOW_PLAYING", {"error": "No overlay client found for this code."}, to=sid)
+
+    @command_handler("NOW_PLAYING")
+    async def handle_NOWPLAYING(self, sid, code, data):
+        for client in self.get_clients().get(code, []):
+            if "dashboard - music controller" in client['name'].lower():
+                await self.sio.emit("NOW_PLAYING", data, to=client['sid'])
+                self.logger.info(f"Emitted NOW_PLAYING to {client['name']} for code {code}")
+                return
 
     async def _emit_settings(self, code):
         settings = self.load_music_settings(code)
