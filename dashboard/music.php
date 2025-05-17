@@ -99,10 +99,6 @@ $musicFiles = getR2MusicFiles();
 
 <div class="container">
     <br>
-    <div class="notification is-danger has-text-centered">
-        <strong>SYSTEM COMING SOON</strong>
-    </div>
-    <br>
     <div class="has-text-centered" style="margin-bottom:20px;">
         <h1 class="title">Music Dashboard</h1>
         <p class="subtitle">Stream DMCA-free music for your Twitch broadcasts and VODs</p>
