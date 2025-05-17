@@ -97,9 +97,9 @@ if (isset($_GET['code'])) {
         // Database connect
         require_once "/var/www/config/db_connect.php";
         // Check if the user is not in the restricted list
-        $restrictedQuery = "SELECT id FROM restricted_users WHERE username = ?";
+        $restrictedQuery = "SELECT id FROM restricted_users WHERE twitch_user_id = ? OR username = ?";
         $stmt = mysqli_prepare($conn, $restrictedQuery);
-        mysqli_stmt_bind_param($stmt, 's', $twitchUsername);
+        mysqli_stmt_bind_param($stmt, 'ss', $twitchUserId, $twitchUsername);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_store_result($stmt);
         if (mysqli_stmt_num_rows($stmt) > 0) {
@@ -112,17 +112,36 @@ if (isset($_GET['code'])) {
             exit;
         }
         // Check if the user already exists
-        $checkQuery = "SELECT id FROM users WHERE username = ?";
+        $checkQuery = "SELECT id FROM users WHERE twitch_user_id = ?";
         $stmt = mysqli_prepare($conn, $checkQuery);
-        mysqli_stmt_bind_param($stmt, 's', $twitchUsername);
+        mysqli_stmt_bind_param($stmt, 's', $twitchUserId);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_store_result($stmt);
         if (mysqli_stmt_num_rows($stmt) > 0) {
+            // Check if the user has renamed their Twitch account
+            $checkUsernameQuery = "SELECT username FROM users WHERE twitch_user_id = ?";
+            $stmt = mysqli_prepare($conn, $checkUsernameQuery);
+            mysqli_stmt_bind_param($stmt, 's', $twitchUserId);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_bind_result($stmt, $existingUsername);
+            mysqli_stmt_fetch($stmt);
+            mysqli_stmt_close($stmt);
+            if ($existingUsername !== $twitchUsername) {
+                // User has renamed their Twitch Account, update database with new username
+                $oldDBName = $conn->real_escape_string($existingUsername);
+                $newDBName = $conn->real_escape_string($twitchUsername);
+                $updateDatabaseNameQueery = "RENAME DATABASE `$oldDBName` TO `$newDBName`;";
+                if (!mysqli_query($conn, $updateDatabaseNameQueery)) {
+                    // Handle the case where the database rename failed
+                    $info = "Failed to update database name due to: " . mysqli_error($conn);
+                    exit;
+                }
+            }
             // User exists, update their information
-            $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, twitch_user_id = ?, twitch_display_name = ?, last_login = ?, email = ? WHERE username = ?";
+            $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, username = ?, twitch_display_name = ?, last_login = ?, email = ? WHERE twitch_user_id = ?";
             $stmt = mysqli_prepare($conn, $updateQuery);
             $last_login = date('Y-m-d H:i:s');
-            mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName, $last_login, $email, $twitchUsername);
+            mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
             if (mysqli_stmt_execute($stmt)) {
                 // Redirect the user to the dashboard
                 header('Location: bot.php');
