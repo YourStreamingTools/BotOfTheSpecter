@@ -177,8 +177,7 @@ date_default_timezone_set($timezone);
         <!-- Music Only Overlay -->
         <div class="column is-half">
             <div class="box" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                <h4 class="title is-4">Music Overlay:&nbsp;
-                    <span class="is-text-white has-text-weight-bold has-text-danger">(coming soon)</span></h4>
+                <h4 class="title is-4">Music Overlay:</h4>
                 <p><em>Stream DMCA-free music for your Twitch broadcasts and VODs.</em></p>
                 <code>https://overlay.botofthespecter.com/music.php?code=API_KEY_HERE</code>
             </div>
