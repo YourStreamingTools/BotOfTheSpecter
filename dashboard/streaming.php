@@ -501,7 +501,6 @@ if ($selected_server == 'au-east-1') {
     </div>
     
     <!-- Add a link to the persistent storage page for subscribers -->
-    <?php if ($is_subscribed): ?>
     <div class="columns is-desktop is-multiline is-centered box-container">
         <div class="column is-10">
             <div class="notification is-info">
@@ -514,7 +513,6 @@ if ($selected_server == 'au-east-1') {
             </div>
         </div>
     </div>
-    <?php endif; ?>
 </div>
 
 <div id="videoModal" class="modal">
