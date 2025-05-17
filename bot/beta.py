@@ -1541,11 +1541,10 @@ class TwitchBot(commands.Bot):
                     has_welcome_message = user_data.get("welcome_message")
                     user_status_enabled = user_data.get("status", 'True') == 'True'
                 else:
-                    # Insert new user
                     has_welcome_message = None
                     user_status_enabled = True
                     await cursor.execute(
-                        'INSERT INTO seen_users (username, status) VALUES (%s, %s)', 
+                        'INSERT INTO seen_users (username, status) VALUES (%s, %s)',
                         (messageAuthor, "True")
                     )
                     await sqldb.commit()
@@ -1562,16 +1561,39 @@ class TwitchBot(commands.Bot):
                 default_mod_welcome_message = preferences["default_mod_welcome_message"]
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
-                # Insert into seen_today if not already seen
+                # If user has not been seen today, insert them and (conditionally) send welcome message
                 if not already_seen_today:
                     await cursor.execute(
-                        'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)', 
+                        'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                         (messageAuthorID, messageAuthor)
                     )
                     await sqldb.commit()
                     chat_logger.info(f"Marked {messageAuthor} as seen today.")
+                    # Only send welcome message if enabled
+                    if user_status_enabled and send_welcome_messages:
+                        if not user_data:
+                            if is_vip:
+                                message_to_send = replace_user_placeholder(new_default_vip_welcome_message, messageAuthor)
+                            elif is_mod:
+                                message_to_send = replace_user_placeholder(new_default_mod_welcome_message, messageAuthor)
+                            else:
+                                message_to_send = replace_user_placeholder(new_default_welcome_message, messageAuthor)
+                        else:
+                            if has_welcome_message:
+                                message_to_send = has_welcome_message
+                            else:
+                                if is_vip:
+                                    message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
+                                elif is_mod:
+                                    message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
+                                else:
+                                    message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
+                        await self.send_message_to_channel(message_to_send)
+                        chat_logger.info(f"Sent welcome message to {messageAuthor}")
+                    else:
+                        chat_logger.info(f"Welcome message not sent for {messageAuthor} — disabled or opted out.")
                 else:
-                    chat_logger.info(f"{messageAuthor} already seen today, skipping insertion.")
+                    chat_logger.info(f"{messageAuthor} already seen today, skipping insertion and welcome.")
                 # Send walkon notice safely
                 async def safe_walkon(user):
                     try:
@@ -1580,29 +1602,6 @@ class TwitchBot(commands.Bot):
                     except Exception as e:
                         chat_logger.error(f"Failed to send WALKON for {user}: {e}")
                 asyncio.create_task(safe_walkon(messageAuthor))
-                # Send welcome message
-                if user_status_enabled and send_welcome_messages:
-                    if not user_data:
-                        if is_vip:
-                            message_to_send = replace_user_placeholder(new_default_vip_welcome_message, messageAuthor)
-                        elif is_mod:
-                            message_to_send = replace_user_placeholder(new_default_mod_welcome_message, messageAuthor)
-                        else:
-                            message_to_send = replace_user_placeholder(new_default_welcome_message, messageAuthor)
-                    else:
-                        if has_welcome_message:
-                            message_to_send = has_welcome_message
-                        else:
-                            if is_vip:
-                                message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
-                            elif is_mod:
-                                message_to_send = replace_user_placeholder(default_mod_welcome_message, messageAuthor)
-                            else:
-                                message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
-                    await self.send_message_to_channel(message_to_send)
-                    chat_logger.info(f"Sent welcome message to {messageAuthor}")
-                else:
-                    chat_logger.info(f"Welcome message not sent for {messageAuthor} — disabled or opted out.")
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
