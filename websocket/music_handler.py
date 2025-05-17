@@ -4,7 +4,6 @@ def command_handler(command_name):
         return func
     return decorator
 
-
 class MusicHandler:
     def __init__(self, sio, logger, get_clients, save_settings, load_settings):
         self.sio = sio
@@ -69,6 +68,14 @@ class MusicHandler:
             self.save_music_settings(code, {"volume": int(value)})
             self.logger.info(f"Saved volume {value} for code {code}")
             await self._emit_settings(code)
+
+    @command_handler("next")
+    async def handle_next(self, sid, code, data):
+        for client in self.get_clients().get(code, []):
+            if "overlay - dmca" in client['name'].lower():
+                await self.sio.emit("MUSIC_COMMAND", {"command": "next"}, to=client['sid'])
+                self.logger.info(f"Emitted next command to {client['name']} for code {code}")
+                return
 
     @command_handler("MUSIC_SETTINGS")
     async def handle_settings(self, sid, code, data):
