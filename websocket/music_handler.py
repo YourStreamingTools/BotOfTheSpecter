@@ -13,7 +13,6 @@ class MusicHandler:
         self.save_music_settings = save_settings
         self.load_music_settings = load_settings
         self._command_handlers = {}
-
         for attr_name in dir(self):
             attr = getattr(self, attr_name)
             if callable(attr) and hasattr(attr, "_command_name"):
@@ -22,17 +21,14 @@ class MusicHandler:
     async def music_command(self, sid, data):
         self.logger.info(f"MUSIC_COMMAND from SID [{sid}]: {data}")
         command = data.get("command")
-
         code = next(
             (c for c, clients in self.get_clients().items()
-             for client in clients if client['sid'] == sid),
+                for client in clients if client['sid'] == sid),
             None
         )
-
         if not code:
             self.logger.warning(f"MUSIC_COMMAND from unknown SID [{sid}]")
             return
-
         handler = self._command_handlers.get(command)
         if handler:
             await handler(sid, code, data)
