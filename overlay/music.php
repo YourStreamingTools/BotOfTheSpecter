@@ -167,7 +167,6 @@ $musicFiles = getR2MusicFiles();
 
         // Prompt the user for interaction before unmuting and starting playback
         function waitForUserGestureThenAutoplay() {
-            document.body.onclick = null;
             const overlay = document.createElement('div');
             overlay.style.position = 'fixed';
             overlay.style.top = '0';
