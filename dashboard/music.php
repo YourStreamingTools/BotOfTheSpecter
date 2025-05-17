@@ -391,33 +391,6 @@ $musicFiles = getR2MusicFiles();
             this.classList.toggle('has-text-danger', shuffle);
         });
 
-        // Playlist row click
-        document.querySelectorAll('tbody tr').forEach((row, index) => {
-            row.addEventListener('click', () => {
-                if (localPlayback) {
-                    playSongLocal(index);
-                    const icon = document.getElementById('play-pause-icon');
-                    icon.classList.remove('fa-play-circle');
-                    icon.classList.add('fa-pause-circle');
-                    isPlaying = true;
-                } else {
-                    // Get the song title for the selected index
-                    const song = playlist[index];
-                    const songTitle = song.replace('.mp3', '').replace(/_/g, ' ');
-                    socket.emit('MUSIC_COMMAND', { command: 'play_index', index: index });
-                    socket.emit('NOW_PLAYING', { song: { title: songTitle, file: song } });
-                    console.log('Sent MUSIC_COMMAND play_index:', index, 'and NOW_PLAYING:', songTitle);
-                    // Immediately update the UI for Now Playing
-                    const nowPlayingElement = document.getElementById('now-playing');
-                    nowPlayingElement.textContent = `🎵 ${songTitle}`;
-                    const icon = document.getElementById('play-pause-icon');
-                    icon.classList.remove('fa-play-circle');
-                    icon.classList.add('fa-pause-circle');
-                    isPlaying = true;
-                }
-            });
-        });
-
         // Volume
         document.getElementById('volume-range').addEventListener('input', function() {
             const volumePercentage = document.getElementById('volume-percentage');
