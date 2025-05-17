@@ -204,6 +204,7 @@ $musicFiles = getR2MusicFiles();
     let localPlayback = false;
     let playlist = <?php echo json_encode($musicFiles); ?>;
     let currentIndex = 0;
+    let lastEmittedVolume = null;
 
     function getNextIndex() {
         if (shuffle) {
@@ -283,41 +284,6 @@ $musicFiles = getR2MusicFiles();
     }
 
     function initializeSocketListeners() {
-        // Event listener for play/pause toggle
-        document.getElementById('play-pause-btn').addEventListener('click', function() {
-            const icon = document.getElementById('play-pause-icon');
-            if (isPlaying) {
-                socket.emit('MUSIC_COMMAND', { command: 'pause' });
-                icon.classList.remove('fa-pause-circle');
-                icon.classList.add('fa-play-circle');
-            } else {
-                socket.emit('MUSIC_COMMAND', { command: 'play' });
-                icon.classList.remove('fa-play-circle');
-                icon.classList.add('fa-pause-circle');
-            }
-            isPlaying = !isPlaying;
-        });
-
-        document.getElementById('prev-btn').addEventListener('click', function() {
-            socket.emit('MUSIC_COMMAND', { command: 'prev' });
-        });
-
-        document.getElementById('next-btn').addEventListener('click', function() {
-            socket.emit('MUSIC_COMMAND', { command: 'next' });
-        });
-
-        document.getElementById('repeat-btn').addEventListener('click', function() {
-            repeat = !repeat;
-            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
-            this.classList.toggle('has-text-danger', repeat);
-        });
-
-        document.getElementById('shuffle-btn').addEventListener('click', function() {
-            shuffle = !shuffle;
-            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
-            this.classList.toggle('has-text-danger', shuffle);
-        });
-
         // Add click event listener to playlist rows
         document.querySelectorAll('tbody tr').forEach((row, index) => {
             row.addEventListener('click', () => {
@@ -346,22 +312,8 @@ $musicFiles = getR2MusicFiles();
             });
         });
 
-        // Restore volume control event listener
-        document.getElementById('volume-range').addEventListener('input', function() {
-            const volumePercentage = document.getElementById('volume-percentage');
-            volumePercentage.textContent = `Volume: ${this.value}%`;
-            socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
-        });
-
         // Only declare refreshBtn once at the top of this function
         const refreshBtn = document.getElementById('refresh-now-playing');
-
-        // Update refresh icon to show loading (spin) when loading
-        refreshBtn.addEventListener('click', function() {
-            const icon = refreshBtn.querySelector('i');
-            icon.classList.add('fa-spin');
-            socket.emit('MUSIC_COMMAND', { command: 'WHAT_IS_PLAYING' });
-        });
 
         // Local playback toggle
         const localPlaybackToggle = document.getElementById('local-playback-toggle');
@@ -473,7 +425,11 @@ $musicFiles = getR2MusicFiles();
             if (localPlayback) {
                 audioPlayer.volume = this.value / 100;
             } else {
-                socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
+                const newVolume = this.value / 100;
+                if (lastEmittedVolume !== newVolume) {
+                    lastEmittedVolume = newVolume;
+                    socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
+                }
             }
         });
 
@@ -512,26 +468,6 @@ $musicFiles = getR2MusicFiles();
         const icon = document.getElementById('play-pause-icon');
         icon.classList.remove('fa-play-circle');
         icon.classList.add('fa-pause-circle');
-    }
-
-    function applyMusicSettings(settings) {
-        // Update volume if present
-        if (settings && typeof settings.volume !== 'undefined') {
-            const volumeRange = document.getElementById('volume-range');
-            const volumePercentage = document.getElementById('volume-percentage');
-            volumeRange.value = settings.volume;
-            volumePercentage.textContent = `Volume: ${settings.volume}%`;
-            volumeInitialized = true;
-        }
-        // Update now playing if present
-        if (settings && settings.now_playing) {
-            const nowPlayingElement = document.getElementById('now-playing');
-            nowPlayingElement.textContent = `🎵 ${settings.now_playing.title || settings.now_playing}`;
-            const icon = document.getElementById('play-pause-icon');
-            icon.classList.remove('fa-play-circle');
-            icon.classList.add('fa-pause-circle');
-            isPlaying = true;
-        }
     }
 
     function connectWebSocket() {
