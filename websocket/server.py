@@ -13,6 +13,7 @@ import paramiko
 import uuid
 from dotenv import load_dotenv, find_dotenv
 import json
+from music_handler import MusicHandler
 
 # Load ENV file
 load_dotenv(find_dotenv("/home/websocket/.env"))
@@ -47,6 +48,13 @@ class BotOfTheSpecter_WebsocketServer:
         self.processing_task = None
         ips_file = "/home/websocket/ips.txt"
         self.allowed_ips = self.load_ips(ips_file)
+        self.music_handler = MusicHandler(
+            sio=self.sio,
+            logger=self.logger,
+            get_clients=lambda: self.registered_clients,
+            save_settings=self.save_music_settings,
+            load_settings=self.load_music_settings,
+        )
 
     def load_ips(self, ips_file):
         allowed_ips = []
@@ -103,7 +111,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("KOFI", self.handle_kofi_event),
             ("PATREON", self.handle_patreon_event),
             ("SEND_OBS_EVENT", self.handle_obs_event),
-            ("MUSIC_COMMAND", self.music_command),
+            ("MUSIC_COMMAND", self.music_handler.music_command),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -660,99 +668,7 @@ class BotOfTheSpecter_WebsocketServer:
         hostname = socket.gethostname()
         return socket.gethostbyname(hostname)
 
-    async def music_command(self, sid, data):
-        self.logger.info(f"MUSIC_COMMAND from SID [{sid}]: {data}")
-        command = data.get("command")
-        code = None
-        # Find the code for this sid
-        for c, clients in self.registered_clients.items():
-            for client in clients:
-                if client['sid'] == sid:
-                    code = c
-                    break
-            if code:
-                break
-        if not code:
-            self.logger.warning(f"MUSIC_COMMAND from unknown SID [{sid}]")
-            return
-        if command == "repeat":
-            repeat_value = data.get("value")
-            if repeat_value is not None:
-                self.save_music_settings(code, {"repeat": bool(repeat_value)})
-                self.logger.info(f"Saved repeat {repeat_value} for code {code}")
-                settings = self.load_music_settings(code)
-                if settings:
-                    for client in self.registered_clients[code]:
-                        await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
-        if command == "shuffle":
-            shuffle_value = data.get("value")
-            if shuffle_value is not None:
-                self.save_music_settings(code, {"shuffle": bool(shuffle_value)})
-                self.logger.info(f"Saved shuffle {shuffle_value} for code {code}")
-                settings = self.load_music_settings(code)
-                if settings:
-                    for client in self.registered_clients[code]:
-                        await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
-        if command == "MUSIC_SETTINGS":
-            # Accept and save any provided settings
-            settings_to_save = {}
-            for key in ("volume", "repeat", "shuffle"):
-                if key in data:
-                    settings_to_save[key] = data[key]
-            if settings_to_save:
-                self.save_music_settings(code, settings_to_save)
-                self.logger.info(f"Saved MUSIC_SETTINGS {settings_to_save} for code {code}")
-            # Emit updated settings to all clients for this code
-            settings = self.load_music_settings(code)
-            if settings:
-                for client in self.registered_clients[code]:
-                    await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
-                self.logger.info(f"Emitted MUSIC_SETTINGS live update for code {code}")
-            return
-        if command == "volume":
-            volume_value = data.get("value")
-            if volume_value is not None:
-                self.save_music_settings(code, {"volume": int(volume_value)})
-                self.logger.info(f"Saved volume {volume_value} for code {code}")
-                # Emit updated settings to all clients for this code
-                settings = self.load_music_settings(code)
-                if settings:
-                    for client in self.registered_clients[code]:
-                        await self.sio.emit("MUSIC_SETTINGS", settings, to=client['sid'])
-                    self.logger.info(f"Emitted MUSIC_SETTINGS live update for code {code}")
-        # Broadcast music control commands to all clients for this code except the sender
-        broadcast_commands = [
-            "play", "pause", "next", "prev", "repeat", "shuffle", "volume", "play_index"
-        ]
-        if command in broadcast_commands and command != "volume":
-            for client in self.registered_clients[code]:
-                if client['sid'] != sid:
-                    await self.sio.emit("MUSIC_COMMAND", data, to=client['sid'])
-            self.logger.info(f"Broadcasted MUSIC_COMMAND '{command}' for code {code}")
-        # Handle special dashboard requests
-        if command == "WHAT_IS_PLAYING":
-            # Only send to the SID with name "Overlay - DMCA"
-            found_overlay = False
-            for client in self.registered_clients[code]:
-                if ("overlay - dmca" in client['name'].lower()):
-                    await self.sio.emit("WHAT_IS_PLAYING", {}, to=client['sid'])
-                    self.logger.info(f"Requested WHAT_IS_PLAYING from {client['name']} for code {code}")
-                    found_overlay = True
-            if not found_overlay:
-                self.logger.warning(f"No overlay client found to answer WHAT_IS_PLAYING for code {code}")
-                await self.sio.emit("NOW_PLAYING", {"error": "No overlay client found for this code."})
-        elif command == "MUSIC_SETTINGS":
-            # Try to load settings from file and send to requester
-            settings = self.load_music_settings(code)
-            if settings:
-                await self.sio.emit("MUSIC_SETTINGS", settings, to=sid)
-                self.logger.info(f"Sent MUSIC_SETTINGS from file for code {code}")
-            else:
-                # Ask all other clients for settings if not found
-                for client in self.registered_clients[code]:
-                    if client['sid'] != sid:
-                        await self.sio.emit("MUSIC_SETTINGS_REQUEST", {}, to=client['sid'])
-                self.logger.info(f"Requested MUSIC_SETTINGS from clients for code {code}")
+
 
     def save_music_settings(self, code, settings):
         MUSIC_SETTINGS_DIR = "/home/websocket/music-settings"
