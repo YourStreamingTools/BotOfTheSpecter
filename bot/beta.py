@@ -1590,6 +1590,7 @@ class TwitchBot(commands.Bot):
                                     message_to_send = replace_user_placeholder(default_welcome_message, messageAuthor)
                         await self.send_message_to_channel(message_to_send)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
+                        asyncio.create_task(safe_walkon(messageAuthor))
                     else:
                         chat_logger.info(f"Welcome message not sent for {messageAuthor} — disabled or opted out.")
                 else:
@@ -1601,7 +1602,6 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Sent WALKON notice for {user}")
                     except Exception as e:
                         chat_logger.error(f"Failed to send WALKON for {user}: {e}")
-                asyncio.create_task(safe_walkon(messageAuthor))
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
