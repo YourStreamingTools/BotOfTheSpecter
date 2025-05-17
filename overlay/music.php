@@ -88,6 +88,7 @@ $musicFiles = getR2MusicFiles();
         let currentIndex = 0;
         let repeat = false;
         let shuffle = false;
+        let playedHistory = new Set();
         const audioPlayer = document.getElementById('audio-player');
 
         function playSong(url, songData = null) {
@@ -101,6 +102,7 @@ $musicFiles = getR2MusicFiles();
                         file: songData.file,
                         title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' ')
                     };
+                    playedHistory.add(songData.file);
                 }
                 if (socket && currentSongData && currentSongData.file) {
                     socket.emit('MUSIC_COMMAND', {
@@ -111,23 +113,7 @@ $musicFiles = getR2MusicFiles();
                         }
                     });
                 }
-            }).catch(() => {
-                if (songData && songData.file) {
-                    currentSongData = {
-                        file: songData.file,
-                        title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' ')
-                    };
-                }
-                if (socket && currentSongData && currentSongData.file) {
-                    socket.emit('MUSIC_COMMAND', {
-                        command: 'NOW_PLAYING',
-                        song: {
-                            title: currentSongData.title,
-                            file: currentSongData.file
-                        }
-                    });
-                }
-            });
+            }).catch(() => {});
         }
 
         function stopSong() {
@@ -140,6 +126,28 @@ $musicFiles = getR2MusicFiles();
             currentIndex = idx;
             const song = playlist[currentIndex];
             playSong(`https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`, song);
+        }
+
+        function playNextSong() {
+            if (repeat) {
+                audioPlayer.currentTime = 0;
+                audioPlayer.play();
+                return;
+            }
+
+            if (shuffle && playlist.length > 1) {
+                let unplayed = playlist.filter(song => !playedHistory.has(song.file));
+                if (unplayed.length === 0) {
+                    playedHistory.clear();
+                    unplayed = [...playlist];
+                }
+                const nextSong = unplayed[Math.floor(Math.random() * unplayed.length)];
+                const nextIndex = playlist.findIndex(song => song.file === nextSong.file);
+                playSongByIndex(nextIndex);
+            } else {
+                currentIndex = (currentIndex + 1) % playlist.length;
+                playSongByIndex(currentIndex);
+            }
         }
 
         function autoStartFirstSong() {
@@ -173,9 +181,7 @@ $musicFiles = getR2MusicFiles();
             overlay.style.justifyContent = 'center';
             overlay.style.flexDirection = 'column';
             overlay.style.zIndex = '9999';
-            overlay.innerHTML = `
-                <h2 style="font-size:2em;margin-bottom:1em;">Click anywhere to start music playback</h2>
-            `;
+            overlay.innerHTML = `<h2 style="font-size:2em;margin-bottom:1em;">Click anywhere to start music playback</h2>`;
             document.body.appendChild(overlay);
 
             const handler = () => {
@@ -186,6 +192,10 @@ $musicFiles = getR2MusicFiles();
             };
             document.body.addEventListener('click', handler, { once: true });
         }
+
+        audioPlayer.addEventListener('ended', function() {
+            playNextSong();
+        });
 
         function connectWebSocket() {
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
@@ -216,21 +226,22 @@ $musicFiles = getR2MusicFiles();
             });
 
             socket.on('MUSIC_SETTINGS', (settings) => {
-                if (settings && typeof settings.volume !== 'undefined') {
+                if (typeof settings.volume !== 'undefined') {
                     volume = settings.volume;
                     audioPlayer.volume = volume / 100;
                 }
-                if (settings && typeof settings.repeat !== 'undefined') {
+                if (typeof settings.repeat !== 'undefined') {
                     repeat = !!settings.repeat;
                 }
-                if (settings && typeof settings.shuffle !== 'undefined') {
+                if (typeof settings.shuffle !== 'undefined') {
                     shuffle = !!settings.shuffle;
                 }
             });
 
             socket.on('NOW_PLAYING', (data) => {
-                if (data && data.song && data.song.file) {
-                    playSong(`https://cdn.botofthespecter.com/music/${encodeURIComponent(data.song.file)}`, data.song);
+                if (data?.song?.file) {
+                    const idx = playlist.findIndex(song => song.file === data.song.file);
+                    if (idx >= 0) playSongByIndex(idx);
                 } else {
                     stopSong();
                     currentSongData = null;
@@ -240,101 +251,39 @@ $musicFiles = getR2MusicFiles();
             socket.on('MUSIC_COMMAND', (data) => {
                 if (!data || !data.command) return;
                 switch (data.command) {
-                    case 'play':
-                        if (audioPlayer.src) audioPlayer.play();
-                        break;
-                    case 'pause':
-                        audioPlayer.pause();
-                        break;
-                    case 'next':
-                        if (playlist.length) {
-                            currentIndex = (currentIndex + 1) % playlist.length;
-                            playSongByIndex(currentIndex);
-                        }
-                        break;
+                    case 'play': audioPlayer.play(); break;
+                    case 'pause': audioPlayer.pause(); break;
+                    case 'next': playNextSong(); break;
                     case 'prev':
-                        if (playlist.length) {
-                            currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-                            playSongByIndex(currentIndex);
-                        }
+                        currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+                        playSongByIndex(currentIndex);
                         break;
                     case 'play_index':
-                        if (typeof data.index !== 'undefined' && playlist.length) {
-                            playSongByIndex(data.index);
-                        }
+                        if (typeof data.index !== 'undefined') playSongByIndex(data.index);
                         break;
                     case 'MUSIC_SETTINGS':
                         if (typeof data.volume !== 'undefined') {
                             volume = data.volume;
                             audioPlayer.volume = volume / 100;
                         }
-                        if (typeof data.repeat !== 'undefined') {
-                            repeat = !!data.repeat;
-                        }
-                        if (typeof data.shuffle !== 'undefined') {
-                            shuffle = !!data.shuffle;
-                        }
+                        if (typeof data.repeat !== 'undefined') repeat = !!data.repeat;
+                        if (typeof data.shuffle !== 'undefined') shuffle = !!data.shuffle;
                         break;
                 }
             });
 
-            socket.on('PLAY', () => {
-                if (audioPlayer.src) audioPlayer.play();
-            });
-
-            socket.on('PAUSE', () => {
-                audioPlayer.pause();
-            });
-
+            socket.on('PLAY', () => audioPlayer.play());
+            socket.on('PAUSE', () => audioPlayer.pause());
             socket.on('WHAT_IS_PLAYING', () => {
-                if (currentSongData && currentSongData.file) {
-                    socket.emit('MUSIC_COMMAND', {
-                        command: 'NOW_PLAYING',
-                        song: {
-                            title: currentSongData.title,
-                            file: currentSongData.file
-                        }
-                    });
-                } else {
-                    socket.emit('MUSIC_COMMAND', {
-                        command: 'NOW_PLAYING',
-                        song: null
-                    });
-                }
+                socket.emit('MUSIC_COMMAND', {
+                    command: 'NOW_PLAYING',
+                    song: currentSongData ?? null
+                });
             });
         }
 
-        audioPlayer.addEventListener('ended', function() {
-            if (repeat) {
-                audioPlayer.currentTime = 0;
-                audioPlayer.play().then(() => {
-                    if (playlist.length) {
-                        const song = playlist[currentIndex];
-                        if (socket && song && song.file) {
-                            socket.emit('MUSIC_COMMAND', {
-                                command: 'NOW_PLAYING',
-                                song: {
-                                    title: song.title || song.file.replace('.mp3','').replace(/_/g,' '),
-                                    file: song.file
-                                }
-                            });
-                        }
-                    }
-                });
-            } else if (shuffle && playlist.length > 1) {
-                let next;
-                do {
-                    next = Math.floor(Math.random() * playlist.length);
-                } while (next === currentIndex);
-                playSongByIndex(next);
-            } else if (playlist.length) {
-                currentIndex = (currentIndex + 1) % playlist.length;
-                playSongByIndex(currentIndex);
-            }
-        });
-
         document.body.addEventListener('click', () => {
-            audioPlayer.play().catch(()=>{});
+            audioPlayer.play().catch(() => {});
         }, { once: true });
 
         connectWebSocket();
