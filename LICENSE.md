@@ -25,7 +25,7 @@ BotOfTheSpecter utilizes external API services for certain features like weather
 *   **Open Source Core:** The core bot functionalities remain open source and free under the AGPL-3.0 license.
 
 **Code of Conduct:**
-By using or contributing to BotOfTheSpecter, you agree to adhere to our [Code of Conduct](CODEOFCONDUCT.md), which promotes a welcoming and inclusive environment.
+By using or contributing to BotOfTheSpecter, you agree to adhere to our [Code of Conduct](CODE_OF_CONDUCT.md), which promotes a welcoming and inclusive environment.
 
 **Contribution and Usage:**
 We encourage contributions to BotOfTheSpecter. The bot is designed to enhance Twitch streaming experiences. While core functionalities are free, some premium features are offered through Twitch subscriptions to support development.
