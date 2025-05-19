@@ -1114,6 +1114,42 @@ async def check_key(api_key: str = Query(...)):
         return {"status": "Valid API Key", "username": "ADMIN"}
     return {"status": "Valid API Key", "username": valid}
 
+# Check if stream is online
+@app.get(
+    "/streamonline",
+    summary="Check if the stream is online",
+    include_in_schema=False
+)
+async def stream_online(api_key: str = Query(...)):
+    # Validate the API key and get username (channel name)
+    username = await verify_api_key(api_key)
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    # Path to the online status file
+    status_file_path = f"/var/www/logs/online/{username}.txt"
+    # Check if the file exists via SFTP
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
+        sftp = ssh.open_sftp()
+        try:
+            # Check if the file exists and read its content
+            with sftp.open(status_file_path, 'r') as file:
+                content = file.read().strip()
+                is_online = content.lower() == "true"
+        except FileNotFoundError:
+            # If file doesn't exist, assume stream is offline
+            is_online = False
+        finally:
+            sftp.close()
+            ssh.close()
+        # Return just the online status
+        return {"online": is_online}
+    except Exception as e:
+        logging.error(f"Error checking stream online status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error checking stream online status: {str(e)}")
+
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
 async def read_root():
