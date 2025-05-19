@@ -191,76 +191,70 @@ class RTMP2FLVController(SimpleRTMPController):
 
     async def forward_to_twitch(self, session, twitch_url):
         try:
-            # Add initial delay to allow the FLV file to receive data
             logger.info(f"Waiting 1 seconds for FLV file to receive initial data...")
             await asyncio.sleep(1)
-            # Check if the FLV file exists and has content
-            if not os.path.exists(session.flv_file_path):
-                logger.warning(f"FLV file {session.flv_file_path} does not exist. Skipping forwarding to Twitch.")
-                return
-            # Wait for the file to reach a minimum size
-            min_file_size = 100 * 1024  # 100KB
-            max_wait_time = 10  # 10 seconds
-            start_time = datetime.datetime.now()
-            while os.path.getsize(session.flv_file_path) < min_file_size:
-                if (datetime.datetime.now() - start_time).total_seconds() > max_wait_time:
-                    logger.warning(f"Timeout waiting for FLV file to reach minimum size. Current size: {os.path.getsize(session.flv_file_path)} bytes")
-                    if os.path.getsize(session.flv_file_path) == 0:
-                        logger.error("FLV file is empty. Skipping forwarding to Twitch.")
-                        return
-                    # Continue with forwarding even if minimum size isn't reached but file has some data
-                    logger.info("Continuing with forwarding despite not reaching ideal minimum size")
-                    break
-                await asyncio.sleep(1)  # Check every second
-            logger.info(f"FLV file has reached adequate size ({os.path.getsize(session.flv_file_path)} bytes). Starting forwarding to Twitch.")
-            command = [
-                "ffmpeg",
-                "-re",
-                "-i", session.flv_file_path,
-                "-c", "copy",
-                "-f", "flv",
-                twitch_url
-            ]
-            logger.info(f"Forwarding stream to Twitch: {twitch_url}")
-            # Record the start time for monitoring
-            session.twitch_forward_start_time = datetime.datetime.now()
-            session.last_health_check = time.time()
-            # Start the FFmpeg process and store in session for cleanup
-            session.ffmpeg_process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            logger.info(f"FFmpeg process started with PID: {session.ffmpeg_process.pid}")
-            # Start health monitoring task
-            health_monitor_task = asyncio.create_task(self.monitor_ffmpeg_health(session))
-            session.health_monitor_task = health_monitor_task
-            # Wait for the process to complete
-            stdout, stderr = await session.ffmpeg_process.communicate()
-            # Calculate duration of the forwarding
-            end_time = datetime.datetime.now()
-            duration = end_time - session.twitch_forward_start_time
-            hours, remainder = divmod(duration.seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            if session.ffmpeg_process.returncode != 0:
-                logger.error(f"FFmpeg process terminated with code {session.ffmpeg_process.returncode} after {hours}h {minutes}m {seconds}s")
-                logger.error(f"FFmpeg stderr output: {stderr.decode()}")
-                # Log the last 100 lines of stderr for detailed debugging
-                stderr_lines = stderr.decode().splitlines()
-                if len(stderr_lines) > 100:
-                    logger.error(f"Last 100 lines of FFmpeg stderr: {stderr_lines[-100:]}")
+            restart_count = 0
+            while True:
+                # Check if the FLV file exists and has content
+                if not os.path.exists(session.flv_file_path):
+                    logger.warning(f"FLV file {session.flv_file_path} does not exist. Skipping forwarding to Twitch.")
+                    return
+                # Wait for the file to reach a minimum size
+                min_file_size = 100 * 1024  # 100KB
+                max_wait_time = 10  # 10 seconds
+                start_time = datetime.datetime.now()
+                while os.path.getsize(session.flv_file_path) < min_file_size:
+                    if (datetime.datetime.now() - start_time).total_seconds() > max_wait_time:
+                        logger.warning(f"Timeout waiting for FLV file to reach minimum size. Current size: {os.path.getsize(session.flv_file_path)} bytes")
+                        if os.path.getsize(session.flv_file_path) == 0:
+                            logger.error("FLV file is empty. Skipping forwarding to Twitch.")
+                            return
+                        logger.info("Continuing with forwarding despite not reaching ideal minimum size")
+                        break
+                    await asyncio.sleep(1)
+                logger.info(f"FLV file has reached adequate size ({os.path.getsize(session.flv_file_path)} bytes). Starting forwarding to Twitch.")
+                command = [
+                    "ffmpeg",
+                    "-re",
+                    "-i", session.flv_file_path,
+                    "-c", "copy",
+                    "-f", "flv",
+                    twitch_url
+                ]
+                logger.info(f"Forwarding stream to Twitch: {twitch_url}")
+                session.twitch_forward_start_time = datetime.datetime.now()
+                session.last_health_check = time.time()
+                session.ffmpeg_process = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                logger.info(f"FFmpeg process started with PID: {session.ffmpeg_process.pid}")
+                health_monitor_task = asyncio.create_task(self.monitor_ffmpeg_health(session))
+                session.health_monitor_task = health_monitor_task
+                _ , stderr = await session.ffmpeg_process.communicate()
+                end_time = datetime.datetime.now()
+                duration = end_time - session.twitch_forward_start_time
+                hours, remainder = divmod(duration.seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                logger.error(f"FFmpeg process exited (code {session.ffmpeg_process.returncode}) after {hours}h {minutes}m {seconds}s. Restart count: {restart_count}")
+                logger.error(f"FFmpeg stderr output:\n{stderr.decode(errors='replace')}")
+                # Cancel health monitoring task if it's still running
+                if not health_monitor_task.done():
+                    health_monitor_task.cancel()
+                    try:
+                        await health_monitor_task
+                    except asyncio.CancelledError:
+                        pass
+                # Check if the session is still active (user still streaming)
+                if hasattr(session, "state") and not getattr(session, "closed", False):
+                    restart_count += 1
+                    logger.warning(f"Twitch forwarding stopped unexpectedly. Restarting forwarding (restart #{restart_count}) as user is still streaming.")
+                    await asyncio.sleep(2)
+                    continue
                 else:
-                    logger.error(f"Complete FFmpeg stderr: {stderr_lines}")
-            else:
-                logger.info(f"FFmpeg process completed normally after {hours}h {minutes}m {seconds}s")
-                logger.info("Finished forwarding stream to Twitch.")
-            # Cancel health monitoring task if it's still running
-            if not health_monitor_task.done():
-                health_monitor_task.cancel()
-                try:
-                    await health_monitor_task
-                except asyncio.CancelledError:
-                    pass
+                    logger.info("Session is closed, not restarting Twitch forwarding.")
+                    break
         except asyncio.CancelledError:
             logger.info("Twitch forwarding task was cancelled")
             await self.terminate_ffmpeg(session)
