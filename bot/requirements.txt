@@ -1,13 +1,25 @@
+# Async Twitch API client
 twitchio
+# Async HTTP client for Python
 aiohttp
+# WebSocket libraries
 websockets
+python-socketio
+# For streaming video/audio
 streamlink
+# Timezones
 pytz
+# Load environment variables from .env
 python-dotenv
-socketio
+# Async MySQL client
 aiomysql
+# Geo-location tools
 geopy
+# Unit conversions
 pint
+# Discord API
 discord
+# Joke API
 jokeapi
+# Translation
 deep_translator
