@@ -3,6 +3,8 @@ bot/.env
 app/.env
 api/.env
 websocket/.env
+stream/.env
+ssl/.env
 
 # Build and distribution directories
 app/dist/
@@ -72,7 +74,6 @@ bot/__pycache__/
 *.pyw
 *.pyz
 /stream/ssl
-stream/.env
 stream/stream.service
 /cdn/music
 /cache
