@@ -118,12 +118,6 @@ if (isset($_POST['killBot'])) {
     $versionRunning = "";
 }
 
-if (isset($_POST['restartBot'])) {
-    $statusOutput = handleTwitchBotAction('restart', $botScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
-    // The version running will be updated in the handleTwitchBotAction function
-    $versionRunning = getRunningVersion($versionFilePath, $newVersion);
-}
-
 // Handle beta bot actions
 if (isset($_POST['runBetaBot'])) {
     $waited = 0;
@@ -142,12 +136,6 @@ if (isset($_POST['killBetaBot'])) {
     $betaVersionRunning = "";
 }
 
-if (isset($_POST['restartBetaBot'])) {
-    $betaStatusOutput = handleTwitchBotAction('restart', $BetaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $BetaLogPath);
-    // The version running will be updated in the handleTwitchBotAction function
-    $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
-}
-
 // Handle Discord bot actions
 if (isset($_POST['runDiscordBot'])) {
     $waited = 0;
@@ -161,17 +149,9 @@ if (isset($_POST['runDiscordBot'])) {
     $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
 }
 
-// Handling Discord bot stop
 if (isset($_POST['killDiscordBot'])) {
     $discordStatusOutput = handleDiscordBotAction('kill', $discordBotScriptPath, $statusScriptPath, $username, $discordLogPath);
     $discordVersionRunning = "";
-}
-
-// Handling Discord bot restart
-if (isset($_POST['restartDiscordBot'])) {
-    $discordStatusOutput = handleDiscordBotAction('restart', $discordBotScriptPath, $statusScriptPath, $username, $discordLogPath);
-    // Get the updated version running after action is performed
-    $discordVersionRunning = getRunningVersion($discordVersionFilePath, $discordNewVersion);
 }
 
 // Handle Alpha bot actions
@@ -192,12 +172,6 @@ if (isset($_POST['killAlphaBot'])) {
     $alphaVersionRunning = "";
 }
 
-if (isset($_POST['restartAlphaBot'])) {
-    $alphaStatusOutput = handleTwitchBotAction('restart', $alphaBotScriptPath, $statusScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $alphaLogPath);
-    // The version running will be updated in the handleTwitchBotAction function
-    $alphaVersionRunning = getRunningVersion($alphaVersionFilePath, $alphaNewVersion, 'alpha');
-}
-
 // Function to handle Discord bot actions
 function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPath, $username, $discordLogPath) {
     global $ssh_host, $ssh_username, $ssh_password, $discordVersionFilePath, $discordNewVersion;
@@ -205,7 +179,6 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
     if (!$connection) { throw new Exception('SSH connection failed'); }
     if (!ssh2_auth_password($connection, $ssh_username, $ssh_password)) {
         throw new Exception('SSH authentication failed'); }
-    // Get PID of the running bot
     $command = "python $statusScriptPath -system discord -channel $username";
     $stream = ssh2_exec($connection, $command);
     if (!$stream) { throw new Exception('Failed to get bot status'); }
@@ -256,37 +229,6 @@ function handleDiscordBotAction($action, $discordBotScriptPath, $statusScriptPat
                 killBot($pid);
                 $message = "<div class='status-message'>Discord bot stopped successfully.</div>";
                 $discordVersionRunning = "";
-            } else {
-                $message = "<div class='status-message error'>Discord bot is not running.</div>";
-                $discordVersionRunning = "";
-            }
-            break;
-        case 'restart':
-            if ($pid > 0) {
-                killBot($pid);
-                startDiscordBot($discordBotScriptPath, $username, $discordLogPath);
-                $stream = ssh2_exec($connection, "python $statusScriptPath -system discord -channel $username");
-                if (!$stream) {
-                    throw new Exception('Failed to check bot status after restart');
-                }
-                stream_set_blocking($stream, true);
-                $statusOutput = trim(stream_get_contents($stream));
-                fclose($stream);
-                if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
-                    $pid = intval($matches[1]);
-                } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-                    $pid = intval($matches[1]);
-                } else {
-                    $pid = 0;
-                }
-                if ($pid > 0) {
-                    // Update version file with latest version on restart
-                    updateVersionFile($discordVersionFilePath, $discordNewVersion);
-                    $message = "<div class='status-message'>Discord bot restarted. PID $pid.</div>";
-                } else {
-                    $message = "<div class='status-message error'>Failed to restart the Discord bot.</div>";
-                    $discordVersionRunning = "";
-                }
             } else {
                 $message = "<div class='status-message error'>Discord bot is not running.</div>";
                 $discordVersionRunning = "";
@@ -374,34 +316,6 @@ function handleTwitchBotAction($action, $botScriptPath, $statusScriptPath, $user
                 if ($pid > 0) {
                     killBot($pid);
                     $message = "<div class='status-message'>Bot stopped successfully.</div>";
-                } else {
-                    $message = "<div class='status-message error'>Bot is not running.</div>";
-                }
-                break;
-            case 'restart':
-                if ($pid > 0) {
-                    killBot($pid);
-                    startBot($botScriptPath, $username, $twitchUserId, $authToken, $refreshToken, $api_key, $logPath);
-                    sleep(2);
-                    $stream = ssh2_exec($connection, "python $statusScriptPath -system $system -channel $username");
-                    if (!$stream) { throw new Exception('Failed to check bot status after restart'); }
-                    stream_set_blocking($stream, true);
-                    $statusOutput = trim(stream_get_contents($stream));
-                    fclose($stream);
-                    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
-                        $pid = intval($matches[1]);
-                    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-                        $pid = intval($matches[1]);
-                    } else {
-                        $pid = 0;
-                    }
-                    if ($pid > 0) {
-                        // Update version file with latest version on successful restart
-                        updateVersionFile($currentVersionFilePath, $currentNewVersion);
-                        $message = "<div class='status-message'>Bot restarted successfully. PID $pid.</div>";
-                    } else {
-                        $message = "<div class='status-message error'>Failed to restart the bot.</div>";
-                    }
                 } else {
                     $message = "<div class='status-message error'>Bot is not running.</div>";
                 }
