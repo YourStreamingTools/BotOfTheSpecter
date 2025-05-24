@@ -409,7 +409,15 @@ if ($selected_server == 'au-east-1') {
                 <div class="field">
                     <label class="has-text-white has-text-left" for="twitch_key">Twitch Stream Key</label>
                     <div class="control">
-                        <input type="password" class="input" id="twitch_key" name="twitch_key" value="<?php echo htmlspecialchars($twitch_key); ?>" <?php echo !empty($twitch_key) ? 'readonly' : ''; ?> required>
+                        <input
+                            type="<?php echo !empty($twitch_key) ? 'password' : 'text'; ?>"
+                            class="input"
+                            id="twitch_key"
+                            name="twitch_key"
+                            value="<?php echo htmlspecialchars($twitch_key); ?>"
+                            <?php echo !empty($twitch_key) ? 'readonly' : ''; ?>
+                            required
+                        >
                     </div>
                 </div>
                 <div class="field">
@@ -423,12 +431,10 @@ if ($selected_server == 'au-east-1') {
                 <div class="field">
                     <div class="control">
                         <button type="submit" class="button is-primary" id="save-settings" <?php echo !empty($twitch_key) ? 'disabled' : ''; ?>>Save Settings</button>
-                        <?php if (!empty($twitch_key)): ?>
-                        <button type="button" id="toggle-twitch_btn" class="button is-info is-outlined is-rounded" style="margin-left: 10px;">
+                        <button type="button" id="toggle-twitch_btn" class="button is-info is-outlined is-rounded" style="margin-left: 10px;<?php echo empty($twitch_key) ? 'display:none;' : ''; ?>">
                             <span class="icon"><i class="fas fa-eye"></i></span>
                             <span>Show Key</span>
                         </button>
-                        <?php endif; ?>
                     </div>
                 </div>
             </form>
