@@ -451,9 +451,6 @@ include "mod_access.php";
               <form action="" method="post" class="mr-2">
                 <button class="button is-success bot-button button-size is-rounded" type="submit" name="runBot">Run Bot</button>
               </form>
-              <form action="" method="post">
-                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartBot">Restart Bot</button>
-              </form>
             </div>
             <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
             <h3 class="title is-4">Beta Bot Controls (V<?php echo $betaNewVersion; ?>B)</h3>
@@ -466,9 +463,6 @@ include "mod_access.php";
               </form>
               <form action="" method="post" class="mr-2">
                 <button class="button is-success bot-button button-size is-rounded" type="submit" name="runBetaBot">Run Beta Bot</button>
-              </form>
-              <form action="" method="post">
-                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartBetaBot">Restart Beta Bot</button>
               </form>
             </div>
             <?php elseif ($selectedBot === 'alpha' && $betaAccess): ?>
@@ -483,9 +477,6 @@ include "mod_access.php";
               <form action="" method="post" class="mr-2">
                 <button class="button is-success bot-button button-size is-rounded" type="submit" name="runAlphaBot">Run Alpha Bot</button>
               </form>
-              <form action="" method="post">
-                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartAlphaBot">Restart Alpha Bot</button>
-              </form>
             </div>
             <?php elseif ($selectedBot === 'discord' && $guild_id && $live_channel_id): ?>
             <h3 class="title is-4">Discord Bot Controls (V<?php echo htmlspecialchars($discordNewVersion); ?>)</h3>
@@ -498,9 +489,6 @@ include "mod_access.php";
               </form>
               <form action="" method="post" class="mr-2">
                 <button class="button is-success bot-button button-size is-rounded" type="submit" name="runDiscordBot">Run Discord Bot</button>
-              </form>
-              <form action="" method="post">
-                <button class="button is-warning bot-button button-size is-rounded" type="submit" name="restartDiscordBot">Restart Discord Bot</button>
               </form>
             </div>
             <?php endif; ?>
