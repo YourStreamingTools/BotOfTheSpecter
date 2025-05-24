@@ -1,1 +1,1 @@
-certbot certonly --manual --preferred-challenges=dns --server https://acme-v02.api.letsencrypt.org/directory --agree-tos -d botofthespecter.com -d *.botofthespecter.com
+certbot certonly --manual --preferred-challenges=dns --server https://acme-v02.api.letsencrypt.org/directory --agree-tos -d www.botofthespecter.com -d *.botofthespecter.com -d beta.dashboard.botofthespecter.com
