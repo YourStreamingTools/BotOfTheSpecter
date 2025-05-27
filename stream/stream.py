@@ -409,9 +409,13 @@ def create_ssl_context():
     return context
 
 async def start_rtmp_server(twitch_server):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Determine output directory based on server location
+    if twitch_server in ("us-west", "us-east", "eu-central"):
+        output_directory = "/mnt/s3/bots-stream"
+    else:
+        output_directory = os.path.dirname(os.path.abspath(__file__))
     ssl_context = create_ssl_context()
-    server = SimpleServer(output_directory=current_dir, twitch_server=twitch_server)
+    server = SimpleServer(output_directory=output_directory, twitch_server=twitch_server)
     await server.create(host=RTMPS_HOST, port=RTMPS_PORT, ssl_context=ssl_context)
     logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL.")
     logger.info(f"Using Twitch ingest server location: {twitch_server}")
