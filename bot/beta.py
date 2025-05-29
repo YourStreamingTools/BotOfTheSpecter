@@ -7030,8 +7030,6 @@ async def update_version_control():
             file_name = f"{CHANNEL_NAME}_version_control.txt"
         elif SYSTEM == "BETA":
             file_name = f"{CHANNEL_NAME}_beta_version_control.txt"
-        elif SYSTEM == "ALPHA":
-            file_name = f"{CHANNEL_NAME}_alpha_version_control.txt"
         else:
             raise ValueError("Invalid SYSTEM value. Expected STABLE, BETA, or ALPHA.")
         # Define the full file path
