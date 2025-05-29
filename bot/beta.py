@@ -5789,6 +5789,7 @@ async def process_weather_websocket(data):
 # Function to process the stream being online
 async def process_stream_online_websocket():
     global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
+    sqldb = await get_mysql_connection()
     stream_online = True
     looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
     looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
@@ -5822,13 +5823,21 @@ async def process_stream_online_websocket():
     await channel.send(message)
     await send_to_discord_stream_online(message, image)
     # Log the status to the file
-    os.makedirs(f'/var/www/logs/online', exist_ok=True)
-    with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+    os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+    with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('True')
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            # Update the stream status in the database
+            await cursor.execute("UPDATE stream_status SET status = %s", ("True",))
+            await sqldb.commit()
+    finally:
+        await sqldb.ensure_closed()
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
     global stream_online, scheduled_clear_task
+    sqldb = await get_mysql_connection()
     stream_online = False  # Update the stream status
     # Cancel any previous scheduled task to avoid duplication
     if 'scheduled_clear_task' in globals() and scheduled_clear_task:
@@ -5837,9 +5846,16 @@ async def process_stream_offline_websocket():
     scheduled_clear_task = asyncio.create_task(delayed_clear_tables())
     bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
     # Log the status to the file
-    os.makedirs(f'/var/www/logs/online', exist_ok=True)
-    with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+    os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+    with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('False')
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            # Update the stream status in the database
+            await cursor.execute("UPDATE stream_status SET status = %s", ("False",))
+            await sqldb.commit()
+    finally:
+        await sqldb.ensure_closed()
 
 # Function to clear both tables if the stream remains offline after 5 minutes
 async def delayed_clear_tables():
@@ -6065,7 +6081,7 @@ async def shazam_song_info():
             return {"error": "Twitch GQL Token Expired"}
         # Record stream audio
         random_file_name = str(random.randint(10000000, 99999999))
-        working_dir = "/var/www/logs/songs"
+        working_dir = "/home/botofthespecter/logs/songs"
         stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
         raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
         outfile = os.path.join(working_dir, f"{random_file_name}.acc")
@@ -7005,7 +7021,7 @@ async def builtin_commands_creation():
 async def update_version_control():
     try:
         # Define the directory path
-        directory = "/var/www/logs/version/"
+        directory = "/home/botofthespecter/logs/version/"
         # Ensure the directory exists, create it if it doesn't
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -7032,36 +7048,43 @@ async def update_version_control():
 
 async def check_stream_online():
     global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
-    async with aiohttp.ClientSession() as session:
-        headers = {
-            'Client-ID': CLIENT_ID,
-            'Authorization': f'Bearer {CHANNEL_AUTH}'
-        }
-        async with session.get(f'https://api.twitch.tv/helix/streams?user_login={CHANNEL_NAME}&type=live', headers=headers) as response:
-            data = await response.json()
-            # Check if the stream is offline
-            if not data.get('data'):
-                stream_online = False
-                # Log the status to the file
-                os.makedirs(f'/var/www/logs/online', exist_ok=True)
-                with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
-                    file.write('False')
-                bot_logger.info(f"Bot Starting, Stream is offline.")
-            else:
-                stream_online = True
-                looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
-                looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
-                # Log the status to the file
-                os.makedirs(f'/var/www/logs/online', exist_ok=True)
-                with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
-                    file.write('True')
-                bot_logger.info(f"Bot Starting, Stream is online.")
-        async with session.get(f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}", headers=headers) as channel_response:
-            channel_data = await channel_response.json()
-            if channel_data.get('data'):
-                current_game = channel_data['data'][0].get('game_name', None)
-                stream_title = channel_data['data'][0].get('title', None)
-    return
+    sqldb = await get_mysql_connection()
+    try:
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'Client-ID': CLIENT_ID,
+                    'Authorization': f'Bearer {CHANNEL_AUTH}'
+                }
+                async with session.get(f'https://api.twitch.tv/helix/streams?user_login={CHANNEL_NAME}&type=live', headers=headers) as response:
+                    data = await response.json()
+                    # Check if the stream is offline
+                    if not data.get('data'):
+                        stream_online = False
+                        # Log the status to the file
+                        os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+                        with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+                            file.write('False')
+                        await cursor.execute("UPDATE stream_status SET status = %s", ("False",))
+                        bot_logger.info(f"Bot Starting, Stream is offline.")
+                    else:
+                        stream_online = True
+                        looped_tasks["timed_message"] = asyncio.get_event_loop().create_task(timed_message())
+                        looped_tasks["handle_upcoming_ads"] = asyncio.get_event_loop().create_task(handle_upcoming_ads())
+                        # Log the status to the file
+                        os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+                        with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+                            file.write('True')
+                        await cursor.execute("UPDATE stream_status SET status = %s", ("True",))
+                        bot_logger.info(f"Bot Starting, Stream is online.")
+                await sqldb.commit()
+                async with session.get(f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}", headers=headers) as channel_response:
+                    channel_data = await channel_response.json()
+                    if channel_data.get('data'):
+                        current_game = channel_data['data'][0].get('game_name', None)
+                        stream_title = channel_data['data'][0].get('title', None)
+    finally:
+        await sqldb.ensure_closed()
 
 async def convert_currency(amount, from_currency, to_currency):
     global EXCHANGE_RATE_API_KEY
