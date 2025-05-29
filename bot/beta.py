@@ -95,8 +95,8 @@ builtin_aliases = {
 }
 
 # Logs
-webroot = "/var/www/"
-logs_directory = os.path.join(webroot, "logs")
+logs_root = "/home/botofthespecter/logs"
+logs_directory = os.path.join(logs_root, "logs")
 log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
 
 # Ensure directories exist
