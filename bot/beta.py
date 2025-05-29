@@ -7147,23 +7147,24 @@ async def process_channel_point_rewards(event_data, event_type):
                                 current_user = streak_row['current_user']
                                 current_streak = streak_row['streak']
                                 if current_user == user_name:
+                                    current_user = user_name
                                     current_streak += 1
                                 else:
                                     current_user = user_name
                                     current_streak = 1
-                                await cursor.execute(
-                                    "UPDATE reward_streaks SET current_user = %s, streak = %s WHERE reward_id = %s",
-                                    (current_user, current_streak, reward_id)
-                                )
+                                await cursor.execute("UPDATE reward_streaks SET current_user = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
                             else:
                                 current_user = user_name
                                 current_streak = 1
-                                await cursor.execute(
-                                    "INSERT INTO reward_streaks (reward_id, current_user, streak) VALUES (%s, %s, %s)",
-                                    (reward_id, current_user, current_streak)
-                                )
+                                await cursor.execute("INSERT INTO reward_streaks (reward_id, current_user, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
                             await sqldb.commit()
-                            custom_message = custom_message.replace('(userstreak)', str(current_streak))
+                            await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s AND current_user = %s", (reward_id, user_name))
+                            streak_row = await cursor.fetchone()
+                            if streak_row:
+                                current_streak = streak_row['streak']
+                                custom_message = custom_message.replace('(userstreak)', str(current_streak))
+                            else:
+                                custom_message = custom_message.replace('(userstreak)', "1")
                         except Exception as e:
                             chat_logger.error(f"Error while handling (userstreak): {e}")
                             custom_message = custom_message.replace('(userstreak)', "Error")
