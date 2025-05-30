@@ -19,7 +19,7 @@ VERSION = "4.3.5"
 load_dotenv()
 
 # Define logging directories
-logs_directory = "/var/www/logs"
+logs_directory = "/home/botofthespecter/logs"
 discord_logs   = os.path.join(logs_directory, "discord")
 
 # Ensure directories exist
@@ -199,7 +199,7 @@ class BotOfTheSpecter(commands.Bot):
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
-        status_file_path = f"/var/www/logs/online/{self.channel_name}.txt"
+        status_file_path = f"/home/botofthespecter/logs/online/{self.channel_name}.txt"
         stream_status = self.read_stream_status(status_file_path)
         if stream_status:
             self.logger.info("Stream is online, setting channel to online status.")
@@ -213,7 +213,7 @@ class BotOfTheSpecter(commands.Bot):
 
     async def update_version_control(self):
         try:
-            directory = "/var/www/logs/version/"
+            directory = "/home/botofthespecter/logs/version/"
             os.makedirs(directory, exist_ok=True)
             file_path = os.path.join(directory, f"{self.channel_name}_discord_version_control.txt")
             if os.path.exists(file_path):
