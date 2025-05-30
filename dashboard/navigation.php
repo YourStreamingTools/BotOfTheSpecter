@@ -210,6 +210,9 @@
 							<img class="is-rounded" src="<?php echo $twitch_profile_image_url; ?>" alt="<?php echo htmlspecialchars($twitchDisplayName); ?> Profile Image" style="object-fit: cover; width: 30px; height: 30px;">
 						</figure>
 					</div>
+					<a class="navbar-item" href="../switch_to_beta.php" title="Beta Panel" style="display: flex; align-items: center;">
+						<span class="icon" style="margin-right: 0;"><i class="fas fa-flask"></i></span>
+					</a>
 					<a href="../logout.php" title="Logout" style="margin-left: 10px; color: #ffffff; text-decoration: none;">
 						<span class="icon" style="color: #ffffff;"><i class="fas fa-sign-out-alt"></i></span>
 					</a>
