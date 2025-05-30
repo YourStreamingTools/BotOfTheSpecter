@@ -94,7 +94,7 @@ builtin_aliases = {
 }
 
 # Logs
-webroot = "/var/www/"
+webroot = "/home/botofthespecter/"
 logs_directory = os.path.join(webroot, "logs")
 log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
 
@@ -3678,7 +3678,7 @@ class TwitchBot(commands.Bot):
                         await ctx.send("You do not have the required permissions to use this command.")
                         return
             # File path
-            file_path = '/var/www/api/steamapplist.json'
+            file_path = '/home/botofthespecter/api/steamapplist.json'
             # Check if the file exists and if it's less than 1 hour old
             try:
                 file_mtime = os.path.getmtime(file_path)
@@ -5617,8 +5617,8 @@ async def process_stream_online_websocket():
     await channel.send(message)
     await send_to_discord_stream_online(message, image)
     # Log the status to the file
-    os.makedirs(f'/var/www/logs/online', exist_ok=True)
-    with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+    os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+    with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('True')
 
 # Function to process the stream being offline
@@ -5632,8 +5632,8 @@ async def process_stream_offline_websocket():
     scheduled_clear_task = asyncio.create_task(delayed_clear_tables())
     bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
     # Log the status to the file
-    os.makedirs(f'/var/www/logs/online', exist_ok=True)
-    with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+    os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+    with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('False')
 
 # Function to clear both tables if the stream remains offline after 5 minutes
@@ -5821,7 +5821,7 @@ async def shazam_song_info():
             return {"error": "Twitch GQL Token Expired"}
         # Record stream audio
         random_file_name = str(random.randint(10000000, 99999999))
-        working_dir = "/var/www/logs/songs"
+        working_dir = "/home/botofthespecter/logs/songs"
         stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
         raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
         outfile = os.path.join(working_dir, f"{random_file_name}.acc")
@@ -5899,7 +5899,7 @@ async def shazam_detect_song(raw_audio_b64):
                 # Check requests remaining for the API
                 if "x-ratelimit-requests-remaining" in response.headers:
                     requests_left = response.headers['x-ratelimit-requests-remaining']
-                    file_path = "/var/www/api/shazam.txt"
+                    file_path = "/home/botofthespecter/api/shazam.txt"
                     with open(file_path, 'w') as file:
                         file.write(requests_left)
                     api_logger.info(f"There are {requests_left} requests lefts for the song command.")
@@ -6661,7 +6661,7 @@ async def builtin_commands_creation():
 async def update_version_control():
     try:
         # Define the directory path
-        directory = "/var/www/logs/version/"
+        directory = "/home/botofthespecter/logs/version/"
         # Ensure the directory exists, create it if it doesn't
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -6705,8 +6705,8 @@ async def check_stream_online():
                 current_game = None
                 bot_logger.info(f"Bot Starting, Stream is offline.")
                 # Log the status to the file
-                os.makedirs(f'/var/www/logs/online', exist_ok=True)
-                with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+                os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+                with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
                     file.write('False')
             else:
                 # Stream is online, extract the game name
@@ -6715,8 +6715,8 @@ async def check_stream_online():
                 current_game = game
                 bot_logger.info(f"Bot Starting, Stream is online. Game: {current_game}")
                 # Log the status to the file
-                os.makedirs(f'/var/www/logs/online', exist_ok=True)
-                with open(f'/var/www/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
+                os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
+                with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
                     file.write('True')
     return
 
@@ -6731,7 +6731,7 @@ async def convert_currency(amount, from_currency, to_currency):
                     converted_amount = data['conversion_result']
                     api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency}")
                     # Read the remaining requests from the file, subtract 1, and write it back
-                    file_path = "/var/www/api/exchangerate.txt"
+                    file_path = "/home/botofthespecter/api/exchangerate.txt"
                     try:
                         with open(file_path, 'r') as file:
                             remaining_requests = int(file.read())
