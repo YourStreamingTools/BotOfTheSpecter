@@ -487,8 +487,8 @@ export default {
         });
       } else if (request.method === 'POST') {
         const requestIP = request.headers.get('CF-Connecting-IP') || '';
-        const AUTH_API = env.AUTH_IP;
-        if (requestIP !== AUTH_API) {
+        const AUTH_IPS = (env.AUTH_IP || '').split(',').map(ip => ip.trim()).filter(Boolean);
+        if (!AUTH_IPS.includes(requestIP)) {
           console.warn(`Unauthorized access attempt from IP: ${requestIP}`);
           return new Response('Unauthorized', { status: 401 });
         }
