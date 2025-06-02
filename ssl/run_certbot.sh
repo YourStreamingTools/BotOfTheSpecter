@@ -8,6 +8,6 @@ certbot certonly --manual \
   --preferred-challenges=$CHALLENGE_TYPE \
   --server $ACME_SERVER \
   --agree-tos \
-  -d $WWW_DOMAIN \
+  -d $MAIN_DOMAIN \
   -d $WILDCARD_DOMAIN \
   -d $SUBDOMAIN
