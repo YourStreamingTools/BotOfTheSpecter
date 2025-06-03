@@ -5,6 +5,7 @@ api/.env
 websocket/.env
 stream/.env
 ssl/.env
+ssl/.certbot.env
 
 # Build and distribution directories
 app/dist/
