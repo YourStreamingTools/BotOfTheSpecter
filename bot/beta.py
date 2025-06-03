@@ -8043,11 +8043,11 @@ async def remove_shoutout_user(username: str, delay: int):
         chat_logger.info(f"Removed temporary shoutout data for {username}")
         shoutout_user = None
 
-# Handel upcoming Twitch Ads
+# Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
     channel = BOTS_TWITCH_BOT.get_channel(CHANNEL_NAME)
-    url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+    ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -8061,30 +8061,16 @@ async def handle_upcoming_ads():
                 continue
             if stream_online and not previous_online:
                 api_logger.info("Stream just went online. Checking for updated ad schedule.")
-                await check_and_handle_ads(channel, session, headers, url)
+                await check_and_handle_ads(channel, session, headers, ads_api_url)
             # Regular ad monitoring every minute
             if stream_online:
-                await check_and_handle_ads(channel, session, headers, url)
+                await check_and_handle_ads(channel, session, headers, ads_api_url)
             previous_online = stream_online
             await asyncio.sleep(60)
 
-async def check_and_handle_ads(channel, session, headers, url):
+async def check_and_handle_ads(channel, session, headers, ads_api_url, ad_upcoming_message, ad_info):
     try:
-        sqldb = await get_mysql_connection()
-        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT * FROM ad_notice_settings WHERE id = %s", (1,))
-            settings = await cursor.fetchone()
-        await sqldb.ensure_closed()
-        enable_ad_notice = settings.get("enable_ad_notice", True) if settings else True
-        ad_upcoming_message = settings.get("ad_upcoming_message", "Upcoming ad break in (minutes) minutes!") if settings else "Upcoming ad break in (minutes) minutes!"
-    except Exception as e:
-        api_logger.error(f"Error retrieving ad notice settings: {e}")
-        enable_ad_notice = True
-        ad_upcoming_message = "Upcoming ad break in (minutes) minutes!"
-    if not enable_ad_notice:
-        return
-    try:
-        async with session.get(url, headers=headers) as response:
+        async with session.get(ads_api_url, headers=headers) as response:
             if response.status != 200:
                 api_logger.warning(f"Failed to fetch ad data. Status: {response.status}, Response: {await response.text()}")
                 return
@@ -8097,9 +8083,11 @@ async def check_and_handle_ads(channel, session, headers, url):
             preroll_free_time = ad_info.get("preroll_free_time")
             ad_duration = ad_info.get("ad_duration")
             initial_snooze_count = ad_info.get("snooze_count")
-            # Notify if ad is within range
+            if ad_duration is None or preroll_free_time is None:
+                api_logger.warning("Ad data is missing required fields (preroll_free_time or ad_duration).")
+                return
             max_time = ad_duration + 300
-            if preroll_free_time > ad_duration and preroll_free_time < max_time:
+            if ad_duration < preroll_free_time < max_time:
                 time_to_ad = preroll_free_time - 180
                 time_to_ad_minutes = max(1, int(time_to_ad / 60))
                 message = ad_upcoming_message.replace("(minutes)", str(time_to_ad_minutes))
@@ -8113,7 +8101,7 @@ async def check_and_handle_ads(channel, session, headers, url):
                 while elapsed_time < ad_window:
                     await asyncio.sleep(30)
                     elapsed_time += 30
-                    async with session.get(url, headers=headers) as check_response:
+                    async with session.get(ads_api_url, headers=headers) as check_response:
                         if check_response.status != 200:
                             api_logger.warning(f"Failed to fetch ad data during snooze check. Status: {check_response.status}, Response: {await check_response.text()}")
                             continue
@@ -8131,6 +8119,21 @@ async def check_and_handle_ads(channel, session, headers, url):
                         if preroll_free_time <= 0:
                             api_logger.info("Ad break should have started.")
                             break
+                api_logger.info("Ad cycle finished. Refreshing ad schedule.")
+                try:
+                    async with session.get(ads_api_url, headers=headers) as refresh_response:
+                        if refresh_response.status == 200:
+                            refreshed_data = await refresh_response.json()
+                            updated_ads = refreshed_data.get("data", [])
+                            if updated_ads:
+                                ad_info.update(updated_ads[0])  # update current ad_info in memory
+                                api_logger.info("Ad info updated after cycle.")
+                            else:
+                                api_logger.warning("No ad data available after refresh.")
+                        else:
+                            api_logger.warning(f"Failed to refresh ad info after ad cycle. Status: {refresh_response.status}")
+                except Exception as e:
+                    api_logger.error(f"Error refreshing ad info: {e}")
                 await asyncio.sleep(600)
     except Exception as e:
         api_logger.error(f"Error in check_and_handle_ads: {e}")
