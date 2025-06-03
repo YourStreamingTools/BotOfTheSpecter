@@ -18,6 +18,7 @@ from urllib.parse import urlencode
 import ast
 import signal
 import sys
+import traceback
 
 # Third-party imports
 import aiohttp
@@ -7162,12 +7163,13 @@ async def process_channel_point_rewards(event_data, event_type):
                     # Handle (userstreak)
                     if '(userstreak)' in custom_message:
                         try:
+                            # Fetch current user and streak
                             await cursor.execute("SELECT current_user, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
                             streak_row = await cursor.fetchone()
                             if streak_row:
-                                current_user = streak_row['current_user']
+                                current_user_from_db = streak_row['current_user']
                                 current_streak = streak_row['streak']
-                                if current_user == user_name:
+                                if current_user_from_db == user_name:
                                     current_user = user_name
                                     current_streak += 1
                                 else:
@@ -7179,15 +7181,16 @@ async def process_channel_point_rewards(event_data, event_type):
                                 current_streak = 1
                                 await cursor.execute("INSERT INTO reward_streaks (reward_id, current_user, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
                             await sqldb.commit()
+                            # Fetch updated streak for the specific user
                             await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s AND current_user = %s", (reward_id, user_name))
                             streak_row = await cursor.fetchone()
-                            if streak_row:
+                            if streak_row and 'streak' in streak_row:
                                 current_streak = streak_row['streak']
                                 custom_message = custom_message.replace('(userstreak)', str(current_streak))
                             else:
                                 custom_message = custom_message.replace('(userstreak)', "1")
                         except Exception as e:
-                            chat_logger.error(f"Error while handling (userstreak): {e}")
+                            chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
                             custom_message = custom_message.replace('(userstreak)', "Error")
                 await channel.send(custom_message)
             # Check for TTS reward
