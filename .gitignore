@@ -70,6 +70,8 @@ docs/5.4.md
 /api/api
 /specterbotapp/*/
 /videoalerts
+/websocket/music-settings/
+/websocket/tts
 
 # Python Cache files
 bot/__pycache__/
