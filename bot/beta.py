@@ -1178,16 +1178,16 @@ class TwitchBot(commands.Bot):
         await check_stream_online()
         asyncio.create_task(known_users())
         asyncio.create_task(channel_point_rewards())
-        looped_tasks["twitch_token_refresh"] = asyncio.get_event_loop().create_task(twitch_token_refresh())
-        looped_tasks["spotify_token_refresh"] = asyncio.get_event_loop().create_task(spotify_token_refresh())
-        looped_tasks["twitch_eventsub"] = asyncio.get_event_loop().create_task(twitch_eventsub())
-        looped_tasks["specter_websocket"] = asyncio.get_event_loop().create_task(specter_websocket())
-        looped_tasks["hyperate_websocket"] = asyncio.get_event_loop().create_task(hyperate_websocket())
-        looped_tasks["connect_to_tipping_services"] = asyncio.get_event_loop().create_task(connect_to_tipping_services())
-        looped_tasks["midnight"] = asyncio.get_event_loop().create_task(midnight())
-        looped_tasks["shoutout_worker"] = asyncio.get_event_loop().create_task(shoutout_worker())
-        looped_tasks["periodic_watch_time_update"] = asyncio.get_event_loop().create_task(periodic_watch_time_update())
-        looped_tasks["check_song_requests"] = asyncio.get_event_loop().create_task(check_song_requests())
+        looped_tasks["twitch_token_refresh"] = asyncio.create_task(twitch_token_refresh())
+        looped_tasks["spotify_token_refresh"] = asyncio.create_task(spotify_token_refresh())
+        looped_tasks["twitch_eventsub"] = asyncio.create_task(twitch_eventsub())
+        looped_tasks["specter_websocket"] = asyncio.create_task(specter_websocket())
+        looped_tasks["hyperate_websocket"] = asyncio.create_task(hyperate_websocket())
+        looped_tasks["connect_to_tipping_services"] = asyncio.create_task(connect_to_tipping_services())
+        looped_tasks["midnight"] = asyncio.create_task(midnight())
+        looped_tasks["shoutout_worker"] = asyncio.create_task(shoutout_worker())
+        looped_tasks["periodic_watch_time_update"] = asyncio.create_task(periodic_watch_time_update())
+        looped_tasks["check_song_requests"] = asyncio.create_task(check_song_requests())
         await channel.send(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -1223,6 +1223,7 @@ class TwitchBot(commands.Bot):
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
+        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
         sqldb = await get_mysql_connection()
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             channel = message.channel
@@ -1232,12 +1233,9 @@ class TwitchBot(commands.Bot):
             try:
                 # Ignore messages from the bot itself
                 if message.echo:
-                    chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                     return
                 if not message.author or not hasattr(message.author, 'name'):
                     return
-                # Log the message content
-                chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
                 # Handle commands
                 await self.handle_commands(message)
                 messageContent = message.content.strip().lower() if message.content else ""
@@ -5871,10 +5869,15 @@ async def delayed_clear_tables():
     await clear_credits_data()
     await clear_per_stream_deaths()
     await clear_lotto_numbers()
-    if "timed_message" in looped_tasks:
-        looped_tasks["timed_message"].cancel()
-    if "handle_upcoming_ads" in looped_tasks:
-        looped_tasks["handle_upcoming_ads"].cancel()
+    for task_name in ["timed_message", "handle_upcoming_ads"]:
+        task = looped_tasks.get(task_name)
+        if task and not task.done():
+            bot_logger.info(f"Cancelling task: {task_name}")
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                bot_logger.info(f"Task {task_name} cancelled successfully.")
     bot_logger.info("Tables and lotto entries cleared after stream remained offline.")
 
 # Function to clear the seen users table at the end of stream
