@@ -47,6 +47,10 @@ api/service-account-file.json
 websocket/ips.txt
 api/shazam.txt
 api/exchangerate.txt
+api/steamapplist.json
+api/tts_voices.json
+api/weather.txt
+api/version_control.txt
 
 # Media files
 tts/*
