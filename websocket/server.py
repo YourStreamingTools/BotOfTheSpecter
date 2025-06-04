@@ -7,21 +7,21 @@ import ssl
 import argparse
 import socketio
 from aiohttp import web
+from google.cloud import texttospeech
 import ipaddress
 import paramiko
 import uuid
 from dotenv import load_dotenv, find_dotenv
 import json
 from music_handler import MusicHandler
-import sys
-sys.path.append("/root/ttsenv/lib/python3.11/site-packages")
-from TTS.api import TTS
 
 # Load ENV file
 load_dotenv(find_dotenv("/home/websocket/.env"))
 
 class BotOfTheSpecter_WebsocketServer:
     def __init__(self, logger):
+        # Set up Google Cloud credentials
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/home/websocket/service-account-file.json"
         # Initialize the WebSocket server.
         self.logger = logger
         self.ip = self.get_own_ip()
@@ -50,8 +50,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.loop = None
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
-        self.tts_model_name = "tts_models/en/ljspeech/tacotron2-DDC"
-        self.tts = TTS(self.tts_model_name)
+        self.tts_client = texttospeech.TextToSpeechClient()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
         ips_file = "/home/websocket/ips.txt"
@@ -293,11 +292,13 @@ class BotOfTheSpecter_WebsocketServer:
             try:
                 # Wait for the next TTS request in the queue
                 request_data = await self.tts_queue.get()
+                # Unpack the data
                 text = request_data.get('text')
                 session_id = request_data.get('session_id')
                 language_code = request_data.get('language_code', None)
                 gender = request_data.get('gender', None)
                 voice_name = request_data.get('voice_name', None)
+                # Log the request
                 self.logger.info(f"Dequeued TTS request for session ID: {session_id} with text: {text}")
                 # Process the request in a separate task
                 asyncio.create_task(self.process_tts_request(text, session_id, language_code, gender, voice_name))
@@ -309,17 +310,22 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.error(f"Error while processing TTS queue: {e}")
 
     async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
-        # Generate the TTS audio using offline TTS
+        # Generate the TTS audio
         self.logger.info(f"Processing TTS request for code {code} with text: {text}")
+        response = self.generate_speech(text, language_code, gender, voice_name)
+        if response is None:
+            self.logger.error(f"Failed to generate speech for text: {text}")
+            return
         # Generate a unique filename using code and timestamp/UUID
         unique_id = uuid.uuid4().hex[:8]
-        audio_file = os.path.join(self.tts_dir, f'tts_output_{code}_{unique_id}.wav')
+        audio_file = os.path.join(self.tts_dir, f'tts_output_{code}_{unique_id}.mp3')
+        # Save the generated audio to a file
         try:
-            # Synthesize speech and save to file
-            self.tts.tts_to_file(text=text, file_path=audio_file)
+            with open(audio_file, 'wb') as out:
+                out.write(response.audio_content)
             self.logger.info(f'Audio content written to file "{audio_file}"')
         except Exception as e:
-            self.logger.error(f'Failed to generate speech or write audio content to file "{audio_file}": {e}')
+            self.logger.error(f'Failed to write audio content to file "{audio_file}": {e}')
             return
         try:
             # Attempt to transfer the file via SFTP
@@ -344,7 +350,7 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.error(f'Failed to transfer file "{audio_file}" via SFTP: {e}')
             return
         # Estimate the duration of the audio and wait for it to finish
-        duration = self.estimate_duration(audio_file)
+        duration = self.estimate_duration(response)
         self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
         await asyncio.sleep(duration + 5)
         # After playback, delete the TTS file from the SFTP server
@@ -354,19 +360,70 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f'Failed to delete audio file "{audio_file}" from SFTP server: {e}')
 
-    def estimate_duration(self, audio_file):
-        # Estimate duration using file size and a rough bitrate for wav (16bit, 22kHz, mono)
+    def generate_speech(self, text, language_code=None, gender=None, voice_name=None):
+        voice_params = {
+            "language_code": language_code if language_code else "en-US",
+            "ssml_gender": getattr(texttospeech.SsmlVoiceGender, gender.upper() if gender else "NEUTRAL", texttospeech.SsmlVoiceGender.NEUTRAL),
+        }
+        if voice_name:
+            voice_params["name"] = voice_name
+        input_text = texttospeech.SynthesisInput(text=text)
+        voice = texttospeech.VoiceSelectionParams(**voice_params)
+        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
         try:
-            import wave
-            with wave.open(audio_file, 'rb') as wf:
-                frames = wf.getnframes()
-                rate = wf.getframerate()
-                duration = frames / float(rate)
-                return duration
+            response = self.tts_client.synthesize_speech(
+                input=input_text, voice=voice, audio_config=audio_config
+            )
+            if not hasattr(response, 'audio_content'):
+                raise ValueError("TTS API response does not contain audio content.")
+            return response
         except Exception as e:
-            self.logger.error(f"Failed to estimate duration for {audio_file}: {e}")
-            # Fallback: 3 seconds
-            return 3
+            self.logger.error(f"Failed to generate speech: {e}")
+            return None
+
+    async def sftp_transfer(self, local_file_path):
+        # Set up the SFTP connection details from .env file
+        hostname = "10.240.0.169"
+        username = os.getenv("SFTP_USERNAME")
+        password = os.getenv("SFTP_PASSWORD")
+        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
+        try:
+            # Establish an SFTP session
+            transport = paramiko.Transport((hostname, 22))
+            transport.connect(username=username, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            # Upload the file
+            sftp.put(local_file_path, remote_file_path)
+            self.logger.info(f"File {local_file_path} transferred to {remote_file_path} on webserver {hostname}")
+            # Close the SFTP session
+            sftp.close()
+            transport.close()
+        except Exception as e:
+            self.logger.error(f"Failed to transfer file via SFTP: {e}")
+
+    async def sftp_delete(self, local_file_path):
+        # Set up the SFTP connection details from .env file
+        hostname = "10.240.0.169"
+        username = os.getenv("SFTP_USERNAME")
+        password = os.getenv("SFTP_PASSWORD")
+        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
+        try:
+            # Establish an SFTP session
+            transport = paramiko.Transport((hostname, 22))
+            transport.connect(username=username, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            # Delete the file
+            sftp.remove(remote_file_path)
+            self.logger.info(f"File {remote_file_path} deleted from webserver {hostname}")
+            # Close the SFTP session
+            sftp.close()
+            transport.close()
+        except Exception as e:
+            self.logger.error(f"Failed to delete file via SFTP: {e}")
+
+    def estimate_duration(self, response):
+        # Calculate the duration based on the audio content length and bitrate
+        return len(response.audio_content) / 64000 # Duration in seconds for 64kbps MP3
 
     async def walkon(self, sid, data):
         # Handle the walkon event for SocketIO.
@@ -654,46 +711,6 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f"Failed to load music settings for {code}: {e}")
         return None
-
-    async def sftp_transfer(self, local_file_path):
-        # Set up the SFTP connection details from .env file
-        hostname = "10.240.0.169"
-        username = os.getenv("SFTP_USERNAME")
-        password = os.getenv("SFTP_PASSWORD")
-        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
-        try:
-            # Establish an SFTP session
-            transport = paramiko.Transport((hostname, 22))
-            transport.connect(username=username, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-            # Upload the file
-            sftp.put(local_file_path, remote_file_path)
-            self.logger.info(f"File {local_file_path} transferred to {remote_file_path} on webserver {hostname}")
-            # Close the SFTP session
-            sftp.close()
-            transport.close()
-        except Exception as e:
-            self.logger.error(f"Failed to transfer file via SFTP: {e}")
-
-    async def sftp_delete(self, local_file_path):
-        # Set up the SFTP connection details from .env file
-        hostname = "10.240.0.169"
-        username = os.getenv("SFTP_USERNAME")
-        password = os.getenv("SFTP_PASSWORD")
-        remote_file_path = "/var/www/tts/" + os.path.basename(local_file_path)
-        try:
-            # Establish an SFTP session
-            transport = paramiko.Transport((hostname, 22))
-            transport.connect(username=username, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-            # Delete the file
-            sftp.remove(remote_file_path)
-            self.logger.info(f"File {remote_file_path} deleted from webserver {hostname}")
-            # Close the SFTP session
-            sftp.close()
-            transport.close()
-        except Exception as e:
-            self.logger.error(f"Failed to delete file via SFTP: {e}")
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
