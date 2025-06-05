@@ -10,7 +10,6 @@ ssl/.certbot.env
 # Build and distribution directories
 app/dist/
 app/build/
-app/__pycache__/
 app/CodeSignTool/
 
 # Compiled and temporary files
@@ -24,10 +23,15 @@ bot/test_websocket.py
 bot/phpmyadmin.txt
 bot/all_events.py
 
-# Log files & cache
+# Log files
+api/log.txt
+stream/stream_server.log
 logs/*
 dashboard/logs/*
+
+# Cache files
 dashboard/cache/*
+/cache
 
 # SSL Certificates and configurations
 ssl/*.pem
@@ -60,6 +64,7 @@ soundalerts/*/*
 # Miscellaneous files
 *Thumbs.db
 *.DS_Store
+stream/stream.service
 
 # Ignoring the next update changelog file
 docs/5.4.md
@@ -72,15 +77,15 @@ docs/5.4.md
 /videoalerts
 /websocket/music-settings/
 /websocket/tts
+/billing
+/cdn/music
+/stream/ssl
 
 # Python Cache files
 bot/__pycache__/
+app/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.pyw
 *.pyz
-/stream/ssl
-stream/stream.service
-/cdn/music
-/cache
