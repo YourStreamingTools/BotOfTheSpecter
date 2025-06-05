@@ -1,0 +1,4 @@
+socketio
+aiohttp
+paramiko
+python-dotenv
