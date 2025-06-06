@@ -136,7 +136,8 @@ if (isset($_GET['user'])) {
     $username = $_GET['user'];
     $_SESSION['username'] = $username;
     $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . (isset($_SESSION['username']) ? $_SESSION['username'] : 'unknown user');
-    include "/var/www/dashboard/user_db.php";
+    $dbname = $username;
+    include "user_db.php";
     // Sanitize custom command responses
     $commands = array_map('sanitize_custom_vars', $commands);
 }
