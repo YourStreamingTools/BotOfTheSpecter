@@ -96,7 +96,21 @@ include '/var/www/config/database.php';
 
 $path = trim($_SERVER['REQUEST_URI'], '/');
 $path = parse_url($path, PHP_URL_PATH);
-$username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
+
+// Try to get username from GET or from the path (for /username/ URLs)
+if (isset($_GET['user'])) {
+    $username = strtolower(sanitize_input($_GET['user']));
+} else {
+    // Extract username from path if not set in GET
+    $parts = explode('/', $path);
+    // The first part after the domain is the username if it exists and is not 'members' or empty
+    if (isset($parts[0]) && $parts[0] !== '' && $parts[0] !== 'members') {
+        $username = strtolower(sanitize_input($parts[0]));
+    } else {
+        $username = null;
+    }
+}
+
 $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
@@ -132,8 +146,7 @@ if (isset($_SESSION['redirect_url'])) {
     exit();
 }
 
-if (isset($_GET['user'])) {
-    $username = $_GET['user'];
+if ($username) {
     $_SESSION['username'] = $username;
     $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . (isset($_SESSION['username']) ? $_SESSION['username'] : 'unknown user');
     $dbname = $username;
@@ -247,6 +260,12 @@ if (isset($_GET['user'])) {
                         </table>
                     </div>
                 </div>
+                <script>
+                // Only run loadData if username is set (i.e., after user search)
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadData('customCommands');
+                });
+                </script>
             <?php endif; ?> 
         </div>
     </div>
@@ -266,10 +285,6 @@ function redirectToUser(event) {
         window.location.href = '/' + encodeURIComponent(username) + '/';
     }
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    loadData('customCommands');
-});
 
 // Function to load the data based on type
 async function loadData(type) {
@@ -515,7 +530,7 @@ function calculateLurkDuration(startTime) {
     const diff = now - start;
     const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
     const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
-    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
+    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     let duration = '';
