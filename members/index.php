@@ -242,16 +242,16 @@ if ($username) {
                 <div class="content">
                     <div class="box">
                         <h3 id="table-title" class="title has-text-centered" style="color: white;"></h3>
-                        <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
+                        <table class="table is-striped is-fullwidth has-text-centered is-vcentered" style="table-layout: fixed; width: 100%;">
                             <thead>
                                 <tr>
-                                    <th id="info-column-data" style="color: white;"></th>
-                                    <th id="data-column-info" style="color: white;"></th>
-                                    <th id="additional-column1" style="color: white; display: none;"></th>
-                                    <th id="additional-column2" style="color: white; display: none;"></th>
-                                    <th id="additional-column3" style="color: white; display: none;"></th>
-                                    <th id="additional-column4" style="color: white; display: none;"></th>
-                                    <th id="additional-column5" style="color: white; display: none;"></th>
+                                    <th id="info-column-data" class="has-text-centered is-vcentered" style="color: white;"></th>
+                                    <th id="data-column-info" class="has-text-centered is-vcentered" style="color: white;"></th>
+                                    <th id="additional-column1" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column2" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column3" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column4" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column5" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
@@ -456,30 +456,30 @@ async function loadData(type) {
                 output += `<tr>`;
                 if (type === 'customCommands') {
                     const commandClass = item.status === 'Enabled' ? 'has-text-success' : 'has-text-danger';
-                    output += `<td>!${item.command}</td><td>${item.response}</td><td class="${commandClass}">${item.status}</td><td>${item.cooldown}</td>`;
+                    output += `<td class="has-text-centered is-vcentered">!${item.command}</td><td class="has-text-centered is-vcentered">${item.response}</td><td class="has-text-centered is-vcentered ${commandClass}">${item.status}</td><td class="has-text-centered is-vcentered">${item.cooldown}</td>`;
                 } else if (type === 'typos') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.typo_count}</span></td>`; 
                 } else if (type === 'deaths') {
-                    output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.game_name}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.death_count}</span></td>`; 
                 } else if (type === 'hugs') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.hug_count}</span></td>`; 
                 } else if (type === 'kisses') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.kiss_count}</span></td>`; 
                 } else if (type === 'highfives') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.highfive_count}</span></td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.highfive_count}</span></td>`;
                 } else if (type === 'custom') {
-                    output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.command}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`; 
                 } else if (type === 'userCounts') {
-                    output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.user}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.command}</span></td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`; 
                 } else if (type === 'rewardCounts') {
-                    output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.reward_title}</td><td class="has-text-centered is-vcentered">${item.user}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`;
                 } else if (type === 'watchTime') { 
-                    output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered">${formatWatchTime(item.total_watch_time_live)}</td><td class="has-text-centered is-vcentered">${formatWatchTime(item.total_watch_time_offline)}</td>`;
                 } else if (type === 'quotes') {
-                    output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.id}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.quote}</span></td>`;
                 } else if (type === 'todos') {
                     const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
-                    output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${formatDateTime(item.created_at)}</td><td>${formatDateTime(item.updated_at)}</td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.id}</td><td class="has-text-centered is-vcentered">${item.objective}</td><td class="has-text-centered is-vcentered">${categoryName}</td><td class="has-text-centered is-vcentered">${item.completed}</td><td class="has-text-centered is-vcentered">${formatDateTime(item.created_at)}</td><td class="has-text-centered is-vcentered">${formatDateTime(item.updated_at)}</td>`;
                 }
                 output += `</tr>`;
             });
