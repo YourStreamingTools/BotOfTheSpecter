@@ -26,10 +26,12 @@ bot/all_events.py
 # Log files
 api/log.txt
 stream/stream_server.log
+websocket/noti_server.log
 logs/*
 dashboard/logs/*
 
 # Cache files
+dashboard/moderator/cache/*
 dashboard/cache/*
 /cache
 
@@ -65,6 +67,7 @@ soundalerts/*/*
 *Thumbs.db
 *.DS_Store
 stream/stream.service
+bot/databse.txt
 
 # Ignoring the next update changelog file
 docs/5.4.md
