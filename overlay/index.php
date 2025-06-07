@@ -113,23 +113,23 @@ if ($username) {
                 });
 
                 socket.on('TTS', (data) => {
-                    console.log('TTS Audio file path:', data.audio_file);
+                    console.log('TTS event received:', data);
                     enqueueAudio(data.audio_file);
                 });
 
                 socket.on('WALKON', (data) => {
-                    console.log('Walkon:', data);
+                    console.log('WALKON event received:', data);
                     const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
                     enqueueAudio(audioFile);
                 });
 
                 socket.on('SOUND_ALERT', (data) => {
-                    console.log('SOUND_ALERT:', data);
+                    console.log('SOUND_ALERT event received:', data);
                     enqueueAudio(data.sound);
                 });
 
                 socket.on('DEATHS', (data) => {
-                    console.log('Death:', data);
+                    console.log('DEATHS event received:', data);
                     const deathOverlay = document.getElementById('deathOverlay');
                     deathOverlay.innerHTML = `
                         <div class="overlay-content">
@@ -157,7 +157,7 @@ if ($username) {
 
                 // Listen for WEATHER_DATA events
                 socket.on('WEATHER_DATA', (data) => {
-                    console.log('Weather update received:', data);
+                    console.log('WEATHER_DATA event received:', data);
                     const weather_data_fixed = data.weather_data.replace(/'/g, '"');
                     const weather = JSON.parse(weather_data_fixed);
                     const location = weather.location;
@@ -166,7 +166,7 @@ if ($username) {
 
                 // Listen for DISCORD_JOIN events
                 socket.on('DISCORD_JOIN', (data) => {
-                    console.log('Discord Join:', data);
+                    console.log('DISCORD_JOIN event received:', data);
                     const discordOverlay = document.getElementById('discordOverlay');
                     discordOverlay.innerHTML = `
                         <div class="overlay-content">
