@@ -92,13 +92,13 @@
 
                 // Listen for TTS audio events
                 socket.on('TTS', (data) => {
-                    console.log('TTS Audio file path:', data.audio_file);
+                    console.log('TTS event received:', data);
                     enqueueAudio(data.audio_file);
                 });
 
                 // Listen for WALKON events
                 socket.on('WALKON', (data) => {
-                    console.log('Walkon:', data);
+                    console.log('WALKON event received:', data);
                     const channel_name = data.channel;
                     const user_name = data.user;
                     const audioFile = `https://walkons.botofthespecter.com/${channel_name}/${user_name}.mp3`;
@@ -107,8 +107,13 @@
 
                 // Listen for SOUND_ALERT audio events
                 socket.on('SOUND_ALERT', (data) => {
-                    console.log('SOUND_ALERT Audio file path:', data.sound);
+                    console.log('SOUND_ALERT event received:', data);
                     enqueueAudio(data.sound);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
 
                 // Handle user interaction to allow audio playback if blocked
