@@ -92,8 +92,13 @@
 
                 // Listen for PATREON events
                 socket.on('PATREON', (data) => {
-                    console.log('PATREON data:', data);
+                    console.log('PATREON event received:', data);
                     //enqueueAudio(data.audio_file);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
