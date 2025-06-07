@@ -1,10 +1,8 @@
 <?php
 include '/var/www/config/database.php';
 $primary_db_name = 'website';
-
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
 $api_key = $_GET['code'] ?? '';
-
 $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
 $stmt->bind_param("s", $api_key);
 $stmt->execute();
@@ -12,11 +10,18 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $username = $user['username'] ?? '';
 if ($username) {
-    $db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
-    $stmt = $db->prepare("SELECT * FROM profile");
-    $stmt->execute();
-    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
-    $timezone = $profile['timezone'] ?? null;
+    $user_conn = new mysqli($db_servername, $db_username, $db_password, $username);
+    if ($user_conn->connect_error) {
+        $timezone = null;
+    } else {
+        $profile_result = $user_conn->query("SELECT timezone FROM profile LIMIT 1");
+        if ($profile_result && $profile_row = $profile_result->fetch_assoc()) {
+            $timezone = $profile_row['timezone'] ?? null;
+        } else {
+            $timezone = null;
+        }
+        $user_conn->close();
+    }
 } else {
     $timezone = null;
 }
@@ -67,7 +72,7 @@ if ($username) {
                 });
 
                 socket.on('WEATHER_DATA', (data) => {
-                    console.log('Weather update received:', data);
+                    console.log('WEATHER_DATA event received:', data);
                     const weather_data_fixed = data.weather_data.replace(/'/g, '"');
                     const weather = JSON.parse(weather_data_fixed);
                     const location = weather.location;
@@ -95,7 +100,7 @@ if ($username) {
                 weatherOverlay.innerHTML = `
                     <div class="overlay-content">
                         <div class="overlay-header">
-                            <div id="currentTime" class="time"></div>
+                            ${timezone ? '<div id="currentTime" class="time"></div>' : ''}
                             <div class="location">${location}</div>
                             <div class="temperature">${weather.temperature}</div>
                         </div>
@@ -111,7 +116,9 @@ if ($username) {
                 weatherOverlay.style.display = 'block';
 
                 // Start the timer for updating the time
-                startTimer(timezone);
+                if (timezone) {
+                    startTimer(timezone);
+                }
 
                 setTimeout(() => {
                     weatherOverlay.classList.add('hide');
