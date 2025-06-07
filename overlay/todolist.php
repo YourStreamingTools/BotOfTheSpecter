@@ -6,18 +6,10 @@
 <link rel='apple-touch-icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png'>
 <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
 <?php
-// Database connection details
-$db_servername = "sql.botofthespecter.com";
-$db_username = ''; // CHANGE TO MAKE THIS WORK
-$db_password = ''; // CHANGE TO MAKE THIS WORK
-
-// Primary database
+// Include database configuration
+include '/var/www/config/database.php';
 $primary_db_name = "website";
-
-// Create a connection to the primary database
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
-
-// Check connection
 if ($conn->connect_error) {
     die("Connection to primary database failed: " . $conn->connect_error);
 }
@@ -25,14 +17,12 @@ if ($conn->connect_error) {
 // Verify URL code using the primary database
 if (isset($_GET['code']) && !empty($_GET['code'])) {
     $api_key = $_GET['code'];
-
     // Check if API key is valid in the primary database
     $stmt = $conn->prepare("SELECT id, username FROM users WHERE api_key = ?");
     $stmt->bind_param("s", $api_key);
     $stmt->execute();
     $result = $stmt->get_result();
     $user = $result->fetch_assoc();
-
     if ($user) {
         $user_id = $user['id'];
         $username = $user['username'];
@@ -61,47 +51,49 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
 // Secondary database
 $secondary_db_name = $username;
 
-try {
-    // Create a connection to the secondary database
-    $db = new PDO("mysql:host=$db_servername;dbname=$secondary_db_name", $db_username, $db_password);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+// Create a connection to the secondary database using MySQLi
+$user_db = new mysqli($db_servername, $db_username, $db_password, $secondary_db_name);
+if ($user_db->connect_error) {
+    echo "Connection to secondary database failed: " . $user_db->connect_error;
+    exit;
+}
 
-    // Retrieve font, font_size, color, list, and shadow settings for the user from the secondary database
-    $stmt = $db->prepare("SELECT * FROM showobs LIMIT 1");
+// Retrieve font, font_size, color, list, and shadow settings for the user from the secondary database
+$stmt = $user_db->prepare("SELECT * FROM showobs LIMIT 1");
+$stmt->execute();
+$result = $stmt->get_result();
+$settings = $result->fetch_assoc();
+$font = isset($settings['font']) ? $settings['font'] : null;
+$color = isset($settings['color']) ? $settings['color'] : null;
+$list = isset($settings['list']) ? $settings['list'] : null;
+$shadow = isset($settings['shadow']) ? $settings['shadow'] : null;
+$font_size = isset($settings['font_size']) ? $settings['font_size'] : null;
+$listType = ($list === 'Numbered') ? 'ol' : 'ul';
+$bold = isset($settings['bold']) ? $settings['bold'] : null;
+$category_id = isset($_GET['category']) && !empty($_GET['category']) ? $_GET['category'] : "1";
+// Validate category ID
+$stmt = $user_db->prepare("SELECT category FROM categories WHERE id = ?");
+$stmt->bind_param("i", $category_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$category_row = $result->fetch_assoc();
+if ($category_row) {
+    $category = $category_row['category'];
+    $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? ORDER BY id ASC");
+    $stmt->bind_param("i", $category_id);
     $stmt->execute();
-    $settings = $stmt->fetch(PDO::FETCH_ASSOC);
-    $font = isset($settings['font']) ? $settings['font'] : null;
-    $color = isset($settings['color']) ? $settings['color'] : null;
-    $list = isset($settings['list']) ? $settings['list'] : null;
-    $shadow = isset($settings['shadow']) ? $settings['shadow'] : null;
-    $font_size = isset($settings['font_size']) ? $settings['font_size'] : null;
-    $listType = ($list === 'Numbered') ? 'ol' : 'ul';
-    $bold = isset($settings['bold']) ? $settings['bold'] : null;
-
-    $category_id = isset($_GET['category']) && !empty($_GET['category']) ? $_GET['category'] : "1";
-    $stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
-    $stmt->bindParam(1, $category_id, PDO::PARAM_INT);
-    $stmt->execute();
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($result) {
-        $category = $result['category'];
-
-        $stmt = $db->prepare("SELECT * FROM todos WHERE category = ? ORDER BY id ASC");
-        $stmt->bindParam(1, $category_id, PDO::PARAM_INT);
-        $stmt->execute();
-        $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        echo "</head>";
-        echo "<body>";
-        echo "Invalid category ID.";
-        echo "<br>ID 1 is called Default defined on the categories page, please review this page for a full list of IDs.</p>";
-        echo "</body>";
-        echo "</html>";
-        exit;
+    $tasks_result = $stmt->get_result();
+    $tasks = [];
+    while ($row = $tasks_result->fetch_assoc()) {
+        $tasks[] = $row;
     }
-} catch (PDOException $e) {
-    echo "Connection to secondary database failed: " . $e->getMessage();
+} else {
+    echo "</head>";
+    echo "<body>";
+    echo "Invalid category ID.";
+    echo "<br>ID 1 is called Default defined on the categories page, please review this page for a full list of IDs.</p>";
+    echo "</body>";
+    echo "</html>";
     exit;
 }
 ?>
