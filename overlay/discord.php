@@ -41,7 +41,7 @@
 
                 // Listen for DISCORD_JOIN events
                 socket.on('DISCORD_JOIN', (data) => {
-                    console.log('Discord Join:', data);
+                    console.log('DISCORD_JOIN event received:', data);
                     const discordOverlay = document.getElementById('discordOverlay');
                     discordOverlay.innerHTML = `
                         <div class="overlay-content">
@@ -64,6 +64,11 @@
                     setTimeout(() => {
                         discordOverlay.style.display = 'none';
                     }, 11000);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
