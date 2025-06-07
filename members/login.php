@@ -141,9 +141,25 @@ if (isset($_GET['code'])) {
 <html>
 <head>
     <title>BotOfTheSpecter - Twitch Login</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32" />
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png" />
     <meta name="msapplication-TileImage" content="https://cdn.botofthespecter.com/logo.png" />
 </head>
-<body><?php echo "<p>$info</p></body></html>";?>
+<body>
+<section class="hero is-fullheight is-dark">
+    <div class="hero-body">
+        <div class="container has-text-centered">
+            <div class="box" style="max-width: 400px; margin: 0 auto;">
+                <figure class="image is-128x128 is-inline-block">
+                    <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
+                </figure>
+                <h1 class="title is-4 mt-3">BotOfTheSpecter</h1>
+                <p><?php echo $info; ?></p>
+            </div>
+        </div>
+    </div>
+</section>
+</body>
+</html>
