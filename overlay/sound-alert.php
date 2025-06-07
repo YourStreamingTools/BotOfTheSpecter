@@ -92,8 +92,13 @@
 
                 // Listen for SOUND_ALERT audio events
                 socket.on('SOUND_ALERT', (data) => {
-                    console.log('SOUND_ALERT Audio file path:', data.sound);
+                    console.log('SOUND_ALERT event received:', data);
                     enqueueAudio(data.sound);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
