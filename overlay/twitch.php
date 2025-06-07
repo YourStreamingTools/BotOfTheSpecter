@@ -62,50 +62,48 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
                 });
 
                 socket.on('TWITCH_FOLLOW', (data) => {
-                    console.log('Twitch Follow:', data);
+                    console.log('TWITCH_FOLLOW event received:', data);
                     showTwitchEventOverlay('New Follower!', `${data['twitch-username']} has followed!`);
                 });
 
                 socket.on('TWITCH_CHEER', (data) => {
-                    console.log('Twitch Cheer:', data);
+                    console.log('TWITCH_CHEER event received:', data);
                     showTwitchEventOverlay('New Cheer!', `${data['twitch-username']} cheered ${data['twitch-cheer-amount']} bits!`);
                 });
 
                 socket.on('TWITCH_SUB', (data) => {
-                    console.log('Twitch Sub:', data);
+                    console.log('TWITCH_SUB event received:', data);
                     showTwitchEventOverlay('New Subscriber!', `${data['twitch-username']} subscribed at tier ${data['twitch-tier']} for ${data['twitch-sub-months']} months!`);
                 });
 
                 socket.on('TWITCH_RAID', (data) => {
-                    console.log('Twitch Raid:', data);
+                    console.log('TWITCH_RAID event received:', data);
                     showTwitchEventOverlay('New Raid!', `${data['twitch-username']} is raiding with ${data['twitch-raid']} viewers!`);
                 });
 
-                function showTwitchEventOverlay(title, message) {
-                    const twitchOverlay = document.getElementById('twitchOverlay');
-                    twitchOverlay.innerHTML = `
-                        <div class="overlay-content">
-                            <div class="overlay-title">${title}</div>
-                            <div class="overlay-message">${message}</div>
-                        </div>
-                    `;
-                    twitchOverlay.classList.add('show');
-                    twitchOverlay.style.display = 'block';
-
-                    setTimeout(() => {
-                        twitchOverlay.classList.add('hide');
-                        twitchOverlay.classList.remove('show');
-                    }, 10000);
-
-                    setTimeout(() => {
-                        twitchOverlay.style.display = 'none';
-                    }, 11000);
-                }
-
                 // Log all events
                 socket.onAny((event, ...args) => {
-                    console.log(`Event: ${event}`, args);
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
+            }
+
+            function showTwitchEventOverlay(title, message) {
+                const twitchOverlay = document.getElementById('twitchOverlay');
+                twitchOverlay.innerHTML = `
+                    <div class="overlay-content">
+                        <div class="overlay-title">${title}</div>
+                        <div class="overlay-message">${message}</div>
+                    </div>
+                `;
+                twitchOverlay.classList.add('show');
+                twitchOverlay.style.display = 'block';
+                setTimeout(() => {
+                    twitchOverlay.classList.add('hide');
+                    twitchOverlay.classList.remove('show');
+                }, 10000);
+                setTimeout(() => {
+                    twitchOverlay.style.display = 'none';
+                }, 11000);
             }
 
             function attemptReconnect() {
