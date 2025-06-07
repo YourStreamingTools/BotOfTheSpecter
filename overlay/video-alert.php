@@ -107,8 +107,13 @@
 
                 // Listen for VIDEO_ALERT events
                 socket.on('VIDEO_ALERT', (data) => {
-                    console.log('VIDEO_ALERT Video file path:', data.video);
+                    console.log('VIDEO_ALERT event received:', data);
                     enqueueVideo(data.video);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
