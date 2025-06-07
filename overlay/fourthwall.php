@@ -92,8 +92,13 @@
 
                 // Listen for FOURTHWALL events
                 socket.on('FOURTHWALL', (data) => {
-                    console.log('FOURTHWALL data:', data);
+                    console.log('FOURTHWALL event received:', data);
                     //enqueueAudio(data.audio_file);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
