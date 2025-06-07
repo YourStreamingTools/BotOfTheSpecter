@@ -92,8 +92,13 @@
 
                 // Listen for TTS audio events
                 socket.on('TTS', (data) => {
-                    console.log('TTS Audio file path:', data.audio_file);
+                    console.log('TTS event received:', data);
                     enqueueAudio(data.audio_file);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
