@@ -96,7 +96,21 @@ include '/var/www/config/database.php';
 
 $path = trim($_SERVER['REQUEST_URI'], '/');
 $path = parse_url($path, PHP_URL_PATH);
-$username = isset($_GET['user']) ? sanitize_input($_GET['user']) : null;
+
+// Try to get username from GET or from the path (for /username/ URLs)
+if (isset($_GET['user'])) {
+    $username = strtolower(sanitize_input($_GET['user']));
+} else {
+    // Extract username from path if not set in GET
+    $parts = explode('/', $path);
+    // The first part after the domain is the username if it exists and is not 'members' or empty
+    if (isset($parts[0]) && $parts[0] !== '' && $parts[0] !== 'members') {
+        $username = strtolower(sanitize_input($parts[0]));
+    } else {
+        $username = null;
+    }
+}
+
 $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
@@ -132,11 +146,11 @@ if (isset($_SESSION['redirect_url'])) {
     exit();
 }
 
-if (isset($_GET['user'])) {
-    $username = $_GET['user'];
+if ($username) {
     $_SESSION['username'] = $username;
     $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . (isset($_SESSION['username']) ? $_SESSION['username'] : 'unknown user');
-    include "/var/www/dashboard/user_db.php";
+    $dbname = $username;
+    include "user_db.php";
     // Sanitize custom command responses
     $commands = array_map('sanitize_custom_vars', $commands);
 }
@@ -147,7 +161,7 @@ if (isset($_GET['user'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo $title; ?></title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <link rel="stylesheet" href="../custom.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
@@ -228,16 +242,16 @@ if (isset($_GET['user'])) {
                 <div class="content">
                     <div class="box">
                         <h3 id="table-title" class="title has-text-centered" style="color: white;"></h3>
-                        <table class="table is-striped is-fullwidth" style="table-layout: fixed; width: 100%;">
+                        <table class="table is-striped is-fullwidth has-text-centered is-vcentered" style="table-layout: fixed; width: 100%;">
                             <thead>
                                 <tr>
-                                    <th id="info-column-data" style="color: white;"></th>
-                                    <th id="data-column-info" style="color: white;"></th>
-                                    <th id="additional-column1" style="color: white; display: none;"></th>
-                                    <th id="additional-column2" style="color: white; display: none;"></th>
-                                    <th id="additional-column3" style="color: white; display: none;"></th>
-                                    <th id="additional-column4" style="color: white; display: none;"></th>
-                                    <th id="additional-column5" style="color: white; display: none;"></th>
+                                    <th id="info-column-data" class="has-text-centered is-vcentered" style="color: white;"></th>
+                                    <th id="data-column-info" class="has-text-centered is-vcentered" style="color: white;"></th>
+                                    <th id="additional-column1" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column2" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column3" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column4" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
+                                    <th id="additional-column5" class="has-text-centered is-vcentered" style="color: white; display: none;"></th>
                                 </tr>
                             </thead>
                             <tbody id="table-body">
@@ -246,6 +260,12 @@ if (isset($_GET['user'])) {
                         </table>
                     </div>
                 </div>
+                <script>
+                // Only run loadData if username is set (i.e., after user search)
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadData('customCommands');
+                });
+                </script>
             <?php endif; ?> 
         </div>
     </div>
@@ -265,10 +285,6 @@ function redirectToUser(event) {
         window.location.href = '/' + encodeURIComponent(username) + '/';
     }
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    loadData('customCommands');
-});
 
 // Function to load the data based on type
 async function loadData(type) {
@@ -440,30 +456,30 @@ async function loadData(type) {
                 output += `<tr>`;
                 if (type === 'customCommands') {
                     const commandClass = item.status === 'Enabled' ? 'has-text-success' : 'has-text-danger';
-                    output += `<td>!${item.command}</td><td>${item.response}</td><td class="${commandClass}">${item.status}</td><td>${item.cooldown}</td>`;
+                    output += `<td class="has-text-centered is-vcentered">!${item.command}</td><td class="has-text-centered is-vcentered">${item.response}</td><td class="has-text-centered is-vcentered ${commandClass}">${item.status}</td><td class="has-text-centered is-vcentered">${item.cooldown}</td>`;
                 } else if (type === 'typos') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.typo_count}</span></td>`; 
                 } else if (type === 'deaths') {
-                    output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.game_name}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.death_count}</span></td>`; 
                 } else if (type === 'hugs') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.hug_count}</span></td>`; 
                 } else if (type === 'kisses') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.kiss_count}</span></td>`; 
                 } else if (type === 'highfives') {
-                    output += `<td>${item.username}</td><td><span class='has-text-success'>${item.highfive_count}</span></td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.highfive_count}</span></td>`;
                 } else if (type === 'custom') {
-                    output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.command}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`; 
                 } else if (type === 'userCounts') {
-                    output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`; 
+                    output += `<td class="has-text-centered is-vcentered">${item.user}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.command}</span></td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`; 
                 } else if (type === 'rewardCounts') {
-                    output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.reward_title}</td><td class="has-text-centered is-vcentered">${item.user}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`;
                 } else if (type === 'watchTime') { 
-                    output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered">${formatWatchTime(item.total_watch_time_live)}</td><td class="has-text-centered is-vcentered">${formatWatchTime(item.total_watch_time_offline)}</td>`;
                 } else if (type === 'quotes') {
-                    output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.id}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.quote}</span></td>`;
                 } else if (type === 'todos') {
                     const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
-                    output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${formatDateTime(item.created_at)}</td><td>${formatDateTime(item.updated_at)}</td>`;
+                    output += `<td class="has-text-centered is-vcentered">${item.id}</td><td class="has-text-centered is-vcentered">${item.objective}</td><td class="has-text-centered is-vcentered">${categoryName}</td><td class="has-text-centered is-vcentered">${item.completed}</td><td class="has-text-centered is-vcentered">${formatDateTime(item.created_at)}</td><td class="has-text-centered is-vcentered">${formatDateTime(item.updated_at)}</td>`;
                 }
                 output += `</tr>`;
             });
@@ -514,7 +530,7 @@ function calculateLurkDuration(startTime) {
     const diff = now - start;
     const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
     const months = Math.floor((diff % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30));
-    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60 * 24));
+    const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 30)) / (1000 * 60 * 60));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     let duration = '';
