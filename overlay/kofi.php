@@ -92,8 +92,13 @@
 
                 // Listen for KOFI events
                 socket.on('KOFI', (data) => {
-                    console.log('KOFI data:', data);
+                    console.log('KOFI event received:', data);
                     //enqueueAudio(data.audio_file);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
