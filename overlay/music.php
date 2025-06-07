@@ -1,66 +1,20 @@
 <?php
-include '/var/www/config/cloudflare.php';
-
-// S3/R2 PHP playlist fetch logic
-function getR2MusicFiles() {
-    global $access_key_id, $secret_access_key, $bucket_name, $r2_bucket_url;
-    $folder = 'music/';
-    $region = 'WNAM';
-    $service = 's3';
-    $host = parse_url($r2_bucket_url, PHP_URL_HOST);
-    $endpoint = "{$r2_bucket_url}/{$bucket_name}?prefix={$folder}";
-    $currentDate = gmdate('Ymd\THis\Z');
-    $shortDate = gmdate('Ymd');
-    // Create canonical request
-    $canonicalUri = "/{$bucket_name}";
-    $canonicalQueryString = "prefix=" . rawurlencode($folder);
-    $canonicalHeaders = "host:{$host}\nx-amz-content-sha256:UNSIGNED-PAYLOAD\nx-amz-date:{$currentDate}\n";
-    $signedHeaders = "host;x-amz-content-sha256;x-amz-date";
-    $payloadHash = "UNSIGNED-PAYLOAD";
-    $canonicalRequest = "GET\n{$canonicalUri}\n{$canonicalQueryString}\n{$canonicalHeaders}\n{$signedHeaders}\n{$payloadHash}";
-    // Create string to sign
-    $algorithm = "AWS4-HMAC-SHA256";
-    $credentialScope = "{$shortDate}/{$region}/{$service}/aws4_request";
-    $stringToSign = "{$algorithm}\n{$currentDate}\n{$credentialScope}\n" . hash('sha256', $canonicalRequest);
-    // Calculate the signature
-    $kSecret = "AWS4{$secret_access_key}";
-    $kDate = hash_hmac('sha256', $shortDate, $kSecret, true);
-    $kRegion = hash_hmac('sha256', $region, $kDate, true);
-    $kService = hash_hmac('sha256', $service, $kRegion, true);
-    $kSigning = hash_hmac('sha256', "aws4_request", $kService, true);
-    $signature = hash_hmac('sha256', $stringToSign, $kSigning);
-    // Add authorization header
-    $authorizationHeader = "{$algorithm} Credential={$access_key_id}/{$credentialScope}, SignedHeaders={$signedHeaders}, Signature={$signature}";
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $endpoint);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Authorization: {$authorizationHeader}",
-        "x-amz-content-sha256: UNSIGNED-PAYLOAD",
-        "x-amz-date: {$currentDate}"
-    ]);
-    $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        curl_close($ch);
-        return [];
-    }
-    curl_close($ch);
-    $xml = simplexml_load_string($response);
-    if ($xml === false) {
-        return [];
-    }
+// Fetch music files from the local music directory
+function getLocalMusicFiles() {
+    $musicDir = '/var/www/cdn/music';
     $files = [];
-    foreach ($xml->Contents as $content) {
-        $key = (string)$content->Key;
-        if (str_ends_with($key, '.mp3')) {
-            $files[] = str_replace('music/', '', $key);
+    if (is_dir($musicDir)) {
+        foreach (scandir($musicDir) as $file) {
+            if (is_file("$musicDir/$file") && str_ends_with($file, '.mp3')) {
+                $files[] = $file;
+            }
         }
     }
     return $files;
 }
 
-// Fetch music files from R2 bucket
-$musicFiles = getR2MusicFiles();
+// Fetch music files from local directory
+$musicFiles = getLocalMusicFiles();
 ?>
 <!DOCTYPE html>
 <html lang="en">
