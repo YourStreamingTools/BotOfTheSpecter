@@ -43,7 +43,7 @@
                 });
 
                 socket.on('DEATHS', (data) => {
-                    console.log('Death:', data);
+                    console.log('DEATHS event received:', data);
                     const deathOverlay = document.getElementById('deathOverlay');
                     deathOverlay.innerHTML = `
                         <div class="overlay-content">
@@ -67,6 +67,11 @@
                     setTimeout(() => {
                         deathOverlay.style.display = 'none';
                     }, 11000);
+                });
+
+                // Log all events
+                socket.onAny((event, ...args) => {
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
 
