@@ -7167,25 +7167,25 @@ async def process_channel_point_rewards(event_data, event_type):
                     if '(userstreak)' in custom_message:
                         try:
                             # Fetch current user and streak
-                            await cursor.execute("SELECT current_user, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
+                            await cursor.execute("SELECT `current_user`, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
                             streak_row = await cursor.fetchone()
                             if streak_row:
                                 current_user_from_db = streak_row['current_user']
                                 current_streak = streak_row['streak']
-                                if current_user_from_db == user_name:
+                                if current_user_from_db.lower() == user_name.lower():
                                     current_user = user_name
                                     current_streak += 1
                                 else:
                                     current_user = user_name
                                     current_streak = 1
-                                await cursor.execute("UPDATE reward_streaks SET current_user = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
+                                await cursor.execute("UPDATE reward_streaks SET `current_user` = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
                             else:
                                 current_user = user_name
                                 current_streak = 1
-                                await cursor.execute("INSERT INTO reward_streaks (reward_id, current_user, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
+                                await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
                             await sqldb.commit()
                             # Fetch updated streak for the specific user
-                            await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s AND current_user = %s", (reward_id, user_name))
+                            await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s AND `current_user` = %s", (reward_id, user_name))
                             streak_row = await cursor.fetchone()
                             if streak_row and 'streak' in streak_row:
                                 current_streak = streak_row['streak']
