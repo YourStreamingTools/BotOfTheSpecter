@@ -159,7 +159,8 @@ try {
         'quotes' => "
             CREATE TABLE IF NOT EXISTS quotes (
                 id INT PRIMARY KEY AUTO_INCREMENT,
-                quote TEXT
+                quote TEXT,
+                added TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
         'seen_users' => "
             CREATE TABLE IF NOT EXISTS seen_users (
@@ -448,7 +449,7 @@ try {
         'subscription_data' => ['user_id' => "VARCHAR(255)",'user_name' => "VARCHAR(255)",'sub_plan' => "VARCHAR(255)",'months' => "INT"],
         'followers_data' => ['user_id' => "VARCHAR(255)",'user_name' => "VARCHAR(255)"],
         'raid_data' => ['raider_name' => "VARCHAR(255)",'raider_id' => "VARCHAR(255)",'viewers' => "INT",'raid_count' => "INT"],
-        'quotes' => ['quote' => "TEXT"],
+        'quotes' => ['quote' => "TEXT", 'added' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"],
         'seen_users' => ['username' => "VARCHAR(255)",'welcome_message' => "VARCHAR(255) DEFAULT NULL",'status' => "VARCHAR(255)"],
         'seen_today' => ['user_id' => "VARCHAR(255)",'username' => "VARCHAR(255)"],
         'timed_messages' => ['interval_count' => "INT",'chat_line_trigger' => 'INT DEFAULT 5','message' => "TEXT",'status' => "VARCHAR(10) DEFAULT True"],
@@ -548,6 +549,10 @@ try {
     // Ensure default options for watch_time
     if ($usrDBconn->query("INSERT INTO watch_time_excluded_users (excluded_users) SELECT CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM watch_time_excluded_users)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default watch_time_excluded_users options ensured.');
+    }
+    // Ensure default status for stream status is Flase
+    if ($usrDBconn->query("INSERT INTO stream_status (status) SELECT 'False' WHERE NOT EXISTS (SELECT 1 FROM stream_status)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default stream_status options ensured.');
     }
     // Ensure default groups exist
     $group_names = ["MOD", "VIP", "Subscriber T1", "Subscriber T2", "Subscriber T3", "Normal"];
