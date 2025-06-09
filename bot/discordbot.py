@@ -19,7 +19,7 @@ VERSION = "4.3.5"
 load_dotenv()
 
 # Define logging directories
-logs_directory = "/home/botofthespecter/logs"
+logs_directory = "/home/botofthespecter/logs/logs"
 discord_logs   = os.path.join(logs_directory, "discord")
 
 # Ensure directories exist
