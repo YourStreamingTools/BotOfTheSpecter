@@ -11,6 +11,7 @@ import aiomysql
 import socketio
 from dotenv import load_dotenv
 from urllib.parse import urlencode
+import time
 
 # Version control
 VERSION = "4.3.5"
@@ -417,14 +418,17 @@ class BOTS_DISCORD_RUNNER:
                 self.logger.error("Bot task was cancelled. Forcing close.")
 
     def run(self):
-        asyncio.set_event_loop(self.loop)
-        self.logger.info("Starting BotOfTheSpecter Discord Bot")
-        try:
-            asyncio.run(self.initialize_bot())
-        except asyncio.CancelledError:
-            self.logger.error("BotRunner task was cancelled.")
-        finally:
-            self.loop.close()
+        while True:
+            asyncio.set_event_loop(self.loop)
+            self.logger.info("Starting BotOfTheSpecter Discord Bot")
+            try:
+                asyncio.run(self.initialize_bot())
+            except asyncio.CancelledError:
+                self.logger.error("BotRunner task was cancelled.")
+                break
+            self.logger.info("BotOfTheSpecter crashed or closed. Restarting in 5 seconds.")
+            time.sleep(5)
+            self.loop = asyncio.new_event_loop()
 
     async def initialize_bot(self):
         global CHANNEL_NAME
