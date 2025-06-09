@@ -83,6 +83,7 @@ docs/5.4.md
 /billing
 /cdn/music
 /stream/ssl
+/newdashboard
 
 # Python Cache files
 bot/__pycache__/
