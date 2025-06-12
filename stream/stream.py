@@ -30,6 +30,15 @@ TWITCH_INGEST_SERVERS = {
     "eu-central": "rtmps://fra05.contribute.live-video.net/app/",
     # Add more regions as needed
 }
+
+# Define SSL domain mappings for Let's Encrypt certificates
+SSL_DOMAIN_MAPPING = {
+    "sydney": "au-east-1.botofthespecter.video",
+    "us-west": "us-west-1.botofthespecter.video",
+    "us-east": "us-east-1.botofthespecter.video",
+    "eu-central": "eu-central-1.botofthespecter.video"
+}
+
 DEFAULT_INGEST_SERVER = "sydney"
 
 # Parse command line arguments
@@ -400,12 +409,21 @@ class SimpleServer(SimpleRTMPServer):
             ssl=ssl_context
         )
 
-def create_ssl_context():
+def create_ssl_context(server_location):
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    cert_path = f"{current_dir}/ssl/fullchain.pem"
-    key_path = f"{current_dir}/ssl/privkey.pem"
+    # Get the domain for the server location
+    domain = SSL_DOMAIN_MAPPING.get(server_location, SSL_DOMAIN_MAPPING[DEFAULT_INGEST_SERVER])
+    # Let's Encrypt certificate paths for the specific domain
+    cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+    key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+    # Fallback to local SSL directory if Let's Encrypt certs don't exist
+    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        cert_path = f"{current_dir}/ssl/fullchain.pem"
+        key_path = f"{current_dir}/ssl/privkey.pem"
+        logger.warning(f"Let's Encrypt certificates not found for {domain}, falling back to local SSL directory")
     context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+    logger.info(f"SSL context created for domain: {domain}")
     return context
 
 async def start_rtmp_server(twitch_server):
@@ -414,10 +432,11 @@ async def start_rtmp_server(twitch_server):
         output_directory = "/mnt/s3/bots-stream"
     else:
         output_directory = os.path.dirname(os.path.abspath(__file__))
-    ssl_context = create_ssl_context()
+    ssl_context = create_ssl_context(twitch_server)
     server = SimpleServer(output_directory=output_directory, twitch_server=twitch_server)
     await server.create(host=RTMPS_HOST, port=RTMPS_PORT, ssl_context=ssl_context)
-    logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL.")
+    domain = SSL_DOMAIN_MAPPING.get(twitch_server, SSL_DOMAIN_MAPPING[DEFAULT_INGEST_SERVER])
+    logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL for domain: {domain}")
     logger.info(f"Using Twitch ingest server location: {twitch_server}")
     await server.start()
     await server.wait_closed()
