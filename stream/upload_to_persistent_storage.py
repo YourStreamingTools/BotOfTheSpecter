@@ -72,54 +72,46 @@ def upload_to_s3(file_path, bucket_name, s3_key, aws_access_key, aws_secret_key,
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: python3 upload_to_persistent_storage.py <username> <file_name1> <file_name2>")
-        print("Note: Only 2 files can be uploaded at a time, both must be at least 100MB (multipart upload).")
-        sys.exit(1)
     username = sys.argv[1]
-    file_names = sys.argv[2:]
-    # Determine the current directory and navigate to the user's folder
+    location = sys.argv[2]
+    file_name = sys.argv[3]
+    # Determine the current directory and navigate to the user's location folder
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    user_dir = os.path.join(current_dir, username)
-    # AWS S3 configuration
-    aws_access_key = os.getenv("AWS_ACCESS_KEY")
-    aws_secret_key = os.getenv("AWS_SECRET_KEY")
-    endpoint_url = f'https://{os.getenv("AWS_ENDPOINT_URL")}'
-    # Check both files exist and are >= 100MB
-    file_paths = []
-    for file_name in file_names:
-        file_path = os.path.join(user_dir, file_name)
-        if not os.path.isfile(file_path):
-            print(f"Error: File '{file_name}' not found in user directory.")
+    user_location_dir = os.path.join(current_dir, username, location)
+    # AWS S3 configuration based on location
+    aws_access_key = os.getenv(f"{location}_s3_access_key")
+    aws_secret_key = os.getenv(f"{location}_s3_secret_key")
+    endpoint_url = f'https://{os.getenv(f"{location}_s3_bucket_url")}'
+    # Check file exists and is >= 100MB
+    file_path = os.path.join(user_location_dir, file_name)
+    if not os.path.isfile(file_path):
+        print(f"Error: File '{file_name}' not found in user location directory.")
+        sys.exit(1)
+    if os.path.getsize(file_path) < MULTIPART_THRESHOLD:
+        print(f"Error: File '{file_name}' is less than 100MB. File must be at least 100MB for multipart upload.")
+        sys.exit(1)
+    # Upload file using multipart upload
+    try:
+        logging.info(f"Starting multipart upload for file: {file_path}")
+        s3_client = boto3.client('s3',
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name="us-east-1",
+            endpoint_url=endpoint_url
+        )
+        config = boto3.s3.transfer.TransferConfig(multipart_threshold=MULTIPART_THRESHOLD,multipart_chunksize=MULTIPART_THRESHOLD)
+        s3_client.upload_file(file_path, username, f"{location}/{file_name}", Config=config)
+        logging.info(f"Multipart upload complete for file: {file_path}")
+        # Verify the file exists in S3
+        response = s3_client.head_object(Bucket=username, Key=f"{location}/{file_name}")
+        if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+            os.remove(file_path)
+            logging.info(f"File '{file_path}' has been removed from the server.")
+        else:
+            logging.error(f"Unable to verify the upload of file '{file_path}' to S3.")
+            print(f"Error: Unable to verify the upload of file '{os.path.basename(file_path)}' to S3.")
             sys.exit(1)
-        if os.path.getsize(file_path) < MULTIPART_THRESHOLD:
-            print(f"Error: File '{file_name}' is less than 100MB. Both files must be at least 100MB for multipart upload.")
-            sys.exit(1)
-        file_paths.append(file_path)
-    # Upload each file using multipart upload
-    for file_path, file_name in zip(file_paths, file_names):
-        # Always use multipart upload for these files
-        try:
-            logging.info(f"Starting multipart upload for file: {file_path}")
-            s3_client = boto3.client('s3',
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_key,
-                region_name="us-east-1",
-                endpoint_url=endpoint_url
-            )
-            config = boto3.s3.transfer.TransferConfig(multipart_threshold=MULTIPART_THRESHOLD,multipart_chunksize=MULTIPART_THRESHOLD)
-            s3_client.upload_file(file_path, username, file_name, Config=config)
-            logging.info(f"Multipart upload complete for file: {file_path}")
-            # Verify the file exists in S3
-            response = s3_client.head_object(Bucket=username, Key=file_name)
-            if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-                os.remove(file_path)
-                logging.info(f"File '{file_path}' has been removed from the server.")
-            else:
-                logging.error(f"Unable to verify the upload of file '{file_path}' to S3.")
-                print(f"Error: Unable to verify the upload of file '{os.path.basename(file_path)}' to S3.")
-                sys.exit(1)
-        except Exception as e:
-            logging.error(f"An error occurred: {str(e)}")
-            print(f"An error occurred while uploading file '{os.path.basename(file_path)}': {str(e)}")
-            sys.exit(1)
+    except Exception as e:
+        logging.error(f"An error occurred: {str(e)}")
+        print(f"An error occurred while uploading file '{os.path.basename(file_path)}': {str(e)}")
+        sys.exit(1)
