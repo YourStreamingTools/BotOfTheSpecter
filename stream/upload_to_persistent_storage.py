@@ -27,13 +27,13 @@ def multipart_upload_to_s3(file_path, bucket_name, s3_key, s3_client):
         logging.error(f"Multipart upload failed: {str(e)}")
         raise
 
-def upload_to_s3(file_path, bucket_name, s3_key, aws_access_key, aws_secret_key, endpoint_url):
+def upload_to_s3(file_path, bucket_name, s3_key, s3_access_key, s3_secret_key, endpoint_url):
     try:
         logging.info(f"Starting upload for file: {file_path} to bucket: {bucket_name} with key: {s3_key}")
         # Initialize S3 client
         s3_client = boto3.client('s3',
-            aws_access_key_id=aws_access_key,
-            aws_secret_access_key=aws_secret_key,
+            aws_access_key_id=s3_access_key,
+            aws_secret_access_key=s3_secret_key,
             region_name="us-east-1",
             endpoint_url=endpoint_url
         )
@@ -75,13 +75,22 @@ if __name__ == "__main__":
     username = sys.argv[1]
     location = sys.argv[2]
     file_name = sys.argv[3]
+    # Map Twitch server names to simplified S3 location names
+    SERVER_TO_S3_LOCATION = {
+        "sydney": "au",
+        "us-west": "us", 
+        "us-east": "us",
+        "eu-central": "eu"
+    }
+    # Convert location to simplified S3 location name
+    s3_location = SERVER_TO_S3_LOCATION.get(location, location)
     # Determine the current directory and navigate to the user's location folder
     current_dir = os.path.dirname(os.path.abspath(__file__))
     user_location_dir = os.path.join(current_dir, username, location)
     # AWS S3 configuration based on location
-    aws_access_key = os.getenv(f"{location}_s3_access_key")
-    aws_secret_key = os.getenv(f"{location}_s3_secret_key")
-    endpoint_url = f'https://{os.getenv(f"{location}_s3_bucket_url")}'
+    s3_access_key = os.getenv(f"{s3_location}_s3_access_key")
+    s3_secret_key = os.getenv(f"{s3_location}_s3_secret_key")
+    endpoint_url = f'https://{os.getenv(f"{s3_location}_s3_bucket_url")}'
     # Check file exists and is >= 100MB
     file_path = os.path.join(user_location_dir, file_name)
     if not os.path.isfile(file_path):
@@ -94,8 +103,8 @@ if __name__ == "__main__":
     try:
         logging.info(f"Starting multipart upload for file: {file_path}")
         s3_client = boto3.client('s3',
-            aws_access_key_id=aws_access_key,
-            aws_secret_access_key=aws_secret_key,
+            aws_access_key_id=s3_access_key,
+            aws_secret_access_key=s3_secret_key,
             region_name="us-east-1",
             endpoint_url=endpoint_url
         )
