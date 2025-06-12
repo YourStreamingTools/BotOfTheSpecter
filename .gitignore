@@ -4,6 +4,7 @@ app/.env
 api/.env
 websocket/.env
 stream/.env
+stream/.env.backup
 ssl/.env
 ssl/.certbot.env
 
