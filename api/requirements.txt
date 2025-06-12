@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+aiohttp
+aiomysql
+paramiko
+pydantic
+python-dotenv
+aioping
+jokeapi
+python-multipart
