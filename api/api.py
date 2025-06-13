@@ -22,10 +22,18 @@ from urllib.parse import urlencode
 from contextlib import asynccontextmanager
 
 # Load ENV file
-load_dotenv(find_dotenv("/home/fastapi/.env"))
+load_dotenv(find_dotenv("/home/botofthespecter/.env"))
 SQL_HOST = os.getenv('SQL_HOST')
-SQL_USER = os.getenv('SQL_USER')
+SQL_USER = os.getenv('SQL_USER') 
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+SQL_PORT = int(os.getenv('SQL_PORT'))
+
+# Validate required database environment variables
+if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
+    missing_vars = [var for var, val in [('SQL_HOST', SQL_HOST), ('SQL_USER', SQL_USER), ('SQL_PASSWORD', SQL_PASSWORD)] if not val]
+    logging.error(f"Missing required database environment variables: {missing_vars}")
+    raise ValueError(f"Missing required database environment variables: {missing_vars}")
+
 ADMIN_KEY = os.getenv('ADMIN_KEY')
 SFTP_HOST = "10.240.0.169"
 SFTP_USER = os.getenv("SFPT_USERNAME")
@@ -33,9 +41,10 @@ SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
 WEATHER_API = os.getenv('WEATHER_API')
 
 # Setup Logger
+log_file = "/home/botofthespecter/log.txt" if os.path.exists("/home/botofthespecter") else "/home/fastapi/log.txt"
 logging.basicConfig(
     level=logging.INFO,
-    filename="/home/fastapi/log.txt",
+    filename=log_file,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
@@ -130,7 +139,8 @@ async def update_api_count(count_type, new_count):
             """, (new_count, count_type, new_count, new_count))
             await conn.commit()
         # Update the corresponding text file
-        file_path = f"/home/fastapi/api/{count_type}_requests.txt"
+        base_dir = "/home/botofthespecter" if os.path.exists("/home/botofthespecter") else "/home/fastapi"
+        file_path = f"{base_dir}/{count_type}_requests.txt"
         with open(file_path, "w") as file:
             file.write(str(new_count))
         # Transfer the updated file to the bot's server via SFTP
@@ -558,7 +568,10 @@ async def quotes(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    quotes_path = "/home/fastapi/quotes.json"
+    # Check for quotes file in preferred location first
+    quotes_path = "/home/botofthespecter/quotes.json"
+    if not os.path.exists(quotes_path):
+        quotes_path = "/home/fastapi/quotes.json"
     if not os.path.exists(quotes_path):
         raise HTTPException(status_code=404, detail="Quotes file not found")
     with open(quotes_path, "r") as quotes_file:
@@ -580,7 +593,10 @@ async def fortune(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    fortunes_path = "/home/fastapi/fortunes.json"
+    # Check for fortunes file in preferred location first
+    fortunes_path = "/home/botofthespecter/fortunes.json"
+    if not os.path.exists(fortunes_path):
+        fortunes_path = "/home/fastapi/fortunes.json"
     if not os.path.exists(fortunes_path):
         raise HTTPException(status_code=404, detail="Fortunes file not found")
     # Load fortunes from JSON file
@@ -602,7 +618,10 @@ async def fortune(api_key: str = Query(...)):
     operation_id="get_bot_versions"
 )
 async def versions():
-    versions_path = "/home/fastapi/versions.json"
+    # Check for versions file in preferred location first
+    versions_path = "/home/botofthespecter/versions.json"
+    if not os.path.exists(versions_path):
+        versions_path = "/home/fastapi/versions.json"
     if not os.path.exists(versions_path):
         raise HTTPException(status_code=404, detail="Version file not found")
     with open(versions_path, "r") as versions_file:
@@ -751,7 +770,10 @@ async def kill_responses(api_key: str = Query(...)):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    kill_command_path = "/home/fastapi/killCommand.json"
+    # Check for kill command file in preferred location first
+    kill_command_path = "/home/botofthespecter/killCommand.json"
+    if not os.path.exists(kill_command_path):
+        kill_command_path = "/home/fastapi/killCommand.json"
     if not os.path.exists(kill_command_path):
         raise HTTPException(status_code=404, detail="File not found")
     with open(kill_command_path, "r") as kill_command_file:
@@ -1092,7 +1114,10 @@ async def authorized_users(api_key: str = Query(...)):
     valid = await verify_admin_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    auth_users_path = "/home/fastapi/authusers.json"
+    # Check for auth users file in preferred location first
+    auth_users_path = "/home/botofthespecter/authusers.json"
+    if not os.path.exists(auth_users_path):
+        auth_users_path = "/home/fastapi/authusers.json"
     if not os.path.exists(auth_users_path):
         raise HTTPException(status_code=404, detail="File not found")
     with open(auth_users_path, "r") as auth_users_file:
