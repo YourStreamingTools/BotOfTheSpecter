@@ -36,7 +36,7 @@ $serviceMap = [
     ],
     'database' => [
         'name' => 'Database Service',
-        'host' => 'sql.botofthespcter.com',
+        'host' => 'sql.botofthespecter.com',
         'port' => 3306
     ],
     'websocket' => [
