@@ -523,6 +523,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const originalContent = btn.innerHTML;
     btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
+    // Show immediate feedback that action was initiated
+    showNotification(`Stable bot ${action} command sent...`, 'info');
     fetch('bot_action.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -531,12 +533,19 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          showNotification(`Stable bot ${action}ed successfully`, 'success');
-          // Wait a moment for the bot to actually start/stop, then update status
-          setTimeout(() => {
-            updateBotStatus();
-          }, 2000);
-        } else { showNotification(`Failed to ${action} stable bot: ${data.message}`, 'danger'); }
+          showNotification(`Stable bot ${action} command executed successfully`, 'success');
+          // Start polling for status changes more frequently after run command
+          if (action === 'run') {
+            pollBotStatusUntilRunning('stable', 10); // Poll every 1 second for up to 10 times
+          } else {
+            // For stop action, check status after a brief delay
+            setTimeout(() => {
+              updateBotStatus();
+            }, 1000);
+          }
+        } else { 
+          showNotification(`Failed to ${action} stable bot: ${data.message}`, 'danger'); 
+        }
         btn.innerHTML = originalContent;
         btn.disabled = false;
       })
@@ -547,12 +556,14 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = false;
       });
   }
+
   function handleBetaBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
-    
+    // Show immediate feedback that action was initiated
+    showNotification(`Beta bot ${action} command sent...`, 'info');
     fetch('bot_action.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -561,11 +572,16 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          showNotification(`Beta bot ${action}ed successfully`, 'success');
-          // Wait a moment for the bot to actually start/stop, then update status
-          setTimeout(() => {
-            updateBotStatus();
-          }, 2000);
+          showNotification(`Beta bot ${action} command executed successfully`, 'success');
+          // Start polling for status changes more frequently after run command
+          if (action === 'run') {
+            pollBotStatusUntilRunning('beta', 10); // Poll every 1 second for up to 10 times
+          } else {
+            // For stop action, check status after a brief delay
+            setTimeout(() => {
+              updateBotStatus();
+            }, 1000);
+          }
         } else {
           showNotification(`Failed to ${action} beta bot: ${data.message}`, 'danger');
         }
@@ -579,12 +595,14 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = false;
       });
   }
+
   function handleDiscordBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
-    
+    // Show immediate feedback that action was initiated
+    showNotification(`Discord bot ${action} command sent...`, 'info');
     fetch('bot_action.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -593,11 +611,16 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          showNotification(`Discord bot ${action}ed successfully`, 'success');
-          // Wait a moment for the bot to actually start/stop, then update status
-          setTimeout(() => {
-            updateBotStatus();
-          }, 2000);
+          showNotification(`Discord bot ${action} command executed successfully`, 'success');
+          // Start polling for status changes more frequently after run command
+          if (action === 'run') {
+            pollBotStatusUntilRunning('discord', 10); // Poll every 1 second for up to 10 times
+          } else {
+            // For stop action, check status after a brief delay
+            setTimeout(() => {
+              updateBotStatus();
+            }, 1000);
+          }
         } else {
           showNotification(`Failed to ${action} discord bot: ${data.message}`, 'danger');
         }
@@ -611,7 +634,51 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = false;
       });
   }
-
+  // Function to poll bot status until it's running (for immediate feedback after run command)
+  function pollBotStatusUntilRunning(botType, maxAttempts, currentAttempt = 1) {
+    if (currentAttempt > maxAttempts) {
+      showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot status check timed out. Please refresh the page to see current status.`, 'warning');
+      return;
+    }
+    // Show progress to user
+    if (currentAttempt === 1) {
+      showNotification(`Checking ${botType} bot status... (${currentAttempt}/${maxAttempts})`, 'info');
+    }
+    setTimeout(() => {
+      fetch(`check_bot_status.php?bot=${botType}`)
+        .then(async response => {
+          const text = await response.text();
+          try {
+            const data = JSON.parse(text);
+            if (data.success && data.running) {
+              // Bot is now running, update the UI
+              showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot is now running!`, 'success');
+              updateBotStatus();
+              return; // Stop polling
+            } else if (data.success && !data.running) {
+              // Bot is not running yet, continue polling
+              pollBotStatusUntilRunning(botType, maxAttempts, currentAttempt + 1);
+            } else {
+              // Error in response, continue polling but show warning
+              if (currentAttempt < maxAttempts) {
+                pollBotStatusUntilRunning(botType, maxAttempts, currentAttempt + 1);
+              }
+            }
+          } catch (e) {
+            // JSON parse error, continue polling
+            if (currentAttempt < maxAttempts) {
+              pollBotStatusUntilRunning(botType, maxAttempts, currentAttempt + 1);
+            }
+          }
+        })
+        .catch(error => {
+          // Network error, continue polling
+          if (currentAttempt < maxAttempts) {
+            pollBotStatusUntilRunning(botType, maxAttempts, currentAttempt + 1);
+          }
+        });
+    }, 1000); // Check every 1 second
+  }
   // Function to show notifications
   function showNotification(message, type) {
     // Remove existing notifications with the same message and type
@@ -620,6 +687,14 @@ document.addEventListener('DOMContentLoaded', function() {
         n.parentNode.removeChild(n);
       }
     });
+    // Remove previous status checking notifications when showing new ones
+    if (message.includes('command sent') || message.includes('Checking') || message.includes('is now running')) {
+      document.querySelectorAll('.notification.is-info').forEach(n => {
+        if (n.textContent.includes('command sent') || n.textContent.includes('Checking') || n.textContent.includes('status check timed out')) {
+          n.parentNode.removeChild(n);
+        }
+      });
+    }
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification is-${type}`;
@@ -635,14 +710,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add to the page
     const container = document.querySelector('.container');
     container.insertBefore(notification, container.firstChild);
-    // Auto-remove after 5 seconds
+    // Auto-remove after 5 seconds (except for info messages which auto-remove faster)
+    const autoRemoveTime = type === 'info' ? 3000 : 5000;
     setTimeout(() => {
       if (notification.parentNode) {
         notification.parentNode.removeChild(notification);
       }
-    }, 5000);
+    }, autoRemoveTime);
   }
-
   function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -916,9 +991,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (newStatus === 'True') {
       statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-success" style="width:100%;">' + <?php echo json_encode(t('bot_status_online')); ?> + '</span>' +
                    '<div class="mt-3"><button id="force-offline-btn" class="button is-warning is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_offline'); ?></button></div>';
-    } else if (newStatus === 'False' || newStatus === null || newStatus === 'N/A') {
-      statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-warning" style="width:100%;">' + <?php echo json_encode(t('bot_status_na')); ?> + '</span>' +
+    } else if (newStatus === 'False') {
+      statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-warning" style="width:100%;">' + <?php echo json_encode(t('bot_status_offline')); ?> + '</span>' +
                    '<div class="mt-3"><button id="force-online-btn" class="button is-success is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_online'); ?></button></div>';
+    } else if (newStatus === null || newStatus === 'N/A') {
+      statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-warning" style="width:100%;">' + <?php echo json_encode(t('bot_status_na')); ?> + '</span>';
     } else {
       statusHtml = '<span class="<?php echo $tagClass; ?> bot-status-tag is-warning" style="width:100%;">' + <?php echo json_encode(t('bot_status_unknown')); ?> + '</span>';
     }
@@ -961,11 +1038,12 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
   }
-  attachForceButtons();  window.changeBotSelection = function(bot) {
+  attachForceButtons();
+  window.changeBotSelection = function(bot) {
     const url = new URL(window.location.href);
     url.searchParams.set('bot', bot);
     window.location.href = url.toString();
-    updateApiLimits();
+    // updateApiLimits();
   };
 });
 </script>
