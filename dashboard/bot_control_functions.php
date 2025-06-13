@@ -144,23 +144,13 @@ function performBotAction($action, $botType, $params) {
         'version' => $newVersion
     ];
     try {
-        // Establish SSH connection
-        $connection = ssh2_connect($bots_ssh_host, 22);
-        if (!$connection) {
-            throw new Exception('Bot service is temporarily unavailable. Please try again later.');
-        }
-        // Authenticate
-        if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
-            if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-            throw new Exception('Authentication failed. Please contact support.');
-        }
+        // Use connection manager for persistent SSH connection
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         // Check current bot status
         $command = "python $statusScriptPath -system $botType -channel $username";
-        $stream = ssh2_exec($connection, $command);
-        if (!$stream) { throw new Exception('Unable to check bot status. Please try again later.'); }
-        stream_set_blocking($stream, true);
-        $statusOutput = trim(stream_get_contents($stream));
-        fclose($stream);
+        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+        if ($statusOutput === false) { throw new Exception('Unable to check bot status. Please try again later.'); }
+        $statusOutput = trim($statusOutput);
         // Get current PID
         $currentPid = 0;
         if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches) || 
@@ -177,28 +167,25 @@ function performBotAction($action, $botType, $params) {
                     file_put_contents($versionFilePath, $newVersion);
                 } else {
                     // Start the bot
-                    if ($botType === 'discord') {
-                        $startCommand = "python $botScriptPath -channel $username 2>&1 &";
-                    } else {
-                        $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey 2>&1 &";
-                    }
-                    $stream = ssh2_exec($connection, $startCommand);
-                    if (!$stream) { throw new Exception('Unable to start bot. Please try again later.'); }
-                    fclose($stream);
+                    if ($botType === 'discord') { $startCommand = "python $botScriptPath -channel $username 2>&1 &"; }
+                    else { $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey 2>&1 &"; }
+                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand);
+                    if ($startOutput === false) { throw new Exception('Unable to start bot. Please try again later.'); }
                     sleep(2);
-                    $stream = ssh2_exec($connection, $command);
-                    stream_set_blocking($stream, true);
-                    $statusOutput = trim(stream_get_contents($stream));
-                    fclose($stream);
-                    if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches) || 
-                        preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-                        $newPid = intval($matches[1]);
-                        if ($newPid > 0) {
-                            // Only one message: Bot is running with version
-                            $result['message'] = "Bot is running (v{$newVersion})";
-                            $result['pid'] = $newPid;
-                            $result['success'] = true;
-                            file_put_contents($versionFilePath, $newVersion);
+                    // Check status again
+                    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+                    if ($statusOutput !== false) {
+                        $statusOutput = trim($statusOutput);
+                        if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches) || 
+                            preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+                            $newPid = intval($matches[1]);
+                            if ($newPid > 0) {
+                                // Only one message: Bot is running with version
+                                $result['message'] = "Bot is running (v{$newVersion})";
+                                $result['pid'] = $newPid;
+                                $result['success'] = true;
+                                file_put_contents($versionFilePath, $newVersion);
+                            } else { $result['message'] = "Failed to start bot"; }
                         } else { $result['message'] = "Failed to start bot"; }
                     } else { $result['message'] = "Failed to start bot"; }
                 }
@@ -207,29 +194,26 @@ function performBotAction($action, $botType, $params) {
                 if ($currentPid > 0) {
                     // Kill the bot
                     $killCommand = "kill -s kill $currentPid";
-                    $stream = ssh2_exec($connection, $killCommand);
-                    if (!$stream) { throw new Exception('Unable to stop bot. Please try again later.'); }
-                    fclose($stream);
+                    $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
+                    if ($killOutput === false) { throw new Exception('Unable to stop bot. Please try again later.'); }
                     // Wait a moment for the bot to stop
                     sleep(1);
                     // Check if bot stopped
-                    $stream = ssh2_exec($connection, $command);
-                    stream_set_blocking($stream, true);
-                    $statusOutput = trim(stream_get_contents($stream));
-                    fclose($stream);
-                    if (!preg_match('/process ID:\s*(\d+)/i', $statusOutput) && 
-                        !preg_match('/PID\s+(\d+)/i', $statusOutput)) {
-                        $result['message'] = "Bot stopped successfully";
-                        $result['success'] = true;
-                    } else { $result['message'] = "Failed to stop bot"; }
+                    $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+                    if ($statusOutput !== false) {
+                        $statusOutput = trim($statusOutput);
+                        if (!preg_match('/process ID:\s*(\d+)/i', $statusOutput) && 
+                            !preg_match('/PID\s+(\d+)/i', $statusOutput)) {
+                            $result['message'] = "Bot stopped successfully";
+                            $result['success'] = true;
+                        } else { $result['message'] = "Failed to stop bot"; }
+                    } else { $result['message'] = "Failed to check bot status after stop"; }
                 } else {
                     $result['message'] = "Bot is not running";
                     $result['success'] = true;
                 }
                 break;
         }
-        // Close SSH connection
-        if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
     } catch (Exception $e) { $result['message'] = $e->getMessage(); }
     return $result;
 }
@@ -242,32 +226,23 @@ function performBotAction($action, $botType, $params) {
 */
 function ensure_remote_path_exists($path, $isFile = false) {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    $connection = ssh2_connect($bots_ssh_host, 22);
-    if (!$connection) {
-        error_log('SSH connection failed for ensure_remote_path_exists');
+    try {
+        // Use connection manager for persistent SSH connection
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        if ($isFile) {
+            $dir = dirname($path);
+            $cmd = "mkdir -p " . escapeshellarg($dir) . " && touch " . escapeshellarg($path);
+        } else { $cmd = "mkdir -p " . escapeshellarg($path); }
+        $output = SSHConnectionManager::executeCommand($connection, $cmd);
+        if ($output === false) {
+            error_log("SSH command failed: $cmd");
+            return false;
+        }
+        return true;
+    } catch (Exception $e) {
+        error_log('SSH error in ensure_remote_path_exists: ' . $e->getMessage());
         return false;
     }
-    if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
-        if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-        error_log('SSH authentication failed for ensure_remote_path_exists');
-        return false;
-    }
-    if ($isFile) {
-        $dir = dirname($path);
-        $cmd = "mkdir -p " . escapeshellarg($dir) . " && touch " . escapeshellarg($path);
-    } else {
-        $cmd = "mkdir -p " . escapeshellarg($path);
-    }
-    $stream = ssh2_exec($connection, $cmd);
-    if (!$stream) {
-        error_log("SSH command failed: $cmd");
-        return false;
-    }
-    stream_set_blocking($stream, true);
-    stream_get_contents($stream);
-    fclose($stream);
-    if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-    return true;
 }
 
 /**
