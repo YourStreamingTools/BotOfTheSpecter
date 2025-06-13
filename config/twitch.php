@@ -1,11 +1,12 @@
 <?php
-$use_backup = true;
+$use_backup = false;
 if ($use_backup) {
-    $clientID = "";     // CHANGE TO MAKE THIS WORK
-    $clientSecret = ""; // CHANGE TO MAKE THIS WORK
+    $clientID = "";
+    $clientSecret = "";
 } else {
-    $clientID = "";     // CHANGE TO MAKE THIS WORK
-    $clientSecret = ""; // CHANGE TO MAKE THIS WORK
+    $clientID = "";
+    $clientSecret = "";
 }
 $redirectURI = 'https://dashboard.botofthespecter.com/login.php';
+$betaRedirectURI = 'https://beta.dashboard.botofthespecter.com/login.php';
 ?>
