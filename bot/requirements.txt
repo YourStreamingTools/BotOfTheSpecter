@@ -27,3 +27,5 @@ deep_translator
 psutil
 # For text-to-speech conversion
 pyttsx3
+# For cryptographic operations
+PyNaCl
