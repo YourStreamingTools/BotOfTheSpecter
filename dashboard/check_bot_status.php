@@ -70,20 +70,23 @@ if ($bot === 'stable') {
 // Function to get remote file mtime via SSH
 function getRemoteFileMTime($remoteFile) {
   include "/var/www/config/ssh.php";
-  
-  try {
-    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-    $cmd = "stat -c %Y " . escapeshellarg($remoteFile);
-    $output = SSHConnectionManager::executeCommand($connection, $cmd);
-    
-    if ($output !== false) {
-      $output = trim($output);
-      if (is_numeric($output)) return (int)$output;
-    }
-  } catch (Exception $e) {
-    error_log("Failed to get remote file mtime: " . $e->getMessage());
+  $connection = @ssh2_connect($bots_ssh_host, 22);
+  if (!$connection) return null;
+  if (!@ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
+    if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
+    return null;
   }
-  
+  $cmd = "stat -c %Y " . escapeshellarg($remoteFile);
+  $stream = @ssh2_exec($connection, $cmd);
+  if (!$stream) {
+    if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
+    return null;
+  }
+  stream_set_blocking($stream, true);
+  $output = trim(stream_get_contents($stream));
+  fclose($stream);
+  if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
+  if (is_numeric($output)) return (int)$output;
   return null;
 }
 
