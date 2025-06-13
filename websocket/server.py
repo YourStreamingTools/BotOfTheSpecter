@@ -13,6 +13,7 @@ import paramiko
 import uuid
 from dotenv import load_dotenv, find_dotenv
 import json
+import aiomysql
 from music_handler import MusicHandler
 
 # Load ENV file
@@ -198,11 +199,22 @@ class BotOfTheSpecter_WebsocketServer:
                     await self.sio.disconnect(old_sid)
                     # Remove the old client
                     self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
-                    break
-            # Register the new client
+                    break # Register the new client
             client_data = {"sid": sid, "name": name}
             self.registered_clients[code].append(client_data)
             self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
+            # Log registration activity to database (if available)
+            try:
+                user_info = await self.get_user_api_key_info(code)
+                if user_info:
+                    channel_name = user_info.get('username', 'unknown')
+                    await self.log_websocket_activity(channel_name, 'client_registration', {
+                        'sid': sid,
+                        'name': name,
+                        'channel': channel
+                    })
+            except Exception as e:
+                self.logger.debug(f"Database logging failed (non-critical): {e}")
             # Send success message to the new client
             await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
@@ -626,12 +638,27 @@ class BotOfTheSpecter_WebsocketServer:
     def run_app(self, host="0.0.0.0", port=443):
         # Run the web application.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
-        self.logger.info(f"Host: {host} Port: {port}")
+        # Test database connection first
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.processing_task = self.loop.create_task(self.process_tts_queue())
-        web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=self.create_ssl_context(), handle_signals=True, shutdown_timeout=10)
-    
+        db_test_result = self.loop.run_until_complete(self.test_database_connection())
+        if not db_test_result:
+            self.logger.warning("⚠ Database connection test failed, but server will continue starting...")
+        # Try to create SSL context
+        ssl_context = self.create_ssl_context()
+        if ssl_context is not None:
+            # SSL certificates available - run secure server
+            self.logger.info(f"🔒 Starting secure WebSocket server on {host}:{port}")
+            self.processing_task = self.loop.create_task(self.process_tts_queue())
+            web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=ssl_context, handle_signals=True, shutdown_timeout=10)
+        else:
+            # No SSL certificates - fallback to insecure server
+            fallback_port = 80 if port == 443 else port
+            self.logger.warning(f"⚠ Starting insecure WebSocket server on {host}:{fallback_port}")
+            self.logger.warning("  Consider setting up SSL certificates for production use.")
+            self.processing_task = self.loop.create_task(self.process_tts_queue())
+            web.run_app(self.app, loop=self.loop, host=host, port=fallback_port, ssl_context=None, handle_signals=True, shutdown_timeout=10)
+
     def stop(self):
         # Stop the SocketIO server.
         self.logger.info("Stopping SocketIO Server")
@@ -644,9 +671,37 @@ class BotOfTheSpecter_WebsocketServer:
 
     def create_ssl_context(self):
         # Create the SSL context for secure connections.
+        domain = 'websocket.botofthespecter.com'
+        # Check for Let's Encrypt certificates first
+        letsencrypt_cert = f'/etc/letsencrypt/live/{domain}/fullchain.pem'
+        letsencrypt_key = f'/etc/letsencrypt/live/{domain}/privkey.pem'
+        # Local certificate paths as fallback
+        local_cert = '/home/websocket/ssl/fullchain.pem'
+        local_key = '/home/websocket/ssl/privkey.pem'
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(certfile='/home/websocket/ssl/fullchain.pem', keyfile='/home/websocket/ssl/privkey.pem')
-        return ssl_context
+        # Try Let's Encrypt certificates first
+        if os.path.exists(letsencrypt_cert) and os.path.exists(letsencrypt_key):
+            try:
+                ssl_context.load_cert_chain(certfile=letsencrypt_cert, keyfile=letsencrypt_key)
+                self.logger.info(f"✓ Using Let's Encrypt SSL certificates for {domain}")
+                return ssl_context
+            except Exception as e:
+                self.logger.warning(f"Failed to load Let's Encrypt certificates: {e}")
+        else:
+            self.logger.info("Let's Encrypt certificates not found, checking local certificates...")
+        # Fallback to local certificates
+        if os.path.exists(local_cert) and os.path.exists(local_key):
+            try:
+                ssl_context.load_cert_chain(certfile=local_cert, keyfile=local_key)
+                self.logger.info("✓ Using local SSL certificates")
+                return ssl_context
+            except Exception as e:
+                self.logger.error(f"Failed to load local certificates: {e}")
+        else:
+            self.logger.warning("Local SSL certificates not found")
+        # No SSL certificates available
+        self.logger.error("✗ No SSL certificates found. Server will not start with SSL.")
+        return None
 
     @staticmethod
     def ext_to_content_type(ext, default="text/html"):
@@ -667,8 +722,6 @@ class BotOfTheSpecter_WebsocketServer:
         # Get the IP address of the current machine.
         hostname = socket.gethostname()
         return socket.gethostbyname(hostname)
-
-
 
     def save_music_settings(self, code, settings):
         MUSIC_SETTINGS_DIR = "/home/websocket/music-settings"
@@ -711,6 +764,99 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f"Failed to load music settings for {code}: {e}")
         return None
+
+    async def get_database_connection(self, database_name='website'):
+        try:
+            # Get database configuration from environment variables
+            db_host = os.getenv('SQL_HOST')
+            db_user = os.getenv('SQL_USER')
+            db_password = os.getenv('SQL_PASSWORD')
+            db_port = int(os.getenv('SQL_PORT'))
+            conn = await aiomysql.connect(
+                host=db_host,
+                user=db_user,
+                password=db_password,
+                db=database_name,
+                port=db_port,
+                autocommit=True
+            )
+            self.logger.info(f"✓ Database connection established to {db_host}:{db_port} for database '{database_name}'")
+            return conn
+        except Exception as e:
+            self.logger.error(f"✗ Failed to connect to database: {e}")
+            return None
+
+    async def execute_query(self, query, params=None, database_name='website'):
+        conn = None
+        try:
+            conn = await self.get_database_connection(database_name)
+            if not conn:
+                return None
+                
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(query, params)
+                if query.strip().upper().startswith('SELECT'):
+                    result = await cursor.fetchall()
+                    return result
+                else:
+                    return cursor.rowcount
+                    
+        except Exception as e:
+            self.logger.error(f"Database query error: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
+
+    async def get_user_settings(self, channel_name):
+        query = "SELECT * FROM profile WHERE id = 1"
+        result = await self.execute_query(query, database_name=channel_name)
+        return result[0] if result else None
+
+    async def test_database_connection(self):
+        self.logger.info("Testing database connection...")
+        try:
+            conn = await self.get_database_connection('website')
+            if conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT 1")
+                    result = await cursor.fetchone()
+                    if result:
+                        self.logger.info("✓ Database connection test successful")
+                        return True
+                conn.close()
+            else:
+                self.logger.error("✗ Database connection test failed")
+                return False
+        except Exception as e:
+            self.logger.error(f"✗ Database connection test error: {e}")
+            return False
+
+    async def log_websocket_activity(self, channel_name, event_type, data=None):
+        try:
+            query = """
+                INSERT INTO websocket_activity_log 
+                (channel_name, event_type, data, timestamp) 
+                VALUES (%s, %s, %s, NOW())
+            """
+            params = (channel_name, event_type, json.dumps(data) if data else None)
+            
+            result = await self.execute_query(query, params, 'website')
+            if result:
+                self.logger.debug(f"Logged WebSocket activity: {event_type} for {channel_name}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to log WebSocket activity: {e}")
+            return None
+
+    async def get_user_api_key_info(self, api_key):
+        try:
+            query = "SELECT username, user_id FROM users WHERE api_key = %s"
+            result = await self.execute_query(query, (api_key,), 'website')
+            return result[0] if result else None
+        except Exception as e:
+            self.logger.error(f"Failed to get user API key info: {e}")
+            return None
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
