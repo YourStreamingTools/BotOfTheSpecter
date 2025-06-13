@@ -9,25 +9,30 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Subathon Settings";
+$pageTitle = "Subathon Settings";
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'modding_access.php';
+include 'userdata.php';
+include 'bot_control.php';
+include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
-$channelData = $stmt->fetch(PDO::FETCH_ASSOC);
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 $message = '';
 
 // Fetch the current subathon settings
 $stmt = $db->prepare("SELECT * FROM subathon_settings LIMIT 1");
 $stmt->execute();
-$settings = $stmt->fetch(PDO::FETCH_ASSOC);
+$result = $stmt->get_result();
+$settings = $result->fetch_assoc();
 
 // Default values if settings are not found
 $starting_minutes = $settings['starting_minutes'] ?? 60;
@@ -45,23 +50,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
     $sub_add_3 = $_POST['sub_add_3'];
     // Update the settings in the database
     $stmt = $db->prepare("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE starting_minutes=?, cheer_add=?, sub_add_1=?, sub_add_2=?, sub_add_3=?");
-    $stmt->execute([$starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3, $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3]);
+    $stmt->bind_param(
+        "iiiiiiiii", 
+        $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3,
+        $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3
+    );
+    $stmt->execute();
+    $stmt->close();
     // Set the success message
     $message = "Settings updated successfully!";
 }
-?>
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
 
+ob_start();
+?>
 <div class="container">
     <br>
     <h1 class="title">Subathon Settings</h1>
@@ -136,5 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
+<?php
+$content = ob_get_clean();
+include 'mod_layout.php';
+exit;

@@ -1,12 +1,23 @@
 <?php 
 // Fetch protection settings
 $getProtection = $db->query("SELECT * FROM protection LIMIT 1");
-$settings = $getProtection->fetchAll(PDO::FETCH_ASSOC);
+$settings = [];
+while ($row = $getProtection->fetch_assoc()) {
+    $settings[] = $row;
+}
 $currentSettings = isset($settings[0]['url_blocking']) ? $settings[0]['url_blocking'] : 'False';
 
 // Fetch whitelist and blacklist links
-$whitelistLinks = $db->query("SELECT link FROM link_whitelist")->fetchAll(PDO::FETCH_ASSOC);
-$blacklistLinks = $db->query("SELECT link FROM link_blacklisting")->fetchAll(PDO::FETCH_ASSOC);
+$whitelistLinks = [];
+$res = $db->query("SELECT link FROM link_whitelist");
+while ($row = $res->fetch_assoc()) {
+    $whitelistLinks[] = $row;
+}
+$blacklistLinks = [];
+$res = $db->query("SELECT link FROM link_blacklisting");
+while ($row = $res->fetch_assoc()) {
+    $blacklistLinks[] = $row;
+}
 
 // Update database with settings
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -14,12 +25,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['url_blocking'])) {
         $url_blocking = $_POST['url_blocking'] == 'True' ? 'True' : 'False';
         $stmt = $db->prepare("UPDATE protection SET url_blocking = ?");
-        $stmt->bindParam(1, $url_blocking, PDO::PARAM_STR);
+        $stmt->bind_param("s", $url_blocking);
         if ($stmt->execute()) {
             $message .= "URL Blocking setting updated successfully.<br>";
         } else {
             $message .= "Failed to update your URL Blocking settings.<br>";
-            error_log("Error updating URL blocking: " . implode(", ", $stmt->errorInfo()));
+            error_log("Error updating URL blocking: " . implode(", ", $stmt->error_list));
         }
     } else {
         $message .= "Please select either True or False.<br>";
@@ -29,12 +40,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['whitelist_link'])) {
         $whitelist_link = $_POST['whitelist_link'];
         $stmt = $db->prepare("INSERT INTO link_whitelist (link) VALUES (?)");
-        $stmt->bindParam(1, $whitelist_link, PDO::PARAM_STR);
+        $stmt->bind_param("s", $whitelist_link);
         if ($stmt->execute()) {
             $message .= "Link added to the whitelist.<br>";
         } else {
             $message .= "Failed to add the link to the whitelist.<br>";
-            error_log("Error inserting whitelist link: " . implode(", ", $stmt->errorInfo()));
+            error_log("Error inserting whitelist link: " . implode(", ", $stmt->error_list));
         }
     }
 
@@ -42,12 +53,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['blacklist_link'])) {
         $blacklist_link = $_POST['blacklist_link'];
         $stmt = $db->prepare("INSERT INTO link_blacklisting (link) VALUES (?)");
-        $stmt->bindParam(1, $blacklist_link, PDO::PARAM_STR);
+        $stmt->bind_param("s", $blacklist_link);
         if ($stmt->execute()) {
             $message .= "Link added to the blacklist.<br>";
         } else {
             $message .= "Failed to add the link to the blacklist.<br>";
-            error_log("Error inserting blacklist link: " . implode(", ", $stmt->errorInfo()));
+            error_log("Error inserting blacklist link: " . implode(", ", $stmt->error_list));
         }
     }
 
@@ -55,12 +66,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['remove_whitelist_link'])) {
         $remove_whitelist_link = $_POST['remove_whitelist_link'];
         $stmt = $db->prepare("DELETE FROM link_whitelist WHERE link = ?");
-        $stmt->bindParam(1, $remove_whitelist_link, PDO::PARAM_STR);
+        $stmt->bind_param("s", $remove_whitelist_link);
         if ($stmt->execute()) {
             $message .= "Link removed from the whitelist.<br>";
         } else {
             $message .= "Failed to remove the link from the whitelist.<br>";
-            error_log("Error deleting whitelist link: " . implode(", ", $stmt->errorInfo()));
+            error_log("Error deleting whitelist link: " . implode(", ", $stmt->error_list));
         }
     }
 
@@ -68,12 +79,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['remove_blacklist_link'])) {
         $remove_blacklist_link = $_POST['remove_blacklist_link'];
         $stmt = $db->prepare("DELETE FROM link_blacklisting WHERE link = ?");
-        $stmt->bindParam(1, $remove_blacklist_link, PDO::PARAM_STR);
+        $stmt->bind_param("s", $remove_blacklist_link);
         if ($stmt->execute()) {
             $message .= "Link removed from the blacklist.<br>";
         } else {
             $message .= "Failed to remove the link from the blacklist.<br>";
-            error_log("Error deleting blacklist link: " . implode(", ", $stmt->errorInfo()));
+            error_log("Error deleting blacklist link: " . implode(", ", $stmt->error_list));
         }
     }
 }

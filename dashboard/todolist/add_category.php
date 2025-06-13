@@ -1,31 +1,33 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/../lang/i18n.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['access_token'])) {
-  header('Location: ../login.php');
-  exit();
+    header('Location: ../login.php');
+    exit();
 }
 
 // Page Title
-$title = "YourListOnline - Add Category";
+$pageTitle = t('todolist_add_category_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include '../userdata.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include '../bot_control.php';
+include "../mod_access.php";
+include '../user_db.php';
+include '../storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
-
-// Include the secondary database connection
-include 'database.php';
 
 // Initialize variables
 $category = "";
@@ -70,75 +72,64 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
   }
 }
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><?php echo $title; ?></title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="../css/bulma-custom.css">
-  <link rel="icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png" type="image/png" />
-  <link rel="apple-touch-icon" href="https://yourlistonline.yourcdnonline.com/img/logo.png">
-</head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
 
-<div class="container">
-  <br>
-  <?php if ($message): ?>
-    <div class="notification <?php echo $messageType; ?>"> 
-      <div class="columns is-vcentered">
-        <div class="column is-narrow">
-          <span class="icon is-large"> 
-            <?php if ($messageType === 'is-danger'): ?>
-              <i class="fas fa-exclamation-triangle fa-2x"></i>
-            <?php elseif ($messageType === 'is-warning'): ?>
-              <i class="fas fa-exclamation-circle fa-2x"></i>
-            <?php elseif ($messageType === 'is-success'): ?>
-              <i class="fas fa-check-circle fa-2x"></i>
-            <?php else: ?>
-              <i class="fas fa-info-circle fa-2x"></i>
+ob_start();
+?>
+<div class="columns is-centered">
+  <div class="column">
+    <div class="card" style="border-radius: 18px;">
+      <header class="card-header">
+        <p class="card-header-title is-size-4">
+          <span class="icon"><i class="fas fa-folder-plus"></i></span>
+          <span class="ml-2">Add New Category</span>
+        </p>
+      </header>
+      <div class="card-content" style="padding: 2.5rem;">
+        <?php if ($message): ?>
+          <div class="notification <?php echo $messageType; ?>">
+            <span class="icon is-medium">
+              <?php if ($messageType === 'is-danger'): ?>
+                <i class="fas fa-exclamation-triangle"></i>
+              <?php elseif ($messageType === 'is-warning'): ?>
+                <i class="fas fa-exclamation-circle"></i>
+              <?php elseif ($messageType === 'is-success'): ?>
+                <i class="fas fa-check-circle"></i>
+              <?php else: ?>
+                <i class="fas fa-info-circle"></i>
+              <?php endif; ?>
+            </span>
+            <span><?php echo $message; ?></span>
+          </div>
+        <?php endif; ?>
+        <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
+          <h3 class="title is-4 mb-4">Type in what your new category will be:</h3>
+          <div class="field <?php echo (!empty($category_err)) ? 'has-error' : ''; ?>">
+            <label class="label" for="category">Category Name</label>
+            <div class="control has-icons-left">
+              <input type="text" name="category" id="category" class="input is-rounded is-medium" value="<?php echo htmlspecialchars($category); ?>" placeholder="e.g. Work, Personal, Shopping">
+              <span class="icon is-left">
+                <i class="fas fa-folder"></i>
+              </span>
+            </div>
+            <?php if (!empty($category_err)): ?>
+              <p class="help is-danger"><?php echo $category_err; ?></p>
             <?php endif; ?>
-          </span>
-        </div>
-        <div class="column">
-          <p><?php echo $message; ?></p> 
-        </div>
+          </div>
+          <div class="field is-grouped is-grouped-right mt-5">
+            <div class="control">
+              <input type="submit" class="button is-primary is-medium is-rounded px-5" value="Submit">
+            </div>
+            <div class="control">
+              <a href="categories.php" class="button is-light is-medium is-rounded px-5">Cancel</a>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
-  <?php endif; ?>
-  <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-    <h3 class="title is-3">Type in what your new category will be:</h3>
-    <div class="field <?php echo (!empty($category_err)) ? 'has-error' : ''; ?>">
-      <div class="control">
-        <input type="text" name="category" class="input" value="<?php echo htmlspecialchars($category); ?>">
-      </div>
-      <p class="help is-danger"><?php echo $category_err; ?></p> 
-    </div>
-    <div class="field">
-      <div class="control">
-        <input type="submit" class="button is-primary" value="Submit">
-        <a href="categories.php" class="button is-light">Cancel</a>
-      </div>
-    </div>
-  </form>
+  </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/js/bulma.min.js"></script>
-<script src="../js/about.js" defer></script>
-<script>
-  // JavaScript function to handle the category filter change
-  document.getElementById("categoryFilter").addEventListener("change", function() {
-    var selectedCategoryId = this.value;
-    // Redirect to the page with the selected category filter
-    window.location.href = "dashboard.php?category=" + selectedCategoryId;
-  });
-</script>
-</body>
-</html>
+<?php
+$content = ob_get_clean();
+include 'layout_todolist.php';
+?>

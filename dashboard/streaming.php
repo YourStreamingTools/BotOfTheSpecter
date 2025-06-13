@@ -1,6 +1,7 @@
-<?php 
-// Initialize the session
+<?php
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 $today = new DateTime();
 
 // Check if the user is logged in
@@ -10,25 +11,34 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$title = "Streaming Settings";
+$pageTitle = t('streaming_settings_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 $billing_conn = new mysqli($servername, $username, $password, "fossbilling");
 include "/var/www/config/ssh.php";
 include "/var/www/config/object_storage.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
-include 'user_db.php';
+include 'bot_control.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-    $timezone = $profile['timezone'];
-    $weather = $profile['weather_location'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 
 // Check connection
 if ($billing_conn->connect_error) {
     die("Billing connection failed: " . $billing_conn->connect_error);
+}
+$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+if ($db->connect_error) {
+    die('Connection failed: ' . $db->connect_error);
 }
 
 // Check subscription status
@@ -68,32 +78,36 @@ $billing_conn->close();
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $twitch_key = $_POST['twitch_key'];
     $forward_to_twitch = isset($_POST['forward_to_twitch']) ? 1 : 0;
-
-    // Update the database with the new settings
     $stmt = $db->prepare("INSERT INTO streaming_settings (id, twitch_key, forward_to_twitch) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE twitch_key = VALUES(twitch_key), forward_to_twitch = VALUES(forward_to_twitch)");
     if ($stmt === false) {
         die('Prepare failed: ' . htmlspecialchars($db->error));
     }
-    $stmt->bindValue(1, $twitch_key, PDO::PARAM_STR);
-    $stmt->bindValue(2, $forward_to_twitch, PDO::PARAM_INT);
+    $stmt->bind_param("si", $twitch_key, $forward_to_twitch);
     if ($stmt->execute() === false) {
-        die('Execute failed: ' . htmlspecialchars($stmt->errorInfo()[2]));
+        die('Execute failed: ' . htmlspecialchars($stmt->error));
     }
-    $stmt->closeCursor();
+    $stmt->close();
     // Set session variable to indicate success
     $_SESSION['settings_saved'] = true;
     header('Location: streaming.php');
     exit();
 }
 
-// Fetch current settings
-$result = $db->query("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1");
-if ($result === false) {
-    die('Query failed: ' . htmlspecialchars($db->error));
+// Fetch current settings using MySQLi
+$stmt = $db->prepare("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1");
+if ($stmt === false) {
+    die('Prepare failed: ' . htmlspecialchars($db->error));
 }
-$current_settings = $result->fetch(PDO::FETCH_ASSOC);
-$twitch_key = $current_settings['twitch_key'] ?? '';
-$forward_to_twitch = $current_settings['forward_to_twitch'] ?? 1;
+$stmt->execute();
+$stmt->bind_result($twitch_key_db, $forward_to_twitch_db);
+if ($stmt->fetch()) {
+    $twitch_key = $twitch_key_db ?? '';
+    $forward_to_twitch = $forward_to_twitch_db ?? 1;
+} else {
+    $twitch_key = '';
+    $forward_to_twitch = 1;
+}
+$stmt->close();
 
 // Function to get files from the storage server
 function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key, $recording_dir) {
@@ -211,17 +225,6 @@ use Aws\Exception\AwsException;
 // Check for cookie consent
 $cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
 
-// Initialize S3 client for AWS
-$s3Client = new S3Client([
-    'version' => 'latest',
-    'region' => 'us-east-1',
-    'endpoint' => "https://" . $bucket_url,
-    'credentials' => [
-        'key' => $access_key,
-        'secret' => $secret_key
-    ]
-]);
-
 // Get files when the server is selected
 $storage_files = [];
 $storage_error = null;
@@ -234,30 +237,54 @@ if (isset($_GET['server']) && $cookieConsent) {
     setcookie('selectedStreamServer', $_GET['server'], time() + (86400 * 30), "/"); // Cookie for 30 days
 }
 
+// Initialize S3 client based on selected server region
+if ($selected_server == 'au-east-1') {
+    $s3Client = new S3Client([
+        'version' => 'latest',
+        'region' => 'us-east-1',
+        'endpoint' => "https://" . $au_s3_bucket_url,
+        'credentials' => [
+            'key' => $au_s3_access_key,
+            'secret' => $au_s3_secret_key
+        ]
+    ]);
+} else {
+    // US servers (us-west-1 and us-east-1)
+    $s3Client = new S3Client([
+        'version' => 'latest',
+        'region' => 'us-east-1',
+        'endpoint' => "https://" . $us_s3_bucket_url,
+        'credentials' => [
+            'key' => $us_s3_access_key,
+            'secret' => $us_s3_secret_key
+        ]
+    ]);
+}
+
 $server_info = [
     'au-east-1' => [
         'name' => 'AU-EAST-1',
-        'rtmps_url' => 'rtmps://au-east-1.stream.botofthespecter.com:1935'
+        'rtmps_url' => 'rtmps://au-east-1.botofthespecter.video:1935'
     ],
     'us-west-1' => [
         'name' => 'US-WEST-1',
-        'rtmps_url' => 'rtmps://us-west-1.stream.botofthespecter.com:1935'
+        'rtmps_url' => 'rtmps://us-west-1.botofthespecter.video:1935'
     ],
     'us-east-1' => [
         'name' => 'US-EAST-1',
-        'rtmps_url' => 'rtmps://us-east-1.stream.botofthespecter.com:1935'
+        'rtmps_url' => 'rtmps://us-east-1.botofthespecter.video:1935'
     ]
 ];
 $server_rtmps_url = $server_info[$selected_server]['rtmps_url'] ?? 'Unknown';
 
 if ($selected_server == 'au-east-1') {
-    $recording_dir = "/root/"; // Base directory for AU-EAST-1
-    $user_dir = "/root/$username";  // User-specific directory for AU-EAST-1
-    if (!empty($storage_server_au_east_1_host) && !empty($storage_server_au_east_1_username) && !empty($storage_server_au_east_1_password)) {
+    $recording_dir = "/mnt/s3/bots-stream/"; // Base directory for AU-EAST-1
+    $user_dir = "/mnt/s3/bots-stream/$username";  // User-specific directory for AU-EAST-1
+    if (!empty($stream_au_east_1_host) && !empty($stream_au_east_1_username) && !empty($stream_au_east_1_password)) {
         $result = getStorageFiles(
-            $storage_server_au_east_1_host, 
-            $storage_server_au_east_1_username, 
-            $storage_server_au_east_1_password, 
+            $stream_au_east_1_host, 
+            $stream_au_east_1_username, 
+            $stream_au_east_1_password, 
             $user_dir,
             $api_key,
             $recording_dir
@@ -271,13 +298,13 @@ if ($selected_server == 'au-east-1') {
         $storage_error = "AU-EAST-1 server connection information not configured.";
     }
 } elseif ($selected_server == 'us-west-1') {
-    $recording_dir = "/mnt/stream-us-west-1/"; // Base directory for US-WEST-1
-    $user_dir = "/mnt/stream-us-west-1/$username";  // User-specific directory for US-WEST-1
-    if (!empty($storage_server_us_west_1_host) && !empty($storage_server_us_west_1_username) && !empty($storage_server_us_west_1_password)) {
+    $recording_dir = "/mnt/s3/bots-stream/"; // Base directory for US-WEST-1
+    $user_dir = "/mnt/s3/bots-stream/$username";  // User-specific directory for US-WEST-1
+    if (!empty($stream_us_west_1_host) && !empty($stream_us_west_1_username) && !empty($stream_us_west_1_password)) {
         $result = getStorageFiles(
-            $storage_server_us_west_1_host, 
-            $storage_server_us_west_1_username, 
-            $storage_server_us_west_1_password, 
+            $stream_us_west_1_host, 
+            $stream_us_west_1_username, 
+            $stream_us_west_1_password, 
             $user_dir,
             $api_key,
             $recording_dir
@@ -291,13 +318,13 @@ if ($selected_server == 'au-east-1') {
         $storage_error = "US-WEST-1 server connection information not configured.";
     }
 } elseif ($selected_server == 'us-east-1') {
-    $recording_dir = "/mnt/stream-us-east-1/"; // Base directory for US-EAST-1
-    $user_dir = "/mnt/stream-us-east-1/$username";  // User-specific directory for US-EAST-1
-    if (!empty($storage_server_us_east_1_host) && !empty($storage_server_us_east_1_username) && !empty($storage_server_us_east_1_password)) {
+    $recording_dir = "/mnt/s3/bots-stream/"; // Base directory for US-EAST-1
+    $user_dir = "/mnt/s3/bots-stream/$username";  // User-specific directory for US-EAST-1
+    if (!empty($stream_us_east_1_host) && !empty($stream_us_east_1_username) && !empty($stream_us_east_1_password)) {
         $result = getStorageFiles(
-            $storage_server_us_east_1_host, 
-            $storage_server_us_east_1_username, 
-            $storage_server_us_east_1_password, 
+            $stream_us_east_1_host, 
+            $stream_us_east_1_username, 
+            $stream_us_east_1_password, 
             $user_dir,
             $api_key,
             $recording_dir
@@ -313,147 +340,162 @@ if ($selected_server == 'au-east-1') {
 } else {
     $storage_error = "Invalid server selected.";
 }
-?>
-<!doctype html>
-<html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
 
-<div class="container">
-    <br>
-    <div class="notification is-primary">
-        <p class="has-text-weight-bold has-text-black">Complementary Streaming Service</p>
-        <p class="has-text-black">We’re excited to offer this streaming feature as a complimentary service for all Specter users. You have several options to make the most of this feature:</p>
-        <ul style="list-style-type: disc; padding-left: 20px;">
-            <li class="has-text-black">Record your streams and simultaneously forward them to Twitch.</li>
-            <li class="has-text-black">Use our service as a secondary output for your streams via multi-streaming, specifically for recording only.</li>
-        </ul>
-        <p class="has-text-black">You can choose the option that best fits your streaming needs and enhance your experience.</p>
-        <hr>
-        <p class="has-text-weight-bold has-text-black">Important Storage Information:</p>
-        <ul style="list-style-type: disc; padding-left: 20px;">
-            <li class="has-text-black">Recorded streams are stored for 24 hours after the stream ends.</li>
-            <li class="has-text-black">After 24 hours, recorded files will be automatically removed due to storage limitations.</li>
-        </ul>
-        <div style="position: relative; min-height: 150px;">
-            <p class="has-text-weight-bold has-text-black">Server Locations:</p>
-            <ul style="list-style-type: disc; padding-left: 20px;">
-                <li class="has-text-black">Current server locations:
-                    <ul style="list-style-type: circle; padding-left: 20px;">
-                        <li class="has-text-black">AU EAST (Sydney, Australia)</li>
-                        <li class="has-text-black">US WEST (Hillsboro, Oregon)</li>
-                        <li class="has-text-black">US EAST (Ashburn, Virginia)</li>
-                    </ul>
-                </li>
-                <li class="has-text-black">Coming soon:
-                    <ul style="list-style-type: circle; padding-left: 20px;">
-                        <li class="has-text-black">EU CENTRAL (Nuremberg, Germany)</li>
-                    </ul>
-                </li>
-            </ul>
-            <div style="position: absolute; bottom: 0; right: 0;">
-                <form method="get" id="server-selection-form">
-                    <div class="field is-horizontal">
-                        <div class="field-label is-normal"><label class="has-text-black has-text-weight-bold">Server:</label></div>
-                        <div class="field-body">
-                            <div class="field">
-                                <div class="control">
-                                    <div class="select">
-                                        <select id="server-location" name="server" onchange="document.getElementById('server-selection-form').submit();">
-                                            <option value="au-east-1" <?php echo $selected_server == 'au-east-1' ? 'selected' : ''; ?>>AU-EAST-1</option>
-                                            <option value="us-west-1" <?php echo $selected_server == 'us-west-1' ? 'selected' : ''; ?>>US-WEST-1</option>
-                                            <option value="us-east-1" <?php echo $selected_server == 'us-east-1' ? 'selected' : ''; ?>>US-EAST-1</option>
-                                            <!-- Additional server options can be added in the future -->
-                                        </select>
-                                    </div>
+// Start output buffering for layout
+ob_start();
+?>
+<div class="columns is-variable is-8 is-multiline">
+    <div class="column is-12">
+        <div class="card mb-5">
+            <header class="card-header">
+                <p class="card-header-title is-size-5">
+                    <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
+                    <?= t('streaming_service_overview_title') ?>
+                </p>
+            </header>
+            <div class="card-content" style="position:relative;">
+                <div class="columns is-variable is-6 is-multiline">
+                    <div class="column is-7-tablet is-8-desktop">
+                        <div class="content">
+                            <p>
+                                <?= t('streaming_service_intro') ?>
+                            </p>
+                            <ul class="mb-2">
+                                <li><?= t('streaming_service_option_record_and_forward') ?></li>
+                                <li><?= t('streaming_service_option_multistream_record') ?></li>
+                            </ul>
+                            <p>
+                                <span class="has-text-weight-semibold"><?= t('streaming_storage_info_title') ?></span>
+                            </p>
+                            <ul>
+                                <li><?= t('streaming_storage_info_retention') ?></li>
+                                <li><?= t('streaming_storage_info_deletion') ?></li>
+                            </ul>
+                            <div class="mt-4">
+                                <span class="has-text-weight-semibold"><?= t('streaming_server_locations_title') ?></span>
+                                <ul>
+                                    <li><?= t('streaming_server_locations_current') ?></li>
+                                    <li><?= t('streaming_server_locations_coming_soon') ?></li>
+                                </ul>
+                                <div class="mt-2">
+                                    <span class="has-text-weight-semibold"><?= t('streaming_rtmps_url_label') ?></span>
+                                    <code class="ml-2"><?php echo htmlspecialchars($server_rtmps_url); ?></code>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </form>
+                    <div class="column is-5-tablet is-4-desktop">
+                        <div class="content">
+                            <h2 class="is-size-5 mb-3"><span class="icon mr-2"><i class="fas fa-cog"></i></span><?= t('streaming_settings_title') ?></h2>
+                            <?php if (isset($_SESSION['settings_saved'])): ?>
+                                <?php unset($_SESSION['settings_saved']); ?>
+                                <div class="notification is-success is-light mb-4">
+                                    <?= t('streaming_settings_saved_success') ?>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (isset($_SESSION['delete_status'])): ?>
+                                <?php $delete_status = $_SESSION['delete_status']; unset($_SESSION['delete_status']); ?>
+                                <div class="notification <?= $delete_status['success'] ? 'is-success' : 'is-danger' ?> is-light mb-4">
+                                    <?= htmlspecialchars($delete_status['message']) ?>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (isset($_SESSION['edit_status'])): ?>
+                                <?php $edit_status = $_SESSION['edit_status']; unset($_SESSION['edit_status']); ?>
+                                <div class="notification <?= $edit_status['success'] ? 'is-success' : 'is-danger' ?> is-light mb-4">
+                                    <?= htmlspecialchars($edit_status['message']) ?>
+                                </div>
+                            <?php endif; ?>
+                            <form method="post" action="">
+                                <div class="field">
+                                    <label class="label" for="twitch_key"><?= t('streaming_twitch_key_label') ?></label>
+                                    <div class="field is-grouped" style="align-items:stretch;">
+                                        <div class="control is-expanded" style="position:relative;">
+                                            <input
+                                                type="password"
+                                                class="input"
+                                                id="twitch_key"
+                                                name="twitch_key"
+                                                value="<?php echo htmlspecialchars($twitch_key); ?>"
+                                                <?php echo !empty($twitch_key) ? 'readonly' : ''; ?>
+                                                required
+                                                style="padding-right:2.75em;"
+                                            >
+                                            <?php if (!empty($twitch_key)): ?>
+                                            <button
+                                                type="button"
+                                                id="toggle-twitch_btn"
+                                                class="button is-white"
+                                                style="position:absolute;top:0;right:0;height:100%;border:none;padding:0 0.75em;display:flex;align-items:center;justify-content:center;box-shadow:none;"
+                                                tabindex="0"
+                                                aria-label="<?= t('streaming_show_hide_twitch_key') ?>"
+                                            >
+                                                <span class="icon" id="toggle-twitch_icon"><i class="fas fa-eye"></i></span>
+                                            </button>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <div class="control">
+                                        <label class="checkbox" for="forward_to_twitch">
+                                            <input type="checkbox" id="forward_to_twitch" name="forward_to_twitch" <?php echo $forward_to_twitch ? 'checked' : ''; ?>>
+                                            <?= t('streaming_forward_to_twitch_label') ?>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="field is-grouped is-grouped-right">
+                                    <div class="control">
+                                        <button type="submit" class="button is-primary" id="save-settings" <?php echo !empty($twitch_key) ? 'disabled' : ''; ?>><?= t('streaming_save_settings_btn') ?></button>
+                                    </div>
+                                </div>
+                            </form>
+                            <div class="mt-4">
+                                <span class="has-text-weight-semibold"><?= t('streaming_note_label') ?></span>
+                                <?= t('streaming_api_key_note') ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Server selection absolutely positioned at bottom right of the card -->
+                <div style="position:absolute; right:1.5rem; bottom:1.5rem; z-index:2;">
+                    <form method="get" id="server-selection-form">
+                        <div class="field is-grouped is-align-items-center mb-0">
+                            <label class="label mr-2 mb-0"><?= t('streaming_server_label') ?></label>
+                            <div class="control">
+                                <div class="select">
+                                    <select id="server-location" name="server" onchange="document.getElementById('server-selection-form').submit();">
+                                        <option value="au-east-1" <?php echo $selected_server == 'au-east-1' ? 'selected' : ''; ?>>AU-EAST-1</option>
+                                        <option value="us-west-1" <?php echo $selected_server == 'us-west-1' ? 'selected' : ''; ?>>US-WEST-1</option>
+                                        <option value="us-east-1" <?php echo $selected_server == 'us-east-1' ? 'selected' : ''; ?>>US-EAST-1</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-    <h1 class="title">Streaming Settings</h1>
-    <?php if (isset($_SESSION['settings_saved'])): ?>
-        <?php unset($_SESSION['settings_saved']); ?>
-        <div class="notification is-success">
-            Settings have been successfully saved.
-        </div>
-    <?php endif; ?>
-    <div class="columns is-desktop is-multiline is-centered box-container">
-        <div class="column is-5" style="position: relative;">
-            <div class="notification is-info">
-                <span class="has-text-weight-bold">Streaming Instructions:</span>
-                <ul>
-                    <li>Retrieve your Twitch Stream Key from your account settings.</li>
-                    <li>Enter the key below and choose whether to forward it to Twitch.</li>
-                    <li>Click "Save Settings".</li>
-                </ul>
-                <br>
-                <span class="has-text-weight-bold">Note: Your API Key (found on your profile) serves as the stream key for our servers.</span>
-                <span class="has-text-weight-bold">RTMPS URL for Selected Server:</span>
-                <br>
-                <code><?php echo htmlspecialchars($server_rtmps_url); ?></code>
-            </div>
-        </div>
-        <div class="column is-5 bot-box" style="position: relative;">
-            <form method="post" action="">
-                <div class="field">
-                    <label class="has-text-white has-text-left" for="twitch_key">Twitch Stream Key</label>
-                    <div class="control">
-                        <input
-                            type="<?php echo !empty($twitch_key) ? 'password' : 'text'; ?>"
-                            class="input"
-                            id="twitch_key"
-                            name="twitch_key"
-                            value="<?php echo htmlspecialchars($twitch_key); ?>"
-                            <?php echo !empty($twitch_key) ? 'readonly' : ''; ?>
-                            required
-                        >
-                    </div>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <label class="checkbox" for="forward_to_twitch">
-                            <input type="checkbox" id="forward_to_twitch" name="forward_to_twitch" <?php echo $forward_to_twitch ? 'checked' : ''; ?>>
-                            Forward to Twitch
-                        </label>
-                    </div>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <button type="submit" class="button is-primary" id="save-settings" <?php echo !empty($twitch_key) ? 'disabled' : ''; ?>>Save Settings</button>
-                        <button type="button" id="toggle-twitch_btn" class="button is-info is-outlined is-rounded" style="margin-left: 10px;<?php echo empty($twitch_key) ? 'display:none;' : ''; ?>">
-                            <span class="icon"><i class="fas fa-eye"></i></span>
-                            <span>Show Key</span>
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-    <!-- Downloads section -->
-    <div class="columns is-desktop is-multiline is-centered box-container">
-        <div class="column is-10 bot-box">
-            <h2 class="subtitle has-text-white">Your Recorded Streams</h2>
+</div>
+<div class="block mb-5">
+    <div class="card">
+        <header class="card-header">
+            <p class="card-header-title is-size-5">
+                <span class="icon mr-2"><i class="fas fa-video"></i></span>
+                <?= t('streaming_recorded_streams_title') ?>
+            </p>
+        </header>
+        <div class="card-content">
             <div class="table-container">
-                <table class="table is-fullwidth">
+                <table class="table is-fullwidth is-hoverable is-striped">
                     <thead>
                         <tr>
-                            <th class="has-text-centered" style="width: 150px;">Title</th>
-                            <th class="has-text-centered" style="width: 90px;">Duration</th>
-                            <th class="has-text-centered">Archive Creation Time</th>
-                            <th class="has-text-centered">File Size</th>
-                            <th class="has-text-centered">Deletion Countdown</th>
-                            <th class="has-text-centered">Actions</th>
+                            <th class="has-text-centered" style="width: 150px;"><?= t('streaming_table_title') ?></th>
+                            <th class="has-text-centered" style="width: 90px;"><?= t('streaming_table_duration') ?></th>
+                            <th class="has-text-centered"><?= t('streaming_table_creation_time') ?></th>
+                            <th class="has-text-centered"><?= t('streaming_table_file_size') ?></th>
+                            <th class="has-text-centered"><?= t('streaming_table_deletion_countdown') ?></th>
+                            <th class="has-text-centered"><?= t('streaming_table_actions') ?></th>
                         </tr>
                     </thead>
                     <tbody id="filesTableBody">
@@ -461,26 +503,25 @@ if ($selected_server == 'au-east-1') {
                         if ($storage_error) {
                             echo '<tr><td colspan="6" class="has-text-centered has-text-danger">' . htmlspecialchars($storage_error) . '</td></tr>';
                         } elseif (empty($storage_files)) {
-                            echo '<tr><td colspan="6" class="has-text-centered">No recorded streams available.</td></tr>';
+                            echo '<tr><td colspan="6" class="has-text-centered">' . t('streaming_no_recorded_streams') . '</td></tr>';
                         } else {
                             foreach ($storage_files as $file) {
                                 echo '<tr>';
-                                // Check if this is a recording in progress
                                 if (isset($file['is_recording']) && $file['is_recording']) {
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">';
-                                    echo '<span class="has-text-weight-bold has-text-danger">RECORDING IN PROGRESS</span>';
+                                    echo '<span class="has-text-weight-bold has-text-danger">' . t('streaming_recording_in_progress') . '</span>';
                                     echo '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">N/A</td>';
-                                    echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="has-text-grey">No actions available</span></td>';
+                                    echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="has-text-grey">' . t('streaming_no_actions_available') . '</span></td>';
                                 } else {
                                     $title = pathinfo($file['name'], PATHINFO_FILENAME);
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">';
                                     echo htmlspecialchars($title);
                                     if (isset($file['recently_converted']) && $file['recently_converted']) {
-                                        echo ' <span class="tag is-success is-light conversion-tag">Recently Converted</span>';
+                                        echo ' <span class="tag is-success is-light conversion-tag">' . t('streaming_recently_converted') . '</span>';
                                     }
                                     echo '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['duration']) . '</td>';
@@ -488,12 +529,13 @@ if ($selected_server == 'au-east-1') {
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
                                     echo '<td class="has-text-centered" style="vertical-align: middle;">';
-                                    echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="Watch the video"><i class="fas fa-play"></i></a> ';
-                                    echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Download the video file"><i class="fas fa-download"></i></a> ';
+                                    echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="' . t('streaming_action_watch_video') . '"><i class="fas fa-play"></i></a> ';
+                                    echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_download_video') . '"><i class="fas fa-download"></i></a> ';
                                     if ($is_subscribed): ?>
-                                        <a class="upload-to-s3 action-icon" data-server="<?php echo $selected_server; ?>" data-file="<?php echo urlencode($file['name']); ?>" title="Upload to Persistent Storage"><i class="fas fa-cloud-upload-alt"></i></a>
+                                        <a class="upload-to-s3 action-icon" data-server="<?php echo $selected_server; ?>" data-file="<?php echo urlencode($file['name']); ?>" title="<?= t('streaming_action_upload_persistent') ?>"><i class="fas fa-cloud-upload-alt"></i></a>
                                     <?php endif;
-                                    echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="Delete the video file" onclick="return confirm(\'Are you sure you want to delete this file?\');"><i class="fas fa-trash"></i></a>';
+                                    echo '<a href="#" class="edit-video action-icon" data-file="' . htmlspecialchars($file['name']) . '" data-title="' . htmlspecialchars($title) . '" data-server="' . $selected_server . '" title="' . t('streaming_action_edit_title') . '"><i class="fas fa-edit"></i></a> ';
+                                    echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_delete_video') . '" onclick="return confirm(\'' . t('streaming_confirm_delete_file') . '\');"><i class="fas fa-trash"></i></a>';
                                     echo '</td>';
                                 }
                                 echo '</tr>';
@@ -505,19 +547,18 @@ if ($selected_server == 'au-east-1') {
             </div>
         </div>
     </div>
-    
-    <!-- Add a link to the persistent storage page for subscribers -->
-    <div class="columns is-desktop is-multiline is-centered box-container">
-        <div class="column is-10">
-            <div class="notification is-info">
-                <p class="has-text-black has-text-weight-bold">Need long-term storage for your streams?</p>
-                <p class="has-text-black">Access your persistent storage from the dedicated page:</p>
-                <a href="persistent_storage.php" class="button is-primary mt-2">
-                    <span class="icon"><i class="fas fa-archive"></i></span>
-                    <span>Go to Persistent Storage</span>
-                </a>
-            </div>
+</div>
+<div class="block mt-5">
+    <div class="notification is-info is-light is-flex is-align-items-center is-justify-content-space-between">
+        <div>
+            <span class="icon mr-2"><i class="fas fa-archive"></i></span>
+            <span class="has-text-weight-semibold"><?= t('streaming_need_long_term_storage') ?></span>
+            <span class="ml-2"><?= t('streaming_access_persistent_storage') ?></span>
         </div>
+        <a href="persistent_storage.php" class="button is-primary is-light ml-4">
+            <span class="icon"><i class="fas fa-archive"></i></span>
+            <span><?= t('streaming_go_to_persistent_storage') ?></span>
+        </a>
     </div>
 </div>
 
@@ -534,12 +575,12 @@ if ($selected_server == 'au-east-1') {
     <div class="modal-background"></div>
     <div class="modal-card">
         <header class="modal-card-head">
-            <p class="modal-card-title">Rename Video</p>
+            <p class="modal-card-title"><?= t('streaming_rename_video_title') ?></p>
             <button class="delete" aria-label="close"></button>
         </header>
         <section class="modal-card-body">
             <div class="field">
-                <label class="label">New Title</label>
+                <label class="label"><?= t('streaming_new_title_label') ?></label>
                 <div class="control">
                     <input class="input" type="text" id="edit-title-input">
                     <input type="hidden" id="edit-file-input">
@@ -548,12 +589,16 @@ if ($selected_server == 'au-east-1') {
             </div>
         </section>
         <footer class="modal-card-foot">
-            <button class="button is-success" id="save-edit-btn">Rename</button>
-            <button class="button" id="cancel-edit-btn">Cancel</button>
+            <button class="button is-success" id="save-edit-btn"><?= t('streaming_rename_btn') ?></button>
+            <button class="button" id="cancel-edit-btn"><?= t('streaming_cancel_btn') ?></button>
         </footer>
     </div>
 </div>
-<br><br><br>
+<?php
+$content = ob_get_clean();
+
+ob_start();
+?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Existing countdown code
@@ -634,7 +679,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var server = serverInput.value;
         
         if (newTitle === '') {
-            alert('Please enter a valid title');
+            alert('<?= t('streaming_enter_valid_title') ?>');
             return;
         }
         
@@ -649,7 +694,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('File renamed successfully!');
+                alert('<?= t('streaming_file_renamed_success') ?>');
                 location.reload(); // Reload the page to see changes
             } else {
                 alert('Error: ' + data.message);
@@ -658,7 +703,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred while renaming the file.');
+            alert('<?= t('streaming_file_rename_error') ?>');
             closeEditModal();
         });
     });
@@ -679,12 +724,12 @@ document.addEventListener('DOMContentLoaded', function() {
             var server = this.getAttribute('data-server');
             var file = this.getAttribute('data-file');
             Swal.fire({
-                title: 'Upload to Persistent Storage',
-                text: 'Are you sure you want to upload this file to persistent storage?',
+                title: '<?= t('streaming_upload_to_persistent_title') ?>',
+                text: '<?= t('streaming_upload_to_persistent_text') ?>',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Yes, upload it',
-                cancelButtonText: 'Cancel'
+                confirmButtonText: '<?= t('streaming_upload_to_persistent_confirm') ?>',
+                cancelButtonText: '<?= t('streaming_cancel_btn') ?>'
             }).then((result) => {
                 if (result.isConfirmed) {
                     fetch('upload_to_s3.php', {
@@ -697,15 +742,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire('Success', 'File uploaded successfully!', 'success');
+                            Swal.fire('<?= t('streaming_success_title') ?>', '<?= t('streaming_file_uploaded_success') ?>', 'success');
                             refreshTable(); // Refresh the table to reflect changes
                         } else {
-                            Swal.fire('Error', data.message, 'error');
+                            Swal.fire('<?= t('streaming_error_title') ?>', data.message, 'error');
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        Swal.fire('Error', 'An error occurred while uploading the file.', 'error');
+                        Swal.fire('<?= t('streaming_error_title') ?>', '<?= t('streaming_file_upload_error') ?>', 'error');
                     });
                 }
             });
@@ -733,7 +778,7 @@ function refreshTable() {
             }
         })
         .catch(error => {
-            console.error('Error fetching updated stream data:', error);
+            console.error('<?= t('streaming_error_fetching_updated_data') ?>', error);
         });
 }
 
@@ -779,53 +824,43 @@ document.addEventListener('DOMContentLoaded', function() {
     var toggleBtn = document.getElementById('toggle-twitch_btn');
     var twitchInput = document.getElementById('twitch_key');
     var saveBtn = document.getElementById('save-settings');
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', function() {
+    if (toggleBtn && twitchInput) {
+        toggleBtn.onclick = function(e) {
+            e.preventDefault();
             if (twitchInput.type === "password") {
+                // Only prompt when revealing
                 Swal.fire({
-                    title: 'Are you sure?',
-                    text: 'Warning: Revealing your Twitch Stream Key on stream can be a security risk. Be sure this screen is not shared before you continue.',
+                    title: '<?= t('streaming_show_twitch_key_title') ?>',
+                    text: '<?= t('streaming_show_twitch_key_warning') ?>',
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'Yes, show it',
-                    cancelButtonText: 'Cancel'
+                    confirmButtonText: '<?= t('streaming_show_twitch_key_confirm') ?>',
+                    cancelButtonText: '<?= t('streaming_cancel_btn') ?>'
                 }).then((result) => {
                     if(result.isConfirmed){
                         twitchInput.type = "text";
                         twitchInput.removeAttribute("readonly");
-                        toggleBtn.innerHTML = '<span class="icon"><i class="fas fa-eye-slash"></i></span><span>Hide Key</span>';
+                        toggleBtn.querySelector('i').classList.remove('fa-eye');
+                        toggleBtn.querySelector('i').classList.add('fa-eye-slash');
                         saveBtn.disabled = false;
                     }
                 });
             } else {
+                // Hide immediately, no prompt
                 twitchInput.type = "password";
                 twitchInput.setAttribute("readonly", "readonly");
-                toggleBtn.innerHTML = '<span class="icon"><i class="fas fa-eye"></i></span><span>Show Key</span>';
+                toggleBtn.querySelector('i').classList.remove('fa-eye-slash');
+                toggleBtn.querySelector('i').classList.add('fa-eye');
                 saveBtn.disabled = true;
             }
-        });
+        };
     }
 });
 
-// Function to remove the conversion tags after 10 minutes
-function updateConversionTags() {
-    var tags = document.querySelectorAll('.conversion-tag');
-    tags.forEach(function(tag) {
-        var row = tag.closest('tr');
-        var timeCell = row.querySelector('td:nth-child(3)');
-        if (timeCell) {
-            var creationTime = new Date(timeCell.textContent.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1'));
-            var now = new Date();
-            var timeDiff = (now - creationTime) / 1000 / 60;
-            // If it's been more than 10 minutes since creation, remove the tag
-            if (timeDiff > 10) {
-                tag.remove();
-            }
-        }
-    });
-}
-// Update conversion tags every minute
-setInterval(updateConversionTags, 60000);
 </script>
-</body>
-</html>
+<?php
+// Get the buffered content
+$scripts = ob_get_clean();
+// Include the layout template
+include 'layout.php';
+?>

@@ -327,6 +327,140 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['update_message'] = $status;
     }
 
+    // Handle section-specific chat alert saves
+    if (isset($_POST['section_save'])) {
+        $section = $_POST['section_save'];
+        $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+        if ($db->connect_error) {
+            die('Connection failed: ' . $db->connect_error);
+        }
+        $fieldsToUpdate = [];
+        if ($section === 'general') {
+            if (isset($_POST['follower_alert'])) $fieldsToUpdate['follower_alert'] = $_POST['follower_alert'];
+            if (isset($_POST['cheer_alert'])) $fieldsToUpdate['cheer_alert'] = $_POST['cheer_alert'];
+            if (isset($_POST['raid_alert'])) $fieldsToUpdate['raid_alert'] = $_POST['raid_alert'];
+        } elseif ($section === 'subscription') {
+            if (isset($_POST['subscription_alert'])) $fieldsToUpdate['subscription_alert'] = $_POST['subscription_alert'];
+            if (isset($_POST['gift_subscription_alert'])) $fieldsToUpdate['gift_subscription_alert'] = $_POST['gift_subscription_alert'];
+        } elseif ($section === 'hype-train') {
+            if (isset($_POST['hype_train_start'])) $fieldsToUpdate['hype_train_start'] = $_POST['hype_train_start'];
+            if (isset($_POST['hype_train_end'])) $fieldsToUpdate['hype_train_end'] = $_POST['hype_train_end'];
+        } elseif ($section === 'regular-members') {
+            // Handle regular members welcome messages
+            $db_name_local = isset($_SESSION['username']) ? $_SESSION['username'] : null;
+            $db_local = new mysqli($db_servername, $db_username, $db_password, $db_name_local);
+            if ($db_local->connect_error) {
+                echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+                exit();
+            }
+            $fieldsToUpdate = [];
+            if (isset($_POST['new_default_welcome_message'])) $fieldsToUpdate['new_default_welcome_message'] = $_POST['new_default_welcome_message'];
+            if (isset($_POST['default_welcome_message'])) $fieldsToUpdate['default_welcome_message'] = $_POST['default_welcome_message'];
+            if (!empty($fieldsToUpdate)) {
+                $updateParts = [];
+                $params = [];
+                $types = '';
+                foreach ($fieldsToUpdate as $field => $value) {
+                    $updateParts[] = "$field = ?";
+                    $params[] = $value;
+                    $types .= 's';
+                }
+                $update_sql = "UPDATE streamer_preferences SET " . implode(', ', $updateParts) . " WHERE id = 1";
+                $update_stmt = $db_local->prepare($update_sql);
+                $update_stmt->bind_param($types, ...$params);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+            $db_local->close();
+            echo json_encode(['success' => true, 'section' => $section]);
+            exit();
+        } elseif ($section === 'vip-members') {
+            // Handle VIP members welcome messages
+            $db_name_local = isset($_SESSION['username']) ? $_SESSION['username'] : null;
+            $db_local = new mysqli($db_servername, $db_username, $db_password, $db_name_local);
+            if ($db_local->connect_error) {
+                echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+                exit();
+            }
+            $fieldsToUpdate = [];
+            if (isset($_POST['new_default_vip_welcome_message'])) $fieldsToUpdate['new_default_vip_welcome_message'] = $_POST['new_default_vip_welcome_message'];
+            if (isset($_POST['default_vip_welcome_message'])) $fieldsToUpdate['default_vip_welcome_message'] = $_POST['default_vip_welcome_message'];
+            if (!empty($fieldsToUpdate)) {
+                $updateParts = [];
+                $params = [];
+                $types = '';
+                foreach ($fieldsToUpdate as $field => $value) {
+                    $updateParts[] = "$field = ?";
+                    $params[] = $value;
+                    $types .= 's';
+                }
+                $update_sql = "UPDATE streamer_preferences SET " . implode(', ', $updateParts) . " WHERE id = 1";
+                $update_stmt = $db_local->prepare($update_sql);
+                $update_stmt->bind_param($types, ...$params);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+            $db_local->close();
+            echo json_encode(['success' => true, 'section' => $section]);
+            exit();
+        } elseif ($section === 'moderators') {
+            // Handle moderators welcome messages
+            $db_name_local = isset($_SESSION['username']) ? $_SESSION['username'] : null;
+            $db_local = new mysqli($db_servername, $db_username, $db_password, $db_name_local);
+            if ($db_local->connect_error) {
+                echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+                exit();
+            }
+            $fieldsToUpdate = [];
+            if (isset($_POST['new_default_mod_welcome_message'])) $fieldsToUpdate['new_default_mod_welcome_message'] = $_POST['new_default_mod_welcome_message'];
+            if (isset($_POST['default_mod_welcome_message'])) $fieldsToUpdate['default_mod_welcome_message'] = $_POST['default_mod_welcome_message'];
+            if (isset($_POST['send_welcome_messages'])) $fieldsToUpdate['send_welcome_messages'] = $_POST['send_welcome_messages'];
+            if (!empty($fieldsToUpdate)) {
+                $updateParts = [];
+                $params = [];
+                $types = '';
+                foreach ($fieldsToUpdate as $field => $value) {
+                    $updateParts[] = "$field = ?";
+                    $params[] = $value;
+                    $types .= ($field === 'send_welcome_messages') ? 'i' : 's';
+                }
+                $update_sql = "UPDATE streamer_preferences SET " . implode(', ', $updateParts) . " WHERE id = 1";
+                $update_stmt = $db_local->prepare($update_sql);
+                $update_stmt->bind_param($types, ...$params);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+            $db_local->close();
+            echo json_encode(['success' => true, 'section' => $section]);
+            exit();
+        }
+        // Update or insert each field
+        foreach ($fieldsToUpdate as $alertType => $alertMessage) {
+            // Check if the alert type already exists
+            $checkStmt = $db->prepare("SELECT 1 FROM twitch_chat_alerts WHERE alert_type = ?");
+            $checkStmt->bind_param('s', $alertType);
+            $checkStmt->execute();
+            $checkStmt->store_result();
+            if ($checkStmt->num_rows > 0) {
+                // Update existing record
+                $updateStmt = $db->prepare("UPDATE twitch_chat_alerts SET alert_message = ? WHERE alert_type = ?");
+                $updateStmt->bind_param('ss', $alertMessage, $alertType);
+                $updateStmt->execute();
+                $updateStmt->close();
+            } else {
+                // Insert new record
+                $insertStmt = $db->prepare("INSERT INTO twitch_chat_alerts (alert_type, alert_message) VALUES (?, ?)");
+                $insertStmt->bind_param('ss', $alertType, $alertMessage);
+                $insertStmt->execute();
+                $insertStmt->close();
+            }
+            $checkStmt->close();
+        }
+        $db->close();
+        echo json_encode(['success' => true, 'section' => $section]);
+        exit();
+    }
+
     // For non-AJAX requests, redirect back to the modules page with the active tab
     if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
         header("Location: modules.php?tab=" . $activeTab);

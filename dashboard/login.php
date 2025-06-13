@@ -94,8 +94,20 @@ if (isset($_GET['code'])) {
         $email = $userInfo['data'][0]['email'] ?? '';
         $_SESSION['username'] = $twitchUsername;
         $_SESSION['twitch_user_id'] = $twitchUserId;
+        $_SESSION['profile_image'] = $profileImageUrl;
+        $_SESSION['display_name'] = $twitchDisplayName;
         // Database connect
         require_once "/var/www/config/db_connect.php";
+        // Fetch language preference if exists
+        $langQuery = "SELECT language FROM users WHERE twitch_user_id = ?";
+        $langStmt = mysqli_prepare($conn, $langQuery);
+        mysqli_stmt_bind_param($langStmt, 's', $twitchUserId);
+        mysqli_stmt_execute($langStmt);
+        mysqli_stmt_bind_result($langStmt, $userLang);
+        if (mysqli_stmt_fetch($langStmt) && $userLang) {
+            $_SESSION['language'] = $userLang;
+        }
+        mysqli_stmt_close($langStmt);
         // Check if the user is not in the restricted list
         $restrictedQuery = "SELECT id FROM restricted_users WHERE twitch_user_id = ? OR username = ?";
         $stmt = mysqli_prepare($conn, $restrictedQuery);
@@ -106,18 +118,24 @@ if (isset($_GET['code'])) {
             $_SESSION = array();
             session_destroy();
             // User is in the restricted list
-            $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at questions@botofthespecter.com.";
+            $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at support@botofthespecter.com.";
             // Render the page with the message
             include 'restricted.php';
             exit;
         }
         // Check if the user already exists
-        $checkQuery = "SELECT id FROM users WHERE twitch_user_id = ?";
+        $checkQuery = "SELECT id, api_key FROM users WHERE twitch_user_id = ?";
         $stmt = mysqli_prepare($conn, $checkQuery);
         mysqli_stmt_bind_param($stmt, 's', $twitchUserId);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_store_result($stmt);
         if (mysqli_stmt_num_rows($stmt) > 0) {
+            // User exists, fetch api_key and update their information
+            mysqli_stmt_bind_result($stmt, $userId, $apiKey);
+            mysqli_stmt_fetch($stmt);
+            mysqli_stmt_close($stmt);
+            $_SESSION['user_id'] = $userId;
+            $_SESSION['api_key'] = $apiKey;
             // Check if the user has renamed their Twitch account
             $checkUsernameQuery = "SELECT username FROM users WHERE twitch_user_id = ?";
             $stmt = mysqli_prepare($conn, $checkUsernameQuery);
@@ -126,44 +144,32 @@ if (isset($_GET['code'])) {
             mysqli_stmt_bind_result($stmt, $existingUsername);
             mysqli_stmt_fetch($stmt);
             mysqli_stmt_close($stmt);
-            if ($existingUsername !== $twitchUsername) {
-                // User has renamed their Twitch Account, update database with new username
-                $oldDBName = $conn->real_escape_string($existingUsername);
-                $newDBName = $conn->real_escape_string($twitchUsername);
-                $updateDatabaseNameQueery = "RENAME DATABASE `$oldDBName` TO `$newDBName`;";
-                if (!mysqli_query($conn, $updateDatabaseNameQueery)) {
-                    // Handle the case where the database rename failed
-                    $info = "Failed to update database name due to: " . mysqli_error($conn);
-                    exit;
-                }
-            }
-            // User exists, update their information
+            // Update user information
             $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, username = ?, twitch_display_name = ?, last_login = ?, email = ? WHERE twitch_user_id = ?";
             $stmt = mysqli_prepare($conn, $updateQuery);
             $last_login = date('Y-m-d H:i:s');
             mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
             if (mysqli_stmt_execute($stmt)) {
-                // Redirect the user to the dashboard
                 header('Location: bot.php');
                 exit;
             } else {
-                // Handle the case where the update failed
-                $info = "Failed to update user information.";
+                echo 'Error updating user: ' . mysqli_stmt_error($stmt);
                 exit;
             }
         } else {
             // User does not exist, insert them as a new user
+            $apiKey = bin2hex(random_bytes(16));
+            $_SESSION['api_key'] = $apiKey;
             $insertQuery = "INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin) 
-            VALUES (?, ?, ?, '" . bin2hex(random_bytes(16)) . "', ?, ?, ?, ?, 0)";
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)";
             $stmt = mysqli_prepare($conn, $insertQuery);
-            mysqli_stmt_bind_param($stmt, 'sssssss', $twitchUsername, $accessToken, $refreshToken, $profileImageUrl, $twitchUserId, $twitchDisplayName, $email);
+            mysqli_stmt_bind_param($stmt, 'ssssssss', $twitchUsername, $accessToken, $refreshToken, $apiKey, $profileImageUrl, $twitchUserId, $twitchDisplayName, $email);
             if (mysqli_stmt_execute($stmt)) {
-                // Redirect the user to the dashboard
+                $_SESSION['user_id'] = mysqli_insert_id($conn);
                 header('Location: bot.php');
                 exit;
             } else {
-                // Handle the case where the insertion failed
-                $info = "Failed to save user information.";
+                echo 'Error inserting user: ' . mysqli_stmt_error($stmt);
                 exit;
             }
         }
@@ -175,12 +181,65 @@ if (isset($_GET['code'])) {
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - Twitch Login</title>
-    <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png" sizes="32x32" />
-    <link rel="icon" href="https://botofthespecter.yourcdnonline.com/logo.png" sizes="192x192" />
-    <link rel="apple-touch-icon" href="https://botofthespecter.yourcdnonline.com/logo.png" />
-    <meta name="msapplication-TileImage" content="https://botofthespecter.yourcdnonline.com/logo.png" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <meta name="msapplication-TileImage" content="https://cdn.botofthespecter.com/logo.png">
+    <style>
+        body {
+            background-color: #121212;
+            color: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-container {
+            max-width: 500px;
+            padding: 2rem;
+            border-radius: 8px;
+            background-color: #1a1a1a;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+        .login-logo {
+            margin-bottom: 2rem;
+        }
+        .login-message {
+            margin-bottom: 1rem;
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #3273dc;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spinner 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spinner {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
 </head>
-<body><?php echo "<p>$info</p>";?></body></html>
+<body>
+    <div class="login-container">
+        <div class="login-logo has-text-centered">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" width="100">
+            <h1 class="title has-text-white mt-3">BotOfTheSpecter</h1>
+        </div>
+        <div class="login-message has-text-centered">
+            <p><?php echo $info; ?></p>
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,6 +1,7 @@
-<?php 
-// Initialize the session
+<?php
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -9,47 +10,55 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Premium Features";
+$pageTitle = t('premium_features_title');
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
-include 'user_db.php';
 include "mod_access.php";
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 
 // Define plans with features
 $plans = [
     '1000' => [
-        'name' => 'Twitch Tier 1/Prime',
-        'price' => '$5.99 USD',
+        'name' => t('premium_plan_tier1_name'),
+        'price' => t('premium_plan_tier1_price'),
         'features' => [
-            ['text' => '!song Command', 'tip' => 'Use this command to view what song is playing in chat. (NOT REQUIRED FOR SPOTIFY)'],
-            ['text' => 'Full Support', 'tip' => 'Get priority assistance and support for any bot-related issues.'],
-            ['text' => 'Exclusive Beta Features', 'tip' => 'Early access to new and experimental bot features.'],
-            ['text' => '50MB of total storage', 'tip' => 'Store your own sound effects and music files for alerts and walk-on sounds.'],
-            ['text' => 'Shared Bot (BotOfTheSpecter)', 'tip' => 'The bot\'s username will be the same across all channels.'] 
+            ['text' => t('premium_plan_tier1_feature_song_command'), 'tip' => t('premium_plan_tier1_feature_song_command_tip')],
+            ['text' => t('premium_plan_tier1_feature_support'), 'tip' => t('premium_plan_tier1_feature_support_tip')],
+            ['text' => t('premium_plan_tier1_feature_beta'), 'tip' => t('premium_plan_tier1_feature_beta_tip')],
+            ['text' => t('premium_plan_tier1_feature_storage'), 'tip' => t('premium_plan_tier1_feature_storage_tip')],
+            ['text' => t('premium_plan_tier1_feature_shared_bot'), 'tip' => t('premium_plan_tier1_feature_shared_bot_tip')],
         ],
     ],
     '2000' => [
-        'name' => 'Twitch Tier 2',
-        'price' => '$9.99 USD',
+        'name' => t('premium_plan_tier2_name'),
+        'price' => t('premium_plan_tier2_price'),
         'features' => [
-            ['text' => 'Everything From Tier 1', 'tip' => 'Includes all the benefits of the Tier 1 subscription.'],
-            ['text' => 'Personalized Support', 'tip' => 'Receive dedicated one-on-one support for your bot needs.'],
-            ['text' => 'AI Features & Conversations', 'tip' => 'Enjoy advanced AI-powered features and interactive conversations in chat.'],
-            ['text' => '100MB of total storage', 'tip' => 'Store more of your own sound effects and music files for alerts and walk-on sounds.'],
-            ['text' => 'Shared Bot (BotOfTheSpecter)', 'tip' => 'The bot\'s username will be the same across all channels.'] 
+            ['text' => t('premium_plan_tier2_feature_everything_t1'), 'tip' => t('premium_plan_tier2_feature_everything_t1_tip')],
+            ['text' => t('premium_plan_tier2_feature_personal_support'), 'tip' => t('premium_plan_tier2_feature_personal_support_tip')],
+            ['text' => t('premium_plan_tier2_feature_ai'), 'tip' => t('premium_plan_tier2_feature_ai_tip')],
+            ['text' => t('premium_plan_tier2_feature_storage'), 'tip' => t('premium_plan_tier2_feature_storage_tip')],
+            ['text' => t('premium_plan_tier2_feature_shared_bot'), 'tip' => t('premium_plan_tier2_feature_shared_bot_tip')],
         ],
     ],
     '3000' => [
-        'name' => 'Twitch Tier 3',
-        'price' => '$24.99 USD',
+        'name' => t('premium_plan_tier3_name'),
+        'price' => t('premium_plan_tier3_price'),
         'features' => [
-            ['text' => 'Everything from Tier 2', 'tip' => 'Includes all the benefits of the Tier 2 subscription.'],
-            ['text' => '200MB of total storage', 'tip' => 'Store an even larger collection of custom sound effects and music files.'],
-            ['text' => 'Dedicated bot (custom bot name) [feature coming soon]', 'tip' => 'Get a dedicated bot instance with a custom name for your channel (coming soon).'] 
+            ['text' => t('premium_plan_tier3_feature_everything_t2'), 'tip' => t('premium_plan_tier3_feature_everything_t2_tip')],
+            ['text' => t('premium_plan_tier3_feature_storage'), 'tip' => t('premium_plan_tier3_feature_storage_tip')],
+            ['text' => t('premium_plan_tier3_feature_dedicated_bot'), 'tip' => t('premium_plan_tier3_feature_dedicated_bot_tip')],
         ],
     ],
 ];
@@ -58,7 +67,7 @@ $plans = [
 $currentPlan = 'free'; // Default to free
 $error_message = ''; // Initialize error message
 // Only fetch subscription tier if the user is not a beta user
-if (!$isBetaUser) {
+if (!$betaAccess) {
     $twitchSubTier = fetchTwitchSubscriptionTier($access_token, $twitchUserId, $error_message);
     if ($twitchSubTier) {
         // Ensure the tier is treated as a string for comparison
@@ -110,92 +119,101 @@ function fetchTwitchSubscriptionTier($access_token, $twitchUserId, &$error_messa
 $betaUsersJson = file_get_contents('/var/www/api/authusers.json');
 $betaUsersData = json_decode($betaUsersJson, true);
 $betaUsers = $betaUsersData['users'] ?? [];
-$isBetaUser = in_array($twitchDisplayName, $betaUsers);
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <link rel="stylesheet" href="../css/payments.css">
-    <!-- /Header -->
-</head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
+$betaAccess = in_array($twitchDisplayName, $betaUsers);
 
-<div class="container">
-    <br>
-    <?php if (isset($error_message) && !$isBetaUser) { ?><div class="notification is-warning"><?php echo htmlspecialchars($error_message); ?></div><?php } ?>
-    <br>
-    <h1 class="title">Premium Features</h1>
-    <div class="card-container">
-        <!-- Free Plan -->
-        <div class="card">
+// Start output buffering for layout
+ob_start();
+?>
+<?php if (isset($error_message) && !$betaAccess): ?>
+    <div class="notification is-warning is-light mb-5">
+        <?php echo htmlspecialchars($error_message); ?>
+    </div>
+<?php endif; ?>
+<h1 class="title has-text-centered mb-6"><?php echo t('premium_features_title'); ?></h1>
+<div class="columns is-multiline is-variable is-6 card-container is-flex is-flex-wrap-wrap">
+    <!-- Free Plan -->
+    <div class="column is-12-mobile is-6-tablet is-3-desktop is-flex">
+        <div class="card h-100 is-flex is-flex-direction-column" style="width:100%;">
             <div class="card-content">
-                <h2 class="card-title subtitle has-text-centered">Free Plan<br>$0 USD</h2>
+                <h2 class="subtitle has-text-centered mb-4"><?php echo t('premium_plan_free_name'); ?><br><span class="has-text-weight-bold"><?php echo t('premium_plan_free_price'); ?></span></h2>
                 <ul>
-                    <li title="Use basic bot commands in your chat.">Basic Commands</li>
-                    <li title="Receive community-based support for basic issues.">Limited Support</li>
-                    <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">20MB of total storage</li> 
-                    <li title="The bot's username will be the same across all channels.">Shared Bot (BotOfTheSpecter)</li>
+                    <li title="<?php echo t('premium_plan_free_feature_basic_commands_tip'); ?>"><?php echo t('premium_plan_free_feature_basic_commands'); ?></li>
+                    <li title="<?php echo t('premium_plan_free_feature_support_tip'); ?>"><?php echo t('premium_plan_free_feature_support'); ?></li>
+                    <li title="<?php echo t('premium_plan_free_feature_storage_tip'); ?>"><?php echo t('premium_plan_free_feature_storage'); ?></li>
+                    <li title="<?php echo t('premium_plan_free_feature_shared_bot_tip'); ?>"><?php echo t('premium_plan_free_feature_shared_bot'); ?></li>
                 </ul>
             </div>
-            <?php if ($currentPlan === 'free' && !$isBetaUser): ?>
-                <div class="card-footer">
-                    <p class="card-footer-item">
-                        <span>Current Plan</span>
-                    </p>
-                </div>
+            <?php if ($currentPlan === 'free' && !$betaAccess): ?>
+                <footer class="card-footer mt-auto">
+                    <span class="card-footer-item has-text-success has-text-weight-semibold"><?php echo t('premium_current_plan'); ?></span>
+                </footer>
             <?php endif; ?>
         </div>
-        <?php foreach ($plans as $planKey => $planDetails): ?>
-            <?php $trimmedCurrentPlan = trim((string)$currentPlan); $trimmedPlanKey = trim((string)$planKey); ?>
-            <div class="card">
+    </div>
+    <?php foreach ($plans as $planKey => $planDetails): ?>
+        <?php $trimmedCurrentPlan = trim((string)$currentPlan); $trimmedPlanKey = trim((string)$planKey); ?>
+        <div class="column is-12-mobile is-6-tablet is-3-desktop is-flex">
+            <div class="card h-100 is-flex is-flex-direction-column" style="width:100%;">
                 <div class="card-content">
-                    <h2 class="card-title subtitle has-text-centered"><?php echo $planDetails['name']; ?><br><?php echo $planDetails['price']; ?></h2>
+                    <h2 class="subtitle has-text-centered mb-4">
+                        <?php echo $planDetails['name']; ?><br>
+                        <span class="has-text-weight-bold"><?php echo $planDetails['price']; ?></span>
+                    </h2>
                     <ul>
                         <?php foreach ($planDetails['features'] as $feature): ?>
-                            <li title="<?php echo $feature['tip']; ?>"><?php echo $feature['text']; ?></li> 
+                            <li title="<?php echo $feature['tip']; ?>"><?php echo $feature['text']; ?></li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
-                <div class="card-footer">
-                    <p class="card-footer-item">
-                        <?php if ($isBetaUser): ?>
-                            <span>No subscription required for beta users</span>
+                <footer class="card-footer mt-auto">
+                    <?php if ($betaAccess): ?>
+                        <span class="card-footer-item has-text-info"><?php echo t('premium_beta_no_subscription'); ?></span>
+                    <?php else: ?>
+                        <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?>
+                            <span class="card-footer-item">
+                                <span class="button is-primary is-light is-fullwidth"><?php echo t('premium_current_plan'); ?></span>
+                            </span>
                         <?php else: ?>
-                            <?php if ($trimmedCurrentPlan === $trimmedPlanKey): ?> 
-                                <span class="button is-primary">Current Plan</span>
-                            <?php else: ?>
-                                <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary">
-                                    <?php if ($currentPlan === 'free') { echo "Subscribe"; } 
-                                    elseif ((int)$currentPlan < (int)$planKey) { echo "Upgrade"; } 
-                                    else { echo "Downgrade"; } ?>
+                            <span class="card-footer-item">
+                                <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary is-fullwidth">
+                                    <?php
+                                    if ($currentPlan === 'free') {
+                                        echo t('premium_subscribe');
+                                    } elseif ((int)$currentPlan < (int)$planKey) {
+                                        echo t('premium_upgrade');
+                                    } else {
+                                        echo t('premium_downgrade');
+                                    }
+                                    ?>
                                 </a>
-                            <?php endif; ?>
+                            </span>
                         <?php endif; ?>
-                    </p>
-                </div>
+                    <?php endif; ?>
+                </footer>
             </div>
-        <?php endforeach; ?>
-        <!-- Show a special plan for beta users -->
-        <?php if ($isBetaUser): ?>
-            <div class="card">
+        </div>
+    <?php endforeach; ?>
+    <!-- Show a special plan for beta users -->
+    <?php if ($betaAccess): ?>
+        <div class="column is-12 is-flex is-justify-content-center is-align-items-center" style="flex-basis:100%;padding-top:2rem;">
+            <div class="card h-100 is-flex is-flex-direction-column" style="width:350px;max-width:100%;">
                 <div class="card-content">
-                    <h2 class="card-title subtitle has-text-centered">Exclusive Beta Plan<br>Free Access Forever!</h2>
+                    <h2 class="subtitle has-text-centered mb-4"><?php echo t('premium_beta_plan_name'); ?><br>
+                        <span class="has-text-weight-bold"><?php echo t('premium_beta_plan_price'); ?></span>
+                    </h2>
                     <ul>
-                        <li title="Enjoy all bot features for free, forever!">All Features FOREVER</li>
-                        <li title="Upload your own sound effects and music files to use for alerts and walk-on sounds.">500MB of total storage</li> 
+                        <li title="<?php echo t('premium_beta_plan_feature_all_tip'); ?>"><?php echo t('premium_beta_plan_feature_all'); ?></li>
+                        <li title="<?php echo t('premium_beta_plan_feature_storage_tip'); ?>"><?php echo t('premium_beta_plan_feature_storage'); ?></li>
                     </ul>
                 </div>
-                <div class="card-footer">
-                    <p class="card-footer-item">Thank you for helping make BotOfTheSpecter!</p>
-                </div>
+                <footer class="card-footer mt-auto">
+                    <span class="card-footer-item has-text-success has-text-centered"><?php echo t('premium_beta_plan_footer'); ?></span>
+                </footer>
             </div>
-        <?php endif; ?>
-    </div>
+        </div>
+    <?php endif; ?>
 </div>
-</body>
-</html>
+<?php
+$content = ob_get_clean();
+include 'layout.php';
+?>

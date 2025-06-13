@@ -1,6 +1,7 @@
-<?php 
-// Initialize the session
+<?php
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -9,18 +10,25 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Persistent Storage";
+$pageTitle = t('persistent_storage_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 $billing_conn = new mysqli($servername, $username, $password, "fossbilling");
+include "/var/www/config/ssh.php";
 include "/var/www/config/object_storage.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
-include 'user_db.php';
+include 'bot_control.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-    $timezone = $profile['timezone'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 
 // Check connection
@@ -98,28 +106,45 @@ $total_used_storage = 0; // Initialize total used storage
 
 // Only initialize S3 client and attempt operations if user has an active or canceled subscription
 if ($is_subscribed || $is_canceled) {
-    // Initialize S3 client for AWS
-    $s3Client = new S3Client([
-        'version' => 'latest',
-        'region' => 'us-east-1',
-        'endpoint' => "https://" . $bucket_url,
-        'credentials' => [
-            'key' => $access_key,
-            'secret' => $secret_key
-        ]
-    ]);
-    
+    // Check for cookie consent to determine preferred server region
+    $cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
+    // Server selection handling (default to AU)
+    $selected_server = isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedPersistentServer']) ? $_COOKIE['selectedPersistentServer'] : 'australia');
+    // Set the cookie if the server is selected from the dropdown
+    if (isset($_GET['server']) && $cookieConsent) { setcookie('selectedPersistentServer', $_GET['server'], time() + (86400 * 30), "/"); } // Cookie for 30 days
+    // Define bucket names and S3 configuration based on selected region
+    if ($selected_server == 'australia') {
+        $bucket_name = 'botofthespecter-au-persistent';
+        $s3Client = new S3Client([
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'endpoint' => "https://" . $au_s3_bucket_url,
+            'credentials' => ['key' => $au_s3_access_key,'secret' => $au_s3_secret_key]
+        ]);
+    } else {
+        // USA servers
+        $bucket_name = 'botofthespecter-us-persistent';
+        $s3Client = new S3Client([
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'endpoint' => "https://" . $us_s3_bucket_url,
+            'credentials' => ['key' => $us_s3_access_key,'secret' => $us_s3_secret_key]
+        ]);
+    }
     // Function to fetch files from S3 bucket
-    function getS3Files($bucketName) {
+    function getS3Files($bucketName, $userFolder) {
         global $s3Client;
         $files = [];
         try {
-            $result = $s3Client->listObjectsV2([
-                'Bucket' => $bucketName
-            ]);
+            $result = $s3Client->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/']);
             if (!empty($result['Contents'])) {
                 foreach ($result['Contents'] as $object) {
                     $key = $object['Key'];
+                    // Skip placeholder files and folder markers
+                    if (basename($key) === '.placeholder' || substr($key, -1) === '/') { continue; }
+                    // Only show actual content files (videos, etc.)
+                    $extension = strtolower(pathinfo($key, PATHINFO_EXTENSION));
+                    if (!in_array($extension, ['mp4', 'avi', 'mov', 'mkv', 'flv', 'webm', 'm4v'])) { continue; }
                     $sizeBytes = $object['Size'];
                     $lastModified = $object['LastModified']->getTimestamp();
                     // Format file size
@@ -128,28 +153,90 @@ if ($is_subscribed || $is_canceled) {
                         round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
                     // Format creation date
                     $createdAt = date('d-m-Y H:i:s', $lastModified);
-                    $files[] = [
-                        'name' => pathinfo(basename($key), PATHINFO_FILENAME),
-                        'size' => $size,
-                        'created_at' => $createdAt,
-                        'path' => $key
-                    ];
+                    $files[] = ['name' => pathinfo(basename($key), PATHINFO_FILENAME),'size' => $size,'created_at' => $createdAt,'path' => $key];
                 }
             }
-        } catch (AwsException $e) {
-            return ['error' => $e->getMessage()];
-        }
+        } catch (AwsException $e) { return ['error' => $e->getMessage()]; }
         return $files;
     }
-
+    // Function to create user folder in S3 bucket
+    function createUserFolder($bucketName, $userFolder) {
+        global $s3Client;
+        try {
+            // Create a placeholder file to establish the folder structure
+            $s3Client->putObject(['Bucket' => $bucketName,'Key' => $userFolder . '/.placeholder','Body' => 'This folder belongs to: ' . $userFolder,'ContentType' => 'text/plain']);
+            return true;
+        } catch (AwsException $e) { return false; }
+    }
+    // Function to check if user folder exists
+    function userFolderExists($bucketName, $userFolder) {
+        global $s3Client;
+        try {
+            $result = $s3Client->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/','MaxKeys' => 1]);
+            return !empty($result['Contents']);
+        } catch (AwsException $e) { return false; }
+    }
+    // Function to get files for storage calculation (separate from display function)
+    function getS3FilesForStorage($bucketName, $userFolder, $s3ClientInstance) {
+        $files = [];
+        try {
+            $result = $s3ClientInstance->listObjectsV2(['Bucket' => $bucketName,'Prefix' => $userFolder . '/']);
+            if (!empty($result['Contents'])) {
+                foreach ($result['Contents'] as $object) {
+                    $key = $object['Key'];
+                    // Skip placeholder files and folder markers
+                    if (basename($key) === '.placeholder' || substr($key, -1) === '/') { continue; }
+                    // Only count actual content files (videos, etc.)
+                    $extension = strtolower(pathinfo($key, PATHINFO_EXTENSION));
+                    if (!in_array($extension, ['mp4', 'avi', 'mov', 'mkv', 'flv', 'webm', 'm4v'])) { continue; }
+                    $sizeBytes = $object['Size'];
+                    // Format file size
+                    $size = $sizeBytes < 1024 * 1024 ? round($sizeBytes / 1024, 2) . ' KB' :
+                        ($sizeBytes < 1024 * 1024 * 1024 ? round($sizeBytes / (1024 * 1024), 2) . ' MB' :
+                        round($sizeBytes / (1024 * 1024 * 1024), 2) . ' GB');
+                    $files[] = ['size' => $size];
+                }
+            }
+        } catch (AwsException $e) { return ['error' => $e->getMessage()]; }
+        return $files;
+    }
+    // Check if user folder exists and create it if it doesn't (only for active subscribers)
+    if ($is_subscribed && !userFolderExists($bucket_name, $username)) {
+        $folder_created = createUserFolder($bucket_name, $username);
+        if ($folder_created) {
+            $_SESSION['folder_created'] = true;
+        }
+    }
     // Fetch persistent storage files
-    $result = getS3Files($username);
+    $result = getS3Files($bucket_name, $username);
     if (isset($result['error'])) {
         $persistent_storage_error = "Persistent storage is not available at the moment. Please try again later.";
     } else {
         $persistent_storage_files = $result;
-        // Calculate total used storage
-        foreach ($persistent_storage_files as $file) {
+        // Calculate total used storage from BOTH regions (AU and US)
+        $total_used_storage = 0;
+        // Get files from Australia region
+        $au_s3Client = new S3Client([
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'endpoint' => "https://" . $au_s3_bucket_url,
+            'credentials' => ['key' => $au_s3_access_key,'secret' => $au_s3_secret_key]
+        ]);
+        $au_result = getS3FilesForStorage('botofthespecter-au-persistent', $username, $au_s3Client);
+        // Get files from USA region
+        $us_s3Client = new S3Client([
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'endpoint' => "https://" . $us_s3_bucket_url,
+            'credentials' => ['key' => $us_s3_access_key,'secret' => $us_s3_secret_key]
+        ]);
+        $us_result = getS3FilesForStorage('botofthespecter-us-persistent', $username, $us_s3Client);
+        // Combine storage from both regions
+        $all_files = [];
+        if (!isset($au_result['error'])) { $all_files = array_merge($all_files, $au_result); }
+        if (!isset($us_result['error'])) { $all_files = array_merge($all_files, $us_result); }
+        // Calculate total used storage from all files
+        foreach ($all_files as $file) {
             if (isset($file['size'])) {
                 // Convert size to bytes for calculation
                 $size = $file['size'];
@@ -165,186 +252,203 @@ if ($is_subscribed || $is_canceled) {
         // Convert total used storage to GB for display
         $total_used_storage = round($total_used_storage / (1024 * 1024 * 1024), 2);
     }
-    
     // Handle file deletion if requested
     if (isset($_GET['delete']) && !empty($_GET['delete'])) {
         $fileToDelete = $_GET['delete'];
         try {
-            $s3Client->deleteObject([
-                'Bucket' => $username,
-                'Key' => $fileToDelete
-            ]);
+            $s3Client->deleteObject(['Bucket' => $bucket_name,'Key' => $fileToDelete]);
             $_SESSION['delete_success'] = true;
-            header('Location: persistent_storage_page.php');
+            header('Location: persistent_storage.php?server=' . $selected_server);
             exit();
         } catch (AwsException $e) {
             $delete_error = "Error deleting file: " . $e->getMessage();
         }
     }
 }
+
+// Start output buffering for layout
+ob_start();
 ?>
-<!doctype html>
-<html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
-<div class="container">
-    <br>
-    <h1 class="title">Persistent Storage</h1>
-    
-    <?php if (isset($_SESSION['delete_success'])): ?>
-        <?php unset($_SESSION['delete_success']); ?>
-        <div class="notification is-success">
-            File has been successfully deleted.
-        </div>
-    <?php endif; ?>
-
-    <?php if (isset($delete_error)): ?>
-        <div class="notification is-danger">
-            <?php echo htmlspecialchars($delete_error); ?>
-        </div>
-    <?php endif; ?>
-
-    <div class="columns is-desktop is-multiline is-centered box-container">
-        <div class="column is-10 bot-box">
-            <div class="notification is-info" style="position: relative;">
-                <div style="position: absolute; top: 10px; right: 10px; text-align: right;">
-                    <p class="has-text-white">
-                        <span class="has-text-weight-bold has-text-white">Subscription Status:</span> 
-                        <span class="tag is-medium 
-                            <?php if ($subscription_status === 'Active'): ?>
-                                is-success has-text-black
-                            <?php elseif ($subscription_status === 'Suspended'): ?>
-                                is-warning
-                            <?php else: ?>
-                                is-danger
-                            <?php endif; ?>">
-                            <?php echo htmlspecialchars($subscription_status); ?>
-                        </span>
-                    </p>
-                    <?php if ($is_subscribed): ?>
-                        <p class="has-text-white">
-                            <span class="has-text-weight-bold has-text-white">Total Used Storage:</span> <?php echo $total_used_storage; ?> GB
-                        </p>
-                        <p class="has-text-white mt-2">
-                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary is-rounded">
-                                <span class="icon"><i class="fas fa-cog"></i></span>
-                                <span>Manage Subscription</span>
-                            </a>
-                        </p>
-                    <?php endif; ?>
-                </div>
-                <p class="has-text-weight-bold has-text-black">Persistent Storage Information</p>
-                <p class="has-text-black">This storage keeps your files safe and accessible for as long as your subscription is active:</p>
-                <ul style="list-style-type: disc; padding-left: 20px;">
-                    <li class="has-text-black">Files uploaded here will not expire automatically.</li>
-                    <li class="has-text-black">You can upload files from your temporary stream recordings.</li>
-                    <li class="has-text-black">Manage your content with options to download, watch, or delete files.</li>
-                </ul>
-                <p class="has-text-black">Need to upload a new file from the streaming page? You can do so directly from your recorded streams.</p>
-                <p class="has-text-black mt-2">
-                    <a href="streaming.php" class="button is-primary is-rounded">
-                        <span class="icon"><i class="fas fa-video"></i></span>
-                        <span>Go to Streaming</span>
-                    </a>
+<h1 class="title"><?php echo t('persistent_storage_title'); ?></h1>
+<?php if (isset($_SESSION['delete_success'])): ?>
+    <?php unset($_SESSION['delete_success']); ?>
+    <div class="notification is-success">
+        <?php echo t('persistent_storage_file_deleted_success'); ?>
+    </div>
+<?php endif; ?>
+<?php if (isset($_SESSION['folder_created'])): ?>
+    <?php unset($_SESSION['folder_created']); ?>
+    <div class="notification is-success">
+        Your persistent storage folder has been created successfully! You can now upload files to it.
+    </div>
+<?php endif; ?>
+<?php if (isset($delete_error)): ?>
+    <div class="notification is-danger">
+        <?php echo htmlspecialchars($delete_error); ?>
+    </div>
+<?php endif; ?>
+<div class="columns is-desktop is-multiline is-centered box-container">
+    <div class="column is-10 bot-box">
+        <div class="notification is-info" style="position: relative;">
+            <div style="position: absolute; top: 10px; right: 10px; text-align: right;">
+                <p class="has-text-black">
+                    <span class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_subscription_status'); ?></span> 
+                    <span class="tag is-medium 
+                        <?php if ($subscription_status === 'Active'): ?>
+                            is-success has-text-black
+                        <?php elseif ($subscription_status === 'Suspended'): ?>
+                            is-warning
+                        <?php else: ?>
+                            is-danger
+                        <?php endif; ?>">
+                        <?php echo htmlspecialchars($subscription_status); ?>
+                    </span>
                 </p>
+                <?php if ($is_subscribed): ?>
+                    <p class="has-text-black">
+                        <span class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_total_used'); ?></span> <?php echo $total_used_storage; ?> GB
+                    </p>
+                    <p class="has-text-black mt-2">
+                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary is-rounded">
+                            <span class="icon"><i class="fas fa-cog"></i></span>
+                            <span><?php echo t('persistent_storage_manage_subscription'); ?></span>
+                        </a>
+                    </p>
+                <?php endif; ?>
             </div>
             <?php if ($is_subscribed || $is_canceled): ?>
-            <div class="table-container">
-                <table class="table is-fullwidth">
-                    <thead>
-                        <tr>
-                            <th class="has-text-centered">File Name</th>
-                            <th class="has-text-centered">Upload Date</th>
-                            <th class="has-text-centered">Size</th>
-                            <th class="has-text-centered">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($persistent_storage_error): ?>
-                            <tr>
-                                <td colspan="4" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
-                            </tr>
-                        <?php elseif (empty($persistent_storage_files)): ?>
-                            <tr>
-                                <td colspan="4" class="has-text-centered">No files found in persistent storage</td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($persistent_storage_files as $file): ?>
-                            <tr>
-                                <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
-                                <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
-                                <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
-                                <td class="has-text-centered">
-                                    <a href="<?php echo $s3Client->getObjectUrl($username, $file['path']); ?>" class="action-icon" title="Download the video file" target="_blank">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    <a href="?delete=<?php echo urlencode($file['path']); ?>" class="action-icon" title="Delete the video file" onclick="return confirm('Are you sure you want to delete this file? This action cannot be undone.');">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                    <a href="#" class="play-video action-icon" data-video-url="play_stream.php?persistent=true&file=<?php echo urlencode($file['path']); ?>" title="Watch the video">
-                                        <i class="fas fa-play"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php else: ?>
-            <div class="notification is-danger">
-                <span class="is-size-4">
-                    <p class="has-text-weight-bold has-text-black">Subscription <?php echo htmlspecialchars($subscription_status); ?></p>
-                    <?php if (strtolower($subscription_status) === 'canceled'): ?>
-                        <?php if (!empty($suspend_reason)): ?>
-                            <p class="has-text-black">Cancellation reason: <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
-                        <?php endif; ?>
-                        <?php if ($deletion_time): ?>
-                            <p class="has-text-black">Your files will be permanently deleted <span id="deletion-countdown" class="has-text-weight-bold" data-deletion-time="<?php echo $deletion_time; ?>">in 24 hours</span></p>
-                        <?php endif; ?>
-                        <p class="mt-3">
-                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
-                                <span class="icon"><i class="fas fa-undo"></i></span>
-                                <span>Reactivate Subscription</span>
-                            </a>
-                        </p>
-                    <?php elseif (strtolower($subscription_status) === 'suspended'): ?>
-                        <?php if (!empty($suspend_reason)): ?>
-                            <p class="has-text-black">Reason: <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
-                        <?php endif; ?>
-                        <p class="has-text-black">Your account has been suspended. Please pay your overdue invoice to restore access.</p>
-                        <p class="mt-3">
-                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
-                                <span class="icon"><i class="fas fa-credit-card"></i></span>
-                                <span>Pay Overdue Invoice</span>
-                            </a>
-                        </p>
-                    <?php else: ?>
-                        <p class="has-text-black">Access to persistent storage files requires an active subscription.</p>
-                        <p class="mt-3">
-                            <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary">
-                                <span class="icon"><i class="fas fa-shopping-cart"></i></span>
-                                <span>Subscribe to Persistent Storage</span>
-                            </a>
-                        </p>
-                        <?php if (!$has_billing_account): ?>
-                        <div class="mt-3 has-text-black">
-                            <p><strong>Important:</strong> When signing up for our billing platform, please ensure you use the same email address that you used to register on Twitch. If you wish to know what that email is, please check your Twitch Security and Privacy settings <a href="https://www.twitch.tv/settings/security" target="_blank">here</a>. This will ensure that your Twitch Account is both linked to Specter and the billing panel as we check this information for the Persistent Storage.</p>
+            <div style="position:absolute; right:1.5rem; bottom:1.5rem; z-index:2;">
+                <form method="get" id="server-selection-form">
+                    <div class="field is-grouped is-align-items-center mb-0">
+                        <label class="label mr-2 mb-0 has-text-black"><?= t('streaming_server_label') ?></label>
+                        <div class="control">
+                            <div class="select">
+                                <select id="server-location" name="server" onchange="document.getElementById('server-selection-form').submit();">
+                                    <option value="australia" <?php echo $selected_server == 'australia' ? 'selected' : ''; ?>>Australia</option>
+                                    <option value="usa" <?php echo $selected_server == 'usa' ? 'selected' : ''; ?>>USA</option>
+                                </select>
+                            </div>
                         </div>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                </span>
+                    </div>
+                </form>
             </div>
             <?php endif; ?>
+            <p class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_info_title'); ?></p>
+            <p class="has-text-black"><?php echo t('persistent_storage_info_desc'); ?></p>
+            <ul style="list-style-type: disc; padding-left: 20px;">
+                <li class="has-text-black"><?php echo t('persistent_storage_info_no_expiry'); ?></li>
+                <li class="has-text-black"><?php echo t('persistent_storage_info_upload_from_stream'); ?></li>
+                <li class="has-text-black"><?php echo t('persistent_storage_info_manage_content'); ?></li>
+            </ul>
+            <!-- Important warning about upload location -->
+            <div class="notification is-warning mt-4 mb-4">
+                <p class="has-text-weight-bold has-text-black">
+                    <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                    Important Notice:
+                </p>
+                <p class="has-text-black">
+                    Files are automatically uploaded to the persistent storage region that matches your streaming server location. 
+                    If you stream to AU servers, files go to Australia persistent storage. If you stream to US servers, files go to USA persistent storage.
+                    Use the dropdown above to view files from different regions.
+                </p>
+            </div>
+            
+            <p class="has-text-black"><?php echo t('persistent_storage_info_upload_hint'); ?></p>
+            <p class="has-text-black mt-2">
+                <a href="streaming.php" class="button is-primary is-rounded">
+                    <span class="icon"><i class="fas fa-video"></i></span>
+                    <span><?php echo t('persistent_storage_go_to_streaming'); ?></span>
+                </a>
+            </p>
         </div>
+        <?php if ($is_subscribed || $is_canceled): ?>
+        <div class="table-container">
+            <table class="table is-fullwidth">
+                <thead>
+                    <tr>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_file_name'); ?></th>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_upload_date'); ?></th>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_size'); ?></th>
+                        <th class="has-text-centered"><?php echo t('persistent_storage_table_actions'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($persistent_storage_error): ?>
+                        <tr>
+                            <td colspan="4" class="has-text-centered has-text-danger"><?php echo htmlspecialchars($persistent_storage_error); ?></td>
+                        </tr>
+                    <?php elseif (empty($persistent_storage_files)): ?>
+                        <tr>
+                            <td colspan="4" class="has-text-centered"><?php echo t('persistent_storage_no_files'); ?></td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($persistent_storage_files as $file): ?>
+                        <tr>
+                            <td class="has-text-centered"><?php echo htmlspecialchars($file['name']); ?></td>
+                            <td class="has-text-centered"><?php echo htmlspecialchars($file['created_at']); ?></td>
+                            <td class="has-text-centered"><?php echo htmlspecialchars($file['size']); ?></td>
+                            <td class="has-text-centered">
+                                <a href="<?php echo $s3Client->getObjectUrl($bucket_name, $file['path']); ?>" class="action-icon" title="<?php echo t('streaming_action_download_video'); ?>" target="_blank">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <a href="?delete=<?php echo urlencode($file['path']); ?>&server=<?php echo urlencode($selected_server); ?>" class="action-icon" title="<?php echo t('streaming_action_delete_video'); ?>" onclick="return confirm('<?php echo t('persistent_storage_confirm_delete'); ?>');">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                <a href="#" class="play-video action-icon" data-video-url="play_stream.php?persistent=true&server=<?php echo urlencode($selected_server); ?>&file=<?php echo urlencode($file['path']); ?>" title="<?php echo t('streaming_action_watch_video'); ?>">
+                                    <i class="fas fa-play"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php else: ?>
+        <div class="notification is-danger">
+            <span class="is-size-4">
+                <p class="has-text-weight-bold has-text-black"><?php echo t('persistent_storage_subscription'); ?> <?php echo htmlspecialchars($subscription_status); ?></p>
+                <?php if (strtolower($subscription_status) === 'canceled'): ?>
+                    <?php if (!empty($suspend_reason)): ?>
+                        <p class="has-text-black"><?php echo t('persistent_storage_cancellation_reason'); ?> <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                    <?php endif; ?>
+                    <?php if ($deletion_time): ?>
+                        <p class="has-text-black"><?php echo t('persistent_storage_files_deleted'); ?> <span id="deletion-countdown" class="has-text-weight-bold" data-deletion-time="<?php echo $deletion_time; ?>"><?php echo t('persistent_storage_in_24_hours'); ?></span></p>
+                    <?php endif; ?>
+                    <p class="mt-3">
+                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
+                            <span class="icon"><i class="fas fa-undo"></i></span>
+                            <span><?php echo t('persistent_storage_reactivate_subscription'); ?></span>
+                        </a>
+                    </p>
+                <?php elseif (strtolower($subscription_status) === 'suspended'): ?>
+                    <?php if (!empty($suspend_reason)): ?>
+                        <p class="has-text-black"><?php echo t('persistent_storage_reason'); ?> <span class="has-text-weight-bold"><?php echo htmlspecialchars($suspend_reason); ?></span></p>
+                    <?php endif; ?>
+                    <p class="has-text-black"><?php echo t('persistent_storage_suspended_notice'); ?></p>
+                    <p class="mt-3">
+                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-warning">
+                            <span class="icon"><i class="fas fa-credit-card"></i></span>
+                            <span><?php echo t('persistent_storage_pay_invoice'); ?></span>
+                        </a>
+                    </p>
+                <?php else: ?>
+                    <p class="has-text-black"><?php echo t('persistent_storage_requires_active'); ?></p>
+                    <p class="mt-3">
+                        <a href="https://billing.botofthespecter.com" target="_blank" class="button is-primary">
+                            <span class="icon"><i class="fas fa-shopping-cart"></i></span>
+                            <span><?php echo t('persistent_storage_subscribe'); ?></span>
+                        </a>
+                    </p>
+                    <?php if (!$has_billing_account): ?>
+                    <div class="mt-3 has-text-black">
+                        <p><?php echo t('persistent_storage_billing_email_notice'); ?></p>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </span>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -356,7 +460,11 @@ if ($is_subscribed || $is_canceled) {
         <iframe id="videoFrame" style="width:100%; height:100%;" frameborder="0" allowfullscreen></iframe>
     </div>
 </div>
+<?php
+$content = ob_get_clean();
 
+ob_start();
+?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Video modal functionality
@@ -390,7 +498,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var now = new Date().getTime();
             var timeLeft = deletionTime - now;
             if (timeLeft <= 0) {
-                countdownElement.innerHTML = "imminent";
+                countdownElement.innerHTML = "<?php echo t('persistent_storage_imminent'); ?>";
                 return;
             }
             // Calculate time units
@@ -400,11 +508,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Create countdown string
             var countdownStr = "";
             if (hours > 0) {
-                countdownStr += hours + " hour" + (hours > 1 ? "s" : "") + " ";
+                countdownStr += hours + " <?php echo t('persistent_storage_hours'); ?> ";
             }
-            countdownStr += minutes + " minute" + (minutes > 1 ? "s" : "") + " ";
-            countdownStr += seconds + " second" + (seconds > 1 ? "s" : "");
-            countdownElement.innerHTML = "in " + countdownStr;
+            countdownStr += minutes + " <?php echo t('persistent_storage_minutes'); ?> ";
+            countdownStr += seconds + " <?php echo t('persistent_storage_seconds'); ?>";
+            countdownElement.innerHTML = "<?php echo t('persistent_storage_in'); ?> " + countdownStr;
         }
         // Update countdown immediately and then every second
         updateCountdown();
@@ -412,5 +520,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-</body>
-</html>
+<?php
+// Get the buffered content
+$scripts = ob_get_clean();
+// Include the layout template
+include 'layout.php';
+?>

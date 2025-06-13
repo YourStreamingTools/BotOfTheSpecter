@@ -1,6 +1,8 @@
 <?php
 // Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/../lang/i18n.php';
 $today = new DateTime();
 
 // Check if the user is logged in
@@ -10,33 +12,27 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$title = "Modules";
+$pageTitle = t('modules_title');
 $current_blacklist = [];
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'modding_access.php';
+include 'userdata.php';
+include 'bot_control.php';
+include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
-$channelData = $stmt->fetch(PDO::FETCH_ASSOC);
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
-?>
-<!doctype html>
-<html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
 
+ob_start();
+?>
 <div class="container">
     <br>
     <h1 class="title is-3">Module Settings</h1>
@@ -501,5 +497,8 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 </script>
-</body>
-</html>
+<?php
+$content = ob_get_clean();
+include 'mod_layout.php';
+exit;
+?>

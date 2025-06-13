@@ -1,27 +1,27 @@
 <?php
-$access_token = $_SESSION['access_token'];
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// No Access Token, login
-if (!isset($access_token)) {
-    // Handle the case where the access token is not set
-    error_log("Access token not found in session."); 
-    header("Location: login.php"); // Redirect to login page
+$access_token = $_SESSION['access_token'] ?? null;
+
+if (!$access_token) {
+    error_log("Access token not found in session.");
+    header("Location: login.php");
     exit();
 }
 
 $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
 $userSTMT->bind_param("s", $access_token);
 if (!$userSTMT->execute()) {
-    // Handle database query error
     error_log("Database query failed: " . $userSTMT->error);
-    die("An error occurred."); 
+    die("An error occurred.");
 }
 $userResult = $userSTMT->get_result();
 if ($userResult->num_rows === 0) {
-    // Handle case where user is not found
     error_log("User not found with access token: " . $access_token);
-    header("Location: login.php"); // Redirect to login page
-    exit(); 
+    header("Location: login.php");
+    exit();
 }
 
 $user = $userResult->fetch_assoc();
@@ -39,7 +39,6 @@ $timezone = 'Australia/Sydney';
 $broadcasterID = $twitchUserId;
 $authToken = $access_token;
 
-// Cache user data in session
 $_SESSION['user_id'] = $user_id;
 $_SESSION['twitchUserId'] = $twitchUserId;
 $_SESSION['user_data'] = $user;

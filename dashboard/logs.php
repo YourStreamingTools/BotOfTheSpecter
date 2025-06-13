@@ -1,6 +1,8 @@
 <?php 
 // Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -8,131 +10,218 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
-// Page Title
-$title = "Bot Logs";
+$pageTitle = t('bot_logs_title');
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
+include "mod_access.php";
 include 'user_db.php';
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 
-$logContent = 'Please Select A Log Type';
+$logContent = t('logs_please_select_type');
 $logType = '';  // Default log type
+
+// Include SSH config
+include_once "/var/www/config/ssh.php";
+$logPath = "/home/botofthespecter/logs/logs";
+// Helper function to read log file over SSH
+function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    if (!function_exists('ssh2_connect')) {
+      return ['error' => 'SSH2 extension not installed'];
+    }
+    // Use the function parameters, not undefined variables
+    $connection = ssh2_connect($bots_ssh_host, 22);
+    if (!$connection) return ['error' => 'Could not connect to SSH server'];
+    if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
+      return ['error' => 'SSH authentication failed'];
+    }
+    // Count total lines
+    $cmd_count = "wc -l < " . escapeshellarg($remote_path);
+    $stream = ssh2_exec($connection, $cmd_count);
+    stream_set_blocking($stream, true);
+    $linesTotal = (int)trim(stream_get_contents($stream));
+    fclose($stream);
+    // Calculate start line
+    if ($startLine === null) {
+      $startLine = max(0, $linesTotal - $lines);
+    }
+    // Use tail and head to get the desired lines
+    $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
+    $stream = ssh2_exec($connection, $cmd);
+    stream_set_blocking($stream, true);
+    $logContent = stream_get_contents($stream);
+    fclose($stream);
+    return [
+      'linesTotal' => $linesTotal,
+      'logContent' => $logContent
+    ];
+}
+
+// Helper function to highlight log dates in a string and add <br> at end of each line, with reverse order
+function highlight_log_dates($text) {
+  $style = 'style="color: #e67e22; font-weight: bold;"';
+  $escaped = htmlspecialchars($text);
+  $lines = explode("\n", $escaped);
+  $lines = array_reverse($lines);
+  foreach ($lines as &$line) {
+    $line = preg_replace(
+      '/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/',
+      '<span ' . $style . '>$1</span>',
+      $line
+    );
+  }
+  return implode("<br>", $lines);
+}
+
+// AJAX handler for log fetching - must be before any output!
+if (isset($_GET['log'])) {
+  // Suppress warnings/notices for clean JSON output
+  error_reporting(E_ERROR | E_PARSE);
+  header('Content-Type: application/json');
+  $logType = $_GET['log'];
+  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
+  $currentUser = $_SESSION['username'] ?? '';
+  $log = "$logPath/$logType/$currentUser.txt";
+  // Use SSH to read the log file with config variables
+  $result = read_log_over_ssh($log, 200, $since);
+  if (isset($result['error'])) {
+    echo json_encode(['error' => $result['error']]);
+    exit();
+  }
+  $logContent = $result['logContent'];
+  $linesTotal = $result['linesTotal'];
+  $logContent = highlight_log_dates($logContent);
+  echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
+  exit();
+}
+
 if (isset($_GET['logType'])) {
   $logType = $_GET['logType'];
-  $logPath = "/var/www/logs/$logType/$username.txt";
-  if (file_exists($logPath)) {
-    // Read the file in reverse
-    $file = new SplFileObject($logPath);
-    $file->seek(PHP_INT_MAX); // Move to the end of the file
-    $linesTotal = $file->key(); // Get the total number of lines
-    $startLine = max(0, $linesTotal - 200); // Calculate the starting line number
-    $logLines = [];
-    $file->seek($startLine);
-    while (!$file->eof()) {
-      $logLines[] = $file->fgets();
-    }
-    $logContent = implode("", array_reverse($logLines));
-    // Check if the log content is empty
+  $currentUser = $_SESSION['username'] ?? '';
+  $log = "$logPath/$logType/$currentUser.txt";
+  // Use SSH to read the log file with config variables
+  $result = read_log_over_ssh($log, 200);
+  if (isset($result['error'])) {
+    $logContent = "Error: " . $result['error'];
+  } else {
+    $logContent = $result['logContent'];
     if (trim($logContent) === '') {
       $logContent = "Nothing has been logged yet.";
     }
-  } else {
-    $logContent = "Error getting that log file, it doesn't look like it exists.";
   }
+  // Highlight dates for initial page load
+  $logContent = highlight_log_dates($logContent);
 }
+
 
 // Check if it's an AJAX request
 if (isset($_GET['log'])) {
   header('Content-Type: application/json');
   $logType = $_GET['log'];
   $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
-  $logPath = "/var/www/logs/$logType/$username.txt";
-  if (!file_exists($logPath)) {
-      echo json_encode(['error' => 'Log file does not exist']);
-      exit();
+  $currentUser = $_SESSION['username'] ?? '';
+  $log = "$logPath/$logType/$currentUser.txt";
+  // Use SSH to read the log file with config variables
+  $result = read_log_over_ssh($log, 200, $since);
+  if (isset($result['error'])) {
+    echo json_encode(['error' => $result['error']]);
+    exit();
   }
-  $file = new SplFileObject($logPath);
-  $file->seek(PHP_INT_MAX);
-  $linesTotal = $file->key();
-  $startLine = max(0, $linesTotal - 200);
-  if ($since > 0) {
-      $startLine = $since;
-  }
-  $logLines = [];
-  $file->seek($startLine);
-  while (!$file->eof()) {
-      $logLines[] = $file->fgets();
-  }
-  $logContent = implode("", array_reverse($logLines));
-  echo json_encode(['last_line' => $linesTotal, 'data' => htmlspecialchars($logContent)]);
+  $logContent = $result['logContent'];
+  $linesTotal = $result['linesTotal'];
+  $logContent = highlight_log_dates($logContent);
+  echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
   exit();
 }
-include "mod_access.php";
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <!-- Header -->
-  <?php include('header.php'); ?>
-  <!-- /Header -->
-</head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
 
-<div class="container">
-  <div class="logs-container">
-    <div class="logs-sidebar">
-      <p class="logs-title">Select a log to view:</p>
-      <div>
-        <select id="logs-select" class="logs-select">
-          <option>SELECT A LOG TYPE</option>
-          <option value="script" <?php echo $logType === 'script' ? 'selected' : ''; ?>>Script Logs</option>
-          <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>>Bot Log</option>
-          <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>>Chat Log</option>
-          <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>>Twitch Log</option>
-          <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>>API Log</option>
-          <option value="chat_history" <?php echo $logType === 'chat_history' ? 'selected' : ''; ?>>Chat History</option>
-          <option value="event_log" <?php echo $logType === 'event_log' ? 'selected' : ''; ?>>Event Log</option>
-          <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>>Websocket Log</option>
-          <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>>Discord Bot Log</option>
-        </select>
+// Include access control
+include "mod_access.php";
+
+// Start output buffering for content
+ob_start();
+?>
+<div class="notification is-warning is-light mb-3">
+  <span class="icon"><i class="fas fa-info-circle"></i></span>
+  <span>
+    <?php echo t('logs_language_notice'); ?>
+  </span>
+</div>
+<div class="columns">
+  <div class="column is-one-quarter">
+    <div class="box" style="height: 403px;">
+      <p class="title is-5"><?php echo t('logs_select_log'); ?></p>
+      <div class="field">
+        <div class="control">
+          <div class="select is-fullwidth" style="margin-bottom: 1em;">
+            <select id="logs-select">
+              <option><?php echo t('logs_select_type'); ?></option>
+              <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>><?php echo t('logs_type_bot'); ?></option>
+              <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>><?php echo t('logs_type_chat'); ?></option>
+              <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>><?php echo t('logs_type_twitch'); ?></option>
+              <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>><?php echo t('logs_type_api'); ?></option>
+              <option value="chat_history" <?php echo $logType === 'chat_history' ? 'selected' : ''; ?>><?php echo t('logs_type_chat_history'); ?></option>
+              <option value="event_log" <?php echo $logType === 'event_log' ? 'selected' : ''; ?>><?php echo t('logs_type_event_log'); ?></option>
+              <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>><?php echo t('logs_type_websocket'); ?></option>
+              <option value="discord" <?php echo $logType === 'discord' ? 'selected' : ''; ?>><?php echo t('logs_type_discord'); ?></option>
+            </select>
+          </div>
+        </div>
       </div>
-      <div class="logs-options" id="logs-options">
-        Log Time is GMT+<span id="timezone-offset"></span>
-        <div id="current-time-display" class="current-time-display">
-          Current Log Time:<br><span id="current-log-time"></span>
+      <div class="content" id="logs-options">
+        <?php echo t('logs_time_is'); ?> GMT+<span id="timezone-offset"></span>
+        <div id="current-time-display" class="mt-2">
+          <strong><?php echo t('logs_current_time'); ?></strong><br><span id="current-log-time"></span>
         </div>
       </div>
       <!-- Buttons Container - Hidden initially -->
-      <div class="buttons-container" style="display: none;">
-        <button class="button" id="reload-log">Reload Log</button>
-        <button class="button toggle-button" id="toggle-auto-refresh">Auto-refresh: OFF</button>
-        <button class="button" id="load-more">Load More Lines</button>
+      <div class="buttons buttons-container mt-4" style="display: none;">
+        <button class="button is-link mr-2 mb-2" id="reload-log"><?php echo t('logs_reload_btn'); ?></button>
+        <button class="button is-info toggle-button mr-2 mb-2" id="toggle-auto-refresh"><?php echo t('logs_auto_refresh'); ?>: OFF</button>
+        <button class="button is-primary mb-2" id="load-more"><?php echo t('logs_load_more'); ?></button>
       </div>
     </div>
-    <div class="logs-log-area">
+  </div>
+  <div class="column">
+    <div class="box">
       <div id="logs-logDisplay" class="logs-log-content">
-        <h3 class="logs-title" id="log-title"></h3>
-        <textarea id="logs-log-textarea" readonly><?php echo htmlspecialchars($logContent); ?></textarea>
+        <h3 class="title is-5" id="log-title"></h3>
+        <div class="field">
+          <div class="control">
+            <div
+              id="logs-log-html"
+              class="admin-log-content"
+              style="max-height: 600px; min-height: 600px; font-family: monospace; white-space: pre-wrap; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: auto; overflow-y: auto;"
+              contenteditable="false"
+            ><?php echo $logContent; ?></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+<?php
+$content = ob_get_clean();
 
+// Start output buffering for scripts
+ob_start();
+?>
 <script>
 var last_line = 0;
 var autoRefresh = false;
 var currentLogName = ''; // Track the currently selected log
 var logtext = document.getElementById("logs-log-textarea");
+var logHtml = document.getElementById("logs-log-html");
 const reloadButton = document.getElementById("reload-log");
 const autoRefreshButton = document.getElementById("toggle-auto-refresh");
 const loadMoreButton = document.getElementById("load-more");
@@ -162,7 +251,7 @@ async function fetchLogData(logname, loadMore = false) {
 
   // Prevent negative line counts
   if (loadMore && last_line <= 0) {
-    console.log("No more lines to load.");
+    console.log(<?php echo json_encode(t('logs_no_more_lines')); ?>);
     return;
   }
 
@@ -177,21 +266,18 @@ async function fetchLogData(logname, loadMore = false) {
     const response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
     const json = await response.json();
     if (json["data"].length === 0) {
-      logtext.innerHTML = "(log is empty)";
+      logHtml.innerHTML = "(log is empty)";
     } else {
       last_line = json["last_line"];
       if (loadMore) {
-        logtext.innerHTML = json["data"] + logtext.innerHTML;
+        logHtml.innerHTML = json["data"] + logHtml.innerHTML;
       } else {
-        logtext.innerHTML = json["data"];
+        logHtml.innerHTML = json["data"];
       }
     }
-
-    // Show buttons after selecting a valid log file
     toggleButtonsContainer(true);
-
   } catch (error) {
-    console.error("Error fetching log data:", error);
+    console.error(<?php echo json_encode(t('logs_error_fetching')); ?>, error);
   }
 }
 
@@ -201,9 +287,9 @@ async function autoUpdateLog() {
       const response = await fetch(`logs.php?log=${currentLogName}`);
       const json = await response.json();
       last_line = json["last_line"];
-      logtext.innerHTML = json["data"];
+      logHtml.innerHTML = json["data"];
     } catch (error) {
-      console.error("Error fetching log data for auto-refresh:", error);
+      console.error(<?php echo json_encode(t('logs_error_fetching_auto_refresh')); ?>, error);
     }
   }
 }
@@ -266,6 +352,7 @@ function updateGMTOffset() {
 // Update the GMT offset on page load
 updateGMTOffset();
 </script>
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
+<?php
+$scripts = ob_get_clean();
+include "layout.php";
+?>

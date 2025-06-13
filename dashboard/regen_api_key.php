@@ -1,7 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
 require 'db_connect.php';
 
 // Start session only if it hasn't already been started

@@ -1,41 +1,51 @@
-<?php 
-// Initialize the session
+<?php
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
+    header('Location: ../login.php');
     exit();
 }
 
 // Page Title
-$title = "Bot Points Management";
+$pageTitle = t('bot_points_title');
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
-include 'user_db.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 $status = '';
 
+// Handle POST requests (settings update, etc.)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_points'])) {
         $user_name = $_POST['user_name'];
         $points = $_POST['points'];
         $updatePointsStmt = $db->prepare("UPDATE bot_points SET points = ? WHERE user_name = ?");
-        $updatePointsStmt->execute([$points, $user_name]);
-        $status = "User points updated successfully!";
+        $updatePointsStmt->bind_param("is", $points, $user_name);
+        $updatePointsStmt->execute();
+        $updatePointsStmt->close();
+        $status = t('bot_points_update_success');
     } elseif (isset($_POST['remove_user'])) {
         $user_name = $_POST['user_name'];
         $removeUserStmt = $db->prepare("DELETE FROM bot_points WHERE user_name = ?");
-        $removeUserStmt->execute([$user_name]);
-        $status = "User removed successfully!";
+        $removeUserStmt->bind_param("s", $user_name);
+        $removeUserStmt->execute();
+        $removeUserStmt->close();
+        $status = t('bot_points_remove_success');
     } else {
         $point_name = $_POST['point_name'];
         $point_amount_chat = $_POST['point_amount_chat'];
@@ -55,7 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             subscriber_multiplier = ?, 
             excluded_users = ?
         WHERE id = 1");
-        $updateStmt->execute([
+        $updateStmt->bind_param(
+            "siiiiiss", 
             $point_name, 
             $point_amount_chat, 
             $point_amount_follower, 
@@ -64,220 +75,231 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $point_amount_raid, 
             $subscriber_multiplier,
             $excluded_users
-        ]);
-        $status = "Settings updated successfully!";
+        );
+        $updateStmt->execute();
+        $updateStmt->close();
+        $status = t('bot_points_settings_update_success');
     }
 }
 
+// Fetch settings (MySQLi)
 $settingsStmt = $db->prepare("SELECT * FROM bot_settings WHERE id = 1");
 $settingsStmt->execute();
-$settings = $settingsStmt->fetch(PDO::FETCH_ASSOC);
+$result = $settingsStmt->get_result();
+$settings = $result->fetch_assoc();
+$settingsStmt->close();
 $pointsName = htmlspecialchars($settings['point_name']);
 $excludedUsers = htmlspecialchars($settings['excluded_users']);
 
-// Fetch users and their points from bot_points table
+// Fetch users and their points from bot_points table (MySQLi)
 $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
 $pointsStmt->execute();
-$pointsData = $pointsStmt->fetchAll(PDO::FETCH_ASSOC);
+$result = $pointsStmt->get_result();
+$pointsData = [];
+while ($row = $result->fetch_assoc()) {
+    $pointsData[] = $row;
+}
+$pointsStmt->close();
 
 // If requested via AJAX, return the JSON data
 if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
     echo json_encode($pointsData);
     exit();
 }
+
+// Show connected database name (MySQLi)
+$connectedDb = $db->query('select database()')->fetch_row()[0];
+
+// Start output buffering for layout template
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <!-- /Header -->
-</head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
-<div class="container">
-    <br>
-    <!-- Settings Button -->
-    <?php if ($status): ?>
-        <div class="notification is-success" style="background-color: #4CAF50; color: #ffffff;"><?php echo $status; ?></div>
-    <?php endif; ?>
-    <button class="button is-primary" id="settingsButton">Settings</button>
-    <!-- Points Table -->
-    <h2 class="subtitle">User Points</h2>
-    <p id="updateInfo">Data last updated: <span id="secondsAgo">0</span> seconds ago.</p>
-    <table class="table is-fullwidth is-striped">
-        <thead>
-            <tr>
-                <th class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">Username</th>
-                <th class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo $pointsName !== 'Points' ? $pointsName . ' Points' : 'Points'; ?></th>
-                <th class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">Actions</th>
-            </tr>
-        </thead>
-        <tbody id="pointsTableBody">
-            <?php foreach ($pointsData as $row): ?>
+<div class="columns is-centered">
+  <div class="column is-fullwidth">
+    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+      <header class="card-header" style="border-bottom: 1px solid #23272f;">
+        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+          <span class="icon mr-2"><i class="fas fa-coins"></i></span>
+          <?php echo t('bot_points_title'); ?>
+        </span>
+        <button class="button is-primary ml-auto" id="settingsButton">
+          <span class="icon"><i class="fas fa-cog"></i></span>
+          <span><?php echo t('bot_points_settings_btn'); ?></span>
+        </button>
+      </header>
+      <div class="card-content">
+        <?php if ($status): ?>
+          <div class="notification is-success"><?php echo $status; ?></div>
+        <?php endif; ?>
+        <p id="updateInfo" class="mb-3"><?php echo t('bot_points_data_last_updated'); ?> <span id="secondsAgo">0</span> <?php echo t('bot_points_seconds_ago'); ?></p>
+        <div class="table-container">
+          <table class="table is-fullwidth has-background-dark" id="pointsTable">
+            <thead>
+              <tr>
+                <th class="has-text-centered"><?php echo t('bot_points_username'); ?></th>
+                <th class="has-text-centered"><?php echo $pointsName !== 'Points' ? $pointsName . ' ' . t('bot_points_points') : t('bot_points_points'); ?></th>
+                <th class="has-text-centered"><?php echo t('bot_points_actions'); ?></th>
+              </tr>
+            </thead>
+            <tbody id="pointsTableBody">
+              <?php foreach ($pointsData as $row): ?>
                 <tr>
-                    <td style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['user_name']); ?></td>
-                    <td style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['points']); ?></td>
-                    <td style="white-space: nowrap; vertical-align: middle;">
-                        <form method="POST" action="" style="display:inline;">
-                            <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
-                            <div class="field has-addons">
-                                <div class="control"><input class="input" type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required style="width: 100px;"></div>
-                                <div class="control" style="margin-left: 5px;"><button class="button is-primary" type="submit" name="update_points">Update</button></div>
-                                <div class="control" style="margin-left: 5px;"><button class="button is-danger" type="submit" name="remove_user">Remove</button></div>
-                            </div>
-                        </form>
-                    </td>
+                  <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['user_name']); ?></td>
+                  <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['points']); ?></td>
+                  <td class="has-text-centered is-centered is-flex is-justify-content-center is-align-items-center" style="white-space: nowrap; vertical-align: middle;">
+                    <form method="POST" action="" style="display:inline;">
+                      <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
+                      <div class="field has-addons is-flex is-justify-content-center is-align-items-center">
+                        <div class="control"><input class="input" type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required style="width: 100px;"></div>
+                        <div class="control" style="margin-left: 5px;"><button class="button is-primary" type="submit" name="update_points"><?php echo t('bot_points_update_btn'); ?></button></div>
+                        <div class="control" style="margin-left: 5px;"><button class="button is-danger" type="submit" name="remove_user"><?php echo t('bot_points_remove_btn'); ?></button></div>
+                      </div>
+                    </form>
+                  </td>
                 </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-</div>
-
-<!-- Modal -->
-<div class="modal" id="settingsModal">
-    <div class="modal-background"></div>
-    <div class="modal-card" style="background-color: #2b2b2b;">
-        <header class="modal-card-head" style="background-color: #1a1a1a; color: #ffffff;">
-            <p class="modal-card-title" style="color: #ffffff;">Points System Settings</p>
-            <button class="delete" aria-label="close" id="closeModal" style="color: #ffffff;"></button>
-        </header>
-        <section class="modal-card-body" style="background-color: #2b2b2b; color: #ffffff;">
-            <form method="POST" action="">
-                <div class="field">
-                    <label for="point_name" style="color: #ffffff;">Points Name</label>
-                    <div class="control">
-                        <input class="input" type="text" name="point_name" value="<?php echo $pointsName; ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="point_amount_chat" style="color: #ffffff;"><?php echo $pointsName; ?> Earned per Chat Message</label>
-                    <div class="control">
-                        <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="point_amount_follower" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Following</label>
-                    <div class="control">
-                        <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_amount_follower']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="point_amount_subscriber" style="color: #ffffff;"><?php echo $pointsName; ?> Earned for Subscribing</label>
-                    <div class="control">
-                        <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="point_amount_cheer" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Cheer</label>
-                    <div class="control">
-                        <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="point_amount_raid" style="color: #ffffff;"><?php echo $pointsName; ?> Earned Per Raid Viewer</label>
-                    <div class="control">
-                        <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="subscriber_multiplier" style="color: #ffffff;">Subscriber Multiplier</label>
-                    <div class="control">
-                        <div class="select is-fullwidth" style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                            <select name="subscriber_multiplier" style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                                <option value="0" <?php echo $settings['subscriber_multiplier'] == 0 ? 'selected' : ''; ?>>None</option>
-                                <option value="2" <?php echo $settings['subscriber_multiplier'] == 2 ? 'selected' : ''; ?>>2x</option>
-                                <option value="3" <?php echo $settings['subscriber_multiplier'] == 3 ? 'selected' : ''; ?>>3x</option>
-                                <option value="4" <?php echo $settings['subscriber_multiplier'] == 4 ? 'selected' : ''; ?>>4x</option>
-                                <option value="5" <?php echo $settings['subscriber_multiplier'] == 5 ? 'selected' : ''; ?>>5x</option>
-                                <option value="6" <?php echo $settings['subscriber_multiplier'] == 6 ? 'selected' : ''; ?>>6x</option>
-                                <option value="7" <?php echo $settings['subscriber_multiplier'] == 7 ? 'selected' : ''; ?>>7x</option>
-                                <option value="8" <?php echo $settings['subscriber_multiplier'] == 8 ? 'selected' : ''; ?>>8x</option>
-                                <option value="9" <?php echo $settings['subscriber_multiplier'] == 9 ? 'selected' : ''; ?>>9x</option>
-                                <option value="10" <?php echo $settings['subscriber_multiplier'] == 10 ? 'selected' : ''; ?>>10x</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="field">
-                    <label for="excluded_users" style="color: #ffffff;">Excluded Users (comma-separated)</label>
-                    <div class="control">
-                        <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required style="background-color: #3a3a3a; color: #ffffff; border: none;">
-                    </div>
-                    <p class="help" style="color: #ffffff;">By default, both the bot and yourself are excluded.</p>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-primary" type="submit">Update Settings</button>
-                    </div>
-                </div>
-            </form>
-        </section>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
+  </div>
 </div>
+<!-- Settings Modal -->
+<div class="modal" id="settingsModal">
+  <div class="modal-background"></div>
+  <div class="modal-card" style="background-color: #23272f; color: #fff;">
+    <header class="modal-card-head" style="background-color: #1a1a1a;">
+      <p class="modal-card-title"><?php echo t('bot_points_settings_title'); ?></p>
+      <button class="delete" aria-label="close" id="closeModal"></button>
+    </header>
+    <section class="modal-card-body">
+      <form method="POST" action="">
+        <div class="field">
+          <label class="label"><?php echo t('bot_points_points_name'); ?></label>
+          <div class="control">
+            <input class="input" type="text" name="point_name" value="<?php echo $pointsName; ?>" required>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_chat'); ?></label>
+          <div class="control">
+            <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_following'); ?></label>
+          <div class="control">
+            <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_amount_follower']); ?>" required>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_subscribing'); ?></label>
+          <div class="control">
+            <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_cheer'); ?></label>
+          <div class="control">
+            <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_raid'); ?></label>
+          <div class="control">
+            <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label"><?php echo t('bot_points_subscriber_multiplier'); ?></label>
+          <div class="control">
+            <div class="select is-fullwidth">
+              <select name="subscriber_multiplier">
+                <option value="0" <?php echo $settings['subscriber_multiplier'] == 0 ? 'selected' : ''; ?>><?php echo t('bot_points_none'); ?></option>
+                <?php for ($i = 2; $i <= 10; $i++): ?>
+                  <option value="<?php echo $i; ?>" <?php echo $settings['subscriber_multiplier'] == $i ? 'selected' : ''; ?>><?php echo $i; ?>x</option>
+                <?php endfor; ?>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label"><?php echo t('bot_points_excluded_users'); ?></label>
+          <div class="control">
+            <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required>
+          </div>
+          <p class="help"><?php echo t('bot_points_excluded_users_help'); ?></p>
+        </div>
+        <div class="field">
+          <div class="control">
+            <button class="button is-primary" type="submit"><?php echo t('bot_points_update_settings_btn'); ?></button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+<?php
+$content = ob_get_clean();
 
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+ob_start();
+?>
 <script>
-    let secondsAgo = 0;
-
-    // Function to update the table with new data
-    function updatePointsTable() {
-        $.ajax({
-            url: '?action=get_points_data',
-            method: 'GET',
-            success: function(data) {
-                const pointsData = JSON.parse(data);
-                let tableBody = '';
-                pointsData.forEach(function(row) {
-                    tableBody += `<tr>
-                        <td>${row.user_name}</td>
-                        <td>${row.points}</td>
-                        <td style="white-space: nowrap; vertical-align: middle;">
-                            <form method="POST" action="" style="display:inline;">
-                                <input type="hidden" name="user_name" value="${row.user_name}">
-                                <div class="field has-addons">
-                                    <div class="control"><input class="input" type="number" name="points" value="${row.points}" required style="width: 100px;"></div>
-                                    <div class="control" style="margin-left: 5px;"><button class="button is-primary" type="submit" name="update_points">Update</button></div>
-                                    <div class="control" style="margin-left: 5px;"><button class="button is-danger" type="submit" name="remove_user">Remove</button></div>
-                                </div>
-                            </form>
-                        </td>
-                    </tr>`;
-                });
-                $('#pointsTableBody').html(tableBody);
-                // Reapply the styles and class for the first two cells of each row.
-                $('#pointsTableBody tr').each(function() {
-                    $(this).find('td').eq(0).css('white-space', 'nowrap').css('vertical-align', 'middle');
-                    $(this).find('td').eq(1).css('white-space', 'nowrap').css('vertical-align', 'middle');
-                });
-                secondsAgo = 0; // Reset seconds counter
-            }
-        });
+let secondsAgo = 0;
+function updatePointsTable() {
+  $.ajax({
+    url: '?action=get_points_data',
+    method: 'GET',
+    success: function(data) {
+      const pointsData = JSON.parse(data);
+      let tableBody = '';
+      const updateLabel = <?php echo json_encode(t('bot_points_update_btn')); ?>;
+      const removeLabel = <?php echo json_encode(t('bot_points_remove_btn')); ?>;
+      pointsData.forEach(function(row) {
+        tableBody += `<tr>
+          <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">${row.user_name}</td>
+          <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">${row.points}</td>
+          <td class="has-text-centered is-centered is-flex is-justify-content-center is-align-items-center" style="white-space: nowrap; vertical-align: middle;">
+            <form method="POST" action="" style="display:inline;">
+              <input type="hidden" name="user_name" value="${row.user_name}">
+              <div class="field has-addons is-flex is-justify-content-center is-align-items-center">
+                <div class="control"><input class="input" type="number" name="points" value="${row.points}" required style="width: 100px;"></div>
+                <div class="control" style="margin-left: 5px;"><button class="button is-primary" type="submit" name="update_points">${updateLabel}</button></div>
+                <div class="control" style="margin-left: 5px;"><button class="button is-danger" type="submit" name="remove_user">${removeLabel}</button></div>
+              </div>
+            </form>
+          </td>
+        </tr>`;
+      });
+      $('#pointsTableBody').html(tableBody);
+      secondsAgo = 0;
     }
+  });
+}
 
-    // Update the seconds ago counter
-    function updateSecondsAgo() {
-        secondsAgo++;
-        $('#secondsAgo').text(secondsAgo);
-    }
-    // Initial table update
-    updatePointsTable();
-    setInterval(updatePointsTable, 30000); // 30000 ms = 30 seconds
-    setInterval(updateSecondsAgo, 1000); // 1000 ms = 1 second
+function updateSecondsAgo() {
+  secondsAgo++;
+  $('#secondsAgo').text(secondsAgo);
+}
 
-    // Modal Script
-    document.getElementById('settingsButton').addEventListener('click', function() {
-        document.getElementById('settingsModal').classList.add('is-active');
-    });
-    document.getElementById('closeModal').addEventListener('click', function() {
-        document.getElementById('settingsModal').classList.remove('is-active');
-    });
-    document.querySelector('.modal-background').addEventListener('click', function() {
-        document.getElementById('settingsModal').classList.remove('is-active');
-    });
+updatePointsTable();
+setInterval(updatePointsTable, 30000);
+setInterval(updateSecondsAgo, 1000);
+
+// Modal Script
+document.getElementById('settingsButton').addEventListener('click', function() {
+  document.getElementById('settingsModal').classList.add('is-active');
+});
+document.getElementById('closeModal').addEventListener('click', function() {
+  document.getElementById('settingsModal').classList.remove('is-active');
+});
+document.querySelector('.modal-background').addEventListener('click', function() {
+  document.getElementById('settingsModal').classList.remove('is-active');
+});
 </script>
-</body>
-</html>
+<?php
+$scripts = ob_get_clean();
+
+// Use the dashboard layout
+include 'layout.php';
+?>

@@ -1,55 +1,90 @@
 <?php
-header('Content-Type: application/json');
+session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
+ob_start();
 
+// Check if the user is logged in
+if (!isset($_SESSION['access_token'])) {
+  header('Content-Type: application/json');
+  echo json_encode(['error' => 'Authentication required']);
+  exit();
+}
+
+// Get the service to check
 $service = $_GET['service'] ?? '';
 
-function pingServer($host, $port) {
-    $starttime = microtime(true);
-    $file = @fsockopen($host, $port, $errno, $errstr, 2);
-    $stoptime = microtime(true);
-    $status = 0;
-
-    if (!$file) {
-        $status = -1;  // Site is down
+// Helper function to check TCP port
+function checkPort($host, $port, $timeout = 3) {
+    $start = microtime(true);
+    $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
+    $latency = round((microtime(true) - $start) * 1000); // ms
+    if ($fp) {
+        fclose($fp);
+        return ['status' => 'OK', 'latency_ms' => $latency];
     } else {
-        fclose($file);
-        $status = ($stoptime - $starttime) * 1000;
-        $status = floor($status);
+        return ['status' => 'ERROR', 'message' => "Connection failed: $errstr ($errno)"];
     }
-    return $status;
 }
 
-$status = 'OFF';
+// Map services to host/port
+$serviceMap = [
+    'api' => [
+        'name' => 'API Service',
+        'host' => 'api.botofthespecter.com',
+        'port' => 443
+    ],
+    'database' => [
+        'name' => 'Database Service',
+        'host' => 'pub.sql.botofthespecter.com',
+        'port' => 443
+    ],
+    'websocket' => [
+        'name' => 'Notification Service',
+        'host' => 'websocket.botofthespecter.com',
+        'port' => 443
+    ],
+    'streamingService' => [
+        'name' => 'AU-EAST-1 Streaming Service',
+        'host' => 'au-east-1.stream.botofthespecter.com',
+        'port' => 1935
+    ],
+    'streamingServiceWest' => [
+        'name' => 'US-WEST-1 Streaming Service',
+        'host' => 'us-west-1.stream.botofthespecter.com',
+        'port' => 1935
+    ],
+    'streamingServiceEast' => [
+        'name' => 'US-EAST-1 Streaming Service',
+        'host' => 'us-east-1.stream.botofthespecter.com',
+        'port' => 1935
+    ]
+];
 
-switch ($service) {
-    case 'api':
-        $pingStatus = pingServer('10.240.0.120', 443);
-        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
-        break;
-    case 'websocket':
-        $pingStatus = pingServer('10.240.0.254', 443);
-        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
-        break;
-    case 'database':
-        $pingStatus = pingServer('10.240.0.40', 3306);
-        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
-        break;
-    case 'streamingService':
-        // AU-EAST-1 Streaming Service
-        $pingStatus = pingServer('10.240.0.211', 1935);
-        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
-        break;
-    case 'streamingServiceWest':
-        // US-WEST-1 Streaming Service
-        $pingStatus = pingServer('5.78.129.75', 1935);
-        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
-        break;
-    case 'streamingServiceEast':
-        // US-EAST-1 Streaming Service
-        $pingStatus = pingServer('5.161.201.91', 1935);
-        $status = $pingStatus >= 0 ? 'OK' : 'OFF';
-        break;
+// Check status
+if (isset($serviceMap[$service])) {
+    $svc = $serviceMap[$service];
+    $result = checkPort($svc['host'], $svc['port']);
+    $serviceData = [
+        'name' => $svc['name'],
+        'status' => $result['status'],
+        'latency_ms' => $result['status'] === 'OK' ? $result['latency_ms'] : null,
+        // Use translation for messages
+        'message' => $result['status'] === 'OK' ? t('bot_running_normally') : $result['message']
+    ];
+} elseif ($service === 'ping') {
+    $serviceData = [
+        'pong' => true
+    ];
+} else {
+    $serviceData = [
+        'error' => t('bot_status_unknown')
+    ];
 }
 
-echo json_encode(['status' => $status]);
+// Return data as JSON
+ob_clean(); // Clear any accidental output
+header('Content-Type: application/json');
+echo json_encode($serviceData);
+exit();
 ?>
