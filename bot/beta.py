@@ -218,6 +218,43 @@ async def signal_handler(sig, frame):
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
+# Connect to database website
+async def access_website_database():
+    # Connect to your MySQL database
+    return await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db="website",
+    )
+
+# Connect to database CHANNEL_NAME
+async def get_mysql_connection():
+    return await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db=CHANNEL_NAME
+    )
+
+# Connect to database spam_pattern
+async def get_spam_patterns():
+    # Connect to your MySQL database
+    pattern_db = await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db="spam_pattern",
+    )
+    async with pattern_db.cursor(aiomysql.DictCursor) as cursor:
+        await cursor.execute("SELECT spam_pattern FROM spam_patterns")
+        results = await cursor.fetchall()
+    # Close the connection
+    pattern_db.close()
+    # Compile the regular expressions
+    compiled_patterns = [re.compile(row["spam_pattern"], re.IGNORECASE) for row in results if row["spam_pattern"]]
+    return compiled_patterns
+
 # Setup Token Refresh
 async def twitch_token_refresh():
     global REFRESH_TOKEN
@@ -7860,43 +7897,6 @@ async def make_stream_marker(description: str):
     except aiohttp.ClientError as e:
         twitch_logger.error(f"Error creating stream marker: {e}")
         return False
-
-# Connect to database
-async def get_mysql_connection():
-    return await aiomysql.connect(
-        host=SQL_HOST,
-        user=SQL_USER,
-        password=SQL_PASSWORD,
-        db=CHANNEL_NAME
-    )
-
-# Connect to database to get Spam Patterns
-async def get_spam_patterns():
-    # Connect to your MySQL database
-    pattern_db = await aiomysql.connect(
-        host=SQL_HOST,
-        user=SQL_USER,
-        password=SQL_PASSWORD,
-        db="spam_pattern",
-    )
-    async with pattern_db.cursor(aiomysql.DictCursor) as cursor:
-        await cursor.execute("SELECT spam_pattern FROM spam_patterns")
-        results = await cursor.fetchall()
-    # Close the connection
-    pattern_db.close()
-    # Compile the regular expressions
-    compiled_patterns = [re.compile(row["spam_pattern"], re.IGNORECASE) for row in results if row["spam_pattern"]]
-    return compiled_patterns
-
-# Connect to database to get settings from the website
-async def access_website_database():
-    # Connect to your MySQL database
-    return await aiomysql.connect(
-        host=SQL_HOST,
-        user=SQL_USER,
-        password=SQL_PASSWORD,
-        db="website",
-    )
 
 # Function to check if a URL or domain matches whitelisted or blacklisted URLs
 async def match_domain_or_link(message, domain_list):
