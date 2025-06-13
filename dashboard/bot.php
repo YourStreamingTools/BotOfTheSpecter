@@ -694,7 +694,8 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.innerHTML = originalContent;
           btn.disabled = false;
         });
-    }, 10); // Small delay to prevent UI blocking  }
+    }, 10); // Small delay to prevent UI blocking
+  }
   
   // Non-blocking polling function using setInterval instead of recursion
   function startPollingBotStatus(botType, maxAttempts) {
