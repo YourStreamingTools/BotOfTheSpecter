@@ -1,4 +1,7 @@
-<?php 
+<?php
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
+
 // Fetch protection settings
 $getProtection = $db->query("SELECT * FROM protection LIMIT 1");
 if ($getProtection) {
@@ -101,75 +104,120 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
-<div class="container">
-    <h1 class="title">Chat Protection Settings:</h1>
-    <?php if (!empty($message)): ?>
-        <div class="notification is-primary has-text-black has-text-weight-bold">
-            <?php echo $message; ?>
-        </div>
-    <?php endif; ?>
-    <div class="columns is-desktop is-multiline is-centered box-container">
-        <!-- URL Blocking Settings -->
-        <div class="column is-2 bot-box" style="position: relative;">
-            <form action="" method="post">
-                <div class="field">
-                    <label for="url_blocking">Enable URL Blocking:</label>
-                    <div class="control">
-                        <div class="select">
-                            <select name="url_blocking" id="url_blocking">
-                                <option value="True"<?php echo $currentSettings == 'True' ? ' selected' :'';?>>True</option>
-                                <option value="False"<?php echo $currentSettings == 'False' ? ' selected' :'';?>>False</option>
-                            </select>
+<h1 class="title is-3 mb-4">
+    <span class="icon has-text-info"><i class="fas fa-shield-alt"></i></span>
+    <?php echo t('protection_title'); ?>
+</h1>
+<?php if (!empty($message)): ?>
+    <div class="notification is-primary is-light has-text-black has-text-weight-bold is-rounded mb-5">
+        <?php echo $message; ?>
+    </div>
+<?php endif; ?>
+<div class="columns is-multiline is-variable is-5 is-centered">
+    <!-- URL Blocking Settings -->
+    <div class="column is-4">
+        <div class="card" style="height: 100%;">
+            <div class="card-content">
+                <div class="has-text-centered mb-4">
+                    <h3 class="title is-5">
+                        <span class="icon has-text-link"><i class="fas fa-link-slash"></i></span>
+                        <?php echo t('protection_enable_url_blocking'); ?>
+                    </h3>
+                </div>
+                <form action="" method="post">
+                    <div class="field">
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select name="url_blocking" id="url_blocking">
+                                    <option value="True"<?php echo $currentSettings == 'True' ? ' selected' :'';?>><?php echo t('yes'); ?></option>
+                                    <option value="False"<?php echo $currentSettings == 'False' ? ' selected' :'';?>><?php echo t('no'); ?></option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="field">
-                    <input type="submit" name="submit" value="Update" class="button is-primary"></input>
-                </div>
-            </form>
-        </div>
-        <!-- Whitelist Link Form -->
-        <div class="column is-4 bot-box" style="position: relative;">
-            <form action="" method="post">
-                <div class="field">
-                    <label for="whitelist_link">Enter Link to Whitelist:</label>
-                    <div class="control has-icons-left">
-                        <input class="input" type="url" name="whitelist_link" id="whitelist_link" placeholder="Enter a URL" required>
-                        <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
+                    <div class="field mt-4">
+                        <button type="submit" name="submit" class="button is-primary is-fullwidth">
+                            <span class="icon"><i class="fas fa-save"></i></span>
+                            <span><?php echo t('protection_update_btn'); ?></span>
+                        </button>
                     </div>
-                </div>
-                <div class="field">
-                    <input type="submit" name="submit" value="Add to Whitelist" class="button is-primary"></input>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
-        <!-- Blacklist Link Form -->
-        <div class="column is-4 bot-box" style="position: relative;">
-            <form action="" method="post">
-                <div class="field">
-                    <label for="blacklist_link">Enter Link to Blacklist:</label>
-                    <div class="control has-icons-left">
-                        <input class="input" type="url" name="blacklist_link" id="blacklist_link" placeholder="Enter a URL" required>
-                        <div class="icon is-small is-left"><i class="fas fa-link"></i></div>
+    </div>
+    <!-- Whitelist Link Form -->
+    <div class="column is-4">
+        <div class="card" style="height: 100%;">
+            <div class="card-content">
+                <div class="has-text-centered mb-4">
+                    <h3 class="title is-5">
+                        <span class="icon has-text-success"><i class="fas fa-check-circle"></i></span>
+                        <?php echo t('protection_enter_link_whitelist'); ?>
+                    </h3>
+                </div>
+                <form action="" method="post">
+                    <div class="field">
+                        <div class="control has-icons-left">
+                            <input class="input" type="url" name="whitelist_link" id="whitelist_link" placeholder="<?php echo t('protection_enter_url_placeholder'); ?>" required>
+                            <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
+                        </div>
                     </div>
-                </div>
-                <div class="field">
-                    <input type="submit" name="submit" value="Add to Blacklist" class="button is-primary"></input>
-                </div>
-            </form>
+                    <div class="field mt-4">
+                        <button type="submit" name="submit" class="button is-link is-fullwidth">
+                            <span class="icon"><i class="fas fa-plus-circle"></i></span>
+                            <span><?php echo t('protection_add_to_whitelist'); ?></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-        <!-- Whitelist and Blacklist Tables -->
-        <div class="column is-5" style="position: relative;">
-            <h2 class="subtitle">Whitelist Links</h2>
-            <table class="table is-fullwidth is-bordered">
+    </div>
+    <!-- Blacklist Link Form -->
+    <div class="column is-4">
+        <div class="card" style="height: 100%;">
+            <div class="card-content">
+                <div class="has-text-centered mb-4">
+                    <h3 class="title is-5">
+                        <span class="icon has-text-danger"><i class="fas fa-ban"></i></span>
+                        <?php echo t('protection_enter_link_blacklist'); ?>
+                    </h3>
+                </div>
+                <form action="" method="post">
+                    <div class="field">
+                        <div class="control has-icons-left">
+                            <input class="input" type="url" name="blacklist_link" id="blacklist_link" placeholder="<?php echo t('protection_enter_url_placeholder'); ?>" required>
+                            <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
+                        </div>
+                    </div>
+                    <div class="field mt-4">
+                        <button type="submit" name="submit" class="button is-danger is-fullwidth">
+                            <span class="icon"><i class="fas fa-minus-circle"></i></span>
+                            <span><?php echo t('protection_add_to_blacklist'); ?></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Whitelist and Blacklist Tables -->
+    <div class="column is-6">
+        <div class="box">
+            <h2 class="subtitle is-5 mb-3">
+                <span class="icon has-text-success"><i class="fas fa-list-ul"></i></span>
+                <?php echo t('protection_whitelist_links'); ?>
+            </h2>
+            <table class="table is-fullwidth is-bordered is-striped is-hoverable">
                 <tbody>
                     <?php foreach ($whitelistLinks as $link): ?>
                         <tr>
-                            <td><?php echo htmlspecialchars($link['link']); ?></td>
-                            <td>
+                            <td class="is-size-6"><?php echo htmlspecialchars($link['link']); ?></td>
+                            <td class="has-text-right">
                                 <form action="" method="post" style="display:inline;">
                                     <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
-                                    <button type="submit" class="button is-danger">Remove</button>
+                                    <button type="submit" class="button is-danger is-small is-rounded">
+                                        <span class="icon"><i class="fas fa-trash-alt"></i></span>
+                                        <span><?php echo t('protection_remove'); ?></span>
+                                    </button>
                                 </form>
                             </td>
                         </tr>
@@ -177,17 +225,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </tbody>
             </table>
         </div>
-        <div class="column is-5" style="position: relative;">
-            <h2 class="subtitle">Blacklist Links</h2>
-            <table class="table is-fullwidth is-bordered">
+    </div>
+    <div class="column is-6">
+        <div class="box">
+            <h2 class="subtitle is-5 mb-3">
+                <span class="icon has-text-danger"><i class="fas fa-list-ul"></i></span>
+                <?php echo t('protection_blacklist_links'); ?>
+            </h2>
+            <table class="table is-fullwidth is-bordered is-striped is-hoverable">
                 <tbody>
                     <?php foreach ($blacklistLinks as $link): ?>
                         <tr>
-                            <td><?php echo htmlspecialchars($link['link']); ?></td>
-                            <td>
+                            <td class="is-size-6"><?php echo htmlspecialchars($link['link']); ?></td>
+                            <td class="has-text-right">
                                 <form action="" method="post" style="display:inline;">
                                     <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
-                                    <button type="submit" class="button is-danger">Remove</button>
+                                    <button type="submit" class="button is-danger is-small is-rounded">
+                                        <span class="icon"><i class="fas fa-trash-alt"></i></span>
+                                        <span><?php echo t('protection_remove'); ?></span>
+                                    </button>
                                 </form>
                             </td>
                         </tr>

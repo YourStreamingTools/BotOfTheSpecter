@@ -1,1 +1,5 @@
-<META http-equiv="refresh" content="0;URL=login.php">
+<?php
+// Redirect to login page
+header('Location: login.php');
+exit();
+?>

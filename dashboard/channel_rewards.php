@@ -1,6 +1,7 @@
-<?php 
-// Initialize the session
+<?php
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -8,211 +9,251 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
-// Page Title
-$title = "Twitch Data - Channel Point Rewards";
+// Page Title and Header
+$pageTitle = t('channel_rewards_title');
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
-include 'user_db.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 $syncMessage = "";
 
+require_once '/var/www/config/database.php';
+$dbname = $_SESSION['username'];
+$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+if ($db->connect_error) { die('Connection failed: ' . $db->connect_error); }
+
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($_POST['newCustomMessage'])) {
-  // Process the update here
-  $rewardid = $_POST['rewardid'];
-  $newCustomMessage = $_POST['newCustomMessage'];
-  // Update the custom message in the database
-  $messageQuery = $db->prepare("UPDATE channel_point_rewards SET custom_message = :custom_message WHERE reward_id = :rewardid");
-  $messageQuery->bindParam(':custom_message', $newCustomMessage);
-  $messageQuery->bindParam(':rewardid', $rewardid);
-  $messageQuery->execute();
-  header('Location: channel_rewards.php');
+    $rewardid = $_POST['rewardid'];
+    $newCustomMessage = $_POST['newCustomMessage'];
+    $messageQuery = $db->prepare("UPDATE channel_point_rewards SET custom_message = ? WHERE reward_id = ?");
+    $messageQuery->bind_param('ss', $newCustomMessage, $rewardid);
+    $messageQuery->execute();
+    $messageQuery->close();
+    header('Location: channel_rewards.php');
+    exit();
 }
 
-// Handle reward deletion
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
     $deleteRewardId = $_POST['deleteRewardId'];
-    $deleteQuery = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = :rewardid");
-    $deleteQuery->bindParam(':rewardid', $deleteRewardId);
+    $deleteQuery = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = ?");
+    $deleteQuery->bind_param('s', $deleteRewardId);
     $deleteQuery->execute();
+    $deleteQuery->close();
     header('Location: channel_rewards.php');
+    exit();
 }
 
-// Handle sync button click
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
-    // Escape shell arguments to ensure safe execution
     $escapedUsername = escapeshellarg($username);
     $escapedTwitchUserId = escapeshellarg($twitchUserId);
     $escapedAuthToken = escapeshellarg($authToken);
-    // Run the sync script
-    shell_exec("python3 /var/www/bot/sync-channel-rewards.py -channel $escapedUsername -channelid $escapedTwitchUserId -token $escapedAuthToken 2>&1");
-    // Add a message or feedback to the user while processing the request
-    $syncMessage = "<p>Syncing rewards, please wait...</p>";
-    sleep(3); // Optionally, add a delay before refreshing
+    shell_exec("python3 /home/botofthespecter/sync-channel-rewards.py -channel $escapedUsername -channelid $escapedTwitchUserId -token $escapedAuthToken 2>&1");
+    $syncMessage = "<p>" . t('channel_rewards_syncing') . "</p>";
+    sleep(3);
     header('Location: channel_rewards.php');
+    exit();
 }
+
+// Fetch channel point rewards
+$rewardsQuery = $db->prepare("SELECT reward_id, reward_title, custom_message, reward_cost FROM channel_point_rewards ORDER BY reward_title ASC");
+$rewardsQuery->execute();
+$result = $rewardsQuery->get_result();
+$channelPointRewards = $result->fetch_all(MYSQLI_ASSOC);
+$rewardsQuery->close();
+
+// Start output buffering for layout template
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <!-- /Header -->
-  </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
-<div class="container">
-  <br>
-  <h1 class="title is-4">Channel Point Rewards:</h1>
-  <div class="notification is-info">
-    <form method="POST" class="is-flex is-align-items-center is-justify-content-space-between" id="sync-form">
-      <div>
-        Pressing the sync button will sync your Twitch channel point rewards to the Specter System.
-        This process can take up to 30 seconds to complete.<br>
-        If you have removed a reward from Twitch, it will not be removed from the Specter System, and you will need to manually delete it.
-      </div>
-      <button class="button is-primary" name="syncRewards" type="submit" id="sync-btn">
-        <span id="sync-btn-spinner" class="icon is-small" style="display:none;">
-          <i class="fas fa-spinner fa-spin"></i>
-        </span>
-        <span id="sync-btn-text">Sync Rewards</span>
-      </button>
-    </form>
-  </div>
-  <div class="notification is-info mt-4">
-    <table>
-      <td style="width: 50%; padding-right: 30px;">
-        <p class="has-text-weight-bold">Built-in Tags Information:</p>
-        <p>You can set up specific channel point rewards in Twitch to access Specter's built-in tags, any channel point name containing either of the tag will trigger the function.</p>
-        <ul>
-          <li><span class="has-text-weight-bold">Fortunes</span>: Channel point reward name "fortune"</li>
-          <li><span class="has-text-weight-bold">Lotto Numbers</span>: Channel point reward name containing "lotto"</li>
-          <li><span class="has-text-weight-bold">Text-to-Speech (TTS)</span>: Channel point reward name containing "tts".
-          <br>TTS is then used via the sound overlays on the <a href="overlays.php">Overlays</a> page.</span></li>
-        </ul>
-      </td>
-      <td style="width: 50%;">
-        <p class="has-text-weight-bold">Custom Variables for Custom Messages | <span style="color: #000000;">BLACK</span> = Beta Bot Only</p>
-        <p>You can use the following custom variables in the message to send to chat when a reward is triggered.</p>
-        <ul>
-          <li><span class="has-text-weight-bold">(user)</span>: This will tag the user that has used the channel point reward.</li>
-          <li><span class="has-text-weight-bold">(usercount)</span>: This will count how many times a user has used the channel point reward. </li>
-          <li><span class="has-text-weight-bold" style="color: #000000;">(userstreak)</span>: This will count how many times in a row the user has used this channel point reward.</li>
-        </ul>
-      </td>
-    </table>
-  </div>
-  <table class="table is-striped is-fullwidth">
-    <thead>
-      <tr>
-        <th>Reward Name</th>
-        <th>Custom Message</th>
-        <th style="width: 150px;">Reward Cost</th>
-        <th style="width: 100px;">Editing</th>
-        <th style="width: 100px;">Deleting</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($channelPointRewards as $reward): ?>
-        <tr>
-          <td><?php echo isset($reward['reward_title']) ? htmlspecialchars($reward['reward_title']) : ''; ?></td>
-          <td>
-            <div id="<?php echo $reward['reward_id']; ?>">
-              <?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?>
+<div class="columns is-centered">
+    <div class="column is-12">
+        <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+            <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                    <span class="icon mr-2"><i class="fas fa-gift"></i></span>
+                    <?php echo t('channel_rewards_title'); ?>
+                </span>
+            </header>
+            <div class="card-content">
+                <div class="notification is-info mb-4">
+                    <form method="POST" id="sync-form" style="display: flex; align-items: flex-start; justify-content: space-between;">
+                        <div style="flex: 1;">
+                            <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                            <strong><?php echo t('channel_rewards_sync_title'); ?></strong><br>
+                            <?php echo t('channel_rewards_sync_desc'); ?><br />
+                            <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                            <strong><?php echo t('channel_rewards_sync_important'); ?></strong> <?php echo t('channel_rewards_sync_important_desc'); ?>
+                        </div>
+                        <div style="margin-left: 24px;">
+                            <button class="button is-primary" name="syncRewards" type="submit" id="sync-btn" style="margin-top: 0;">
+                                <span id="sync-btn-spinner" class="icon is-small" style="display:none;">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </span>
+                                <span id="sync-btn-text"><i class="fas fa-sync-alt"></i> <?php echo t('channel_rewards_sync_btn'); ?></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="notification is-info mb-5">
+                    <div class="columns is-multiline">
+                        <div class="column is-6">
+                            <p class="has-text-weight-bold">
+                                <span class="icon"><i class="fas fa-tags"></i></span>
+                                <?php echo t('channel_rewards_builtin_tags_title'); ?>
+                            </p>
+                            <p>
+                                <?php echo t('channel_rewards_builtin_tags_desc'); ?>
+                            </p>
+                            <ul>
+                                <li>
+                                    <span class="icon"><i class="fas fa-comment-dots"></i></span>
+                                    <span class="has-text-weight-bold"><?php echo t('channel_rewards_fortunes'); ?></span>: <?php echo t('channel_rewards_fortunes_desc'); ?>
+                                </li>
+                                <li>
+                                    <span class="icon"><i class="fas fa-ticket-alt"></i></span>
+                                    <span class="has-text-weight-bold"><?php echo t('channel_rewards_lotto'); ?></span>: <?php echo t('channel_rewards_lotto_desc'); ?>
+                                </li>
+                                <li>
+                                    <span class="icon"><i class="fas fa-volume-up"></i></span>
+                                    <span class="has-text-weight-bold"><?php echo t('channel_rewards_tts'); ?></span>: <?php echo t('channel_rewards_tts_desc'); ?><br>
+                                    <?php echo t('channel_rewards_tts_overlay'); ?>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="column is-6">
+                            <p class="has-text-weight-bold">
+                                <span class="icon"><i class="fas fa-code"></i></span>
+                                <?php echo t('channel_rewards_custom_vars_title'); ?>
+                            </p>
+                            <p><?php echo t('channel_rewards_custom_vars_desc'); ?></p>
+                            <ul>
+                                <li><span class="has-text-weight-bold">(user)</span>: <?php echo t('channel_rewards_var_user'); ?></li>
+                                <li><span class="has-text-weight-bold">(usercount)</span>: <?php echo t('channel_rewards_var_usercount'); ?></li>
+                                <li><span class="has-text-weight-bold" style="color: #a259ff;">(userstreak)</span>: <?php echo t('channel_rewards_var_userstreak'); ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="table is-fullwidth has-background-dark" style="border-radius: 8px;">
+                        <thead>
+                            <tr>
+                                <th><?php echo t('channel_rewards_reward_name'); ?></th>
+                                <th><?php echo t('channel_rewards_custom_message'); ?></th>
+                                <th style="width: 150px;" class="has-text-centered" ><?php echo t('channel_rewards_reward_cost'); ?></th>
+                                <th style="width: 100px;" class="has-text-centered" ><?php echo t('channel_rewards_editing'); ?></th>
+                                <th style="width: 100px;" class="has-text-centered" ><?php echo t('channel_rewards_deleting'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($channelPointRewards)): ?>
+                                <tr>
+                                    <td colspan="5" class="has-text-centered"><?php echo t('channel_rewards_no_rewards'); ?></td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($channelPointRewards as $reward): ?>
+                                    <tr>
+                                        <td><?php echo isset($reward['reward_title']) ? htmlspecialchars($reward['reward_title']) : ''; ?></td>
+                                        <td>
+                                            <div id="<?php echo $reward['reward_id']; ?>">
+                                                <?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?>
+                                            </div>
+                                            <div class="edit-box" id="edit-box-<?php echo $reward['reward_id']; ?>" style="display: none;">
+                                                <textarea class="textarea custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
+                                            </div>
+                                        </td>
+                                        <td class="has-text-centered" style="vertical-align: middle;"><?php echo isset($reward['reward_cost']) ? htmlspecialchars($reward['reward_cost']) : ''; ?></td>
+                                        <td class="has-text-centered" style="vertical-align: middle;">
+                                            <button class="button is-small is-info edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-pencil-alt"></i></button>
+                                        </td>
+                                        <td class="has-text-centered" style="vertical-align: middle;">
+                                            <button class="button is-small is-danger delete-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-trash-alt"></i></button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div class="edit-box" id="edit-box-<?php echo $reward['reward_id']; ?>" style="display: none;">
-              <textarea class="textarea custom-message" data-reward-id="<?php echo $reward['reward_id']; ?>"><?php echo isset($reward['custom_message']) ? htmlspecialchars($reward['custom_message']) : ''; ?></textarea>
-            </div>
-          </td>
-          <td><?php echo isset($reward['reward_cost']) ? htmlspecialchars($reward['reward_cost']) : ''; ?></td>
-          <td>
-            <button class="button is-small is-info edit-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-pencil-alt"></i></button>
-          </td>
-          <td>
-            <button class="button is-small is-danger delete-btn" data-reward-id="<?php echo $reward['reward_id']; ?>"><i class="fas fa-trash-alt"></i></button>
-          </td>
-        </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
+        </div>
+    </div>
 </div>
-
 <script>
 document.querySelectorAll('.edit-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const rewardid = this.getAttribute('data-reward-id');
-    const editBox = document.getElementById('edit-box-' + rewardid);
-    const customMessage = document.getElementById(rewardid);
-    
-    if (editBox.style.display === 'none') {
-      // Show the edit box and hide the custom message
-      editBox.style.display = 'block';
-      customMessage.style.display = 'none';
-      // Change the color of the edit button
-      this.classList.add('editing');
-    } else {
-      // Save the updated custom message
-      const newCustomMessage = editBox.querySelector('.custom-message').value;
-      updateCustomMessage(rewardid, newCustomMessage);
-      // Remove the editing class from the edit button
-      this.classList.remove('editing');
-    }
-  });
+    btn.addEventListener('click', function() {
+        const rewardid = this.getAttribute('data-reward-id');
+        const editBox = document.getElementById('edit-box-' + rewardid);
+        const customMessage = document.getElementById(rewardid);
+        if (editBox.style.display === 'none') {
+            editBox.style.display = 'block';
+            customMessage.style.display = 'none';
+            this.classList.add('editing');
+        } else {
+            const newCustomMessage = editBox.querySelector('.custom-message').value;
+            updateCustomMessage(rewardid, newCustomMessage);
+            this.classList.remove('editing');
+        }
+    });
 });
 
 document.querySelectorAll('.delete-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const rewardid = this.getAttribute('data-reward-id');
-    if (confirm('Are you sure you want to delete this reward?')) {
-      deleteReward(rewardid);
-    }
-  });
+    btn.addEventListener('click', function() {
+        const rewardid = this.getAttribute('data-reward-id');
+        if (confirm('<?php echo t('channel_rewards_delete_confirm'); ?>')) {
+            deleteReward(rewardid);
+        }
+    });
 });
 
 function updateCustomMessage(rewardid, newCustomMessage) {
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      location.reload();
-    }
-  };
-  xhr.send("rewardid=" + encodeURIComponent(rewardid) + "&newCustomMessage=" + encodeURIComponent(newCustomMessage));
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "", true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            location.reload();
+        }
+    };
+    xhr.send("rewardid=" + encodeURIComponent(rewardid) + "&newCustomMessage=" + encodeURIComponent(newCustomMessage));
 }
 
 function deleteReward(rewardid) {
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      location.reload();
-    }
-  };
-  xhr.send("deleteRewardId=" + encodeURIComponent(rewardid));
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "", true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            location.reload();
+        }
+    };
+    xhr.send("deleteRewardId=" + encodeURIComponent(rewardid));
 }
 
-// Sync Rewards button spinner and disable logic
 document.getElementById('sync-form').addEventListener('submit', function(e) {
-  var btn = document.getElementById('sync-btn');
-  var spinner = document.getElementById('sync-btn-spinner');
-  var text = document.getElementById('sync-btn-text');
-  btn.disabled = true;
-  spinner.style.display = '';
-  text.textContent = 'Syncing Rewards...';
+    var btn = document.getElementById('sync-btn');
+    var spinner = document.getElementById('sync-btn-spinner');
+    var text = document.getElementById('sync-btn-text');
+    btn.disabled = true;
+    spinner.style.display = '';
+    text.textContent = <?php echo json_encode(t('channel_rewards_syncing')); ?>;
 });
 </script>
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
+<?php
+// Get the buffered content
+$content = ob_get_clean();
+
+// Use the dashboard layout
+include 'layout.php';
+?>

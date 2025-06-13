@@ -1,6 +1,8 @@
 <?php
 // Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/../lang/i18n.php';
 $today = new DateTime();
 
 // Check if the user is logged in
@@ -10,18 +12,22 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$title = "Moderator Dashboard";
+$pageTitle = t('moderator_dashboard_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'modding_access.php';
+include 'userdata.php';
+include 'bot_control.php';
+include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
-$channelData = $stmt->fetch(PDO::FETCH_ASSOC);
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 $currentDateTime = new DateTime('now');
 
@@ -124,47 +130,67 @@ if ($channelInfo) {
 }
 
 // Count custom commands
-$commandCountStmt = $db->prepare("SELECT COUNT(*) FROM custom_commands");
-$commandCountStmt->execute();
-$commandCount = $commandCountStmt->fetchColumn();
+$commandCount = 0;
+$res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands");
+if ($res) {
+    $row = $res->fetch_assoc();
+    $commandCount = $row['cnt'];
+}
 
 // Count enabled custom commands
-$enabledCommandStmt = $db->prepare("SELECT COUNT(*) FROM custom_commands WHERE status = 'Enabled'");
-$enabledCommandStmt->execute();
-$enabledCommandCount = $enabledCommandStmt->fetchColumn();
+$enabledCommandCount = 0;
+$res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands WHERE status = 'Enabled'");
+if ($res) {
+    $row = $res->fetch_assoc();
+    $enabledCommandCount = $row['cnt'];
+}
 
 // Count disabled custom commands
-$disabledCommandStmt = $db->prepare("SELECT COUNT(*) FROM custom_commands WHERE status = 'Disabled'");
-$disabledCommandStmt->execute();
-$disabledCommandCount = $disabledCommandStmt->fetchColumn();
+$disabledCommandCount = 0;
+$res = $db->query("SELECT COUNT(*) as cnt FROM custom_commands WHERE status = 'Disabled'");
+if ($res) {
+    $row = $res->fetch_assoc();
+    $disabledCommandCount = $row['cnt'];
+}
 
 // Count timers
-$timerCountStmt = $db->prepare("SELECT COUNT(*) FROM timed_messages");
-$timerCountStmt->execute();
-$timerCount = $timerCountStmt->fetchColumn();
+$timerCount = 0;
+$res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages");
+if ($res) {
+    $row = $res->fetch_assoc();
+    $timerCount = $row['cnt'];
+}
 
 // Count enabled timers
-$enabledTimerStmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE status = 'True'");
-$enabledTimerStmt->execute();
-$enabledTimerCount = $enabledTimerStmt->fetchColumn();
+$enabledTimerCount = 0;
+$res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages WHERE status = 'True'");
+if ($res) {
+    $row = $res->fetch_assoc();
+    $enabledTimerCount = $row['cnt'];
+}
 
 // Count disabled timers
-$disabledTimerStmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE status = 'False'");
-$disabledTimerStmt->execute();
-$disabledTimerCount = $disabledTimerStmt->fetchColumn();
-?>
-<!doctype html>
-<html lang="en">
-  <head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <!-- /Header -->
-  </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
+$disabledTimerCount = 0;
+$res = $db->query("SELECT COUNT(*) as cnt FROM timed_messages WHERE status = 'False'");
+if ($res) {
+    $row = $res->fetch_assoc();
+    $disabledTimerCount = $row['cnt'];
+}
 
+function formatBytes($bytes, $precision = 2) {
+  $units = array('B', 'KB', 'MB', 'GB', 'TB');
+  $bytes = max($bytes, 0);
+  $pow = $bytes > 0 ? floor(log($bytes) / log(1024)) : 0;
+  $pow = min($pow, count($units) - 1);
+  $bytes /= pow(1024, $pow);
+  return round($bytes, $precision) . ' ' . $units[$pow];
+}
+$storageUsedFormatted = formatBytes($current_storage_used ?? 0);
+$storageMaxFormatted = formatBytes($max_storage_size ?? 0);
+$storagePercent = isset($storage_percentage) ? max(0, min(100, round($storage_percentage, 2))) : 0;
+
+ob_start();
+?>
 <div class="container">
   <br>
   <div class="columns is-desktop">
@@ -178,10 +204,47 @@ $disabledTimerCount = $disabledTimerStmt->fetchColumn();
       <div class="box">
         <h3 class="title is-4">Quick Actions</h3>
         <div class="buttons">
-          <a href="manage_custom_commands.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" class="button is-primary is-fullwidth mb-2">Manage Custom Commands</a>
-          <a href="timed_messages.php?broadcaster_id=<?php echo $_SESSION['editing_user'];?>" class="button is-info is-fullwidth mb-2">Manage Chat Timers</a>
+          <a href="manage_custom_commands.php" class="button is-primary is-fullwidth mb-2">Manage Custom Commands</a>
+          <a href="timed_messages.php" class="button is-info is-fullwidth mb-2">Manage Chat Timers</a>
           <!--<a href="" class="button is-warning is-fullwidth"></a>-->
         </div>
+      </div>
+      <div class="box" id="storage-usage" style="display: flex; flex-direction: column; justify-content: stretch;">
+        <div class="is-flex is-align-items-center mb-2">
+          <span class="icon is-large mr-2">
+            <i class="fas fa-database fa-2x has-text-info"></i>
+          </span>
+          <div>
+            <h2 class="title is-5 mb-0">Storage Usage</h2>
+            <p class="help mb-0">Current storage usage for <?php echo isset($_SESSION['editing_display_name']) ? htmlspecialchars($_SESSION['editing_display_name']) : 'Channel'; ?></p>
+          </div>
+        </div>
+        <div class="mb-2">
+          <span class="has-text-weight-bold"><?php echo $storageUsedFormatted; ?></span>
+          <span class="has-text-white">/ <?php echo $storageMaxFormatted; ?></span>
+          <span class="has-text-white" style="float:right;"><?php echo number_format($storagePercent, 2); ?>% used</span>
+        </div>
+        <div style="margin-bottom:3px;">
+          <progress class="progress is-info" value="<?php echo $storagePercent; ?>" max="100" style="height: 10px; margin-bottom:0;">
+            <?php echo $storagePercent; ?>%
+          </progress>
+        </div>
+        <div class="is-flex is-justify-content-space-between is-size-7" style="margin-top:0;">
+          <span>0%</span>
+          <span>25%</span>
+          <span>50%</span>
+          <span>75%</span>
+          <span>100%</span>
+        </div>
+        <?php if ($storagePercent >= 100): ?>
+          <div class="notification is-danger is-light mt-3 mb-0">
+            <strong>Storage limit reached!</strong> Please delete some files or upgrade your plan.
+          </div>
+        <?php elseif ($storagePercent >= 90): ?>
+          <div class="notification is-warning is-light mt-3 mb-0">
+            <strong>Almost full!</strong> You are using over 90% of your storage.
+          </div>
+        <?php endif; ?>
       </div>
     </div>
     <div class="column">
@@ -228,5 +291,8 @@ $disabledTimerCount = $disabledTimerStmt->fetchColumn();
 </div>
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
+<?php
+$content = ob_get_clean();
+include 'mod_layout.php';
+exit;
+?>

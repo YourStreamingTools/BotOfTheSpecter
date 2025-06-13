@@ -1,6 +1,7 @@
-<?php 
-// Initialize the session
+<?php
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -9,18 +10,22 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Manage Custom Commands";
+$pageTitle = t('navbar_edit_custom_commands');
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
-include 'user_db.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 $status = "";
 $notification_status = "";
@@ -43,18 +48,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         try {
             // If the command name is changed, update it as well
             $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ? WHERE command = ?");
-            $updateSTMT->bindParam(1, $new_command_name);
-            $updateSTMT->bindParam(2, $command_response);
-            $updateSTMT->bindParam(3, $cooldown);
-            $updateSTMT->bindParam(4, $command_to_edit);
+            $updateSTMT->bind_param("ssis", $new_command_name, $command_response, $cooldown, $command_to_edit);
             $updateSTMT->execute();
-            if ($updateSTMT->rowCount() > 0) {
+            if ($updateSTMT->affected_rows > 0) {
                 $status = "Command ". $command_to_edit . " updated successfully!";
                 $notification_status = "is-success";
             } else {
                 $status = $command_to_edit . " not found or no changes made.";
                 $notification_status = "is-danger";
             }
+            $updateSTMT->close();
+            $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+            $commandsSTMT->execute();
+            $result = $commandsSTMT->get_result();
+            $commands = $result->fetch_all(MYSQLI_ASSOC);
+            $commandsSTMT->close();
         } catch (Exception $e) {
             $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
             $notification_status = "is-danger";
@@ -69,109 +77,136 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Insert new command into MySQL database
         try {
             $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown) VALUES (?, ?, 'Enabled', ?)");
-            $insertSTMT->execute([$newCommand, $newResponse, $cooldown]);
-        } catch (PDOException $e) {
-            echo 'Error adding ' . $newCommand . ': ' . $e->getMessage();
+            $insertSTMT->bind_param("ssi", $newCommand, $newResponse, $cooldown);
+            $insertSTMT->execute();
+            $insertSTMT->close();
+            $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+            $commandsSTMT->execute();
+            $result = $commandsSTMT->get_result();
+            $commands = $result->fetch_all(MYSQLI_ASSOC);
+            $commandsSTMT->close();
+        } catch (Exception $e) {
+            $status = t('custom_commands_error_generic');
+            $notification_status = "is-danger";
         }
-        // Refresh the commands list after adding
-        $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
-        $commandsSTMT->execute();
-        $commands = $commandsSTMT->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 
 if (!isset($commands)) {
     $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
     $commandsSTMT->execute();
-    $commands = $commandsSTMT->fetchAll(PDO::FETCH_ASSOC);
+    $result = $commandsSTMT->get_result();
+    $commands = $result->fetch_all(MYSQLI_ASSOC);
+    $commandsSTMT->close();
 }
-?>
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <!-- Header -->
-    <?php include('header.php'); ?>
-    <!-- /Header -->
-  </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
 
-<div class="container">
-    <br>
-    <div class="notification is-info">
-        <div class="columns">
-            <div class="column is-narrow">
-                <span class="icon"> <i class="fas fa-info-circle"></i> </span> 
-            </div>
-            <div class="column">
-                <p><span class="has-text-weight-bold">Adding Commands</span></p>
-                <ol style="padding-left: 30px;">
-                    <li>Skip the "!". We'll automatically add it to your command.</li>
-                    <li>
-                        You can also add commands directly in chat with <code>!addcommand [command] [message]</code>
-                        <p style="padding-left: 30px;">For example: <code>!addcommand mycommand This is my custom command</code></p> 
-                    </li>
-                </ol>
-                <p><span class="has-text-weight-bold">Want to level up your commands?</span></p>
-                <p>Explore Custom Variables to add dynamic features and personalize your command responses.</p>
-                <p><span class="has-text-weight-bold">Note:</span> Custom Variables only work in the response part of your command.</p> 
-                <button class="button is-primary" id="openModalButton">View Custom Variables</button>
-            </div>
+// Start output buffering for layout
+ob_start();
+?>
+<div class="notification is-info mb-5">
+    <div class="columns is-vcentered">
+        <div class="column is-narrow">
+            <span class="icon is-large"><i class="fas fa-info-circle fa-2x"></i></span>
+        </div>
+        <div class="column">
+            <p class="title is-6 mb-2"><?php echo t('navbar_edit_custom_commands'); ?></p>
+            <ol class="ml-5 mb-3">
+                <li><?php echo t('custom_commands_skip_exclamation'); ?></li>
+                <li>
+                    <?php echo t('custom_commands_add_in_chat'); ?> <code>!addcommand [command] [message]</code>
+                    <div class="ml-4 mt-1"><code>!addcommand mycommand <?php echo t('custom_commands_example_message'); ?></code></div>
+                </li>
+            </ol>
+            <p class="mb-1"><strong><?php echo t('custom_commands_level_up'); ?></strong></p>
+            <p class="mb-1"><?php echo t('custom_commands_explore_variables'); ?></p>
+            <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('custom_commands_note_detail'); ?></p>
+            <button class="button is-primary is-small" id="openModalButton">
+                <span class="icon"><i class="fas fa-code"></i></span>
+                <span><?php echo t('custom_commands_view_variables'); ?></span>
+            </button>
         </div>
     </div>
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
-        <?php if (isset($_POST['command']) && isset($_POST['response'])): ?>
-            <div class="notification is-success">
-                <p>Command "<?php $commandAdded = strtolower(str_replace(' ', '', $_POST['command'])); echo $commandAdded; ?>" has been successfully added to the database.</p>
-            </div>
-        <?php else: ?>
-            <div class="notification <?php echo $notification_status; ?>"><?php echo $status; ?></div>
-        <?php endif; ?>
+</div>
+<?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
+    <?php if (isset($_POST['command']) && isset($_POST['response']) && empty($status)): ?>
+        <div class="notification is-success is-light mb-4">
+            <span class="icon"><i class="fas fa-check-circle"></i></span>
+            <span>
+                <?php
+                $commandAdded = strtolower(str_replace(' ', '', $_POST['command']));
+                printf(
+                    t('custom_commands_added_success'),
+                    htmlspecialchars($commandAdded)
+                );
+                ?>
+            </span>
+        </div>
+    <?php else: ?>
+        <div class="notification <?php echo $notification_status; ?> is-light mb-4">
+            <?php echo $status; ?>
+        </div>
     <?php endif; ?>
-    <h4 class="title is-4">Manage Custom Commands</h4>
-    <div class="columns is-desktop is-multiline is-centered box-container">
-        <div class="column is-5 bot-box" style="position: relative;">
-            <h4 class="subtitle is-4">Adding a custom command</h4>
+<?php endif; ?>
+<h4 class="title is-4 has-text-centered mb-5"><?php echo t('navbar_edit_custom_commands'); ?></h4>
+<div class="columns is-desktop is-multiline is-centered command-columns-equal" style="align-items: stretch;">
+    <div class="column is-5-desktop is-12-mobile">
+        <div class="box">
+            <div class="mb-3" style="display: flex; align-items: center;">
+                <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
+                    <i class="fas fa-plus-circle fa-2x"></i>
+                </span>
+                <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_add_title'); ?></h4>
+            </div>
             <form method="post" action="">
-                <div class="field">
-                    <label for="command">Command:</label>
+                <div class="field mb-4">
+                    <label class="label" for="command"><?php echo t('custom_commands_command_label'); ?></label>
                     <div class="control has-icons-left">
-                        <input class="input" type="text" name="command" id="command" required>
-                        <div class="icon is-small is-left"><i class="fas fa-terminal"></i></div>
+                        <input class="input" type="text" name="command" id="command" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                        <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
                     </div>
                 </div>
-                <div class="field">
-                    <label for="response">Response:</label>
+                <div class="field mb-4">
+                    <label class="label" for="response"><?php echo t('custom_commands_response_label'); ?></label>
                     <div class="control has-icons-left">
-                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="255">
-                        <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
-                        <p id="responseCharCount" class="help">0/255 characters</p>
+                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                        <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
+                    </div>
+                    <p id="responseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
+                </div>
+                <div class="field mb-4">
+                    <label class="label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                    <div class="control has-icons-left">
+                        <input class="input" type="number" min="1" name="cooldown" id="cooldown" value="15" required>
+                        <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
                     </div>
                 </div>
-                <div class="field">
-                    <label for="cooldown">Cooldown:</label>
-                    <div class="control has-icons-left">
-                        <input class="input" type="text" name="cooldown" id="cooldown" value="15" required>
-                        <div class="icon is-small is-left"><i class="fas fa-clock"></i></div>
+                <div class="field is-grouped is-grouped-right">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">
+                            <span class="icon"><i class="fas fa-plus"></i></span>
+                            <span><?php echo t('custom_commands_add_btn'); ?></span>
+                        </button>
                     </div>
-                </div>
-                <div class="control">
-                    <button class="button is-primary" type="submit">Add Command</button>
                 </div>
             </form>
         </div>
-        <div class="column is-5 bot-box" style="position: relative;">
+    </div>
+    <div class="column is-5-desktop is-12-mobile">
+        <div class="box">
+            <div class="mb-3" style="display: flex; align-items: center;">
+                <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
+                    <i class="fas fa-edit fa-2x"></i>
+                </span>
+                <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
+            </div>
             <?php if (!empty($commands)): ?>
-                <h4 class="subtitle is-4">Select the command you want to edit</h4>
                 <form method="post" action="">
-                    <div class="field">
-                        <label for="command_to_edit">Command to Edit:</label>
+                    <div class="field mb-4">
+                        <label class="label" for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
                         <div class="control">
-                            <div class="select">
+                            <div class="select is-fullwidth">
                                 <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
-                                    <option value="">Select a Command...</option>
+                                    <option value=""><?php echo t('custom_commands_edit_select_placeholder'); ?></option>
                                     <?php foreach ($commands as $command): ?>
                                         <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
                                     <?php endforeach; ?>
@@ -179,122 +214,159 @@ if (!isset($commands)) {
                             </div>
                         </div>
                     </div>
-                    <div class="field">
-                        <label for="new_command_name">New Command Name:</label>
+                    <div class="field mb-4">
+                        <label class="label" for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
                         <div class="control has-icons-left">
-                            <input class="input" type="text" name="new_command_name" id="new_command_name" value="" required>
-                            <div class="icon is-small is-left"><i class="fas fa-terminal"></i></div>
-                            <p class="help">Skip the "!" - we'll add it automatically.</p>
+                            <input class="input" type="text" name="new_command_name" id="new_command_name" value="" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                            <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
+                        </div>
+                        <p class="help"><?php echo t('custom_commands_skip_exclamation'); ?></p>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label" for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                            <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
+                        </div>
+                        <p id="editResponseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
+                    </div>
+                    <div class="field mb-4">
+                        <label class="label" for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                        <div class="control has-icons-left">
+                            <input class="input" type="number" min="1" name="cooldown_response" id="cooldown_response" value="" required>
+                            <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
                         </div>
                     </div>
-                    <div class="field">
-                        <label for="command_response">Response:</label>
-                        <div class="control has-icons-left">
-                            <input class="input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255">
-                            <div class="icon is-small is-left"><i class="fas fa-message"></i></div>
-                            <p id="editResponseCharCount" class="help">0/255 characters</p>
+                    <div class="field is-grouped is-grouped-right">
+                        <div class="control">
+                            <button type="submit" class="button is-link">
+                                <span class="icon"><i class="fas fa-save"></i></span>
+                                <span><?php echo t('custom_commands_update_btn'); ?></span>
+                            </button>
                         </div>
                     </div>
-                    <div class="field">
-                        <label for="cooldown_response">Cooldown:</label>
-                        <div class="control has-icons-left">
-                            <input class="input" type="number" name="cooldown_response" id="cooldown_response" value="" required>
-                            <div class="icon is-small is-left"><i class="fas fa-clock"></i></div>
-                        </div>
-                    </div>
-                    <div class="control"><button type="submit" class="button is-primary">Update Command</button></div>
                 </form>
             <?php else: ?>
-                <h4 class="subtitle is-4">No commands available to edit.</h4>
+                <h4 class="subtitle is-4 has-text-grey-light"><?php echo t('custom_commands_no_commands'); ?></h4>
             <?php endif; ?>
         </div>
     </div>
 </div>
-
 <div class="modal" id="customVariablesModal">
     <div class="modal-background"></div>
     <div class="modal-card custom-width">
         <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white">Custom Variables to use while adding commands<br>
+            <p class="modal-card-title has-text-white"><?php echo t('custom_commands_variables_modal_title'); ?><br>
                 <span class="has-text-white is-size-6">
-                    If the Custom Variable title color is <span class="variable-title">Yellow</span>, it is available in both Stable and Beta bot versions.<br>
-                    If the title color is <span style="color: red;">Red</span>, it is only available in the Beta bot at this stage.
+                    <?php echo t('custom_commands_variables_modal_hint'); ?>
                 </span>
             </p>
             <button class="delete" aria-label="close" id="closeModalButton"></button>
         </header>
         <section class="modal-card-body has-background-dark has-text-white">
+            <div class="mb-4">
+                <span class="has-text-warning">
+                    <?php echo t('custom_var_english_note'); ?>
+                </span>
+            </div>
             <div class="columns is-desktop is-multiline">
                 <div class="column is-4">
                     <span class="has-text-weight-bold variable-title">(count)</span><br>
-                    This variable counts how many times the specific command has been used and shows that number. The count tracks how many times this command has been used, not others.<br>
-                    <span class="has-text-weight-bold">Example:</span><br>
-                    <code>This command has been used (count) times.</code><br>
-                    <span class="has-text-weight-bold">In Twitch Chat:</span><br>
-                    <code>"This command has been used 5 times."</code><br><br>
+                    <?php echo t('custom_var_count_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_count_example'); ?></code><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_count_in_chat'); ?></code><br><br>
                 </div>
                 <div class="column is-4">
                     <span class="has-text-weight-bold variable-title">(usercount)</span><br>
-                    This variable counts how many times a specific user has used the command. The count is tracked for each user individually, so each user will have their own usage count stored in the database.<br>
-                    <span class="has-text-weight-bold">Example:</span><br>
-                    <code>This user has used this command (usercount) times.</code><br>
-                    <span class="has-text-weight-bold">In Twitch Chat:</span><br>
-                    <code>"This user has used this command 3 times."</code><br><br>
+                    <?php echo t('custom_var_usercount_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_usercount_example'); ?></code><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_usercount_in_chat'); ?></code><br><br>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(customapi.URL)</span><br>This gets information from a URL and posts it in chat.<br>You can use this to get jokes, weather, or any other data from a website.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>(customapi.https://api.botofthespecter.com/joke?api_key=APIKEY)</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"Why don’t skeletons fight each other? They don’t have the guts."</code>
+                    <span class="has-text-weight-bold variable-title">(customapi.URL)</span><br>
+                    <?php echo t('custom_var_customapi_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_customapi_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_customapi_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(daysuntil.DATE)</span><br>This shows how many days until a specific date, like a holiday or event.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>There are (daysuntil.2025-12-25) days until Christmas.</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"There are 75 days until Christmas."</code>
+                    <span class="has-text-weight-bold variable-title">(daysuntil.DATE)</span><br>
+                    <?php echo t('custom_var_daysuntil_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_daysuntil_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_daysuntil_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(timeuntil.DATE-TIME)</span><br>This shows the exact time remaining until a specific date and time.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>There are (timeuntil.2025-12-25-12-00) until Christmas.</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"There are 365 days, 12 hours, 30 minutes until Christmas."</code>
+                    <span class="has-text-weight-bold variable-title">(timeuntil.DATE-TIME)</span><br>
+                    <?php echo t('custom_var_timeuntil_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_timeuntil_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_timeuntil_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(user)</span> | <span class="has-text-weight-bold variable-title">(author)</span><br>This lets you tag someone by name when they use the command.<br>If no one is tagged, it will tag the person who used the command.<br>To always tag the user who issued the command use (author).
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>(author) is saying that (user) is awesome!</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"BotOfTheSpecter is saying that John is awesome!"</code>
+                    <span class="has-text-weight-bold variable-title">(user)</span> | <span class="has-text-weight-bold variable-title">(author)</span><br>
+                    <?php echo t('custom_var_user_author_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_user_author_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_user_author_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.pick.*)</span><br>This randomly picks an item from a list you provide. It could be used to pick random items, people, or anything else.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>Your spirit animal is: (random.pick.cat.dog.eagle.tiger)</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"Your spirit animal is: tiger"</code>
+                    <span class="has-text-weight-bold variable-title">(random.pick.*)</span><br>
+                    <?php echo t('custom_var_random_pick_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_random_pick_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_random_pick_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(math.*)</span><br>This solves simple math problems.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>2+2 = (math.2+2)</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"2+2 = 4"</code>
+                    <span class="has-text-weight-bold variable-title">(math.*)</span><br>
+                    <?php echo t('custom_var_math_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_math_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_math_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(command.COMMAND)</span><br>This allows you to trigger other commands inside of one command.<br>You can combine multiple commands to post different messages.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>Use these raid calls: (command.raid1) (command.raid2) (command.raid3)</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span>
-                    <br> "Use these raid calls:"
-                    <br> "Raid 1 message."
-                    <br> "Raid 2 message."
-                    <br> "Raid 3 message."
+                    <span class="has-text-weight-bold variable-title">(command.COMMAND)</span><br>
+                    <?php echo t('custom_var_command_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_command_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span>
+                    <br><?php echo t('custom_var_command_in_chat'); ?>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.number)</span><br>This picks a random number between two numbers you specify, or by default between 0 and 100.<br>You can specify a range by using a dot followed by the numbers, like <span class="has-text-weight-bold variable-title">(random.number.1-1000)</span>, which will give you a random number within that range.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>You've broken (random.number.1-1000) hearts!</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>You've broken 583 hearts!"</code>
+                    <span class="has-text-weight-bold variable-title">(random.number)</span><br>
+                    <?php echo t('custom_var_random_number_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_random_number_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_random_number_in_chat'); ?></code>
                 </div>
                 <div class="column is-4">
-                    <span class="has-text-weight-bold variable-title">(random.percent)</span><br>This generates a random percentage between 0% and 100%, or any custom range you define.<br>You can specify a range by using a dot followed by the numbers, like <span class="has-text-weight-bold variable-title">(random.percent.0-200)</span>, which will give you a random percentage between those two numbers.
-                    <br><span class="has-text-weight-bold">Example:</span><br><code>You have a (random.percent.0-200) chance of winning this game.</code>
-                    <br><span class="has-text-weight-bold">In Twitch Chat:</span><br><code>"You have a 167% chance of winning this game."</code>
+                    <span class="has-text-weight-bold variable-title">(random.percent)</span><br>
+                    <?php echo t('custom_var_random_percent_desc'); ?><br>
+                    <span class="has-text-weight-bold"><?php echo t('custom_var_example'); ?></span><br>
+                    <code><?php echo t('custom_var_random_percent_example'); ?></code>
+                    <br><span class="has-text-weight-bold"><?php echo t('custom_var_in_chat'); ?></span><br>
+                    <code><?php echo t('custom_var_random_percent_in_chat'); ?></code>
                 </div>
             </div>
         </section>
     </div>
 </div>
+<?php
+$content = ob_get_clean();
 
+ob_start();
+?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
 document.getElementById("openModalButton").addEventListener("click", function() {
@@ -379,11 +451,13 @@ window.onload = function() {
         form.addEventListener('submit', function(event) {
             if (!validateForm(this)) {
                 event.preventDefault();
-                alert('Response exceeds the maximum character limit of 255 characters. Please shorten your message.');
+                alert('<?php echo t('custom_commands_char_limit_alert'); ?>');
             }
         });
     });
 }
 </script>
-</body>
-</html>
+<?php
+$scripts = ob_get_clean();
+include 'layout.php';
+?>

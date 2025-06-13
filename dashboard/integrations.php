@@ -1,6 +1,7 @@
 <?php
-// Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -9,122 +10,139 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Platform Integrations"; 
+$pageTitle = t('integrations_page_title'); 
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
-include 'user_db.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
-?>
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <!-- Headder -->
-    <?php include('header.php'); ?>
-    <!-- /Headder -->
-  </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
 
-<div class="container">
-  <br>
-  <div class="notification is-info">
-    <div class="columns is-vcentered is-centered">
-      <div class="column is-narrow">
-        <span class="icon is-large">
-          <i class="fas fa-plug fa-2x"></i> 
-        </span>
-      </div>
-      <div class="column">
-        <p><strong>Connect Your Accounts</strong></p>
-        <p>
-          Boost your stream by connecting your favorite services!<br>
-          Integrate your Fourthwall, Ko‑fi, and Patreon accounts—plus many more on the way.<br>
-          Follow the quick steps below to link your accounts.
+// Start output buffering
+ob_start();
+?>
+<div class="has-text-centered mb-6">
+  <span class="icon is-large has-text-info mb-2">
+    <i class="fas fa-plug fa-2x"></i>
+  </span>
+  <h1 class="title is-3 mb-2"><?= t('integrations_page_title') ?></h1>
+  <p class="subtitle is-5 has-text-white">
+    <?= t('integrations_page_intro') ?><br>
+    <?= t('integrations_page_services') ?><br>
+    <?= t('integrations_page_quick_steps') ?>
+  </p>
+</div>
+<div class="columns is-variable is-6 is-centered integration-columns">
+  <div class="column is-12-mobile is-6-tablet is-4-desktop">
+    <div class="card integration-card" id="fourthwall">
+      <header class="card-header">
+        <p class="card-header-title">
+          <span class="icon has-text-warning mr-2"><i class="fas fa-store"></i></span>
+          <?= t('integrations_fourthwall_title') ?>
         </p>
+      </header>
+      <div class="card-content has-text-wrap">
+        <div class="content">
+          <p><?= t('integrations_fourthwall_intro') ?></p>
+          <ol class="mb-3">
+            <li><?= t('integrations_fourthwall_step1') ?></li>
+            <li><?= t('integrations_fourthwall_step2') ?></li>
+            <li><?= t('integrations_fourthwall_step3') ?></li>
+            <li><?= t('integrations_fourthwall_step4') ?></li>
+            <li><?= t('integrations_fourthwall_step5') ?><br>
+              <code>https://api.botofthespecter.com/fourthwall?api_key=</code><br>
+              <?= t('integrations_append_api_key') ?>
+            </li>
+            <li><?= t('integrations_fourthwall_step6') ?>
+              <ul>
+                <li><?= t('integrations_fourthwall_event_order') ?></li>
+                <li><?= t('integrations_fourthwall_event_gift') ?></li>
+                <li><?= t('integrations_fourthwall_event_donation') ?></li>
+                <li><?= t('integrations_fourthwall_event_subscription') ?></li>
+              </ul>
+            </li>
+          </ol>
+          <p class="has-text-success"><strong><?= t('integrations_done') ?></strong> <?= t('integrations_fourthwall_success') ?></p>
+        </div>
       </div>
     </div>
   </div>
-  <br>
-  <div class="columns is-desktop is-multiline is-centered box-container">
-    <div class="column is-5 bot-box content content-card" id="fourthwall"> 
-      <h2 class="subtitle">Fourthwall Integration</h2>
-      <p>Follow the steps below to integrate Specter with your Fourthwall account:</p>
-      <ol>
-        <li>Login to your Fourthwall admin dashboard.</li>
-        <li>On the left-hand menu, click Settings.</li>
-        <li>In the Site Settings page, find and click the For developers link.</li>
-        <li>Click Create webhook in the webhooks section.</li>
-        <li>In the URL field, enter: <br>
-          <code>https://api.botofthespecter.com/fourthwall?api_key=</code> <br>
-          Make sure to append your API key, which can be found on the Profile page.
-        </li>
-        <li>From the "Add Event" list, choose any or all of the following events:
-          <ul>
-            <li>Order placed</li>
-            <li>Gift purchase</li>
-            <li>Donation</li>
-            <li>Subscription purchased</li>
-          </ul>
-        </li>
-      </ol>
-      <p>That's it! Your Fourthwall account is now integrated with Specter.</p>
+  <div class="column is-12-mobile is-6-tablet is-4-desktop">
+    <div class="card integration-card" id="kofi">
+      <header class="card-header">
+        <p class="card-header-title">
+          <span class="icon has-text-danger mr-2"><i class="fas fa-coffee"></i></span>
+          <?= t('integrations_kofi_title') ?>
+        </p>
+      </header>
+      <div class="card-content has-text-wrap">
+        <div class="content">
+          <p><?= t('integrations_kofi_intro') ?></p>
+          <ol class="mb-3">
+            <li><?= t('integrations_kofi_step1') ?></li>
+            <li><?= t('integrations_kofi_step2') ?></li>
+            <li><?= t('integrations_kofi_step3') ?></li>
+            <li><?= t('integrations_kofi_step4') ?><br>
+              <code>https://api.botofthespecter.com/kofi?api_key=</code><br>
+              <?= t('integrations_append_api_key') ?>
+            </li>
+            <li><?= t('integrations_kofi_step5') ?></li>
+          </ol>
+          <p class="has-text-success"><strong><?= t('integrations_done') ?></strong> <?= t('integrations_kofi_success') ?></p>
+        </div>
+      </div>
     </div>
-    <div class="column is-5 bot-box content content-card" id="kofi"> 
-      <h2 class="subtitle">Ko-Fi Integration</h2>
-      <p>Follow the steps below to integrate Specter with your Ko-Fi account:</p>
-      <ol>
-        <li>Log into your Ko-Fi account.</li>
-        <li>When the manage page loads, on the left-hand side, under Stream Alerts, click the three dots where it says More.</li>
-        <li>In the "More" section, click the API option.</li>
-        <li>In the webhook URL field, enter: <br>
-          <code>https://api.botofthespecter.com/kofi?api_key=</code> <br>
-          Make sure to append your API key, which can be found on the Profile page.
-        </li>
-        <li>Once you've entered the URL, click the Update button.</li>
-      </ol>
-      <p>That's it! Your Ko-Fi account is now integrated with Specter.</p>
-    </div>
-    <!-- New Patreon Integration -->
-    <div class="column is-5 bot-box content content-card" id="patreon">
-      <h2 class="subtitle">Patreon Integration</h2>
-      <p class="has-text-weight-bold">Note: Patreon Integration available for Version 5.4 and above.</p>
-      <p>Follow the steps below to integrate Specter with your Patreon account:</p>
-      <ol>
-        <li>
-          Visit the Dev Portal and register a new webhook request at:<br>
-          <a href="https://www.patreon.com/portal/registration/register-webhooks" target="_blank">https://www.patreon.com/portal/registration/register-webhooks</a>
-        </li>
-        <li>
-          On the webhook page, paste your URL in the field labeled "Create a new webhook by pasting your URL here", then click the plus icon to save.<br>
-          Enter the following URL:<br>
-          <code>https://api.botofthespecter.com/patreon?api_key=</code><br>
-          (Make sure to append your API key available on the Profile page.)
-        </li>
-        <li>
-          After the webhook is added, remove the outdated options:
-          <ul>
-            <li>"pledges:create"</li>
-            <li>"pledges:delete"</li>
-            <li>"pledges:update"</li>
-          </ul>
-          and enable only the <code>members:pledge:create</code> option.
-        </li>
-      </ol>
-      <p>That's it! Your Patreon account is now integrated with Specter.</p>
+  </div>
+  <div class="column is-12-mobile is-6-tablet is-4-desktop">
+    <div class="card integration-card" id="patreon">
+      <header class="card-header">
+        <p class="card-header-title">
+          <span class="icon has-text-danger mr-2"><i class="fab fa-patreon"></i></span>
+          <?= t('integrations_patreon_title') ?>
+        </p>
+      </header>
+      <div class="card-content has-text-wrap">
+        <div class="content">
+          <p class="has-text-weight-bold has-text-info mb-2"><?= t('integrations_patreon_note') ?></p>
+          <p><?= t('integrations_patreon_intro') ?></p>
+          <ol class="mb-3">
+            <li>
+              <?= t('integrations_patreon_step1') ?><br>
+              <a href="https://www.patreon.com/portal/registration/register-webhooks" target="_blank">https://www.patreon.com/portal/registration/register-webhooks</a>
+            </li>
+            <li>
+              <?= t('integrations_patreon_step2') ?><br>
+              <code>https://api.botofthespecter.com/patreon?api_key=</code><br>
+              <?= t('integrations_append_api_key') ?>
+            </li>
+            <li>
+              <?= t('integrations_patreon_step3') ?>
+              <ul>
+                <li><?= t('integrations_patreon_event_create') ?></li>
+                <li><?= t('integrations_patreon_event_delete') ?></li>
+                <li><?= t('integrations_patreon_event_update') ?></li>
+              </ul>
+              <?= t('integrations_patreon_enable_members') ?>
+            </li>
+          </ol>
+          <p class="has-text-success"><strong><?= t('integrations_done') ?></strong> <?= t('integrations_patreon_success') ?></p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
-
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
+<?php
+// End buffering and assign to $content
+$content = ob_get_clean();
+include 'layout.php';
+?>

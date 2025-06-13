@@ -1,6 +1,7 @@
 <?php
-// Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 $today = new DateTime();
 
 // Check if the user is logged in
@@ -10,409 +11,1206 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$title = "Modules";
+$pageTitle = t('modules_title');
 $current_blacklist = [];
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
+include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
-include 'module_data.php';
-include "mod_access.php";
-include "file_paths.php";
-foreach ($profileData as $profile) {
-    $timezone = $profile['timezone'];
-    $weather = $profile['weather_location'];
-}
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 
 // Get active tab from URL parameter or default to first tab
 $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'joke-blacklist';
+
+$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+if ($db->connect_error) {
+    die('Connection failed: ' . $db->connect_error);
+}
+
+// Always load the current blacklist from the database before rendering the form
+if (!isset($current_blacklist) || !is_array($current_blacklist) || empty($current_blacklist)) {
+    $stmt = $db->prepare("SELECT blacklist FROM joke_settings");
+    $stmt->execute();
+    $stmt->bind_result($blacklist_str);
+    if ($stmt->fetch() && $blacklist_str) {
+        $current_blacklist = json_decode($blacklist_str, true);
+        if (!is_array($current_blacklist)) $current_blacklist = [];
+    } else {
+        $current_blacklist = [];
+    }
+    $stmt->close();
+}
+
+// Load joke command status from builtin_commands table
+$joke_command_status = 'Enabled'; // Default value
+$stmt = $db->prepare("SELECT status FROM builtin_commands WHERE command = 'joke'");
+$stmt->execute();
+$stmt->bind_result($joke_status);
+if ($stmt->fetch()) {
+    $joke_command_status = $joke_status;
+}
+$stmt->close();
+
+// Handle joke command status update
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['toggle_joke_command'])) {
+    $new_status = $_POST['joke_command_status'];
+    $stmt = $db->prepare("UPDATE builtin_commands SET status = ? WHERE command = 'joke'");
+    $stmt->bind_param('s', $new_status);
+    $stmt->execute();
+    $stmt->close();
+    $_SESSION['update_message'] = t('modules_joke_command_status_updated');
+    header("Location: ?tab=joke-blacklist");
+    exit();
+}
+
+// Load welcome message settings from the database before rendering the form
+if ($activeTab == 'welcome-messages') {
+    // Use explicit column selection and correct order for binding
+    $stmt = $db->prepare("SELECT 
+        new_default_welcome_message,
+        default_welcome_message,
+        new_default_vip_welcome_message,
+        default_vip_welcome_message,
+        new_default_mod_welcome_message,
+        default_mod_welcome_message,
+        send_welcome_messages
+        FROM streamer_preferences
+        LIMIT 1");
+    $stmt->execute();
+    $stmt->bind_result(
+        $new_default_welcome_message,
+        $default_welcome_message,
+        $new_default_vip_welcome_message,
+        $default_vip_welcome_message,
+        $new_default_mod_welcome_message,
+        $default_mod_welcome_message,
+        $send_welcome_messages
+    );
+    $stmt->fetch();
+    $stmt->close();
+}
+
+// Load ad notice settings from the database before rendering the form
+if ($activeTab == 'ad-notices') {
+    $stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings LIMIT 1");
+    $stmt->execute();
+    $stmt->bind_result(
+        $ad_upcoming_message,
+        $ad_start_message,
+        $ad_end_message,
+        $enable_ad_notice
+    );
+    $stmt->fetch();
+    $stmt->close();
+}
+
+// Load Twitch audio alerts settings from the database before rendering the form
+if ($activeTab == 'twitch-audio-alerts') {
+    $twitchSoundAlertMappings = [];
+    // Use the correct upload path for Twitch sound alerts
+    $twitch_sound_alert_path = "/var/www/soundalerts/$username/twitch";
+    // Load mappings: file => event
+    $stmt = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
+    $stmt->execute();
+    $stmt->bind_result($file_name, $twitch_event);
+    while ($stmt->fetch()) {
+        $twitchSoundAlertMappings[$file_name] = $twitch_event;
+    }
+    $stmt->close();
+}
+
+// Load Twitch chat alerts settings from the database before rendering the form
+if ($activeTab == 'twitch-chat-alerts') {
+    $chat_alerts = [];
+    $default_chat_alerts = [
+        'follower_alert' => '',
+        'cheer_alert' => '',
+        'raid_alert' => '',
+        'subscription_alert' => '',
+        'gift_subscription_alert' => '',
+        'hype_train_start' => '',
+        'hype_train_end' => ''
+    ];
+    $stmt = $db->prepare("SELECT alert_type, alert_message FROM twitch_chat_alerts");
+    $stmt->execute();
+    $stmt->bind_result($alert_type, $alert_message);
+    while ($stmt->fetch()) {
+        $chat_alerts[$alert_type] = $alert_message;
+    }
+    $stmt->close();
+}
+
+// Start output buffering for layout
+ob_start();
 ?>
-<!doctype html>
-<html lang="en">
-    <head>
-        <!-- Header -->
-        <?php include('header.php'); ?>
-        <!-- /Header -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
-<div class="container">
-    <br>
-    <h1 class="title is-3">Module Settings</h1>
-    <br>
-    <?php if (isset($_SESSION['update_message'])): ?>
-        <div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div>
-    <?php endif; ?>
-    <!-- Tabs Navigation -->
-    <div class="tabs">
-        <ul>
-            <li class="tab <?php echo $activeTab == 'joke-blacklist' ? 'is-active' : ''; ?>" data-tab="joke-blacklist">
-                <a href="?tab=joke-blacklist">Joke Blacklist</a>
-            </li>
-            <li class="tab <?php echo $activeTab == 'welcome-messages' ? 'is-active' : ''; ?>" data-tab="welcome-messages">
-                <a href="?tab=welcome-messages">Welcome Messages</a>
-            </li>
-            <li class="tab <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>" data-tab="chat-protection">
-                <a href="?tab=chat-protection">Chat Protection</a>
-            </li>
-            <li class="tab <?php echo $activeTab == 'ad-notices' ? 'is-active' : ''; ?>" data-tab="ad-notices">
-                <a href="?tab=ad-notices">Ad Notices</a>
-            </li>
-            <li class="tab <?php echo $activeTab == 'twitch-audio-alerts' ? 'is-active' : ''; ?>" data-tab="twitch-audio-alerts">
-                <a href="?tab=twitch-audio-alerts">Twitch Event Alerts</a>
-            </li>
-            <li class="tab <?php echo $activeTab == 'twitch-chat-alerts' ? 'is-active' : ''; ?>" data-tab="twitch-chat-alerts">
-                <a href="?tab=twitch-chat-alerts">Twitch Chat Alerts</a>
-            </li>
-        </ul>
-    </div>
-    
-    <!-- Tab Contents -->
-    <div class="tab-content <?php echo $activeTab == 'joke-blacklist' ? 'is-active' : ''; ?>" id="joke-blacklist">
-        <div class="module-container">
-            <h2 class="title is-4">Manage Joke Blacklist</h2>
-            <p class="subtitle is-6 has-text-danger">Any category selected here will not be allowed to be posted by the bot.</p>
-            <form method="POST" action="module_data_post.php">
-                <div class="columns is-multiline">
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Miscellaneous"<?php echo in_array("Miscellaneous", $current_blacklist) ? " checked" : ""; ?>> Miscellaneous</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Coding"<?php echo in_array("Coding", $current_blacklist) ? " checked" : ""; ?>> Coding</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Development"<?php echo in_array("Development", $current_blacklist) ? " checked" : ""; ?>> Development</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Halloween"<?php echo in_array("Halloween", $current_blacklist) ? " checked" : ""; ?>> Halloween</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="Pun"<?php echo in_array("Pun", $current_blacklist) ? " checked" : ""; ?>> Pun</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="nsfw"<?php echo in_array("nsfw", $current_blacklist) ? " checked" : ""; ?>> NSFW</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="religious"<?php echo in_array("religious", $current_blacklist) ? " checked" : ""; ?>> Religious</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="political"<?php echo in_array("political", $current_blacklist) ? " checked" : ""; ?>> Political</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="racist"<?php echo in_array("racist", $current_blacklist) ? " checked" : ""; ?>> Racist</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="sexist"<?php echo in_array("sexist", $current_blacklist) ? " checked" : ""; ?>> Sexist</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="dark"<?php echo in_array("dark", $current_blacklist) ? " checked" : ""; ?>> Dark</label></div>
-                    </div>
-                    <div class="column is-3">
-                        <div class="field"><label class="checkbox"><input type="checkbox" name="blacklist[]" value="explicit"<?php echo in_array("explicit", $current_blacklist) ? " checked" : ""; ?>> Explicit</label></div>
-                    </div>
+<div class="columns is-centered">
+    <div class="column is-fullwidth">
+        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+            <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                    <span class="icon mr-2"><i class="fas fa-cogs"></i></span>
+                    <?php echo t('modules_title'); ?>
+                </span>
+            </header>
+            <div class="card-content">
+                <?php if (isset($_SESSION['update_message'])): ?>
+                    <div class="notification is-success"><?php echo $_SESSION['update_message']; unset($_SESSION['update_message']);?></div>
+                <?php endif; ?>
+                <!-- Tabs Navigation -->
+                <div class="tabs is-boxed is-medium is-centered mb-4" style="overflow-x: auto;">
+                    <ul>
+                        <li class="tab <?php echo $activeTab == 'joke-blacklist' ? 'is-active' : ''; ?>">
+                            <a href="?tab=joke-blacklist">
+                                <span class="icon"><i class="fas fa-ban"></i></span>
+                                <span><?php echo t('modules_tab_joke_blacklist'); ?></span>
+                            </a>
+                        </li>
+                        <li class="tab <?php echo $activeTab == 'welcome-messages' ? 'is-active' : ''; ?>">
+                            <a href="?tab=welcome-messages">
+                                <span class="icon"><i class="fas fa-hand-sparkles"></i></span>
+                                <span><?php echo t('modules_tab_welcome_messages'); ?></span>
+                            </a>
+                        </li>
+                        <li class="tab <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>">
+                            <a href="?tab=chat-protection">
+                                <span class="icon"><i class="fas fa-shield-alt"></i></span>
+                                <span><?php echo t('modules_tab_chat_protection'); ?></span>
+                            </a>
+                        </li>
+                        <li class="tab <?php echo $activeTab == 'ad-notices' ? 'is-active' : ''; ?>">
+                            <a href="?tab=ad-notices">
+                                <span class="icon"><i class="fas fa-bullhorn"></i></span>
+                                <span><?php echo t('modules_tab_ad_notices'); ?></span>
+                            </a>
+                        </li>
+                        <li class="tab <?php echo $activeTab == 'twitch-audio-alerts' ? 'is-active' : ''; ?>">
+                            <a href="?tab=twitch-audio-alerts">
+                                <span class="icon"><i class="fas fa-volume-up"></i></span>
+                                <span><?php echo t('modules_tab_twitch_event_alerts'); ?></span>
+                            </a>
+                        </li>
+                        <li class="tab <?php echo $activeTab == 'twitch-chat-alerts' ? 'is-active' : ''; ?>">
+                            <a href="?tab=twitch-chat-alerts">
+                                <span class="icon"><i class="fas fa-comment-dots"></i></span>
+                                <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
+                            </a>
+                        </li>
+                    </ul>
                 </div>
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-primary" type="submit">Save Blacklist Settings</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <div class="tab-content <?php echo $activeTab == 'welcome-messages' ? 'is-active' : ''; ?>" id="welcome-messages">
-        <div class="module-container">
-            <h2 class="title is-4">Custom Welcome Messages</h2>
-            <div class="notification is-info">
-                <strong>Info:</strong> You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.
-            </div>
-            <form method="POST" action="module_data_post.php">
-                <div class="field">
-                    <label class="has-text-white">Default New Member Welcome Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="new_default_welcome_message" value="<?php echo $new_default_welcome_message ? $new_default_welcome_message : '(user) is new to the community, let\'s give them a warm welcome!'; ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Default Returning Member Welcome Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="default_welcome_message" value="<?php echo $default_welcome_message ? $default_welcome_message : 'Welcome back (user), glad to see you again!'; ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Default New VIP Welcome Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="new_default_vip_welcome_message" value="<?php echo $new_default_vip_welcome_message ? $new_default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Default Returning VIP Welcome Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="default_vip_welcome_message" value="<?php echo $default_vip_welcome_message ? $default_vip_welcome_message : 'ATTENTION! A very important person has entered the chat, welcome (user)'; ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Default New Mod Welcome Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="new_default_mod_welcome_message" value="<?php echo $new_default_mod_welcome_message ? $new_default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Default Returning Mod Welcome Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="default_mod_welcome_message" value="<?php echo $default_mod_welcome_message ? $default_mod_welcome_message : 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!'; ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="checkbox">
-                        <input type="checkbox" name="send_welcome_messages" value="1" <?php echo $send_welcome_messages ? 'checked' : ''; ?>> Enable welcome messages
-                    </label>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-primary" type="submit">Save Welcome Settings</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="tab-content <?php echo $activeTab == 'chat-protection' ? 'is-active' : ''; ?>" id="chat-protection">
-        <div class="module-container">
-            <?php include('protection.php'); ?>
-        </div>
-    </div>
-
-    <div class="tab-content <?php echo $activeTab == 'ad-notices' ? 'is-active' : ''; ?>" id="ad-notices">
-        <div class="module-container">
-            <h2 class="title is-4">Ad Notices</h2>
-            <div class="notification is-warning">This feature is currently in development and is available to beta users running version 5.4.</div>
-            <div class="notification is-info">
-                <p>You can use the variable <code>(duration)</code> which will be replaced with the ads' duration.</p>
-                <p>You can use the variable <code>(minutes)</code> which will be replaced with upcoming ads' duration in minutes.</p>
-            </div>
-            <form method="POST" action="module_data_post.php">
-                <div class="field">
-                    <label class="has-text-white">Ad Upcoming Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="ad_upcoming_message" placeholder="Message when ads are upcoming" value="<?php echo htmlspecialchars($ad_upcoming_message); ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Ad Starting Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="ad_start_message" placeholder="Message when ads start" value="<?php echo htmlspecialchars($ad_start_message); ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Ad Ended Message</label>
-                    <div class="control">
-                        <input class="input" type="text" name="ad_end_message" placeholder="Message when ads end" value="<?php echo htmlspecialchars($ad_end_message); ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="checkbox">
-                        <input type="checkbox" name="enable_ad_notice" value="1" <?php echo $enable_ad_notice ? 'checked' : ''; ?>> Enable Ad Notice
-                    </label>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-primary" type="submit">Save Ad Notice Settings</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="tab-content <?php echo $activeTab == 'twitch-audio-alerts' ? 'is-active' : ''; ?>" id="twitch-audio-alerts">
-        <div class="module-container">
-        <h2 class="title is-3">Manage Twitch Event Sound Alerts:</h2>
-            <div class="notification is-warning">This feature is currently in development and is available to beta users running version 5.4.</div>
-            <div class="columns is-desktop is-multiline box-container is-centered" style="width: 100%;">
-                <div class="column is-4" id="walkon-upload" style="position: relative;">
-                    <h1 class="title is-4">Upload MP3 Files:</h1>
-                    <form action="module_data_post.php" method="POST" enctype="multipart/form-data" id="uploadForm">
-                        <label for="filesToUpload" class="drag-area" id="drag-area">
-                            <span>Drag & Drop files here or</span>
-                            <span>Browse Files</span>
-                            <input type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3">
-                        </label>
-                        <br>
-                        <div id="file-list"></div>
-                        <br>
-                        <input type="submit" value="Upload MP3 Files" name="submit" class="button is-primary">
-                    </form>
-                    <br>
-                    <div class="progress-bar-container">
-                        <div id="uploadProgressBar" class="progress-bar has-text-black-bis" style="width: <?php echo $storage_percentage; ?>%;"><?php echo round($storage_percentage, 2); ?>%</div>
-                    </div>
-                    <p><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB of <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB used</p>
-                    <?php if (!empty($status)) : ?>
-                        <div class="message"><?php echo $status; ?></div>
-                    <?php endif; ?>
-                </div>
-                <div class="column is-7 bot-box" id="walkon-upload" style="position: relative;">
-                    <?php $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
-                    <h1 class="title is-4">Your Twitch Sound Alerts</h1>
-                    <form action="module_data_post.php" method="POST" id="deleteForm">
-                        <table class="table is-striped" style="width: 100%; text-align: center;">
-                            <thead>
-                                <tr>
-                                    <th style="width: 70px;">Select</th>
-                                    <th>File Name</th>
-                                    <th>Twitch Event</th>
-                                    <th style="width: 100px;">Action</th>
-                                    <th style="width: 100px;">Test Audio</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($walkon_files as $file): ?>
-                                <tr>
-                                    <td>
-                                        <input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                                    </td>
-                                    <td>
-                                        <?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>
-                                    </td>
-                                    <td>
+                <!-- Tab Contents -->
+                <div class="content">
+                    <?php if ($activeTab == 'joke-blacklist' || empty($activeTab)): ?>
+                        <div class="tab-content is-active" id="joke-blacklist">
+                            <div class="module-container">
+                                <div class="columns is-vcentered mb-4">
+                                    <div class="column">
+                                        <h2 class="title is-4 has-text-white mb-2">
+                                            <span class="icon has-text-danger"><i class="fas fa-ban"></i></span>
+                                            <?php echo t('modules_joke_blacklist_title'); ?>
+                                        </h2>
+                                        <p class="subtitle is-6 has-text-danger"><?php echo t('modules_joke_blacklist_subtitle'); ?></p>
+                                    </div>
+                                    <div class="column is-narrow">
+                                        <!-- Joke Command Status Control -->
+                                        <div class="box has-background-grey-darker p-3" style="min-width: 420px;">
+                                            <div class="field">
+                                                <div class="field is-grouped is-grouped-centered">
+                                                    <div class="control">
+                                                        <div class="tags">
+                                                            <span class="tag is-dark is-medium">
+                                                                <span class="icon is-small mr-1"><i class="fas fa-terminal"></i></span>
+                                                                Joke Command
+                                                            </span>
+                                                            <span class="tag is-medium <?php echo ($joke_command_status == 'Enabled') ? 'is-success' : 'is-danger'; ?>">
+                                                                <?php echo ($joke_command_status == 'Enabled') ? t('builtin_commands_status_enabled') : t('builtin_commands_status_disabled'); ?>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="control">
+                                                        <form method="POST" style="display: inline;">
+                                                            <input type="hidden" name="toggle_joke_command" value="1">
+                                                            <input type="hidden" name="joke_command_status" value="<?php echo ($joke_command_status == 'Enabled') ? 'Disabled' : 'Enabled'; ?>">
+                                                            <button type="submit" class="button is-small <?php echo ($joke_command_status == 'Enabled') ? 'is-danger' : 'is-success'; ?>">
+                                                                <span class="icon is-small">
+                                                                    <i class="fas <?php echo ($joke_command_status == 'Enabled') ? 'fa-times' : 'fa-check'; ?>"></i>
+                                                                </span>
+                                                                <span><?php echo ($joke_command_status == 'Enabled') ? t('builtin_commands_disable') : t('builtin_commands_enable'); ?></span>
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                                <p class="has-text-grey-light is-size-7 has-text-centered mb-0">
+                                                    <?php echo t('modules_joke_command_control_description'); ?>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <form method="POST" action="module_data_post.php">
+                                    <div class="columns is-multiline">
+                                        <!-- All joke categories -->
                                         <?php
-                                        // Determine the current mapped reward (if any)
-                                        $current_mapped = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
-                                        $mappedEvents = [];
-                                        foreach ($twitchSoundAlertMappings as $mappedFile => $mappedEvent) {
-                                            if ($mappedFile !== $file && $mappedEvent) {
-                                                $mappedEvents[] = $mappedEvent;
-                                            }
-                                        }
-                                        $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
-                                        $availableEvents = array_diff($allEvents, $mappedEvents);
+                                        $joke_categories = [
+                                            "Miscellaneous" => "modules_joke_miscellaneous",
+                                            "Coding" => "modules_joke_coding",
+                                            "Development" => "modules_joke_development",
+                                            "Halloween" => "modules_joke_halloween",
+                                            "Pun" => "modules_joke_pun",
+                                            "nsfw" => "modules_joke_nsfw",
+                                            "religious" => "modules_joke_religious",
+                                            "political" => "modules_joke_political",
+                                            "racist" => "modules_joke_racist",
+                                            "sexist" => "modules_joke_sexist",
+                                            "dark" => "modules_joke_dark",
+                                            "explicit" => "modules_joke_explicit",
+                                        ];
+                                        foreach ($joke_categories as $cat_value => $cat_label_key):
                                         ?>
-                                        <?php if ($current_mapped): ?>
-                                            <em><?php echo htmlspecialchars($current_mapped); ?></em>
-                                        <?php else: ?>
-                                            <em>Not Mapped</em>
-                                        <?php endif; ?>
-                                        <br>
-                                        <?php if (!empty($availableEvents) || !$current_mapped): ?>
-                                            <form action="module_data_post.php" method="POST" class="mapping-form">
-                                                <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                                <select name="twitch_alert_id" class="mapping-select" onchange="this.form.submit()">
-                                                    <option value="">-- Select Event --</option>
+                                        <div class="column is-3">
+                                            <div class="field">
+                                                <label class="checkbox">
+                                                    <input type="checkbox" name="blacklist[]" value="<?php echo $cat_value; ?>"<?php echo (is_array($current_blacklist) && in_array($cat_value, $current_blacklist)) ? " checked" : ""; ?>>
+                                                    <?php echo t($cat_label_key); ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="field">
+                                    <div class="control">
+                                        <button class="button is-primary" type="submit"><?php echo t('modules_save_blacklist_settings'); ?></button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+<?php elseif ($activeTab == 'welcome-messages'): ?>
+    <div class="tab-content is-active" id="welcome-messages">
+        <div class="module-container">
+            <!-- Variables Information Card -->
+            <div class="columns is-desktop is-multiline is-centered mb-5">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                            <span class="card-header-title is-size-5 has-text-white" style="font-weight:600;">
+                                <span class="icon mr-2"><i class="fas fa-code"></i></span>
+                                <?php echo t('modules_available_variables_title'); ?>
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <!-- Note -->
+                            <div class="notification is-info mb-4">
+                                <div class="columns is-vcentered">
+                                    <div class="column is-narrow">
+                                        <span class="icon is-large">
+                                            <i class="fas fa-hand-sparkles fa-2x"></i>
+                                        </span>
+                                    </div>
+                                    <div class="column">
+                                        <p class="mb-2"><strong><?php echo t('modules_custom_welcome_title'); ?></strong></p>
+                                        <p><?php echo t('modules_welcome_variable_info'); ?></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="columns is-multiline">
+                                <!-- User Variables -->
+                                <div class="column is-4">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 160px;">
+                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-user"></i></span>
+                                            User Variables
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(user)</span>
+                                                <span class="is-size-7">Username of the person joining</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Welcome Messages Configuration Form -->
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                            <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                                <span class="icon mr-2"><i class="fas fa-cog"></i></span>
+                                Welcome Message Configuration
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <form method="POST" action="module_data_post.php">
+                                <div class="columns is-multiline">
+                                    <!-- Regular Members Column -->
+                                    <div class="column is-6">
+                                        <div class="box has-background-grey-darker" style="height: 100%; min-height: 320px; display: flex; flex-direction: column;">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-users"></i></span>
+                                                        Regular Members
+                                                    </h5>
+                                                </div>
+                                                <div class="level-right">
+                                                    <button type="button" class="section-save-btn button is-success is-small" data-section="regular-members">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span>Save</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style="flex-grow: 1;">
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-user-plus"></i></span>
+                                                        <?php echo t('modules_welcome_new_member_label'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input welcome-message-input" type="text" name="new_default_welcome_message" maxlength="255" value="<?php echo htmlspecialchars($new_default_welcome_message !== '' ? $new_default_welcome_message : t('modules_welcome_new_member_default')); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="new_default_welcome_message">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-user-check"></i></span>
+                                                        <?php echo t('modules_welcome_returning_member_label'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input welcome-message-input" type="text" name="default_welcome_message" maxlength="255" value="<?php echo htmlspecialchars($default_welcome_message !== '' ? $default_welcome_message : t('modules_welcome_returning_member_default')); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="default_welcome_message">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- VIP Members Column -->
+                                    <div class="column is-6">
+                                        <div class="box has-background-grey-darker" style="height: 100%; min-height: 320px; display: flex; flex-direction: column;">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-gem"></i></span>
+                                                        VIP Members
+                                                    </h5>
+                                                </div>
+                                                <div class="level-right">
+                                                    <button type="button" class="section-save-btn button is-success is-small" data-section="vip-members">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span>Save</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style="flex-grow: 1;">
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-user-plus"></i></span>
+                                                        <?php echo t('modules_welcome_new_vip_label'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input welcome-message-input" type="text" name="new_default_vip_welcome_message" maxlength="255" value="<?php echo htmlspecialchars($new_default_vip_welcome_message !== '' ? $new_default_vip_welcome_message : t('modules_welcome_new_vip_default')); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="new_default_vip_welcome_message">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-user-check"></i></span>
+                                                        <?php echo t('modules_welcome_returning_vip_label'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input welcome-message-input" type="text" name="default_vip_welcome_message" maxlength="255" value="<?php echo htmlspecialchars($default_vip_welcome_message !== '' ? $default_vip_welcome_message : t('modules_welcome_returning_vip_default')); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="default_vip_welcome_message">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Moderator Members -->
+                                    <div class="column is-12">
+                                        <div class="box has-background-grey-darker">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-shield-alt"></i></span>
+                                                        Moderators
+                                                    </h5>
+                                                </div>
+                                                <div class="level-right">
+                                                    <button type="button" class="section-save-btn button is-success is-small" data-section="moderators">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span>Save</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="columns">
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-user-plus"></i></span>
+                                                            <?php echo t('modules_welcome_new_mod_label'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input welcome-message-input" type="text" name="new_default_mod_welcome_message" maxlength="255" value="<?php echo htmlspecialchars($new_default_mod_welcome_message !== '' ? $new_default_mod_welcome_message : t('modules_welcome_new_mod_default')); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="new_default_mod_welcome_message">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-user-check"></i></span>
+                                                            <?php echo t('modules_welcome_returning_mod_label'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input welcome-message-input" type="text" name="default_mod_welcome_message" maxlength="255" value="<?php echo htmlspecialchars($default_mod_welcome_message !== '' ? $default_mod_welcome_message : t('modules_welcome_returning_mod_default')); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="default_mod_welcome_message">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Enable/Disable Toggle -->
+                                            <div class="field mt-4">
+                                                <label class="checkbox">
+                                                    <input type="checkbox" name="send_welcome_messages" value="1" <?php echo ($send_welcome_messages ? 'checked' : ''); ?>>
+                                                    <?php echo t('modules_enable_welcome_messages'); ?>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Save Button -->
+                                <div class="field mt-6">
+                                    <div class="control has-text-centered">
+                                        <button class="button is-primary" type="submit" style="padding: 0.75rem 2rem; font-size: 1rem;">
+                                            <span class="icon mr-2">
+                                                <i class="fas fa-save"></i>
+                                            </span>
+                                            <span><?php echo t('modules_save_welcome_settings'); ?></span>
+                                        </button>
+                                        <p class="help has-text-grey-light mt-2">
+                                            Save your welcome message configuration and settings.
+                                        </p>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php elseif ($activeTab == 'chat-protection'): ?>
+    <div class="tab-content is-active" id="chat-protection">
+        <div class="module-container">
+            <!-- Chat Protection Configuration -->
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <?php include 'protection.php'; ?>
+                </div>
+            </div>
+        </div>
+    <br>
+    </div>
+<!-- Ad Notices -->
+<?php elseif ($activeTab == 'ad-notices'): ?>
+    <div class="tab-content is-active" id="ad-notices">
+        <div class="module-container">
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="notification is-warning">
+                        <div class="columns is-vcentered">
+                            <div class="column is-narrow">
+                                <span class="icon is-large">
+                                    <i class="fas fa-bullhorn fa-2x"></i>
+                                </span>
+                            </div>
+                            <div class="column">
+                                <p class="mb-2"><strong><?php echo t('modules_ad_notices_title'); ?></strong></p>
+                                <p><?php echo t('modules_ad_notices_beta_warning'); ?></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Variables Information Card -->
+            <div class="columns is-desktop is-multiline is-centered mb-5">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                            <span class="card-header-title is-size-5 has-text-white" style="font-weight:600;">
+                                <span class="icon mr-2"><i class="fas fa-code"></i></span>
+                                <?php echo t('modules_available_variables_title'); ?>
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <!-- Note -->
+                            <div class="notification is-primary is-light mb-4">
+                                <p class="has-text-dark">
+                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                    <strong><?php echo t('modules_variables_note_prefix'); ?></strong><?php echo t('modules_ad_notices_variables_note'); ?>
+                                </p>
+                            </div>
+                            <div class="columns is-multiline">
+                                <!-- Duration Variables -->
+                                <div class="column is-6">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 140px;">                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-clock"></i></span>
+                                            <?php echo t('modules_variables_duration_title'); ?>
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(duration)</span>
+                                                <span class="is-size-7"><?php echo t('modules_ad_notices_duration_var'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Minutes Variables -->
+                                <div class="column is-6">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 140px;">                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-stopwatch"></i></span>
+                                            <?php echo t('modules_variables_time_title'); ?>
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(minutes)</span>
+                                                <span class="is-size-7"><?php echo t('modules_ad_notices_minutes_var'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Ad Notices Configuration Form -->
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                            <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                                <span class="icon mr-2"><i class="fas fa-cog"></i></span>
+                                Ad Notice Messages
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <form method="POST" action="module_data_post.php">
+                                <div class="columns is-multiline">
+                                    <!-- Ad Messages Column -->
+                                    <div class="column is-12">
+                                        <div class="box has-background-grey-darker">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-bullhorn"></i></span>
+                                                        Advertisement Messages
+                                                    </h5>
+                                                </div>
+                                            </div>
+                                            <div class="columns">
+                                                <div class="column is-4">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-exclamation-triangle"></i></span>
+                                                            <?php echo t('modules_ad_upcoming_message'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input ad-notice-input" type="text" name="ad_upcoming_message" maxlength="255" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="ad_upcoming_message">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="column is-4">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-play"></i></span>
+                                                            <?php echo t('modules_ad_start_message'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input ad-notice-input" type="text" name="ad_start_message" maxlength="255" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_start_message ?? ''); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="ad_start_message">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="column is-4">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-stop"></i></span>
+                                                            <?php echo t('modules_ad_end_message'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input ad-notice-input" type="text" name="ad_end_message" maxlength="255" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>" value="<?php echo htmlspecialchars($ad_end_message ?? ''); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="ad_end_message">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Enable/Disable Toggle -->
+                                            <div class="field mt-4">
+                                                <label class="checkbox">
+                                                    <input type="checkbox" name="enable_ad_notice" value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
+                                                    <?php echo t('modules_enable_ad_notice'); ?>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Save Button -->
+                                <div class="field mt-6">
+                                    <div class="control has-text-centered">
+                                        <button class="button is-primary" type="submit" style="padding: 0.75rem 2rem; font-size: 1rem;">
+                                            <span class="icon mr-2">
+                                                <i class="fas fa-save"></i>
+                                            </span>
+                                            <span><?php echo t('modules_save_ad_notice_settings'); ?></span>
+                                        </button>
+                                        <p class="help has-text-grey-light mt-2">
+                                            Save your ad notice configuration and messages.
+                                        </p>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<!-- Twitch Event Alerts -->
+<?php elseif ($activeTab == 'twitch-audio-alerts'): ?>
+    <div class="tab-content is-active" id="twitch-audio-alerts">
+        <div class="module-container">
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="notification is-warning">
+                        <div class="columns is-vcentered">
+                            <div class="column is-narrow">
+                                <span class="icon is-large">
+                                    <i class="fas fa-volume-up fa-2x"></i>
+                                </span>
+                            </div>
+                            <div class="column">
+                                <p class="mb-2"><strong><?php echo t('modules_twitch_event_sound_alerts_title'); ?></strong></p>
+                                <p><?php echo t('modules_twitch_event_sound_alerts_beta_warning'); ?></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f; display: flex; justify-content: space-between; align-items: center;">
+                            <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                                <span class="icon mr-2"><i class="fas fa-volume-up"></i></span>
+                                <?php echo t('modules_your_twitch_sound_alerts'); ?>
+                            </span>
+                            <div class="buttons">
+                                <button class="button is-danger" id="deleteSelectedBtn" disabled>
+                                    <span class="icon"><i class="fas fa-trash"></i></span>
+                                    <span><?php echo t('modules_delete_selected'); ?></span>
+                                </button>
+                                <button class="button is-primary" id="openUploadModal">
+                                    <span class="icon"><i class="fas fa-upload"></i></span>
+                                    <span><?php echo t('modules_upload_mp3_files'); ?></span>
+                                </button>
+                            </div>
+                        </header>
+                        <div class="card-content">
+                            <?php $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..')); if (!empty($walkon_files)) : ?>
+                            <form action="module_data_post.php" method="POST" id="deleteForm">
+                                <div class="table-container">
+                                    <table class="table is-fullwidth has-background-dark" id="twitchAlertsTable">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 70px;" class="has-text-centered"><?php echo t('modules_select'); ?></th>
+                                                <th class="has-text-centered"><?php echo t('modules_file_name'); ?></th>
+                                                <th class="has-text-centered"><?php echo t('modules_twitch_event'); ?></th>
+                                                <th style="width: 80px;" class="has-text-centered"><?php echo t('modules_action'); ?></th>
+                                                <th style="width: 120px;" class="has-text-centered"><?php echo t('modules_test_audio'); ?></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($walkon_files as $file): ?>
+                                            <tr>
+                                                <td class="has-text-centered is-vcentered"><input type="checkbox" class="is-checkradio" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                                                <td class="is-vcentered"><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
+                                                <td class="has-text-centered is-vcentered">
                                                     <?php
-                                                    foreach ($availableEvents as $evt) {
-                                                        if ($current_mapped !== $evt) {
-                                                            echo '<option value="' . htmlspecialchars($evt) . '">' . htmlspecialchars($evt) . '</option>';
+                                                    $current_mapped = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
+                                                    $mappedEvents = [];
+                                                    foreach ($twitchSoundAlertMappings as $mappedFile => $mappedEvent) {
+                                                        if ($mappedFile !== $file && $mappedEvent) {
+                                                            $mappedEvents[] = $mappedEvent;
                                                         }
                                                     }
+                                                    $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
+                                                    $availableEvents = array_diff($allEvents, $mappedEvents);
                                                     ?>
-                                                </select>
-                                            </form>
-                                        <?php else: ?>
-                                            <em>All events are mapped. Delete a file to add new mappings.</em>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <button type="button" class="delete-single button is-danger" data-file="<?php echo htmlspecialchars($file); ?>">Delete</button>
-                                    </td>
-                                    <td>
-                                        <button type="button" class="test-sound button is-primary" data-file="twitch/<?php echo htmlspecialchars($file); ?>">Test</button>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                        <input type="submit" value="Delete Selected" class="button is-danger" name="submit_delete" style="margin-top: 10px;">
-                    </form>
-                    <?php else: ?>
-                        <h1 class="title is-4">No sound alert files uploaded.</h1>
+                                                    <?php if ($current_mapped): ?>
+                                                        <em><?php echo t('modules_event_' . strtolower(str_replace(' ', '_', $current_mapped))); ?></em>
+                                                    <?php else: ?>
+                                                        <em><?php echo t('modules_not_mapped'); ?></em>
+                                                    <?php endif; ?>
+                                                    <form action="module_data_post.php" method="POST" class="mapping-form mt-2">
+                                                        <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
+                                                        <div class="select is-small is-fullwidth">
+                                                            <select name="twitch_alert_id" class="mapping-select" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                                                                <?php if ($current_mapped): ?>
+                                                                    <option value="" class="has-text-danger"><?php echo t('modules_remove_mapping'); ?></option>
+                                                                <?php endif; ?>
+                                                                <option value=""><?php echo t('modules_select_event'); ?></option>
+                                                                <?php
+                                                                foreach ($allEvents as $evt) {
+                                                                    $isMapped = in_array($evt, $mappedEvents);
+                                                                    $isCurrent = ($current_mapped === $evt);
+                                                                    if ($isMapped && !$isCurrent) continue;
+                                                                    echo '<option value="' . htmlspecialchars($evt) . '"';
+                                                                    if ($isCurrent) echo ' selected';
+                                                                    echo '>' . t('modules_event_' . strtolower(str_replace(' ', '_', $evt))) . '</option>';
+                                                                }
+                                                                ?>
+                                                            </select>
+                                                        </div>
+                                                    </form>
+                                                </td>
+                                                <td class="has-text-centered is-vcentered">
+                                                    <button type="button" class="delete-single button is-danger is-small" data-file="<?php echo htmlspecialchars($file); ?>">
+                                                        <span class="icon"><i class="fas fa-trash"></i></span>
+                                                    </button>
+                                                </td>
+                                                <td class="has-text-centered is-vcentered">
+                                                    <button type="button" class="test-sound button is-primary is-small" data-file="twitch/<?php echo htmlspecialchars($file); ?>">
+                                                        <span class="icon"><i class="fas fa-play"></i></span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <button type="submit" value="Delete Selected" class="button is-danger mt-3" name="submit_delete" style="display: none;">
+                                    <span class="icon"><i class="fas fa-trash"></i></span>
+                                    <span><?php echo t('modules_delete_selected'); ?></span>
+                                </button>
+                            </form>
+                            <?php else: ?>
+                                <div class="has-text-centered py-6">
+                                    <h2 class="title is-5 has-text-grey-light"><?php echo t('modules_no_sound_alert_files_uploaded'); ?></h2>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Upload Modal -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head has-background-dark">
+                <p class="modal-card-title has-text-white">
+                    <span class="icon mr-2"><i class="fas fa-upload"></i></span>
+                    <?php echo t('modules_upload_mp3_files'); ?>
+                </p>
+                <button class="delete" aria-label="close" id="closeUploadModal"></button>
+            </header>
+            <section class="modal-card-body has-background-dark has-text-white">
+                <form action="module_data_post.php" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <div class="file has-name is-fullwidth is-boxed mb-3">
+                        <label class="file-label" style="width: 100%;">
+                            <input class="file-input" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3">
+                            <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                                <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.15em;">
+                                    <?php echo t('modules_choose_mp3_files'); ?>
+                                </span>
+                            </span>
+                            <span class="file-name" id="file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                                <?php echo t('modules_no_files_selected'); ?>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="mt-4" style="position: relative;">
+                        <progress class="progress is-success" value="<?php echo $storage_percentage; ?>" max="100" style="height: 1.25rem; border-radius: 0.75rem;"></progress>
+                        <div class="has-text-centered" style="margin-top: -1.7rem; margin-bottom: 0.7rem; font-size: 0.98rem; font-weight: 500; color: #fff; width: 100%; position: relative; z-index: 2;">
+                            <?php echo round($storage_percentage, 2); ?>% &mdash; <?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB <?php echo t('modules_of'); ?> <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB <?php echo t('modules_used'); ?>
+                        </div>
+                    </div>
+                    <?php if (!empty($status)) : ?>
+                        <article class="message is-info mt-4">
+                            <div class="message-body">
+                                <?php echo $status; ?>
+                            </div>
+                        </article>
                     <?php endif; ?>
-                </div>
-            </div>
+                </form>
+            </section>
+            <footer class="modal-card-foot has-background-dark">
+                <button class="button is-primary" type="submit" form="uploadForm" name="submit">
+                    <span class="icon"><i class="fas fa-upload"></i></span>
+                    <span><?php echo t('modules_upload_mp3_files'); ?></span>
+                </button>
+                <button class="button" id="cancelUploadModal"><?php echo t('cancel'); ?></button>
+            </footer>
         </div>
     </div>
-    
-    <div class="tab-content <?php echo $activeTab == 'twitch-chat-alerts' ? 'is-active' : ''; ?>" id="twitch-chat-alerts">
+<!-- Twitch Chat Alerts -->
+<?php elseif ($activeTab == 'twitch-chat-alerts'): ?>
+    <div class="tab-content is-active" id="twitch-chat-alerts">
         <div class="module-container">
-            <h2 class="title is-4">Configure Chat Alerts</h2>
-            <div class="notification is-warning">This feature is currently in development and is available to beta users running version 5.4.</div>
-            <div class="notification is-dark">
-                <span class="has-text-weight-bold">Variables:</span><br>
-                <ul>
-                    <li><span class="has-text-weight-bold">(user)</span> for the username of the user.</li>
-                    <li><span class="has-text-weight-bold">(bits)</span> for the number of bits for the cheer message.</li>
-                    <li><span class="has-text-weight-bold">(total-bits)</span> for the total amount of bits the user has given.</li>
-                    <li><span class="has-text-weight-bold">(viewers)</span> for the number of viewers in the raid message.</li>
-                    <li><span class="has-text-weight-bold">(tier)</span> for the subscription tier.</li>
-                    <li><span class="has-text-weight-bold">(months)</span> for the number of months subscribed.<span style="vertical-align: middle; line-height: 1; display: inline-block;" class="is-size-4 has-text-weight-bold has-text-danger">*</span></li>
-                    <li><span class="has-text-weight-bold">(total-gifted)</span> for the total number of gifted subscriptions.<span style="vertical-align: middle; line-height: 1; display: inline-block;" class="is-size-4 has-text-weight-bold has-text-danger">*</span></li>
-                    <li><span class="has-text-weight-bold">(count)</span> for the number of gifted subscriptions.</li>
-                    <li><span class="has-text-weight-bold">(level)</span> for the hype train level.</li>
-                </ul>
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="notification is-warning">
+                        <div class="columns is-vcentered">
+                            <div class="column is-narrow">
+                                <span class="icon is-large">
+                                    <i class="fas fa-comment-dots fa-2x"></i>
+                                </span>
+                            </div>
+                            <div class="column">
+                                <p class="mb-2"><strong><?php echo t('modules_configure_chat_alerts'); ?></strong></p>
+                                <p><?php echo t('modules_chat_alerts_beta_warning'); ?></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <form action="module_data_post.php" method="POST" id="chatAlertsForm">
-                <div class="field">
-                    <label class="has-text-white">Follower Alert</label>
-                    <div class="control">
-                        <input class="input" type="text" name="follower_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['follower_alert']) ? $chat_alerts['follower_alert'] : $default_chat_alerts['follower_alert']); ?>">
+            <!-- Variables Information Card -->
+            <div class="columns is-desktop is-multiline is-centered mb-5">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                            <span class="card-header-title is-size-5 has-text-white" style="font-weight:600;">
+                                <span class="icon mr-2"><i class="fas fa-code"></i></span>
+                                <?php echo t('modules_variables'); ?>
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <!-- Note -->                            <div class="notification is-info mb-4">
+                                <p class="has-text-dark">
+                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                    <strong><?php echo t('modules_variables_note_prefix'); ?></strong> <?php echo t('modules_variables_note'); ?>
+                                </p>
+                            </div>
+                            <div class="columns is-multiline">
+                                <!-- General Variables -->
+                                <div class="column is-4">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-users"></i></span>
+                                            <?php echo t('modules_variables_general_title'); ?>
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(user)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_user'); ?></span>
+                                            </div>
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(viewers)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_viewers'); ?></span>
+                                            </div>
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(count)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_count'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Bits & Cheers Variables -->
+                                <div class="column is-4">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-gem"></i></span>
+                                            <?php echo t('modules_variables_bits_cheers_title'); ?>
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(bits)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_bits'); ?></span>
+                                            </div>
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(total-bits)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_total_bits'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Subscription Variables -->
+                                <div class="column is-4">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-star"></i></span>
+                                            <?php echo t('modules_variables_subscriptions_title'); ?> <span class="tag is-danger is-small">*</span>
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(tier)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_tier'); ?></span>
+                                            </div>
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(months)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_months'); ?></span>
+                                            </div>
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(total-gifted)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_total_gifted'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Hype Train Variables -->
+                                <div class="column is-4">
+                                    <div class="box has-background-grey-darker" style="height: 100%; min-height: 200px;">
+                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-1"><i class="fas fa-train"></i></span>
+                                            Hype Train Events
+                                        </h4>
+                                        <div class="content has-text-white-ter">
+                                            <div class="field mb-2">
+                                                <span class="tag is-primary is-small">(level)</span>
+                                                <span class="is-size-7"><?php echo t('modules_var_level'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="field">
-                    <label class="has-text-white">Cheer Alert</label>
-                    <div class="control">
-                        <input class="input" type="text" name="cheer_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['cheer_alert']) ? $chat_alerts['cheer_alert'] : $default_chat_alerts['cheer_alert']); ?>">
+            </div>
+            <!-- Chat Alerts Configuration Form -->
+            <div class="columns is-desktop is-multiline is-centered">
+                <div class="column is-fullwidth" style="max-width: 1200px;">
+                    <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                            <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                                <span class="icon mr-2"><i class="fas fa-cog"></i></span>
+                                Chat Alert Messages
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <form action="module_data_post.php" method="POST" id="chatAlertsForm">
+                                <div class="columns is-multiline">
+                                    <!-- General Events Column -->
+                                    <div class="column is-6">
+                                        <div class="box has-background-grey-darker" style="height: 100%; min-height: 420px; display: flex; flex-direction: column;">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-users"></i></span>
+                                                        General Events
+                                                    </h5>
+                                                </div>
+                                                <div class="level-right">
+                                                    <button type="button" class="section-save-btn button is-success is-small" data-section="general">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span>Save</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style="flex-grow: 1;">
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-heart"></i></span>
+                                                        <?php echo t('modules_follower_alert'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input chat-alert-input" type="text" name="follower_alert" maxlength="255"
+                                                               value="<?php echo htmlspecialchars(isset($chat_alerts['follower_alert']) ? $chat_alerts['follower_alert'] : $default_chat_alerts['follower_alert']); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="follower_alert">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-gem"></i></span>
+                                                        <?php echo t('modules_cheer_alert'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input chat-alert-input" type="text" name="cheer_alert" maxlength="255"
+                                                               value="<?php echo htmlspecialchars(isset($chat_alerts['cheer_alert']) ? $chat_alerts['cheer_alert'] : $default_chat_alerts['cheer_alert']); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="cheer_alert">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-user-friends"></i></span>
+                                                        <?php echo t('modules_raid_alert'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input chat-alert-input" type="text" name="raid_alert" maxlength="255"
+                                                               value="<?php echo htmlspecialchars(isset($chat_alerts['raid_alert']) ? $chat_alerts['raid_alert'] : $default_chat_alerts['raid_alert']); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="raid_alert">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Subscription Events Column -->
+                                    <div class="column is-6">
+                                        <div class="box has-background-grey-darker" style="height: 100%; min-height: 420px; display: flex; flex-direction: column;">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-star"></i></span>
+                                                        Subscription Events
+                                                    </h5>
+                                                </div>
+                                                <div class="level-right">
+                                                    <button type="button" class="section-save-btn button is-success is-small" data-section="subscription">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span>Save</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style="flex-grow: 1;">
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-star"></i></span>
+                                                        <?php echo t('modules_subscription_alert'); ?> 
+                                                        <span class="tag is-danger is-small">*</span>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input chat-alert-input" type="text" name="subscription_alert" maxlength="255"
+                                                               value="<?php echo htmlspecialchars(isset($chat_alerts['subscription_alert']) ? $chat_alerts['subscription_alert'] : $default_chat_alerts['subscription_alert']); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="subscription_alert">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-gift"></i></span>
+                                                        <?php echo t('modules_gift_subscription_alert'); ?> 
+                                                        <span class="tag is-danger is-small">*</span>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input chat-alert-input" type="text" name="gift_subscription_alert" maxlength="255"
+                                                               value="<?php echo htmlspecialchars(isset($chat_alerts['gift_subscription_alert']) ? $chat_alerts['gift_subscription_alert'] : $default_chat_alerts['gift_subscription_alert']); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="gift_subscription_alert">0</span>/255 characters
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Hype Train Events (Full Width) -->
+                                    <div class="column is-12">
+                                        <div class="box has-background-grey-darker">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-train"></i></span>
+                                                        Hype Train Events
+                                                    </h5>
+                                                </div>
+                                                <div class="level-right">
+                                                    <button type="button" class="section-save-btn button is-success is-small" data-section="hype-train">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span>Save</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="columns">
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-play"></i></span>
+                                                            <?php echo t('modules_hype_train_start'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input chat-alert-input" type="text" name="hype_train_start" maxlength="255"
+                                                                   value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_start']) ? $chat_alerts['hype_train_start'] : $default_chat_alerts['hype_train_start']); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="hype_train_start">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i class="fas fa-stop"></i></span>
+                                                            <?php echo t('modules_hype_train_end'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input chat-alert-input" type="text" name="hype_train_end" maxlength="255"
+                                                                   value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_end']) ? $chat_alerts['hype_train_end'] : $default_chat_alerts['hype_train_end']); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count" data-field="hype_train_end">0</span>/255 characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Save All Button -->
+                                <div class="field mt-6">
+                                    <div class="control has-text-centered">
+                                        <button class="button is-success" type="submit" style="padding: 0.75rem 2rem; font-size: 1rem;">
+                                            <span class="icon mr-2">
+                                                <i class="fas fa-save"></i>
+                                            </span>
+                                            <span><?php echo t('modules_save_all_settings'); ?></span>
+                                        </button>
+                                        <p class="help has-text-grey-light mt-2">
+                                            <?php echo t('modules_save_all_description'); ?>
+                                        </p>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
-                <div class="field">
-                    <label class="has-text-white">Raid Alert</label>
-                    <div class="control">
-                        <input class="input" type="text" name="raid_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['raid_alert']) ? $chat_alerts['raid_alert'] : $default_chat_alerts['raid_alert']); ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Subscription Alert <span class="is-size-4 has-text-weight-bold has-text-danger">*</span></label>
-                    <div class="control">
-                        <input class="input" type="text" name="subscription_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['subscription_alert']) ? $chat_alerts['subscription_alert'] : $default_chat_alerts['subscription_alert']); ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Gift Subscription Alert <span class="is-size-4 has-text-weight-bold has-text-danger">*</span></label>
-                    <div class="control">
-                        <input class="input" type="text" name="gift_subscription_alert" value="<?php echo htmlspecialchars(isset($chat_alerts['gift_subscription_alert']) ? $chat_alerts['gift_subscription_alert'] : $default_chat_alerts['gift_subscription_alert']); ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Hype Train Start</label>
-                    <div class="control">
-                        <input class="input" type="text" name="hype_train_start" value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_start']) ? $chat_alerts['hype_train_start'] : $default_chat_alerts['hype_train_start']); ?>">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="has-text-white">Hype Train End</label>
-                    <div class="control">
-                        <input class="input" type="text" name="hype_train_end" value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_end']) ? $chat_alerts['hype_train_end'] : $default_chat_alerts['hype_train_end']); ?>">
-                    </div>
-                </div>
-                <br>
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-primary" type="submit">Save Settings</button>
-                    </div>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
+<?php endif; ?>
 </div>
+<?php
+$content = ob_get_clean();
 
-<br><br>
-
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+ob_start();
+?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Handle tab navigation
@@ -421,12 +1219,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Let the default link behavior handle navigation
         });
     });
-
     // File upload handling
     let dropArea = document.getElementById('drag-area');
     let fileInput = document.getElementById('filesToUpload');
     let fileList = document.getElementById('file-list');
-
     if (dropArea) {
         dropArea.addEventListener('dragover', function(e) {
             e.preventDefault();
@@ -560,9 +1356,238 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+    // Modal controls for Twitch audio alerts
+    $('#openUploadModal').on('click', function() {
+        $('#uploadModal').addClass('is-active');
+    });
+    $('#closeUploadModal, #cancelUploadModal, .modal-background').on('click', function() {
+        $('#uploadModal').removeClass('is-active');
+    });
+
+    // Handle delete selected button for Twitch audio alerts
+    $('#deleteSelectedBtn').on('click', function() {
+        var checkedBoxes = $('input[name="delete_files[]"]:checked');
+        if (checkedBoxes.length > 0) {
+            if (confirm('Are you sure you want to delete the selected ' + checkedBoxes.length + ' file(s)?')) {
+                $('#deleteForm').submit();
+            }
+        }
+    });
+
+    // Monitor checkbox changes to enable/disable delete button for Twitch audio alerts
+    $(document).on('change', 'input[name="delete_files[]"]', function() {
+        var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
+        $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
+    });
+
+    // Update file name display for Bulma file input
+    $('#filesToUpload').on('change', function() {
+        let files = this.files;
+        let fileNames = [];
+        for (let i = 0; i < files.length; i++) {
+            fileNames.push(files[i].name);
+        }
+        $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('modules_no_files_selected'); ?>');
+    });
+
+    // AJAX upload with progress bar
+    $('#uploadForm').on('submit', function(e) {
+        e.preventDefault();
+        let formData = new FormData(this);
+        $.ajax({
+            url: 'module_data_post.php',
+            type: 'POST',
+            data: formData,
+            contentType: false,
+            processData: false,
+            xhr: function() {
+                let xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        let percentComplete = (e.loaded / e.total) * 100;
+                        $('.upload-progress-bar').val(percentComplete).text(Math.round(percentComplete) + '%');
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                location.reload();
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
+            }
+        });
+    });
+
     // Add event listener for mapping select boxes
     $('.mapping-select').on('change', function() {
         $(this).closest('form').submit();
+    });
+
+    // Character counter for chat alert inputs
+    function updateCharCount(input) {
+        const currentLength = input.value.length;
+        const fieldName = input.getAttribute('name');
+        const counter = document.querySelector(`.char-count[data-field="${fieldName}"]`);
+        const helpText = counter ? counter.closest('.help') : null;
+        if (counter && helpText) {
+            counter.textContent = currentLength;
+            // Calculate percentage of 255 character limit
+            const percentage = (currentLength / 255) * 100;
+            // Remove existing color classes from help text
+            helpText.classList.remove('has-text-success', 'has-text-warning', 'has-text-danger', 'has-text-grey-light');
+            // Apply color based on percentage thresholds to entire help text
+            if (percentage >= 91) {
+                helpText.classList.add('has-text-danger'); // Red for 91-100%
+            } else if (percentage >= 81) {
+                helpText.classList.add('has-text-warning'); // Yellow for 81-90%
+            } else {
+                helpText.classList.add('has-text-success'); // Green for 0-80%
+            }
+        }
+    }
+
+    // Initialize character counters and add event listeners
+    document.querySelectorAll('.chat-alert-input').forEach(function(input) {
+        // Update counter on page load
+        updateCharCount(input);
+        
+        // Update counter on input
+        input.addEventListener('input', function() {
+            updateCharCount(this);
+        });
+        
+        // Prevent typing beyond 255 characters
+        input.addEventListener('keydown', function(e) {
+            if (this.value.length >= 255 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // Initialize character counters for ad notice inputs
+    document.querySelectorAll('.ad-notice-input').forEach(function(input) {
+        // Update counter on page load
+        updateCharCount(input);
+        
+        // Update counter on input
+        input.addEventListener('input', function() {
+            updateCharCount(this);
+        });
+        
+        // Prevent typing beyond 255 characters
+        input.addEventListener('keydown', function(e) {
+            if (this.value.length >= 255 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // Initialize character counters for welcome message inputs
+    document.querySelectorAll('.welcome-message-input').forEach(function(input) {
+        updateCharCount(input);
+        input.addEventListener('input', function() {
+            updateCharCount(this);
+        });
+        input.addEventListener('keydown', function(e) {
+            if (this.value.length >= 255 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // Set initial character counts after DOM is fully loaded
+    setTimeout(function() {
+        document.querySelectorAll('.chat-alert-input, .ad-notice-input, .welcome-message-input').forEach(function(input) {
+            updateCharCount(input);
+        });
+    }, 100);
+
+    // Add event listener for section save buttons
+    document.querySelectorAll('.section-save-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const section = this.getAttribute('data-section');
+            const originalText = this.innerHTML;
+            // Change button to loading state
+            this.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Saving...</span>';
+            this.disabled = true;
+            // Collect form data for the specific section
+            const formData = new FormData();
+            if (section === 'general') {
+                const followerAlert = document.querySelector('input[name="follower_alert"]');
+                const cheerAlert = document.querySelector('input[name="cheer_alert"]');
+                const raidAlert = document.querySelector('input[name="raid_alert"]');
+                if (followerAlert) formData.append('follower_alert', followerAlert.value);
+                if (cheerAlert) formData.append('cheer_alert', cheerAlert.value);
+                if (raidAlert) formData.append('raid_alert', raidAlert.value);
+            } else if (section === 'subscription') {
+                const subscriptionAlert = document.querySelector('input[name="subscription_alert"]');
+                const giftSubscriptionAlert = document.querySelector('input[name="gift_subscription_alert"]');
+                if (subscriptionAlert) formData.append('subscription_alert', subscriptionAlert.value);
+                if (giftSubscriptionAlert) formData.append('gift_subscription_alert', giftSubscriptionAlert.value);
+            } else if (section === 'hype-train') {
+                const hypeTrainStart = document.querySelector('input[name="hype_train_start"]');
+                const hypeTrainEnd = document.querySelector('input[name="hype_train_end"]');
+                if (hypeTrainStart) formData.append('hype_train_start', hypeTrainStart.value);
+                if (hypeTrainEnd) formData.append('hype_train_end', hypeTrainEnd.value);
+            } else if (section === 'regular-members') {
+                const newWelcomeMessage = document.querySelector('input[name="new_default_welcome_message"]');
+                const defaultWelcomeMessage = document.querySelector('input[name="default_welcome_message"]');
+                if (newWelcomeMessage) formData.append('new_default_welcome_message', newWelcomeMessage.value);
+                if (defaultWelcomeMessage) formData.append('default_welcome_message', defaultWelcomeMessage.value);
+            } else if (section === 'vip-members') {
+                const newVipWelcomeMessage = document.querySelector('input[name="new_default_vip_welcome_message"]');
+                const defaultVipWelcomeMessage = document.querySelector('input[name="default_vip_welcome_message"]');
+                if (newVipWelcomeMessage) formData.append('new_default_vip_welcome_message', newVipWelcomeMessage.value);
+                if (defaultVipWelcomeMessage) formData.append('default_vip_welcome_message', defaultVipWelcomeMessage.value);
+            } else if (section === 'moderators') {
+                const newModWelcomeMessage = document.querySelector('input[name="new_default_mod_welcome_message"]');
+                const defaultModWelcomeMessage = document.querySelector('input[name="default_mod_welcome_message"]');
+                const sendWelcomeMessages = document.querySelector('input[name="send_welcome_messages"]');
+                if (newModWelcomeMessage) formData.append('new_default_mod_welcome_message', newModWelcomeMessage.value);
+                if (defaultModWelcomeMessage) formData.append('default_mod_welcome_message', defaultModWelcomeMessage.value);
+                if (sendWelcomeMessages) formData.append('send_welcome_messages', sendWelcomeMessages.checked ? '1' : '0');
+            }
+            // Add section identifier
+            formData.append('section_save', section);
+            // Send AJAX request
+            fetch('module_data_post.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                // Reset button state
+                this.innerHTML = originalText;
+                this.disabled = false;
+                // Show success feedback
+                this.innerHTML = '<span class="icon"><i class="fas fa-check"></i></span><span>Saved!</span>';
+                this.classList.remove('is-success');
+                this.classList.add('is-info');
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('is-info');
+                    this.classList.add('is-success');
+                }, 2000);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Reset button state on error
+                this.innerHTML = originalText;
+                this.disabled = false;
+                // Show error feedback
+                this.innerHTML = '<span class="icon"><i class="fas fa-times"></i></span><span>Error</span>';
+                this.classList.remove('is-success');
+                this.classList.add('is-danger');
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('is-danger');
+                    this.classList.add('is-success');
+                }, 2000);
+            });
+        });
     });
 });
 
@@ -595,5 +1620,7 @@ function sendStreamEvent(eventType, fileName) {
     xhr.send(params);
 }
 </script>
-</body>
-</html>
+<?php
+$scripts = ob_get_clean();
+include 'layout.php';
+?>

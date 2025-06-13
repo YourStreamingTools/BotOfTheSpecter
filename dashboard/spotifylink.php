@@ -1,6 +1,7 @@
 <?php
-// Initialize the session
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -9,19 +10,23 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Spotify Link"; 
+$pageTitle = t('spotify_link_page_title'); 
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/spotify.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
-include 'user_db.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 
 // Set variables
@@ -122,105 +127,128 @@ $linkedAccountsStmt->execute();
 $linkedAccountsResult = $linkedAccountsStmt->get_result();
 $linkedAccountsCount = $linkedAccountsResult->fetch_assoc()['count'];
 $maxAccounts = 25;
+
+// Start output buffering for layout
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <!-- Headder -->
-        <?php include('header.php'); ?>
-        <!-- /Headder -->
-    </head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
-<div class="container">
-    <br>
-    <?php if (empty($spotifyUserInfo) || !isset($spotifyUserInfo['display_name'])): ?> 
-        <div class="notification is-info"> 
-            <div class="columns is-vcentered">
-                <div class="column is-narrow">
-                    <span class="icon is-large">
-                        <i class="fab fa-spotify fa-2x"></i> 
-                    </span>
-                </div>
-                <div class="column">
-                    <p><span class="has-text-weight-bold">Connect to Spotify!</span></p>
-                    <p><span style="color: #000000;" class="has-text-weight-bold">To link your Spotify account and enjoy music integration, please request access by sending an email to <a href="mailto:admin@botofthespecter.com">admin@botofthespecter.com</a> using the email address associated with your Spotify account, in the body of the email only include your twitch username, this is an automated process. Requesting access will take less than 24-hours, if you still can't link your account after 24-hours please contact us on our discord server.</span><br>
-						<br>Once your request is processed, you'll be able to:</p>
-                    <ul>
-                        <li>See what's currently playing on Spotify with <code>!song</code></li>
-                        <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
-                        <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
-                    </ul>
-                    <p><span class="has-text-weight-bold">Currently, <?php echo $linkedAccountsCount; ?> out of <?php echo $maxAccounts; ?> accounts are linked.</span></p>
-                </div>
-            </div>
-        </div>
-    <?php elseif (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?> 
-        <div class="notification is-success"> 
-            <div class="columns is-vcentered">
-                <div class="column is-narrow">
-                    <span class="icon is-large">
-                        <i class="fab fa-spotify fa-2x"></i> 
-                    </span>
-                </div>
-                <div class="column">
-                    <p><span class="has-text-weight-bold">Spotify Connected!</span></p>
-                    <p>Your Spotify account is linked and ready to go. Rock on!</p>
-					<p style="color: #000000;" class="has-text-weight-bold">Now you're linked, if this is your first time being linked, please restart the bot so the bot knows about this linking.</p>
-                    <p style="color: #000000;" class="has-text-weight-bold">If for any reason the bot is not responding to the commands to get the song via <code>!song</code> or song requests via <code>!songrequest</code>, please come back to this page and check if you're still linked to Specter. If not, relink your account and restart the bot.</p>
-                    <ul>
-                        <li>See what's playing with <code>!song</code></li>
-                        <li>Request songs with <code>!songrequest [song title] [artist]</code> (or <code>!sr</code>)</li> 
-                        <li>For example: <code>!songrequest Stick Season Noah Kahan</code></li>
-                    </ul>
-                    <p><span style="color: #000000;" class="has-text-weight-bold">Currently, <?php echo $linkedAccountsCount; ?> out of <?php echo $maxAccounts; ?> accounts are linked.</span></p>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?> 
-    <?php if ($message): ?>
-        <div class="notification <?php echo $messageType; ?>"> 
-            <div class="columns is-vcentered">
-                <div class="column is-narrow">
-                    <span class="icon is-large"> 
-                        <?php if ($messageType === 'is-danger'): ?>
-                            <i class="fas fa-exclamation-triangle fa-2x"></i>
-                        <?php elseif ($messageType === 'is-warning'): ?>
-                            <i class="fas fa-exclamation-circle fa-2x"></i>
-                        <?php else: ?>
-                            <i class="fas fa-info-circle fa-2x"></i>
+<div class="columns is-centered">
+    <div class="column is-fullwidth">
+        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+            <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                    <span class="icon mr-2"><i class="fab fa-spotify"></i></span>
+                    <?php echo t('spotify_link_page_title'); ?>
+                </span>
+                <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
+                    <div class="card-header-icon">
+                        <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
+                            <span class="icon mr-1"><i class="fas fa-check-circle"></i></span>
+                            <?php echo t('spotify_connected_title'); ?>
+                        </span>
+                    </div>
+                <?php else: ?>
+                    <div class="card-header-icon">
+                        <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
+                            <span class="icon mr-1"><i class="fas fa-times-circle"></i></span>
+                            Not Connected
+                        </span>
+                    </div>
+                <?php endif; ?>
+            </header>
+            <div class="card-content">
+                <?php if ($message): ?>
+                    <div class="notification <?php echo $messageType === 'is-success' ? 'is-success' : ($messageType === 'is-danger' ? 'is-danger' : 'is-info'); ?> is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
+                        <span class="icon">
+                            <?php if ($messageType === 'is-danger'): ?>
+                                <i class="fas fa-exclamation-triangle"></i>
+                            <?php elseif ($messageType === 'is-success'): ?>
+                                <i class="fas fa-check"></i>
+                            <?php else: ?>
+                                <i class="fas fa-info-circle"></i>
+                            <?php endif; ?>
+                        </span>
+                        <?php echo $message; ?>
+                    </div>
+                <?php endif; ?>
+                <?php if (empty($spotifyUserInfo) || !isset($spotifyUserInfo['display_name'])): ?>
+                    <div class="has-text-centered">
+                        <div class="content has-text-white mb-5" style="margin: 0 auto;">
+                            <p><?php echo t('spotify_connect_instructions'); ?><br><?php echo t('spotify_connect_after_request'); ?></p>
+                            <div class="box has-background-grey-darker has-text-centered" style="max-width: 600px; margin: 0 auto; border-radius: 8px; border: 1px solid #363636;">
+                                <h4 class="title is-6 has-text-white mb-3">
+                                    <span class="icon mr-2 has-text-success"><i class="fas fa-music"></i></span>
+                                    Available Features:
+                                </h4>
+                                <ul class="has-text-left has-text-white">
+                                    <li class="mb-2"><?php echo t('spotify_feature_current_song'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!song</code></li>
+                                    <li class="mb-2"><?php echo t('spotify_feature_song_request'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest [song title] [artist]</code> (or <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!sr</code>)</li>
+                                    <li><?php echo t('spotify_feature_example'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest Stick Season Noah Kahan</code></li>
+                                </ul>
+                            </div>
+                            <p class="mt-4">
+                                <strong><?php
+                                    $accountsLinkedText = t('spotify_accounts_linked');
+                                    $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
+                                    echo $accountsLinkedText;
+                                ?></strong>
+                            </p>
+                        </div>
+                        <?php if ($authURL): ?>
+                            <a href="<?php echo $authURL; ?>" class="button is-success is-large" style="border-radius: 8px; font-weight: 600;">
+                                <span class="icon"><i class="fab fa-spotify"></i></span>
+                                <span><?php echo t('spotify_link_button'); ?></span>
+                            </a>
                         <?php endif; ?>
-                    </span>
-                </div>
-                <div class="column">
-                    <p><?php echo $message; ?></p> 
-                </div>
+                    </div>
+                <?php else: ?>
+                    <div class="columns is-multiline is-variable is-6">
+                        <div class="column is-12">
+                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
+                                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                                    <p class="card-header-title has-text-white" style="font-weight: 600;">
+                                        <span class="icon mr-2 has-text-success"><i class="fab fa-spotify"></i></span>
+                                        Connected Account Information
+                                    </p>
+                                </header>
+                                <div class="card-content">
+                                    <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
+                                        <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                        <strong><?php echo t('spotify_connected_restart_bot'); ?></strong>
+                                    </div>
+                                    <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
+                                        <span class="icon"><i class="fas fa-link"></i></span>
+                                        <strong><?php echo t('spotify_connected_check_link'); ?></strong>
+                                    </div>
+                                    <div class="box has-background-grey-darker" style="border-radius: 8px; border: 1px solid #363636;">
+                                        <h4 class="title is-6 has-text-white mb-3">
+                                            <span class="icon mr-2 has-text-success"><i class="fas fa-music"></i></span>
+                                            Available Features:
+                                        </h4>
+                                        <ul class="has-text-grey-light has-text-white">
+                                            <li class="mb-2"><?php echo t('spotify_feature_current_song'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!song</code></li>
+                                            <li class="mb-2"><?php echo t('spotify_feature_song_request'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest [song title] [artist]</code> (or <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!sr</code>)</li>
+                                            <li><?php echo t('spotify_feature_example'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest Stick Season Noah Kahan</code></li>
+                                        </ul>
+                                    </div>
+                                    <div class="mt-4">
+                                        <p class="has-text-grey-light">
+                                            <strong><?php
+                                                $accountsLinkedText = t('spotify_accounts_linked');
+                                                $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
+                                                echo $accountsLinkedText;
+                                            ?></strong>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
-    <?php endif; ?>
-    <?php if (!empty($spotifyUserInfo) && isset($spotifyUserInfo['display_name'])): ?>
-        <h2 class="subtitle">Spotify Account Linked Successfully!</h2>
-    <?php else: ?>
-        <div class="notification is-info">
-            <div class="columns is-vcentered">
-                <div class="column is-narrow">
-                    <span class="icon is-large">
-                        <i class="fas fa-link fa-2x"></i> 
-                    </span>
-                </div>
-                <div class="column">
-                    <p><span class="has-text-weight-bold">Link your Spotify account!</span></p>
-                    <p>It looks like your Spotify account needs to be linked. Click the button below to start the linking process.</p>
-                    <a href="<?php echo $authURL; ?>" class="button is-primary">Link Spotify Account</a>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
+    </div>
 </div>
-
-<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-</body>
-</html>
+<?php
+$content = ob_get_clean();
+include "layout.php";
+?>

@@ -68,4 +68,5 @@ function calculateStorageUsed($directories) {
 
 $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path]);
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+// No database access here, so just keep as is for MySQLi context
 ?>

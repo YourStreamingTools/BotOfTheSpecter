@@ -3,16 +3,30 @@
 $sql = "SELECT blacklist FROM joke_settings WHERE id = 1";
 $stmt = $db->prepare($sql);
 $stmt->execute();
-$result = $stmt->fetch(PDO::FETCH_ASSOC);
-if ($result) {
-    $current_blacklist = json_decode($result['blacklist'], true);
+$stmt->bind_result($blacklist_json);
+if ($stmt->fetch()) {
+    $current_blacklist = json_decode($blacklist_json, true);
 }
+$stmt->close();
 
 // Fetch the current settings from the database each time the page loads
-$fetch_sql = "SELECT send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message FROM streamer_preferences WHERE id = 1";
+$fetch_sql = "SELECT send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message, new_default_welcome_message, new_default_vip_welcome_message, new_default_mod_welcome_message FROM streamer_preferences WHERE id = 1";
 $fetch_stmt = $db->prepare($fetch_sql);
 $fetch_stmt->execute();
-$preferences = $fetch_stmt->fetch(PDO::FETCH_ASSOC);
+$fetch_stmt->bind_result($send_welcome_messages_db, $default_welcome_message_db, $default_vip_welcome_message_db, $default_mod_welcome_message_db, $new_default_welcome_message_db, $new_default_vip_welcome_message_db, $new_default_mod_welcome_message_db);
+$preferences = [];
+if ($fetch_stmt->fetch()) {
+    $preferences = [
+        'send_welcome_messages' => $send_welcome_messages_db,
+        'default_welcome_message' => $default_welcome_message_db,
+        'default_vip_welcome_message' => $default_vip_welcome_message_db,
+        'default_mod_welcome_message' => $default_mod_welcome_message_db,
+        'new_default_welcome_message' => $new_default_welcome_message_db,
+        'new_default_vip_welcome_message' => $new_default_vip_welcome_message_db,
+        'new_default_mod_welcome_message' => $new_default_mod_welcome_message_db
+    ];
+}
+$fetch_stmt->close();
 
 // Set default values if no settings exist in the database
 $send_welcome_messages = isset($preferences['send_welcome_messages']) ? $preferences['send_welcome_messages'] : 1;
@@ -26,16 +40,17 @@ $new_default_mod_welcome_message = isset($preferences['new_default_mod_welcome_m
 // Fetch ad notice settings from the database
 $stmt = $db->prepare("SELECT ad_start_message, ad_end_message, enable_ad_notice FROM ad_notice_settings WHERE id = 1");
 $stmt->execute();
-$ad_notice_settings = $stmt->fetch(PDO::FETCH_ASSOC);
-if ($ad_notice_settings) {
-    $ad_start_message = $ad_notice_settings['ad_start_message'];
-    $ad_end_message = $ad_notice_settings['ad_end_message'];
-    $enable_ad_notice = (int)$ad_notice_settings['enable_ad_notice'];
+$stmt->bind_result($ad_start_message_db, $ad_end_message_db, $enable_ad_notice_db);
+if ($stmt->fetch()) {
+    $ad_start_message = $ad_start_message_db;
+    $ad_end_message = $ad_end_message_db;
+    $enable_ad_notice = (int)$enable_ad_notice_db;
 } else {
     $ad_start_message = "Ads are running for (duration). We'll be right back after these ads.";
     $ad_end_message = "Thanks for sticking with us through the ads! Welcome back, everyone!";
     $enable_ad_notice = 1;
 }
+$stmt->close();
 
 // If form is submitted, update the blacklist
 $update_success = false;
@@ -46,10 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $new_blacklist = isset($_POST['blacklist']) ? $_POST['blacklist'] : [];
         $new_blacklist_json = json_encode($new_blacklist);
         // Update the blacklist in the database
-        $update_sql = "UPDATE joke_settings SET blacklist = :blacklist WHERE id = 1";
+        $update_sql = "UPDATE joke_settings SET blacklist = ? WHERE id = 1";
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bindParam(':blacklist', $new_blacklist_json);
+        $update_stmt->bind_param('s', $new_blacklist_json);
         $update_stmt->execute();
+        $update_stmt->close();
         // Set success message for blacklist update in session
         $_SESSION['update_message'] = "Blacklist settings updated successfully.";
     }
@@ -71,27 +87,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             (id, send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message, 
                 new_default_welcome_message, new_default_vip_welcome_message, new_default_mod_welcome_message)
             VALUES 
-            (1, :send_welcome_messages, :default_welcome_message, :default_vip_welcome_message, :default_mod_welcome_message,
-                :new_default_welcome_message, :new_default_vip_welcome_message, :new_default_mod_welcome_message)
+            (1, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
-                send_welcome_messages = :send_welcome_messages, 
-                default_welcome_message = :default_welcome_message,
-                default_vip_welcome_message = :default_vip_welcome_message,
-                default_mod_welcome_message = :default_mod_welcome_message,
-                new_default_welcome_message = :new_default_welcome_message,
-                new_default_vip_welcome_message = :new_default_vip_welcome_message,
-                new_default_mod_welcome_message = :new_default_mod_welcome_message";
+                send_welcome_messages = VALUES(send_welcome_messages), 
+                default_welcome_message = VALUES(default_welcome_message),
+                default_vip_welcome_message = VALUES(default_vip_welcome_message),
+                default_mod_welcome_message = VALUES(default_mod_welcome_message),
+                new_default_welcome_message = VALUES(new_default_welcome_message),
+                new_default_vip_welcome_message = VALUES(new_default_vip_welcome_message),
+                new_default_mod_welcome_message = VALUES(new_default_mod_welcome_message)";
         $update_stmt = $db->prepare($update_sql);
-        // Bind parameters
-        $update_stmt->bindParam(':send_welcome_messages', $send_welcome_messages, PDO::PARAM_INT);
-        $update_stmt->bindParam(':default_welcome_message', $default_welcome_message, PDO::PARAM_STR);
-        $update_stmt->bindParam(':default_vip_welcome_message', $default_vip_welcome_message, PDO::PARAM_STR);
-        $update_stmt->bindParam(':default_mod_welcome_message', $default_mod_welcome_message, PDO::PARAM_STR);
-        $update_stmt->bindParam(':new_default_welcome_message', $new_default_welcome_message, PDO::PARAM_STR);
-        $update_stmt->bindParam(':new_default_vip_welcome_message', $new_default_vip_welcome_message, PDO::PARAM_STR);
-        $update_stmt->bindParam(':new_default_mod_welcome_message', $new_default_mod_welcome_message, PDO::PARAM_STR);
-        // Execute the query
+        $update_stmt->bind_param(
+            'issssss',
+            $send_welcome_messages,
+            $default_welcome_message,
+            $default_vip_welcome_message,
+            $default_mod_welcome_message,
+            $new_default_welcome_message,
+            $new_default_vip_welcome_message,
+            $new_default_mod_welcome_message
+        );
         $update_stmt->execute();
+        $update_stmt->close();
         // Set success message for welcome messages update in session
         $_SESSION['update_message'] = "Welcome message settings updated successfully.";
     }    
@@ -100,45 +117,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $status = "";
         $soundFile = htmlspecialchars($_POST['sound_file']);
         $rewardId = htmlspecialchars($_POST['twitch_alert_id']);
-        $db->beginTransaction();
+        $db->begin_transaction();
         // Check if a mapping already exists for this sound file
-        $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = :sound_mapping");
-        $checkExisting->bindParam(':sound_mapping', $soundFile);
+        $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = ?");
+        $checkExisting->bind_param('s', $soundFile);
         $checkExisting->execute();
-        if ($checkExisting->rowCount() > 0) {
+        $checkExisting->store_result();
+        if ($checkExisting->num_rows > 0) {
             // Update existing mapping
             if ($rewardId) {
-                $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = :twitch_alert_id WHERE sound_mapping = :sound_mapping");
-                $updateMapping->bindParam(':twitch_alert_id', $rewardId);
-                $updateMapping->bindParam(':sound_mapping', $soundFile);
+                $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = ? WHERE sound_mapping = ?");
+                $updateMapping->bind_param('ss', $rewardId, $soundFile);
                 if (!$updateMapping->execute()) {
-                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->errorInfo(), true) . "<br>"; 
+                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . print_r($updateMapping->error_list, true) . "<br>"; 
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
                 }
+                $updateMapping->close();
             } else {
                 // Clear the mapping if no reward is selected
-                $clearMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = :sound_mapping");
-                $clearMapping->bindParam(':sound_mapping', $soundFile);
+                $clearMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = NULL WHERE sound_mapping = ?");
+                $clearMapping->bind_param('s', $soundFile);
                 if (!$clearMapping->execute()) {
-                    $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->errorInfo(), true) . "<br>"; 
+                    $status .= "Failed to clear mapping for file '" . $soundFile . "'. Database error: " . print_r($clearMapping->error_list, true) . "<br>"; 
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been cleared.<br>";
                 }
+                $clearMapping->close();
             }
         } else {
             // Create a new mapping if it doesn't exist
             if ($rewardId) {
-                $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (:sound_mapping, :twitch_alert_id)");
-                $insertMapping->bindParam(':sound_mapping', $soundFile);
-                $insertMapping->bindParam(':twitch_alert_id', $rewardId);
+                $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (?, ?)");
+                $insertMapping->bind_param('ss', $soundFile, $rewardId);
                 if (!$insertMapping->execute()) {
-                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->errorInfo(), true) . "<br>"; 
+                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . print_r($insertMapping->error_list, true) . "<br>"; 
                 } else {
                     $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
                 }
+                $insertMapping->close();
             } 
         }
+        $checkExisting->close();
         // Commit transaction
         $db->commit();
         $_SESSION['update_message'] = $status;
@@ -152,16 +172,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             INSERT INTO ad_notice_settings 
             (id, ad_start_message, ad_end_message, enable_ad_notice)
             VALUES 
-            (1, :ad_start_message, :ad_end_message, :enable_ad_notice)
+            (1, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
-                ad_start_message = :ad_start_message,
-                ad_end_message = :ad_end_message,
-                enable_ad_notice = :enable_ad_notice";
+                ad_start_message = VALUES(ad_start_message),
+                ad_end_message = VALUES(ad_end_message),
+                enable_ad_notice = VALUES(enable_ad_notice)";
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bindParam(':ad_start_message', $ad_start_message, PDO::PARAM_STR);
-        $update_stmt->bindParam(':ad_end_message', $ad_end_message, PDO::PARAM_STR);
-        $update_stmt->bindParam(':enable_ad_notice', $enable_ad_notice, PDO::PARAM_INT);
+        $update_stmt->bind_param('ssi', $ad_start_message, $ad_end_message, $enable_ad_notice);
         $update_stmt->execute();
+        $update_stmt->close();
         $_SESSION['update_message'] = "Ad notice settings updated successfully.";
     }
     // Refresh the page to show updated settings
@@ -174,7 +193,15 @@ $status = '';
 // Fetch sound alert mappings for the current user
 $getTwitchAlerts = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
 $getTwitchAlerts->execute();
-$soundAlerts = $getTwitchAlerts->fetchAll(PDO::FETCH_ASSOC);
+$getTwitchAlerts->bind_result($sound_mapping, $twitch_alert_id);
+$soundAlerts = [];
+while ($getTwitchAlerts->fetch()) {
+    $soundAlerts[] = [
+        'sound_mapping' => $sound_mapping,
+        'twitch_alert_id' => $twitch_alert_id
+    ];
+}
+$getTwitchAlerts->close();
 
 // Create an associative array for easy lookup: sound_mapping => twitch_alert_id
 $twitchSoundAlertMappings = [];

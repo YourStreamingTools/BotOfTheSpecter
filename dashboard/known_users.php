@@ -1,6 +1,7 @@
-<?php 
-// Initialize the session
+<?php
 session_start();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -9,34 +10,46 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title
-$title = "Known Users";
+$pageTitle = t('known_users_title');
 
-// Include all the information
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
-include 'user_db.php';
 include "mod_access.php";
-foreach ($profileData as $profile) {
-  $timezone = $profile['timezone'];
-  $weather = $profile['weather_location'];
-}
+include 'user_db.php';
+include 'storage_used.php';
+require_once '/var/www/config/database.php';
+$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+if ($db->connect_error) { die('Connection failed: ' . $db->connect_error); }
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
 date_default_timezone_set($timezone);
 
 // Fetch the total number of users in the seen_users table
 $totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users");
 $totalUsersSTMT->execute();
-$totalUsersResult = $totalUsersSTMT->fetch(PDO::FETCH_ASSOC);
+$totalUsersResult = $totalUsersSTMT->get_result()->fetch_assoc();
 $totalUsers = $totalUsersResult['total_users'];
+$totalUsersSTMT->close();
 
 // Cache for banned users
-$cacheUsername = $_SESSION['username'];
-$cacheExpiration = 86400; // Cache expires after 24 hours
-$cacheDirectory = "cache/$cacheUsername";
-$cacheFile = "$cacheDirectory/bannedUsers.json";
+$cacheExpiration = 86400; // 24 hours
+$loggedInUsername = $_SESSION['username'];
+$cacheBaseDir = "/var/www/cache/known_users";
+$cacheFile = "$cacheBaseDir/$loggedInUsername.json";
+$cacheWarningMessage = null; // Initialize warning message
 
-if (!is_dir($cacheDirectory)) {
-    mkdir($cacheDirectory, 0755, true);
+if (!is_dir($cacheBaseDir)) {
+  if (!mkdir($cacheBaseDir, 0755, true) && !is_dir($cacheBaseDir)) {
+    $cacheWarningMessage = "Error: Could not create cache directory: $cacheBaseDir. Please check server permissions.";
+    error_log($cacheWarningMessage . " User: " . $loggedInUsername);
+  }
 }
 $bannedUsersCache = [];
 if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration) {
@@ -54,141 +67,224 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   if (isset($_POST['username']) && isset($_POST['status'])) {
     $dbusername = $_POST['username'];
     $status = $_POST['status'];
-    $updateQuery = $db->prepare("UPDATE seen_users SET status = :status WHERE username = :username");
-    $updateQuery->bindParam(':status', $status);
-    $updateQuery->bindParam(':username', $dbusername);
+    $updateQuery = $db->prepare("UPDATE seen_users SET status = ? WHERE username = ?");
+    $updateQuery->bind_param('ss', $status, $dbusername);
     $updateQuery->execute();
+    $updateQuery->close();
   }
 
   if (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
     $userId = $_POST['userId'];
     $newWelcomeMessage = $_POST['newWelcomeMessage'];
-    $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = :welcome_message WHERE id = :user_id");
-    $messageQuery->bindParam(':welcome_message', $newWelcomeMessage);
-    $messageQuery->bindParam(':user_id', $userId);
+    $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = ? WHERE id = ?");
+    $messageQuery->bind_param('si', $newWelcomeMessage, $userId);
     $messageQuery->execute();
+    $messageQuery->close();
     header("Location: known_users.php");
     exit();
   }
 
   if (isset($_POST['deleteUserId'])) {
     $deleteUserId = $_POST['deleteUserId'];
-    $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = :user_id");
-    $deleteQuery->bindParam(':user_id', $deleteUserId);
+    $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = ?");
+    $deleteQuery->bind_param('i', $deleteUserId);
     $deleteQuery->execute();
+    $deleteQuery->close();
     header("Location: known_users.php");
     exit();
   }
 }
+
+// Start output buffering for layout
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <!-- Header -->
-  <?php include('header.php'); ?>
-  <!-- /Header -->
-</head>
-<body>
-<!-- Navigation -->
-<?php include('navigation.php'); ?>
-<!-- /Navigation -->
-
-<div class="container">
-  <br>
-  <div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'is-warning' : 'is-info'; ?>">
-    <p id="loadingNotice">
-      <?php 
-      if ($totalUsers > 0) {
-          echo "Please wait while we load the users and their status... (0/$totalUsers)";
-      } else {
-          echo "There are no users to display.";
-      }
-      ?>
-    </p>
-  </div>
-  <div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
-    <h2 class="title is-4">Known Users & Welcome Messages</h2>
-    <div class="notification is-danger">Click the Edit Button within the users table, edit the welcome message in the text box, when done, click the edit button again to save.</div>
-    <!-- Search Bar -->
-    <input type="text" id="searchInput" class="input" placeholder="Search users..." onkeyup="searchFunction()">
-    <br><br>
-    <table class="table is-fullwidth" id="commandsTable">
-      <thead>
-        <tr>
-          <th style="width: 50%;">Username</th>
-          <th style="width: 50%;">Welcome Message</th>
-          <th style="width: 100px;">Status</th>
-          <th style="width: 100px;">Action</th>
-          <th style="width: 100px;">Editing</th>
-          <th style="width: 100px;">Removing</th>
-        </tr>
-      </thead>
-      <tbody id="user-table">
-        <?php foreach ($seenUsersData as $userData): ?>
-          <tr>
-            <td>
-              <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
-                <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
-              </span>
-              <span class="banned-status"></span>
-            </td>
-            <td>
-              <div id="welcome-message-<?php echo $userData['id']; ?>">
-                <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
-              </div>
-              <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
-                <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
-              </div>
-            </td>
-            <td>
-              <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
-                <?php echo isset($userData['status']) ? htmlspecialchars($userData['status']) : ''; ?>
-              </span>
-            </td>
-            <td>
-              <label class="checkbox">
-                <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)">
-                <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-              </label>
-            </td>
-            <td>
-              <button class="button is-small is-primary edit-btn" data-user-id="<?php echo $userData['id']; ?>"><i class="fas fa-pencil-alt"></i></button>
-            </td>
-            <td>
-              <form method="POST" style="display:inline;">
-                <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
-                <button type="submit" class="button is-small is-danger"><i class="fas fa-trash-alt"></i></button>
-              </form>
-            </td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <br><br><br><br>
+<div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'has-background-warning has-text-warning-dark' : 'has-background-info-light has-text-info-dark'; ?>">
+  <p id="loadingNotice">
+    <?php 
+    if ($totalUsers > 0) {
+        echo t('known_users_loading', ['loaded' => 0, 'total' => $totalUsers]);
+    } else {
+        echo t('known_users_no_users');
+    }
+    ?>
+  </p>
 </div>
+<?php if ($cacheWarningMessage): ?>
+<div class="notification is-danger">
+    <?php echo htmlspecialchars($cacheWarningMessage); ?>
+</div>
+<?php endif; ?>
+<div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
+  <div class="columns is-centered">
+    <div class="column is-fullwidth">
+      <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+        <header class="card-header" style="border-bottom: 1px solid #23272f;">
+          <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+            <span class="icon mr-2"><i class="fas fa-users"></i></span>
+            <?php echo t('known_users_title'); ?>
+          </span>
+        </header>
+        <div class="card-content">
+          <div class="notification has-background-danger has-text-black has-text-weight-bold"><?php echo t('known_users_edit_notice'); ?></div>
+          <!-- Search Bar -->
+          <input type="text" id="searchInput" class="input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()">
+          <br><br>
+          <div class="table-container">
+            <table class="table is-fullwidth" id="commandsTable" style="table-layout: fixed;">
+              <thead>
+                <tr>
+                  <th class="has-text-white" style="width: 50%;"><?php echo t('counters_username_column'); ?></th>
+                  <th class="has-text-white" style="width: 50%;"><?php echo t('known_users_welcome_message_column'); ?></th>
+                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_status_column'); ?></th>
+                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_action_column'); ?></th>
+                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_editing_column'); ?></th>
+                  <th class="has-text-white" style="width: 100px;"><?php echo t('known_users_removing_column'); ?></th>
+                </tr>
+              </thead>
+              <tbody id="user-table">
+                <?php foreach ($seenUsersData as $userData): ?>
+                  <tr class="is-vcentered has-text-white">
+                    <td>
+                      <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
+                        <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
+                      </span>
+                      <span class="banned-status"></span>
+                    </td>
+                    <td>
+                      <div id="welcome-message-<?php echo $userData['id']; ?>">
+                        <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
+                      </div>
+                      <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
+                        <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+                      </div>
+                    </td>
+                    <td class="has-text-centered" style="vertical-align: middle;">
+                      <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
+                        <?php echo isset($userData['status']) ? t($userData['status'] == 'True' ? 'known_users_status_true' : 'known_users_status_false') : ''; ?>
+                      </span>
+                    </td>
+                    <td class="has-text-centered" style="vertical-align: middle;">
+                      <label class="checkbox" style="cursor:pointer;">
+                        <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)" style="display:none;">
+                        <span class="icon is-medium" onclick="this.previousElementSibling.click();">
+                          <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                        </span>
+                      </label>
+                    </td>
+                    <td class="has-text-centered" style="vertical-align: middle;">
+                      <div class="edit-action-group" style="display: flex; flex-direction: column; align-items: center;">
+                        <button class="button is-primary is-small edit-btn" data-user-id="<?php echo $userData['id']; ?>">
+                          <i class="fas fa-pencil-alt"></i>
+                        </button>
+                        <button class="button is-small is-success save-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
+                          <span class="icon is-medium">
+                            <i class="fas fa-floppy-disk"></i>
+                          </span>
+                        </button>
+                        <button class="button is-small is-danger cancel-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
+                          <span class="icon is-medium">
+                            <i class="fas fa-xmark"></i>
+                          </span>
+                        </button>
+                      </div>
+                    </td>
+                    <td class="has-text-centered" style="vertical-align: middle;">
+                      <form method="POST" style="display:inline;" class="delete-user-form">
+                        <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
+                        <button type="button" class="button is-danger is-small delete-user-btn"><i class="fas fa-trash-alt"></i></button>
+                      </form>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<?php
+$content = ob_get_clean();
 
+// Start output buffering for scripts
+ob_start();
+?>
 <script>
 const totalUsers = <?php echo $totalUsers; ?>;
 let loadedUsers = 0;
 const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize the editing functionality
+  // Editing functionality
   document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       const userId = this.getAttribute('data-user-id');
       const editBox = document.getElementById('edit-box-' + userId);
       const welcomeMessage = document.getElementById('welcome-message-' + userId);
-      if (editBox.style.display === 'none') {
-        console.log(`Editing welcome message for user ID ${userId}`);
-        editBox.style.display = 'block';
-        welcomeMessage.style.display = 'none';
-        this.classList.add('is-warning');
-      } else {
-        const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
-        updateWelcomeMessage(userId, newWelcomeMessage, this);
-      }
+      const editActionGroup = this.parentElement;
+      const saveBtn = editActionGroup.querySelector('.save-edit-btn');
+      const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
+      // Switch to editing mode
+      editBox.style.display = 'block';
+      welcomeMessage.style.display = 'none';
+      this.style.display = 'none';
+      if (saveBtn) saveBtn.style.display = '';
+      if (cancelBtn) cancelBtn.style.display = '';
+    });
+  });
+  // Save edit functionality
+  document.querySelectorAll('.save-edit-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const userId = this.getAttribute('data-user-id');
+      const editBox = document.getElementById('edit-box-' + userId);
+      const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
+      const editActionGroup = this.parentElement;
+      const editBtn = editActionGroup.querySelector('.edit-btn');
+      const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
+      // Hide save/cancel, show edit
+      this.style.display = 'none';
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (editBtn) editBtn.style.display = '';
+      updateWelcomeMessage(userId, newWelcomeMessage, editBtn);
+    });
+  });
+  // Cancel edit functionality
+  document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const userId = this.getAttribute('data-user-id');
+      const editActionGroup = this.parentElement;
+      const editBtn = editActionGroup.querySelector('.edit-btn');
+      const saveBtn = editActionGroup.querySelector('.save-edit-btn');
+      const editBox = document.getElementById('edit-box-' + userId);
+      const welcomeMessage = document.getElementById('welcome-message-' + userId);
+      // Revert UI to non-editing state
+      editBox.style.display = 'none';
+      welcomeMessage.style.display = '';
+      if (editBtn) editBtn.style.display = '';
+      if (saveBtn) saveBtn.style.display = 'none';
+      this.style.display = 'none';
+    });
+  });
+  // SweetAlert2 for delete confirmation
+  document.querySelectorAll('.delete-user-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      const form = this.closest('form');
+      Swal.fire({
+        title: '<?php echo t('known_users_delete_confirm_title'); ?>',
+        text: "<?php echo t('known_users_delete_confirm_text'); ?>",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: '<?php echo t('known_users_delete_confirm_btn'); ?>',
+        cancelButtonText: '<?php echo t('cancel'); ?>'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.submit();
+        }
+      });
     });
   });
   // Fetch the banned status for each user asynchronously
@@ -196,92 +292,156 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function fetchBannedStatuses() {
-  const usernames = document.querySelectorAll('.username');
-  let remainingRequests = usernames.length;
-  usernames.forEach(usernameElement => {
+  const usernamesElements = document.querySelectorAll('.username');
+  const loadingNoticeBox = document.getElementById('loadingNoticeBox');
+  const contentElement = document.getElementById('content');
+  if (totalUsers === 0) {
+    return;
+  }
+  if (usernamesElements.length === 0 && totalUsers > 0) {
+    handleAllUsersProcessed(false);
+    return;
+  }
+  const uncachedUsers = [];
+  const cachedUsers = [];
+  usernamesElements.forEach(usernameElement => {
     const username = usernameElement.dataset.username;
     if (!(username in bannedUsersCache)) {
-      fetchBannedStatus(username, usernameElement, () => {
-        remainingRequests--;
-        loadedUsers++;
-        updateLoadingNotice();
-        if (remainingRequests === 0) {
-          const loadingNoticeBox = document.getElementById('loadingNoticeBox');
-          const loadingNotice = document.getElementById('loadingNotice');
-          loadingNotice.innerText = 'Loading completed, you can start editing';
-          loadingNoticeBox.classList.remove('is-warning');
-          loadingNoticeBox.classList.add('is-success');
-          setTimeout(() => {
-            loadingNoticeBox.style.display = 'none';
-            document.getElementById('content').style.display = 'block';
-          }, 2000); // Show the success message for 2 seconds before hiding it
-        }
-      });
+      uncachedUsers.push({username, element: usernameElement});
     } else {
-      remainingRequests--;
-      loadedUsers++;
-      updateLoadingNotice();
-      if (remainingRequests === 0) {
-        const loadingNoticeBox = document.getElementById('loadingNoticeBox');
-        const loadingNotice = document.getElementById('loadingNotice');
-        loadingNotice.innerText = 'Loading completed, you can start editing';
-        loadingNoticeBox.classList.remove('is-warning');
-        loadingNoticeBox.classList.add('is-success');
-        setTimeout(() => {
-          loadingNoticeBox.style.display = 'none';
-          document.getElementById('content').style.display = 'block';
-        }, 2000); // Show the success message for 2 seconds before hiding it
-      }
+      cachedUsers.push({username, element: usernameElement});
     }
+  });
+  cachedUsers.forEach(({username, element}) => {
+    const bannedStatusElement = element.nextElementSibling;
+    if (bannedUsersCache[username]) {
+      bannedStatusElement.innerHTML = " <em style='color:red'>(<?php echo t('known_users_banned_label'); ?>)</em>";
+    } else {
+      bannedStatusElement.innerHTML = "";
+    }
+    loadedUsers++;
+    updateLoadingNotice();
+  });
+  if (uncachedUsers.length === 0) {
+    handleAllUsersProcessed(false);
+    return;
+  }
+  const batchSize = 10;
+  const batches = [];
+  for (let i = 0; i < uncachedUsers.length; i += batchSize) {
+    batches.push(uncachedUsers.slice(i, i + batchSize));
+  }
+  let completedBatches = 0;
+  let newCacheEntriesMade = false;
+  batches.forEach(batch => {
+    fetchBannedStatusBatch(batch, (batchHadNewEntries) => {
+      if (batchHadNewEntries) {
+        newCacheEntriesMade = true;
+      }
+      completedBatches++;
+      if (completedBatches === batches.length) {
+        handleAllUsersProcessed(newCacheEntriesMade);
+      }
+    });
   });
 }
 
-function updateLoadingNotice() {
-  const loadingNotice = document.getElementById('loadingNotice');
-  loadingNotice.innerText = `Please wait while we load the users and their status... (${loadedUsers}/${totalUsers})`;
-}
-
-function fetchBannedStatus(username, usernameElement, callback) {
-  console.log(`Fetching banned status for ${username}`);
+function fetchBannedStatusBatch(userBatch, callback) {
+  const usernames = userBatch.map(user => user.username);
+  console.log(`Fetching banned status for batch of ${usernames.length} users:`, usernames);
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "fetch_banned_status.php", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(`Response received for banned status of ${username}`);
+      let batchHadNewEntries = false;
+      console.log(`Response received for batch of ${usernames.length} users`);
       if (xhr.status === 200) {
-        console.log(`XHR response: ${xhr.responseText}`);
-        const response = JSON.parse(xhr.responseText);
-        const bannedStatusElement = usernameElement.nextElementSibling;
-        if (response.banned) {
-          console.log(`${username} is banned`);
-          bannedStatusElement.innerHTML = " <em style='color:red'>(banned)</em>";
-        } else {
-          console.log(`${username} is not banned`);
+        try {
+          const response = JSON.parse(xhr.responseText);
+          console.log(`Batch response:`, response);
+          userBatch.forEach(({username, element}) => {
+            const bannedStatusElement = element.nextElementSibling;
+            const isBanned = response.bannedUsers && response.bannedUsers[username] === true;
+            if (isBanned) {
+              bannedStatusElement.innerHTML = " <em style='color:red'>(<?php echo t('known_users_banned_label'); ?>)</em>";
+            } else {
+              bannedStatusElement.innerHTML = "";
+            }
+            bannedUsersCache[username] = isBanned;
+            batchHadNewEntries = true;
+            loadedUsers++;
+            updateLoadingNotice();
+          });
+          if (batchHadNewEntries) {
+            const cacheUpdate = {};
+            userBatch.forEach(({username}) => {
+              cacheUpdate[username] = bannedUsersCache[username];
+            });
+            updateCacheOnServer(cacheUpdate);
+          }
+          
+        } catch (e) {
+          console.error(`Error parsing JSON for batch:`, e, xhr.responseText);
+          userBatch.forEach(() => {
+            loadedUsers++;
+            updateLoadingNotice();
+          });
         }
-        // Update the cache
-        bannedUsersCache[username] = response.banned;
-        // Update the cache file with new data
-        fetch('update_banned_users_cache.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(bannedUsersCache)
-        }).then(res => res.json()).then(data => {
-          console.log('Cache updated', data);
-        }).catch(error => {
-          console.error('Error updating cache', error);
-        });
       } else {
-        console.log(`Error fetching banned status for ${username}: ${xhr.status}`);
+        console.log(`Error fetching banned status for batch: ${xhr.status}`);
+        userBatch.forEach(() => {
+          loadedUsers++;
+          updateLoadingNotice();
+        });
       }
-      callback();
+      if (callback) callback(batchHadNewEntries);
     }
   };
-  xhr.send("usernameToCheck=" + encodeURIComponent(username));
+  xhr.send("usernames=" + encodeURIComponent(JSON.stringify(usernames)));
 }
 
+function updateCacheOnServer(cacheUpdate) {
+  fetch('update_banned_users_cache.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(cacheUpdate)
+  }).then(res => {
+    if (!res.ok) {
+      return res.text().then(text => { throw new Error(`HTTP error! status: ${res.status}, body: ${text}`); });
+    }
+    return res.json();
+  }).then(data => {
+    console.log(`Cache updated on server for batch:`, data);
+  }).catch(error => {
+    console.error(`Error updating cache on server for batch:`, error);
+  });
+}
+function handleAllUsersProcessed(cacheWasModified) {
+  const loadingNoticeBox = document.getElementById('loadingNoticeBox');
+  const loadingNotice = document.getElementById('loadingNotice');
+  const contentElement = document.getElementById('content');
+  if (!loadingNoticeBox || !loadingNotice || !contentElement) {
+      console.error('Required UI elements for loading notice not found.');
+      return;
+  }
+  loadingNotice.innerText = '<?php echo t('known_users_loading_done'); ?>';
+  loadingNoticeBox.classList.remove('has-background-warning', 'has-text-warning-dark');
+  loadingNoticeBox.classList.remove('has-background-info-light', 'has-text-info-dark');
+  loadingNoticeBox.classList.add('has-background-success-light', 'has-text-success-dark');
+  setTimeout(() => {
+    loadingNoticeBox.style.display = 'none';
+    contentElement.style.display = 'block';
+  }, 2000);
+}
+function updateLoadingNotice() {
+  const loadingNotice = document.getElementById('loadingNotice');
+  if (loadingNotice) {
+    loadingNotice.innerText = '<?php echo t('known_users_loading_js'); ?>'.replace('{loaded}', loadedUsers).replace('{total}', totalUsers);
+  }
+}
 function updateWelcomeMessage(userId, newWelcomeMessage, button) {
   console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
   var xhr = new XMLHttpRequest();
@@ -312,8 +472,9 @@ function toggleStatus(username, isChecked) {
   xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
 }
 </script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
-<script src="/js/search.js"></script>
-</body>
-</html>
+<?php
+$scripts = ob_get_clean();
+
+// Use the layout
+include 'layout.php';
+?>
