@@ -36,8 +36,8 @@ $serviceMap = [
     ],
     'database' => [
         'name' => 'Database Service',
-        'host' => 'a316314-akamai-prod-3254658-default.g2a.akamaidb.net',
-        'port' => 18256
+        'host' => 'sql.botofthespcter.com',
+        'port' => 3306
     ],
     'websocket' => [
         'name' => 'Notification Service',
