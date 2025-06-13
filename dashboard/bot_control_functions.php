@@ -13,6 +13,25 @@ include_once "/var/www/config/ssh.php";
 */
 function checkBotRunning($username, $botType = 'stable') {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    // Prevent concurrent SSH connections for the same user
+    static $connection_locks = array();
+    $lock_key = $username . '_' . $botType;
+    if (isset($connection_locks[$lock_key])) {
+        return [
+            'success' => false,
+            'running' => false,
+            'pid' => 0,
+            'version' => '',
+            'lastModified' => null,
+            'lastRun' => null,
+            'message' => 'Another connection attempt is in progress, please wait'
+        ];
+    }
+    $connection_locks[$lock_key] = time();
+    // Debug: Check if SSH config file exists
+    $ssh_config_path = "/var/www/config/ssh.php";
+    $ssh_config_exists = file_exists($ssh_config_path);
+    $ssh_config_readable = is_readable($ssh_config_path);
     $statusScriptPath = "/home/botofthespecter/status.py";
     $versionFilePath = "/var/www/logs/version/{$username}_" . (
         $botType === 'stable' ? "" :
@@ -21,8 +40,7 @@ function checkBotRunning($username, $botType = 'stable') {
     ) . "version_control.txt";
     if ($botType === 'stable') { $botScriptPath = "/home/botofthespecter/bot.py"; }
         elseif ($botType === 'beta') { $botScriptPath = "/home/botofthespecter/beta.py"; }
-        elseif ($botType === 'discord') { $botScriptPath = "/home/botofthespecter/discordbot.py"; }
-    else { $botScriptPath = "/home/botofthespecter/bot.py"; }
+        elseif ($botType === 'discord') { $botScriptPath = "/home/botofthespecter/discordbot.py"; }    else { $botScriptPath = "/home/botofthespecter/bot.py"; }
     // Initialize result
     $result = [
         'success' => false,
@@ -32,20 +50,82 @@ function checkBotRunning($username, $botType = 'stable') {
         'lastModified' => null,
         'lastRun' => null,
         'message' => ''
-    ];    try {
+    ];
+    try {
         // Check if SSH2 extension is loaded
-        if (!extension_loaded('ssh2')) {
-            throw new Exception('SSH2 PHP extension is not loaded');
-        }
+        if (!extension_loaded('ssh2')) { throw new Exception('SSH2 PHP extension is not loaded'); }
         // Check if SSH credentials are configured
         if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
             throw new Exception('SSH credentials not configured. Please check config/ssh.php');
         }
-        // Establish SSH connection
-        $connection = ssh2_connect($bots_ssh_host, 22);
-        if (!$connection) { 
-            error_log("SSH connection failed to {$bots_ssh_host}:22 for user {$username}");
-            throw new Exception("SSH connection failed to bot server"); 
+        // Test basic network connectivity first (with cache to avoid spam)
+        static $connectivity_cache = array();
+        $connectivity_key = $bots_ssh_host . ':22';
+        $cache_duration = 30; // seconds
+        if (!isset($connectivity_cache[$connectivity_key]) || 
+            (time() - $connectivity_cache[$connectivity_key]['time']) > $cache_duration) {
+            $fp = @fsockopen($bots_ssh_host, 22, $errno, $errstr, 10);
+            if (!$fp) {
+                $connectivity_cache[$connectivity_key] = ['success' => false, 'time' => time(), 'error' => $errstr];
+            } else {
+                fclose($fp);
+                $connectivity_cache[$connectivity_key] = ['success' => true, 'time' => time()];
+            }
+        }
+        // Establish SSH connection with retry logic
+        $connection = false;
+        $max_retries = 5; // Increased from 3 to 5
+        $base_delay = 0.5; // Reduced from 1 second to 0.5 seconds
+        for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
+            // Add small random delay to prevent connection conflicts
+            if ($attempt > 1) {
+                $random_delay = mt_rand(100, 500); // 100-500ms
+                usleep($random_delay * 1000);
+            }
+            // Try connection with explicit timeout and options
+            $connection = ssh2_connect($bots_ssh_host, 22, array(
+                'hostkey' => 'ssh-rsa,ssh-dss,ssh-ed25519',
+                'kex' => 'diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group-exchange-sha256',
+                'client_to_server' => array(
+                    'crypt' => 'aes128-ctr,aes192-ctr,aes256-ctr,aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc',
+                    'comp' => 'none'
+                ),
+                'server_to_client' => array(
+                    'crypt' => 'aes128-ctr,aes192-ctr,aes256-ctr,aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc',
+                    'comp' => 'none'
+                )
+            ));
+        if ($connection) {
+            // Track success statistics
+            static $success_stats = array();
+            if (!isset($success_stats['total'])) $success_stats = ['total' => 0, 'first_try' => 0];
+            $success_stats['total']++;
+            if ($attempt == 1) $success_stats['first_try']++;
+            $success_rate = round(($success_stats['first_try'] / $success_stats['total']) * 100, 1);
+            break;
+        }
+            // Fallback to basic connection
+            $connection = ssh2_connect($bots_ssh_host, 22);        if ($connection) {
+            // Track success statistics for basic connection too
+            static $basic_success_stats = array();
+            if (!isset($basic_success_stats['total'])) $basic_success_stats = ['total' => 0, 'first_try' => 0];
+            $basic_success_stats['total']++;
+            if ($attempt == 1) $basic_success_stats['first_try']++;
+            $basic_success_rate = round(($basic_success_stats['first_try'] / $basic_success_stats['total']) * 100, 1);
+            break;
+        }
+            if ($attempt < $max_retries) {
+                $retry_delay = $base_delay * $attempt; // Exponential backoff: 0.5s, 1s, 1.5s, 2s
+                usleep($retry_delay * 1000000); // Convert to microseconds
+            }
+        }
+        if (!$connection) {
+            // Try fallback method using system SSH
+            $ssh_result = executeSSHCommand($bots_ssh_host, $bots_ssh_username, $bots_ssh_password, 'echo "SSH_CONNECTION_TEST"');
+            if (!$ssh_result['success']) {
+                error_log("SSH connection failed to {$bots_ssh_host}:22 for user {$username}");
+                throw new Exception("SSH connection failed to bot server - both SSH2 extension and system SSH failed"); 
+            } else { throw new Exception("SSH2 extension connection failed, but system SSH works - contact administrator"); }
         }
         // Authenticate
         if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
@@ -58,7 +138,7 @@ function checkBotRunning($username, $botType = 'stable') {
         // Get PID of the running bot
         $command = "python $statusScriptPath -system $botType -channel $username";
         $stream = ssh2_exec($connection, $command);
-        if (!$stream) { error_log("Failed to execute status command for {$username} {$botType}"); }
+        if (!$stream) {}
         else {
             stream_set_blocking($stream, true);
             $statusOutput = trim(stream_get_contents($stream));
@@ -73,7 +153,6 @@ function checkBotRunning($username, $botType = 'stable') {
                 // No process found - this is normal if bot was never started
                 $result['running'] = false;
                 $result['pid'] = 0;
-                error_log("No bot process found for {$username} {$botType}. Status output: {$statusOutput}");
             }
         }
         // Get version information if the bot is running
@@ -81,15 +160,11 @@ function checkBotRunning($username, $botType = 'stable') {
             $result['version'] = trim(file_get_contents($versionFilePath));
         } else { 
             $result['version'] = ''; 
-            if (!file_exists($versionFilePath)) {
-                error_log("Version file not found: {$versionFilePath} for {$username} {$botType}");
-            }
         }
         // Get file details - don't fail if this doesn't work
         $lastModified = "stat -c %Y " . escapeshellarg($botScriptPath);
         $stream = ssh2_exec($connection, $lastModified);
         if (!$stream) { 
-            error_log("Failed to get file stats for {$botScriptPath}");
             $result['lastModified'] = null;
         } else {
             stream_set_blocking($stream, true);
@@ -100,7 +175,6 @@ function checkBotRunning($username, $botType = 'stable') {
                 $result['lastModified'] = $output;
             } else {
                 $result['lastModified'] = null;
-                error_log("Invalid file stat output for {$botScriptPath}: {$output}");
             }
         }
         // Close SSH connection
@@ -116,6 +190,8 @@ function checkBotRunning($username, $botType = 'stable') {
         $result['success'] = false;
         $result['message'] = $e->getMessage(); 
     }
+    // Clean up connection lock
+    unset($connection_locks[$lock_key]);
     return $result;
 }
 
@@ -288,5 +364,34 @@ function ensure_remote_path_exists($path, $isFile = false) {
     fclose($stream);
     if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
     return true;
+}
+
+/**
+ * Fallback SSH connection using system SSH command
+ * @param string $host SSH host
+ * @param string $username SSH username  
+ * @param string $password SSH password
+ * @param string $command Command to execute
+ * @return array Result with output and success status
+ */
+function executeSSHCommand($host, $username, $password, $command) {
+    $result = ['success' => false, 'output' => '', 'debug' => []];
+    // Use sshpass to handle password authentication
+    $ssh_command = sprintf(
+        'sshpass -p %s ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 %s@%s %s 2>&1',
+        escapeshellarg($password),
+        escapeshellarg($username),
+        escapeshellarg($host),
+        escapeshellarg($command)
+    );
+    $result['debug'][] = "Executing SSH command via system: ssh {$username}@{$host}";
+    $output = [];
+    $return_code = 0;
+    exec($ssh_command, $output, $return_code);
+    $result['output'] = implode("\n", $output);
+    $result['success'] = ($return_code === 0);
+    $result['debug'][] = "SSH command return code: {$return_code}";
+    $result['debug'][] = "SSH command output: " . $result['output'];
+    return $result;
 }
 ?>
