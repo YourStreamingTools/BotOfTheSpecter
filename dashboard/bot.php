@@ -841,37 +841,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Re-attach listeners in case DOM changed
             attachBotButtonListeners();
             document.getElementById('last-updated').textContent = data.lastModified;
-            document.getElementById('last-run').textContent = data.lastRun;
-            // Clear any existing error messages since this was successful
+            document.getElementById('last-run').textContent = data.lastRun;            // Clear any existing error messages since this was successful
             let errorElement = document.querySelector('.bot-status-error');
             if (errorElement) {
               errorElement.style.display = 'none';
             }
-            // Show informational messages (like "Bot has not been started yet")
+            // Clear any existing info messages 
             let infoElement = document.querySelector('.bot-status-info');
-            if (data.message && (data.message.includes('not been started') || data.message.includes('retrieved successfully'))) {
-              if (!infoElement) {
-                infoElement = document.createElement('div');
-                infoElement.className = 'notification is-info bot-status-info';
-                infoElement.style.margin = '10px 0';
-                // Try to insert after the status heading
-                const statusContainer = document.querySelector('.is-size-5');
-                if (statusContainer && statusContainer.parentNode) {
-                  statusContainer.parentNode.insertBefore(infoElement, statusContainer.nextSibling);
-                }
-              }
-              if (data.message.includes('not been started')) {
-                infoElement.innerHTML = `<strong>Bot Status:</strong> ${data.message}. Click the RUN button to start your bot.`;
-                infoElement.className = 'notification is-warning bot-status-info';
-                infoElement.style.display = 'block';
-              } else {
-                // Hide the info message if status was retrieved successfully and bot is running
-                if (data.running) {
-                  infoElement.style.display = 'none';
-                }
-              }
-            } else if (infoElement) {
-              // Hide info element if no relevant message
+            if (infoElement) {
               infoElement.style.display = 'none';
             }
           } else {
