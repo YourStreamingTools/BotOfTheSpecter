@@ -40,12 +40,6 @@ include_once __DIR__ . '/lang/i18n.php';
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
-    <!-- Beta Notice Banner -->
-    <div style="background:rgb(255, 0, 21); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;">
-        <span style="color:rgb(255, 255, 255);">
-            <?php echo t('beta_banner'); ?>
-        </span>
-    </div>
     <!-- Top Navigation Bar -->
     <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
