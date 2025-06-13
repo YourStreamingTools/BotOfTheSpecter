@@ -282,7 +282,7 @@ function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
         fclose($fp);
         $connection = @ssh2_connect($bots_ssh_host, 22);
         if (!$connection) { 
-            return "<div class='status-message error'>Status: SSH connection failed to $bots_ssh_host</div>";
+            return "<div class='status-message error'>Status: SSH connection failed to bot server</div>";
         }
         // Authenticate using username and password
         if (!@ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
