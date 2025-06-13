@@ -236,6 +236,7 @@ async def get_mysql_connection():
         host=SQL_HOST,
         user=SQL_USER,
         password=SQL_PASSWORD,
+        port=SQL_PORT,
         db="website"
     )
 
