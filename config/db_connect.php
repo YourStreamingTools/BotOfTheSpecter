@@ -2,7 +2,7 @@
 $servername = "";
 $username = "";
 $password = "";
-$dbport = 18256;
+$dbport = '18256';
 $dbname = "website";
 
 // Create a connection
