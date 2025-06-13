@@ -523,183 +523,211 @@ document.addEventListener('DOMContentLoaded', function() {
   function handleStableBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
-    btn.disabled = true;
     // Show immediate feedback that action was initiated
     showNotification(`Stable bot ${action} command sent...`, 'info');
+    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
+    btn.disabled = true;
     // Set global flag for run operations
     if (action === 'run') {
       botRunOperationInProgress = true;
       currentBotBeingStarted = 'stable';
     }
-    fetch('bot_action.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `action=${encodeURIComponent(action)}&bot=stable`
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showNotification(`Stable bot ${action} command executed successfully`, 'success');
-          // Start polling for status changes more frequently after run command
-          if (action === 'run') {
-            pollBotStatusUntilRunningWithPID('stable', 15); // Poll for up to 15 times (15 seconds)
-          } else {
-            // For stop action, check status after a brief delay
-            setTimeout(() => {
-              updateBotStatus();
-            }, 1000);
+    // Use setTimeout to avoid blocking the UI
+    setTimeout(() => {
+      fetch('bot_action.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=${encodeURIComponent(action)}&bot=stable`
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showNotification(`Stable bot ${action} command executed successfully`, 'success');
+            // Start polling for status changes more frequently after run command
+            if (action === 'run') {
+              startPollingBotStatus('stable', 15); // Poll for up to 15 times (15 seconds)
+            } else {
+              // For stop action, check status after a brief delay
+              setTimeout(() => {
+                updateBotStatus();
+              }, 1000);
+            }
+          } else { 
+            // Reset flag on failure
+            if (action === 'run') {
+              botRunOperationInProgress = false;
+              currentBotBeingStarted = null;
+            }
+            showNotification(`Failed to ${action} stable bot: ${data.message}`, 'danger'); 
           }
-        } else { 
-          // Reset flag on failure
+          // Always restore button state
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          // Reset flag on error
           if (action === 'run') {
             botRunOperationInProgress = false;
             currentBotBeingStarted = null;
           }
-          showNotification(`Failed to ${action} stable bot: ${data.message}`, 'danger'); 
-        }
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        // Reset flag on error
-        if (action === 'run') {
-          botRunOperationInProgress = false;
-          currentBotBeingStarted = null;
-        }
-        showNotification(`Error processing request: ${error}`, 'danger');
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-      });
+          showNotification(`Error processing request: ${error}`, 'danger');
+          // Always restore button state
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        });
+    }, 10); // Small delay to prevent UI blocking
   }
+
   function handleBetaBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
-    btn.disabled = true;
     // Show immediate feedback that action was initiated
     showNotification(`Beta bot ${action} command sent...`, 'info');
+    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
+    btn.disabled = true;
     // Set global flag for run operations
     if (action === 'run') {
       botRunOperationInProgress = true;
       currentBotBeingStarted = 'beta';
     }
-    fetch('bot_action.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `action=${encodeURIComponent(action)}&bot=beta`
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showNotification(`Beta bot ${action} command executed successfully`, 'success');
-          // Start polling for status changes more frequently after run command
-          if (action === 'run') {
-            pollBotStatusUntilRunningWithPID('beta', 15); // Poll for up to 15 times (15 seconds)
+    // Use setTimeout to avoid blocking the UI
+    setTimeout(() => {
+      fetch('bot_action.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=${encodeURIComponent(action)}&bot=beta`
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showNotification(`Beta bot ${action} command executed successfully`, 'success');
+            // Start polling for status changes more frequently after run command
+            if (action === 'run') {
+              startPollingBotStatus('beta', 15); // Poll for up to 15 times (15 seconds)
+            } else {
+              // For stop action, check status after a brief delay
+              setTimeout(() => {
+                updateBotStatus();
+              }, 1000);
+            }
           } else {
-            // For stop action, check status after a brief delay
-            setTimeout(() => {
-              updateBotStatus();
-            }, 1000);
+            // Reset flag on failure
+            if (action === 'run') {
+              botRunOperationInProgress = false;
+              currentBotBeingStarted = null;
+            }
+            showNotification(`Failed to ${action} beta bot: ${data.message}`, 'danger');
           }
-        } else {
-          // Reset flag on failure
+          // Always restore button state
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          // Reset flag on error
           if (action === 'run') {
             botRunOperationInProgress = false;
             currentBotBeingStarted = null;
           }
-          showNotification(`Failed to ${action} beta bot: ${data.message}`, 'danger');
-        }
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        // Reset flag on error
-        if (action === 'run') {
-          botRunOperationInProgress = false;
-          currentBotBeingStarted = null;
-        }
-        showNotification(`Error processing request: ${error}`, 'danger');
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-      });
+          showNotification(`Error processing request: ${error}`, 'danger');
+          // Always restore button state
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        });
+    }, 10); // Small delay to prevent UI blocking
   }
+
   function handleDiscordBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
-    btn.disabled = true;
     // Show immediate feedback that action was initiated
     showNotification(`Discord bot ${action} command sent...`, 'info');
+    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
+    btn.disabled = true;
     // Set global flag for run operations
     if (action === 'run') {
       botRunOperationInProgress = true;
       currentBotBeingStarted = 'discord';
     }
-    fetch('bot_action.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `action=${encodeURIComponent(action)}&bot=discord`
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showNotification(`Discord bot ${action} command executed successfully`, 'success');
-          // Start polling for status changes more frequently after run command
-          if (action === 'run') {
-            pollBotStatusUntilRunningWithPID('discord', 15); // Poll for up to 15 times (15 seconds)
+    // Use setTimeout to avoid blocking the UI
+    setTimeout(() => {
+      fetch('bot_action.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=${encodeURIComponent(action)}&bot=discord`
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showNotification(`Discord bot ${action} command executed successfully`, 'success');
+            // Start polling for status changes more frequently after run command
+            if (action === 'run') {
+              startPollingBotStatus('discord', 15); // Poll for up to 15 times (15 seconds)
+            } else {
+              // For stop action, check status after a brief delay
+              setTimeout(() => {
+                updateBotStatus();
+              }, 1000);
+            }
           } else {
-            // For stop action, check status after a brief delay
-            setTimeout(() => {
-              updateBotStatus();
-            }, 1000);
+            // Reset flag on failure
+            if (action === 'run') {
+              botRunOperationInProgress = false;
+              currentBotBeingStarted = null;
+            }
+            showNotification(`Failed to ${action} discord bot: ${data.message}`, 'danger');
           }
-        } else {
-          // Reset flag on failure
+          // Always restore button state
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          // Reset flag on error
           if (action === 'run') {
             botRunOperationInProgress = false;
             currentBotBeingStarted = null;
           }
-          showNotification(`Failed to ${action} discord bot: ${data.message}`, 'danger');
-        }
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        // Reset flag on error
-        if (action === 'run') {
+          showNotification(`Error processing request: ${error}`, 'danger');
+          // Always restore button state
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        });
+    }, 10); // Small delay to prevent UI blocking  }
+  
+  // Non-blocking polling function using setInterval instead of recursion
+  function startPollingBotStatus(botType, maxAttempts) {
+    let currentAttempt = 0;
+    let pollInterval;
+    // Show initial progress
+    showNotification(`Checking ${botType} bot status...`, 'info');
+    pollInterval = setInterval(() => {
+      currentAttempt++;
+      // Check if we've exceeded max attempts
+      if (currentAttempt > maxAttempts) {
+        clearInterval(pollInterval);
+        showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot status check timed out. Bot may still be starting - please wait and check manually.`, 'warning');
+        // Reset the global flag even on timeout
+        if (currentBotBeingStarted === botType) {
           botRunOperationInProgress = false;
           currentBotBeingStarted = null;
         }
-        showNotification(`Error processing request: ${error}`, 'danger');
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-      });
-  }  // Function to poll bot status until it's running with PID (for immediate feedback after run command)
-  function pollBotStatusUntilRunningWithPID(botType, maxAttempts, currentAttempt = 1) {
-    if (currentAttempt > maxAttempts) {
-      showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot status check timed out. Bot may still be starting - please wait and check manually.`, 'warning');
-      // Reset the global flag even on timeout
-      if (currentBotBeingStarted === botType) {
-        botRunOperationInProgress = false;
-        currentBotBeingStarted = null;
+        return;
       }
-      return;
-    }
-    // Show progress to user every few attempts
-    if (currentAttempt === 1 || currentAttempt % 3 === 0) {
-      showNotification(`Checking ${botType} bot status... (${currentAttempt}/${maxAttempts})`, 'info');
-    }
-    setTimeout(() => {
+      // Show progress every few attempts to avoid spam
+      if (currentAttempt % 3 === 0) {
+        showNotification(`Checking ${botType} bot status... (${currentAttempt}/${maxAttempts})`, 'info');
+      }
+      // Make the status check request
       fetch(`check_bot_status.php?bot=${botType}`)
         .then(async response => {
           const text = await response.text();
           try {
-            const data = JSON.parse(text);            if (data.success && data.running && data.pid && data.pid > 0) {
-              // Bot is now running with a valid PID
+            const data = JSON.parse(text);
+            if (data.success && data.running && data.pid && data.pid > 0) {
+              // Bot is now running with a valid PID - success!
+              clearInterval(pollInterval);
               showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot is now running with PID ${data.pid}!`, 'success');
               updateBotStatus();
               // Reset the global flag and clean up persistent notifications
@@ -708,52 +736,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentBotBeingStarted = null;
                 // Remove any persistent bot operation notifications
                 document.querySelectorAll('.notification.bot-operation-persistent').forEach(n => {
-                  n.parentNode.removeChild(n);
+                  if (n.parentNode) n.parentNode.removeChild(n);
                 });
               }
-              return; // Stop polling
-            } else if (data.success && (!data.running || !data.pid || data.pid <= 0)) {
-              // Bot is not running yet or no valid PID, continue polling
-              pollBotStatusUntilRunningWithPID(botType, maxAttempts, currentAttempt + 1);
-            } else {
-              // Error in response, continue polling but show warning
-              if (currentAttempt < maxAttempts) {
-                pollBotStatusUntilRunningWithPID(botType, maxAttempts, currentAttempt + 1);
-              } else {
-                // Reset flag on final failure
-                if (currentBotBeingStarted === botType) {
-                  botRunOperationInProgress = false;
-                  currentBotBeingStarted = null;
-                }
-              }
             }
+            // If not running yet, continue polling (interval will handle the next attempt)
           } catch (e) {
-            // JSON parse error, continue polling
-            if (currentAttempt < maxAttempts) {
-              pollBotStatusUntilRunningWithPID(botType, maxAttempts, currentAttempt + 1);
-            } else {
-              // Reset flag on final failure
-              if (currentBotBeingStarted === botType) {
-                botRunOperationInProgress = false;
-                currentBotBeingStarted = null;
-              }
-            }
+            console.error('Error parsing bot status JSON:', e);
+            // Continue polling on parse error
           }
         })
         .catch(error => {
-          // Network error, continue polling
-          if (currentAttempt < maxAttempts) {
-            pollBotStatusUntilRunningWithPID(botType, maxAttempts, currentAttempt + 1);
-          } else {
-            // Reset flag on final failure
-            if (currentBotBeingStarted === botType) {
-              botRunOperationInProgress = false;
-              currentBotBeingStarted = null;
-            }
-          }
+          console.error('Error fetching bot status:', error);
+          // Continue polling on network error
         });
     }, 1000); // Check every 1 second
-  }  // Function to show notifications
+  }
+
+  // Function to show notifications
   function showNotification(message, type) {
     // Remove existing notifications with the same message and type
     document.querySelectorAll(`.notification.is-${type}`).forEach(n => {
@@ -814,15 +814,12 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateBotStatus() {
     const urlParams = new URLSearchParams(window.location.search);
     let selectedBot = urlParams.get('bot');
-    if (!selectedBot) {
-      selectedBot = getCookie('selectedBot');
-    }
-    if (!selectedBot) {
-      selectedBot = 'stable';
-    }
+    if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
+    if (!selectedBot) { selectedBot = 'stable'; }
     fetch(`check_bot_status.php?bot=${selectedBot}`)
       .then(async response => {
-        const text = await response.text();        try {
+        const text = await response.text();
+        try {
           const data = JSON.parse(text);
           if (data.success) {
             // Update status icon and text
@@ -831,11 +828,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update the heartbeat icon for the selected bot only
             const heartIconContainer = document.querySelector('.icon.is-large');
             if (heartIconContainer) {
-              if (data.running) {
-                heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
-              } else {
-                heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
-              }
+              if (data.running) { heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>'; }
+              else { heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>'; }
             }
               // Update status text
             const statusSpan = document.querySelector('.is-size-5 span[class*="has-text-"]');
