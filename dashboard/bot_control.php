@@ -31,12 +31,21 @@ if ($versionApiData !== false) {
 }
 
 // Get bot status and check if it's running
-$statusOutput = getBotsStatus($statusScriptPath, $username, 'stable');
-$botSystemStatus = checkBotsRunning($statusScriptPath, $username, 'stable');
-$betaStatusOutput = getBotsStatus($statusScriptPath, $username, 'beta');
-$betaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'beta');
-$discordStatusOutput = getBotsStatus($statusScriptPath, $username, 'discord');
-$discordBotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'discord');
+try {
+    $statusOutput = getBotsStatus($statusScriptPath, $username, 'stable');
+    $botSystemStatus = checkBotsRunning($statusScriptPath, $username, 'stable');
+    $betaStatusOutput = getBotsStatus($statusScriptPath, $username, 'beta');
+    $betaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'beta');
+    $discordStatusOutput = getBotsStatus($statusScriptPath, $username, 'discord');
+    $discordBotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'discord');
+} catch (Exception $e) {
+    $statusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
+    $botSystemStatus = false;
+    $betaStatusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
+    $betaBotSystemStatus = false;
+    $discordStatusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
+    $discordBotSystemStatus = false;
+}
 
 // Define a timeout for bot shutdown
 $shutdownTimeoutSeconds = 5;
@@ -260,32 +269,51 @@ function updateVersionFile($versionFilePath, $newVersion) {
 function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     
-    $connection = ssh2_connect($bots_ssh_host, 22);
-    if (!$connection) { throw new Exception('SSH connection failed'); }
-    // Authenticate using username and password
-    if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
-        if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-        throw new Exception('SSH authentication failed'); }
-    
-    // Run the command to get the bot's status
-    $command = "python $statusScriptPath -system $system -channel $username";
-    $stream = ssh2_exec($connection, $command);
-    if (!$stream) { throw new Exception('SSH command execution failed'); }
-    // Set stream to blocking mode to read the output
-    stream_set_blocking($stream, true);
-    $statusOutput = trim(stream_get_contents($stream));
-    fclose($stream);
-    ssh2_disconnect($connection);
-    if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
-        preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
-        $pid = intval($matches[1]);
-    } else {
-        $pid = 0;
+    // Check if SSH2 functions are available
+    if (!function_exists('ssh2_connect')) {
+        return "<div class='status-message error'>Status: SSH2 extension not available</div>";
     }
-    if ($pid > 0) {
-        return "<div class='status-message'>Status: PID $pid.</div>";
-    } else {
-        return "<div class='status-message error'>Status: NOT RUNNING</div>";
+      try {
+        // Test basic connectivity first with timeout
+        $fp = @fsockopen($bots_ssh_host, 22, $errno, $errstr, 5);
+        if (!$fp) {
+            return "<div class='status-message error'>Status: Cannot reach SSH server - $errstr ($errno)</div>";
+        }
+        fclose($fp);
+        $connection = @ssh2_connect($bots_ssh_host, 22);
+        if (!$connection) { 
+            return "<div class='status-message error'>Status: SSH connection failed to $bots_ssh_host</div>";
+        }
+        // Authenticate using username and password
+        if (!@ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
+            if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
+            return "<div class='status-message error'>Status: SSH authentication failed</div>";
+        }
+        // Run the command to get the bot's status
+        $command = "python $statusScriptPath -system $system -channel $username";
+        $stream = @ssh2_exec($connection, $command);
+        if (!$stream) { 
+            ssh2_disconnect($connection);
+            return "<div class='status-message error'>Status: SSH command execution failed</div>";
+        }
+        // Set stream to blocking mode to read the output
+        stream_set_blocking($stream, true);
+        $statusOutput = trim(stream_get_contents($stream));
+        fclose($stream);
+        ssh2_disconnect($connection);
+        if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
+            preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+            $pid = intval($matches[1]);
+        } else {
+            $pid = 0;
+        }
+        if ($pid > 0) {
+            return "<div class='status-message'>Status: PID $pid.</div>";
+        } else {
+            return "<div class='status-message error'>Status: NOT RUNNING</div>";
+        }
+    } catch (Exception $e) {
+        return "<div class='status-message error'>Status: Error - " . $e->getMessage() . "</div>";
     }
 }
 
@@ -339,27 +367,49 @@ function getBotPID($statusScriptPath, $username) {
 
 function checkBotsRunning($statusScriptPath, $username, $system = 'stable') {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    $connection = ssh2_connect($bots_ssh_host, 22);
-    if (!$connection) { throw new Exception('SSH connection failed'); }
-    if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
-        if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-        throw new Exception('SSH authentication failed'); }
-    $command = "python $statusScriptPath -system $system -channel $username";
-    $stream = ssh2_exec($connection, $command);
-    if (!$stream) { throw new Exception('SSH command execution failed'); }
-    stream_set_blocking($stream, true);
-    $statusOutput = trim(stream_get_contents($stream));
-    fclose($stream);
-    ssh2_disconnect($connection);
-    if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
-        preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
-        $pid = intval($matches[1]);
-    } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-        $pid = intval($matches[1]);
-    } else {
-        $pid = 0;
+    
+    // Check if SSH2 functions are available
+    if (!function_exists('ssh2_connect')) {
+        return false;
     }
-    return ($pid > 0);
+      try {
+        // Test basic connectivity first with timeout
+        $fp = @fsockopen($bots_ssh_host, 22, $errno, $errstr, 5);
+        if (!$fp) {
+            return false;
+        }
+        fclose($fp);
+        $connection = @ssh2_connect($bots_ssh_host, 22);
+        if (!$connection) { 
+            return false;
+        }
+        if (!@ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
+            if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
+            return false;
+        }
+        $command = "python $statusScriptPath -system $system -channel $username";
+        $stream = @ssh2_exec($connection, $command);
+        if (!$stream) { 
+            ssh2_disconnect($connection);
+            return false;
+        }
+        stream_set_blocking($stream, true);
+        $statusOutput = trim(stream_get_contents($stream));
+        fclose($stream);
+        ssh2_disconnect($connection);
+        if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
+            preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+            $pid = intval($matches[1]);
+        } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+            $pid = intval($matches[1]);
+        } else {
+            $pid = 0;
+        }
+        
+        return ($pid > 0);
+    } catch (Exception $e) {
+        return false;
+    }
 }
 
 function killBot($pid) {
@@ -448,5 +498,41 @@ function getRunningVersion($versionFilePath, $newVersion, $type = '') {
         // If file doesn't exist, just show N/A
         return "<div class='status-message'>" . ucfirst($type) . " Running Version: N/A</div>";
     }
+}
+
+// Function to test SSH connectivity
+function testSSHConnection() {
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    if (!function_exists('ssh2_connect')) {
+        return ['success' => false, 'message' => 'SSH2 extension not available'];
+    }
+    // Test basic connectivity first
+    $fp = @fsockopen($bots_ssh_host, 22, $errno, $errstr, 5);
+    if (!$fp) {
+        return ['success' => false, 'message' => "Cannot connect to $bots_ssh_host:22 - $errstr ($errno)"];
+    }
+    fclose($fp);
+    // Test SSH connection
+    try {
+        $connection = @ssh2_connect($bots_ssh_host, 22);
+        if (!$connection) {
+            return ['success' => false, 'message' => 'SSH connection failed'];
+        }
+        if (!@ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
+            ssh2_disconnect($connection);
+            return ['success' => false, 'message' => 'SSH authentication failed'];
+        }
+        ssh2_disconnect($connection);
+        return ['success' => true, 'message' => 'SSH connection successful'];
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'SSH error: ' . $e->getMessage()];
+    }
+}
+
+// Handle SSH test request
+if (isset($_GET['test_ssh']) && $_GET['test_ssh'] == '1') {
+    $testResult = testSSHConnection();
+    echo json_encode($testResult);
+    exit;
 }
 ?>
