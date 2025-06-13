@@ -5,7 +5,7 @@ $dbname = $_SESSION['username'];
 
 try {
     // Create connection
-    $usrDBconn = new mysqli($db_servername, $db_username, $db_password);
+    $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $dbport);
     // Check connection
     if ($usrDBconn->connect_error) {
         die("Connection failed: " . $usrDBconn->connect_error);
