@@ -1,4 +1,5 @@
 socketio
 aiohttp
+aiomysql
 paramiko
 python-dotenv
