@@ -36,8 +36,8 @@ $serviceMap = [
     ],
     'database' => [
         'name' => 'Database Service',
-        'host' => 'pub.sql.botofthespecter.com',
-        'port' => 443
+        'host' => 'a316314-akamai-prod-3254658-default.g2a.akamaidb.net',
+        'port' => 18256
     ],
     'websocket' => [
         'name' => 'Notification Service',
@@ -46,17 +46,17 @@ $serviceMap = [
     ],
     'streamingService' => [
         'name' => 'AU-EAST-1 Streaming Service',
-        'host' => 'au-east-1.stream.botofthespecter.com',
+        'host' => 'au-east-1.botofthespecter.video',
         'port' => 1935
     ],
     'streamingServiceWest' => [
         'name' => 'US-WEST-1 Streaming Service',
-        'host' => 'us-west-1.stream.botofthespecter.com',
+        'host' => 'us-west-1.botofthespecter.video',
         'port' => 1935
     ],
     'streamingServiceEast' => [
         'name' => 'US-EAST-1 Streaming Service',
-        'host' => 'us-east-1.stream.botofthespecter.com',
+        'host' => 'us-east-1.botofthespecter.video',
         'port' => 1935
     ]
 ];
