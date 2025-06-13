@@ -771,7 +771,21 @@ class BotOfTheSpecter_WebsocketServer:
             db_host = os.getenv('SQL_HOST')
             db_user = os.getenv('SQL_USER')
             db_password = os.getenv('SQL_PASSWORD')
-            db_port = int(os.getenv('SQL_PORT'))
+            db_port = os.getenv('SQL_PORT')
+            # Validate required environment variables
+            if not all([db_host, db_user, db_password, db_port]):
+                missing_vars = []
+                if not db_host: missing_vars.append('SQL_HOST')
+                if not db_user: missing_vars.append('SQL_USER')
+                if not db_password: missing_vars.append('SQL_PASSWORD')
+                if not db_port: missing_vars.append('SQL_PORT')
+                self.logger.error(f"✗ Missing required environment variables: {', '.join(missing_vars)}")
+                return None 
+            try:
+                db_port = int(db_port)
+            except ValueError:
+                self.logger.error(f"✗ Invalid SQL_PORT value: {db_port}. Must be a number.")
+                return None
             conn = await aiomysql.connect(
                 host=db_host,
                 user=db_user,
