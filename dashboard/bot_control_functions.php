@@ -5,6 +5,101 @@ include_once __DIR__ . '/lang/i18n.php';
 // SSH Connection parameters - Include SSH configuration
 include_once "/var/www/config/ssh.php";
 
+class SSHConnectionManager {
+    private static $connections = [];
+    private static $last_activity = [];
+    private static $connection_timeout = 300; // 5 minutes
+    public static function getConnection($host, $username, $password) {
+        $key = md5($host . $username);
+        // Check if we have a valid connection
+        if (isset(self::$connections[$key]) && isset(self::$last_activity[$key])) {
+            // Check if connection is still alive and not timed out
+            if ((time() - self::$last_activity[$key]) < self::connection_timeout) {
+                // Test connection with a simple command
+                $test_stream = @ssh2_exec(self::$connections[$key], 'echo "test"');
+                if ($test_stream) {
+                    fclose($test_stream);
+                    self::$last_activity[$key] = time();
+                    return self::$connections[$key];
+                }
+            }
+            // Connection is dead or timed out, clean it up
+            self::closeConnection($key);
+        }
+        // Create new connection
+        $connection = self::createNewConnection($host, $username, $password);
+        if ($connection) {
+            self::$connections[$key] = $connection;
+            self::$last_activity[$key] = time();
+        }
+        return $connection;
+    }
+    private static function createNewConnection($host, $username, $password) {
+        // Check if SSH2 extension is loaded
+        if (!extension_loaded('ssh2')) {
+            error_log('SSH2 PHP extension is not loaded');
+            throw new Exception('Bot service is temporarily unavailable. Please contact support if this issue persists.');
+        }
+        // Test basic network connectivity first
+        $fp = @fsockopen($host, 22, $errno, $errstr, 10);
+        if (!$fp) {
+            error_log("Network connectivity test failed to {$host}:22 - Error: {$errstr} (Code: {$errno})");
+            throw new Exception("Bot service is temporarily unavailable. Please try again in a few minutes or contact support if this issue persists.");
+        }
+        fclose($fp);
+        // Establish SSH connection with retry logic
+        $max_retries = 3;
+        $base_delay = 0.5;
+        for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
+            if ($attempt > 1) {
+                $random_delay = mt_rand(100, 300);
+                usleep($random_delay * 1000);
+            }
+            $connection = ssh2_connect($host, 22);
+            if ($connection) {
+                // Authenticate
+                if (ssh2_auth_password($connection, $username, $password)) {
+                    return $connection;
+                } else {
+                    if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
+                    error_log("SSH authentication failed for user {$username} to {$host}");
+                    throw new Exception("Authentication failed. Please contact support if this issue persists.");
+                }
+            }
+            if ($attempt < $max_retries) {
+                $retry_delay = $base_delay * $attempt;
+                usleep($retry_delay * 1000000);
+            }
+        }
+        error_log("SSH connection failed to {$host}:22 after {$max_retries} attempts");
+        throw new Exception("Bot service is temporarily unavailable. Please try again later or contact support if this issue persists.");
+    }
+    public static function closeConnection($key) {
+        if (isset(self::$connections[$key])) {
+            if (function_exists('ssh2_disconnect')) {
+                @ssh2_disconnect(self::$connections[$key]);
+            }
+            unset(self::$connections[$key]);
+            unset(self::$last_activity[$key]);
+        }
+    }
+    public static function closeAllConnections() {
+        foreach (array_keys(self::$connections) as $key) {
+            self::closeConnection($key);
+        }
+    }
+    public static function executeCommand($connection, $command) {
+        $stream = ssh2_exec($connection, $command);
+        if (!$stream) {
+            return false;
+        }
+        stream_set_blocking($stream, true);
+        $output = stream_get_contents($stream);
+        fclose($stream);
+        return $output;
+    }
+}
+
 /**
     * Check if a bot is running
     * @param string $username - The username of the bot owner
@@ -13,34 +108,22 @@ include_once "/var/www/config/ssh.php";
 */
 function checkBotRunning($username, $botType = 'stable') {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    // Prevent concurrent SSH connections for the same user
-    static $connection_locks = array();
-    $lock_key = $username . '_' . $botType;
-    if (isset($connection_locks[$lock_key])) {
-        return [
-            'success' => false,
-            'running' => false,
-            'pid' => 0,
-            'version' => '',
-            'lastModified' => null,
-            'lastRun' => null,
-            'message' => 'Another connection attempt is in progress, please wait'
-        ];
-    }
-    $connection_locks[$lock_key] = time();
-    // Debug: Check if SSH config file exists
-    $ssh_config_path = "/var/www/config/ssh.php";
-    $ssh_config_exists = file_exists($ssh_config_path);
-    $ssh_config_readable = is_readable($ssh_config_path);
+    // Define paths
     $statusScriptPath = "/home/botofthespecter/status.py";
     $versionFilePath = "/var/www/logs/version/{$username}_" . (
         $botType === 'stable' ? "" :
         ($botType === 'beta' ? "beta_" :
         ($botType === 'discord' ? "discord_" : ""))
     ) . "version_control.txt";
-    if ($botType === 'stable') { $botScriptPath = "/home/botofthespecter/bot.py"; }
-        elseif ($botType === 'beta') { $botScriptPath = "/home/botofthespecter/beta.py"; }
-        elseif ($botType === 'discord') { $botScriptPath = "/home/botofthespecter/discordbot.py"; }    else { $botScriptPath = "/home/botofthespecter/bot.py"; }
+    if ($botType === 'stable') { 
+        $botScriptPath = "/home/botofthespecter/bot.py"; 
+    } elseif ($botType === 'beta') { 
+        $botScriptPath = "/home/botofthespecter/beta.py"; 
+    } elseif ($botType === 'discord') { 
+        $botScriptPath = "/home/botofthespecter/discordbot.py"; 
+    } else { 
+        $botScriptPath = "/home/botofthespecter/bot.py"; 
+    }
     // Initialize result
     $result = [
         'success' => false,
@@ -52,97 +135,23 @@ function checkBotRunning($username, $botType = 'stable') {
         'message' => ''
     ];
     try {
-        // Check if SSH2 extension is loaded
-        if (!extension_loaded('ssh2')) { throw new Exception('SSH2 PHP extension is not loaded'); }
         // Check if SSH credentials are configured
         if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
-            throw new Exception('SSH credentials not configured. Please check config/ssh.php');
+            $config_status = "SSH Config Status - Host: " . (empty($bots_ssh_host) ? 'EMPTY' : 'SET') . 
+                           ", Username: " . (empty($bots_ssh_username) ? 'EMPTY' : 'SET') . 
+                           ", Password: " . (empty($bots_ssh_password) ? 'EMPTY' : 'SET');
+            error_log($config_status);
+            throw new Exception('Bot service is temporarily unavailable. Please contact support if this issue persists.');
         }
-        // Test basic network connectivity first (with cache to avoid spam)
-        static $connectivity_cache = array();
-        $connectivity_key = $bots_ssh_host . ':22';
-        $cache_duration = 30; // seconds
-        if (!isset($connectivity_cache[$connectivity_key]) || 
-            (time() - $connectivity_cache[$connectivity_key]['time']) > $cache_duration) {
-            $fp = @fsockopen($bots_ssh_host, 22, $errno, $errstr, 10);
-            if (!$fp) {
-                $connectivity_cache[$connectivity_key] = ['success' => false, 'time' => time(), 'error' => $errstr];
-            } else {
-                fclose($fp);
-                $connectivity_cache[$connectivity_key] = ['success' => true, 'time' => time()];
-            }
-        }
-        // Establish SSH connection with retry logic
-        $connection = false;
-        $max_retries = 5; // Increased from 3 to 5
-        $base_delay = 0.5; // Reduced from 1 second to 0.5 seconds
-        for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
-            // Add small random delay to prevent connection conflicts
-            if ($attempt > 1) {
-                $random_delay = mt_rand(100, 500); // 100-500ms
-                usleep($random_delay * 1000);
-            }
-            // Try connection with explicit timeout and options
-            $connection = ssh2_connect($bots_ssh_host, 22, array(
-                'hostkey' => 'ssh-rsa,ssh-dss,ssh-ed25519',
-                'kex' => 'diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group-exchange-sha256',
-                'client_to_server' => array(
-                    'crypt' => 'aes128-ctr,aes192-ctr,aes256-ctr,aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc',
-                    'comp' => 'none'
-                ),
-                'server_to_client' => array(
-                    'crypt' => 'aes128-ctr,aes192-ctr,aes256-ctr,aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc',
-                    'comp' => 'none'
-                )
-            ));
-        if ($connection) {
-            // Track success statistics
-            static $success_stats = array();
-            if (!isset($success_stats['total'])) $success_stats = ['total' => 0, 'first_try' => 0];
-            $success_stats['total']++;
-            if ($attempt == 1) $success_stats['first_try']++;
-            $success_rate = round(($success_stats['first_try'] / $success_stats['total']) * 100, 1);
-            break;
-        }
-            // Fallback to basic connection
-            $connection = ssh2_connect($bots_ssh_host, 22);        if ($connection) {
-            // Track success statistics for basic connection too
-            static $basic_success_stats = array();
-            if (!isset($basic_success_stats['total'])) $basic_success_stats = ['total' => 0, 'first_try' => 0];
-            $basic_success_stats['total']++;
-            if ($attempt == 1) $basic_success_stats['first_try']++;
-            $basic_success_rate = round(($basic_success_stats['first_try'] / $basic_success_stats['total']) * 100, 1);
-            break;
-        }
-            if ($attempt < $max_retries) {
-                $retry_delay = $base_delay * $attempt; // Exponential backoff: 0.5s, 1s, 1.5s, 2s
-                usleep($retry_delay * 1000000); // Convert to microseconds
-            }
-        }
-        if (!$connection) {
-            // Try fallback method using system SSH
-            $ssh_result = executeSSHCommand($bots_ssh_host, $bots_ssh_username, $bots_ssh_password, 'echo "SSH_CONNECTION_TEST"');
-            if (!$ssh_result['success']) {
-                error_log("SSH connection failed to {$bots_ssh_host}:22 for user {$username}");
-                throw new Exception("SSH connection failed to bot server - both SSH2 extension and system SSH failed"); 
-            } else { throw new Exception("SSH2 extension connection failed, but system SSH works - contact administrator"); }
-        }
-        // Authenticate
-        if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
-            if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-            error_log("SSH authentication failed for user {$bots_ssh_username} to {$bots_ssh_host}");
-            throw new Exception("SSH authentication failed");
-        }
+        // Get persistent SSH connection
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         // SSH connection successful - now check bot status
-        $result['success'] = true; // SSH is working
+        $result['success'] = true;
         // Get PID of the running bot
         $command = "python $statusScriptPath -system $botType -channel $username";
-        $stream = ssh2_exec($connection, $command);
-        if (!$stream) {}
-        else {
-            stream_set_blocking($stream, true);
-            $statusOutput = trim(stream_get_contents($stream));
-            fclose($stream);
+        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+        if ($statusOutput !== false) {
+            $statusOutput = trim($statusOutput);
             // Parse the output to get PID
             if (preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches) || 
                 preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
@@ -163,22 +172,18 @@ function checkBotRunning($username, $botType = 'stable') {
         }
         // Get file details - don't fail if this doesn't work
         $lastModified = "stat -c %Y " . escapeshellarg($botScriptPath);
-        $stream = ssh2_exec($connection, $lastModified);
-        if (!$stream) { 
-            $result['lastModified'] = null;
-        } else {
-            stream_set_blocking($stream, true);
-            $output = trim(stream_get_contents($stream));
-            fclose($stream);
+        $output = SSHConnectionManager::executeCommand($connection, $lastModified);
+        if ($output !== false) {
+            $output = trim($output);
             // Parse the output to get last modified time
             if ($output && is_numeric($output)) {
                 $result['lastModified'] = $output;
             } else {
                 $result['lastModified'] = null;
             }
+        } else {
+            $result['lastModified'] = null;
         }
-        // Close SSH connection
-        if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
         // If we get here, SSH worked fine
         $result['message'] = 'Bot status retrieved successfully';
     } catch (Exception $e) { 
@@ -186,8 +191,6 @@ function checkBotRunning($username, $botType = 'stable') {
         $result['success'] = false;
         $result['message'] = $e->getMessage(); 
     }
-    // Clean up connection lock
-    unset($connection_locks[$lock_key]);
     return $result;
 }
 
@@ -239,17 +242,17 @@ function performBotAction($action, $botType, $params) {
         // Establish SSH connection
         $connection = ssh2_connect($bots_ssh_host, 22);
         if (!$connection) {
-            throw new Exception('SSH connection failed');
+            throw new Exception('Bot service is temporarily unavailable. Please try again later.');
         }
         // Authenticate
         if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
             if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-            throw new Exception('SSH authentication failed');
+            throw new Exception('Authentication failed. Please contact support.');
         }
         // Check current bot status
         $command = "python $statusScriptPath -system $botType -channel $username";
         $stream = ssh2_exec($connection, $command);
-        if (!$stream) { throw new Exception('Failed to check bot status'); }
+        if (!$stream) { throw new Exception('Unable to check bot status. Please try again later.'); }
         stream_set_blocking($stream, true);
         $statusOutput = trim(stream_get_contents($stream));
         fclose($stream);
@@ -275,7 +278,7 @@ function performBotAction($action, $botType, $params) {
                         $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey 2>&1 &";
                     }
                     $stream = ssh2_exec($connection, $startCommand);
-                    if (!$stream) { throw new Exception('Failed to run bot'); }
+                    if (!$stream) { throw new Exception('Unable to start bot. Please try again later.'); }
                     fclose($stream);
                     sleep(2);
                     $stream = ssh2_exec($connection, $command);
@@ -300,7 +303,7 @@ function performBotAction($action, $botType, $params) {
                     // Kill the bot
                     $killCommand = "kill -s kill $currentPid";
                     $stream = ssh2_exec($connection, $killCommand);
-                    if (!$stream) { throw new Exception('Failed to stop bot'); }
+                    if (!$stream) { throw new Exception('Unable to stop bot. Please try again later.'); }
                     fclose($stream);
                     // Wait a moment for the bot to stop
                     sleep(1);
@@ -363,13 +366,13 @@ function ensure_remote_path_exists($path, $isFile = false) {
 }
 
 /**
- * Fallback SSH connection using system SSH command
- * @param string $host SSH host
- * @param string $username SSH username  
- * @param string $password SSH password
- * @param string $command Command to execute
- * @return array Result with output and success status
- */
+    * Fallback SSH connection using system SSH command
+    * @param string $host SSH host
+    * @param string $username SSH username  
+    * @param string $password SSH password
+    * @param string $command Command to execute
+    * @return array Result with output and success status
+*/
 function executeSSHCommand($host, $username, $password, $command) {
     $result = ['success' => false, 'output' => '', 'debug' => []];
     // Use sshpass to handle password authentication
@@ -390,4 +393,15 @@ function executeSSHCommand($host, $username, $password, $command) {
     $result['debug'][] = "SSH command output: " . $result['output'];
     return $result;
 }
+
+/**
+    * Clean up old SSH connections periodically
+    * Call this function periodically (e.g., via cron or on shutdown)
+*/
+function cleanupSSHConnections() {
+    SSHConnectionManager::closeAllConnections();
+}
+
+// Register shutdown function to cleanup connections
+register_shutdown_function('cleanupSSHConnections');
 ?>
