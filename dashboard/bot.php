@@ -60,6 +60,7 @@ include '/var/www/config/twitch.php';
 include 'userdata.php';
 include 'bot_control.php';
 include "mod_access.php";
+include_once 'usr_database.php';
 include 'user_db.php';
 include 'storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
