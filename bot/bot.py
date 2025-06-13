@@ -94,7 +94,7 @@ builtin_aliases = {
 }
 
 # Logs
-webroot = "/home/botofthespecter/"
+webroot = "/home/botofthespecter/logs"
 logs_directory = os.path.join(webroot, "logs")
 log_types = ["bot", "chat", "twitch", "api", "chat_history", "event_log", "websocket"]
 
