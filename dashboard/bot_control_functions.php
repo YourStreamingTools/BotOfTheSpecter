@@ -2,103 +2,8 @@
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
 
-// SSH Connection parameters - Include SSH configuration
+// SSH Connection parameters - Include SSH configuration and connection manager
 include_once "/var/www/config/ssh.php";
-
-class SSHConnectionManager {
-    private static $connections = [];
-    private static $last_activity = [];
-    private static $connection_timeout = 300; // 5 minutes
-    public static function getConnection($host, $username, $password) {
-        $key = md5($host . $username);
-        // Check if we have a valid connection
-        if (isset(self::$connections[$key]) && isset(self::$last_activity[$key])) {
-            // Check if connection is still alive and not timed out
-            if ((time() - self::$last_activity[$key]) < self::connection_timeout) {
-                // Test connection with a simple command
-                $test_stream = @ssh2_exec(self::$connections[$key], 'echo "test"');
-                if ($test_stream) {
-                    fclose($test_stream);
-                    self::$last_activity[$key] = time();
-                    return self::$connections[$key];
-                }
-            }
-            // Connection is dead or timed out, clean it up
-            self::closeConnection($key);
-        }
-        // Create new connection
-        $connection = self::createNewConnection($host, $username, $password);
-        if ($connection) {
-            self::$connections[$key] = $connection;
-            self::$last_activity[$key] = time();
-        }
-        return $connection;
-    }
-    private static function createNewConnection($host, $username, $password) {
-        // Check if SSH2 extension is loaded
-        if (!extension_loaded('ssh2')) {
-            error_log('SSH2 PHP extension is not loaded');
-            throw new Exception('Bot service is temporarily unavailable. Please contact support if this issue persists.');
-        }
-        // Test basic network connectivity first
-        $fp = @fsockopen($host, 22, $errno, $errstr, 10);
-        if (!$fp) {
-            error_log("Network connectivity test failed to {$host}:22 - Error: {$errstr} (Code: {$errno})");
-            throw new Exception("Bot service is temporarily unavailable. Please try again in a few minutes or contact support if this issue persists.");
-        }
-        fclose($fp);
-        // Establish SSH connection with retry logic
-        $max_retries = 3;
-        $base_delay = 0.5;
-        for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
-            if ($attempt > 1) {
-                $random_delay = mt_rand(100, 300);
-                usleep($random_delay * 1000);
-            }
-            $connection = ssh2_connect($host, 22);
-            if ($connection) {
-                // Authenticate
-                if (ssh2_auth_password($connection, $username, $password)) {
-                    return $connection;
-                } else {
-                    if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-                    error_log("SSH authentication failed for user {$username} to {$host}");
-                    throw new Exception("Authentication failed. Please contact support if this issue persists.");
-                }
-            }
-            if ($attempt < $max_retries) {
-                $retry_delay = $base_delay * $attempt;
-                usleep($retry_delay * 1000000);
-            }
-        }
-        error_log("SSH connection failed to {$host}:22 after {$max_retries} attempts");
-        throw new Exception("Bot service is temporarily unavailable. Please try again later or contact support if this issue persists.");
-    }
-    public static function closeConnection($key) {
-        if (isset(self::$connections[$key])) {
-            if (function_exists('ssh2_disconnect')) {
-                @ssh2_disconnect(self::$connections[$key]);
-            }
-            unset(self::$connections[$key]);
-            unset(self::$last_activity[$key]);
-        }
-    }
-    public static function closeAllConnections() {
-        foreach (array_keys(self::$connections) as $key) {
-            self::closeConnection($key);
-        }
-    }
-    public static function executeCommand($connection, $command) {
-        $stream = ssh2_exec($connection, $command);
-        if (!$stream) {
-            return false;
-        }
-        stream_set_blocking($stream, true);
-        $output = stream_get_contents($stream);
-        fclose($stream);
-        return $output;
-    }
-}
 
 /**
     * Check if a bot is running
@@ -393,15 +298,4 @@ function executeSSHCommand($host, $username, $password, $command) {
     $result['debug'][] = "SSH command output: " . $result['output'];
     return $result;
 }
-
-/**
-    * Clean up old SSH connections periodically
-    * Call this function periodically (e.g., via cron or on shutdown)
-*/
-function cleanupSSHConnections() {
-    SSHConnectionManager::closeAllConnections();
-}
-
-// Register shutdown function to cleanup connections
-register_shutdown_function('cleanupSSHConnections');
 ?>
