@@ -25,3 +25,5 @@ jokeapi
 deep_translator
 # For system monitoring
 psutil
+# For text-to-speech conversion
+pyttsx3
