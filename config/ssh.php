@@ -3,11 +3,6 @@
 $server_username = '';
 $server_password = '';
 
-// SSH Information
-$ssh_host = '';
-$ssh_username = '';
-$ssh_password = '';
-
 // BOTS Server
 $bots_ssh_host = '';
 $bots_ssh_username = $server_username;
@@ -32,9 +27,7 @@ $stream_us_west_1_host = '';
 $stream_us_west_1_username = $server_username;
 $stream_us_west_1_password = $server_password;
 
-/**
-    * SSH Connection Manager - Maintains persistent connections
-*/
+// SSH Connection Manager - Maintains persistent connections
 class SSHConnectionManager {
     private static $connections = [];
     private static $last_activity = [];
