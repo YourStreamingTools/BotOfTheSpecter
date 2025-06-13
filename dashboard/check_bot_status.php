@@ -103,6 +103,11 @@ $response = [
   'lastModified' => isset($botStatus['lastModified']) && $botStatus['lastModified'] ? formatTimeAgo($botStatus['lastModified']) : 'Unknown',
   'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : 'Never'
 ];
+
+// Add error message if the operation failed
+if (!$botStatus['success'] && isset($botStatus['message']) && !empty($botStatus['message'])) {
+  $response['message'] = $botStatus['message'];
+}
 while (ob_get_level()) { ob_end_clean(); }
 header('Content-Type: application/json');
 echo json_encode($response);
