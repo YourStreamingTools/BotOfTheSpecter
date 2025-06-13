@@ -841,9 +841,24 @@ document.addEventListener('DOMContentLoaded', function() {
             // Re-attach listeners in case DOM changed
             attachBotButtonListeners();
             document.getElementById('last-updated').textContent = data.lastModified;
-            document.getElementById('last-run').textContent = data.lastRun;
-          } else {
-            console.error('Bot status API returned error:', data.message || data);
+            document.getElementById('last-run').textContent = data.lastRun;          } else {
+            console.error('Bot status API returned error:', data);
+            // Display error message to user if available
+            if (data.message) {
+              // Try to find an error display element or create one
+              let errorElement = document.querySelector('.bot-status-error');
+              if (!errorElement) {
+                errorElement = document.createElement('div');
+                errorElement.className = 'notification is-danger bot-status-error';
+                errorElement.style.margin = '10px 0';
+                // Try to insert after the status heading
+                const statusContainer = document.querySelector('.is-size-5');
+                if (statusContainer && statusContainer.parentNode) {
+                  statusContainer.parentNode.insertBefore(errorElement, statusContainer.nextSibling);
+                }
+              }
+              errorElement.innerHTML = `<strong>Bot Status Error:</strong> ${data.message}`;
+            }
           }
         } catch (e) {
           console.error('Error parsing bot status JSON:', e, text);
