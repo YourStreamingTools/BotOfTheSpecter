@@ -26,7 +26,7 @@ $todoCategories = [];
 $quotesData = [];
 
 // Only use $db for user dashboard queries
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+$db = new mysqli($db_servername, $db_username, $db_password, $dbname, $dbport);
 if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
