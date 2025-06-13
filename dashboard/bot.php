@@ -841,7 +841,26 @@ document.addEventListener('DOMContentLoaded', function() {
             // Re-attach listeners in case DOM changed
             attachBotButtonListeners();
             document.getElementById('last-updated').textContent = data.lastModified;
-            document.getElementById('last-run').textContent = data.lastRun;          } else {
+            document.getElementById('last-run').textContent = data.lastRun;
+            // Show informational messages (like "Bot has not been started yet")
+            let infoElement = document.querySelector('.bot-status-info');
+            if (data.message && (data.message.includes('not been started') || data.message.includes('retrieved successfully'))) {
+              if (!infoElement) {
+                infoElement = document.createElement('div');
+                infoElement.className = 'notification is-info bot-status-info';
+                infoElement.style.margin = '10px 0';
+                // Try to insert after the status heading
+                const statusContainer = document.querySelector('.is-size-5');
+                if (statusContainer && statusContainer.parentNode) {
+                  statusContainer.parentNode.insertBefore(infoElement, statusContainer.nextSibling);
+                }
+              }
+              if (data.message.includes('not been started')) {
+                infoElement.innerHTML = `<strong>Bot Status:</strong> ${data.message}. Click the RUN button to start your bot.`;
+                infoElement.className = 'notification is-warning bot-status-info';
+              } else { if (infoElement && data.running) { infoElement.style.display = 'none'; } }
+            } else if (infoElement) { infoElement.style.display = 'none'; }
+          } else {
             console.error('Bot status API returned error:', data);
             // Display error message to user if available
             if (data.message) {
@@ -857,7 +876,16 @@ document.addEventListener('DOMContentLoaded', function() {
                   statusContainer.parentNode.insertBefore(errorElement, statusContainer.nextSibling);
                 }
               }
-              errorElement.innerHTML = `<strong>Bot Status Error:</strong> ${data.message}`;
+              // Customize error message based on type
+              if (data.message.includes('SSH connection failed')) {
+                errorElement.innerHTML = `<strong>Connection Error:</strong> ${data.message}. Please check server connectivity or contact support.`;
+              } else if (data.message.includes('SSH authentication failed')) {
+                errorElement.innerHTML = `<strong>Authentication Error:</strong> ${data.message}. Please contact support.`;
+              } else if (data.message.includes('SSH2 PHP extension')) {
+                errorElement.innerHTML = `<strong>Server Configuration Error:</strong> ${data.message}. Please contact support.`;
+              } else {
+                errorElement.innerHTML = `<strong>Bot Status Error:</strong> ${data.message}`;
+              }
             }
           }
         } catch (e) {
