@@ -1,4 +1,4 @@
-socketio
+python-socketio
 aiohttp
 aiomysql
 paramiko
