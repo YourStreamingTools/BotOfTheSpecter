@@ -1025,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Set up polling for status updates
   setInterval(updateServiceStatus, 10000);
   setInterval(updateApiLimits, 30000);
-  setInterval(updateBotStatus, 5000);
+  setInterval(updateBotStatus, 15000);
   // Initial calls to populate data
   updateServiceStatus();
   updateApiLimits();
