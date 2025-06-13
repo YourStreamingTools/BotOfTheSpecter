@@ -15,7 +15,7 @@ $pageTitle = t('persistent_storage_title');
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 $billing_conn = new mysqli($servername, $username, $password, "fossbilling");
-include "/var/www/config/ssh.php";
+include_once "/var/www/config/ssh.php";
 include "/var/www/config/object_storage.php";
 include '/var/www/config/twitch.php';
 include 'userdata.php';
