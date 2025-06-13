@@ -37,27 +37,31 @@ function checkBotRunning($username, $botType = 'stable') {
         if (!extension_loaded('ssh2')) {
             throw new Exception('SSH2 PHP extension is not loaded');
         }
-        
         // Check if SSH credentials are configured
         if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
             throw new Exception('SSH credentials not configured. Please check config/ssh.php');
         }
-        
         // Establish SSH connection
         $connection = ssh2_connect($bots_ssh_host, 22);
         if (!$connection) { 
-            throw new Exception("SSH connection failed to {$bots_ssh_host}:22"); 
+            error_log("SSH connection failed to {$bots_ssh_host}:22 for user {$username}");
+            throw new Exception("SSH connection failed to bot server"); 
         }
-        
         // Authenticate
         if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
             if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-            throw new Exception("SSH authentication failed for user {$bots_ssh_username}");
+            error_log("SSH authentication failed for user {$bots_ssh_username} to {$bots_ssh_host}");
+            throw new Exception("SSH authentication failed");
         }
+        // SSH connection successful - now check bot status
+        $result['success'] = true; // SSH is working
         // Get PID of the running bot
         $command = "python $statusScriptPath -system $botType -channel $username";
         $stream = ssh2_exec($connection, $command);
-        if (!$stream) { throw new Exception('Failed to execute SSH command'); }
+        if (!$stream) { 
+            error_log("Failed to execute status command for {$username} {$botType}");
+            throw new Exception('Failed to execute bot status command'); 
+        }
         stream_set_blocking($stream, true);
         $statusOutput = trim(stream_get_contents($stream));
         fclose($stream);
@@ -67,28 +71,53 @@ function checkBotRunning($username, $botType = 'stable') {
             $pid = intval($matches[1]);
             $result['running'] = ($pid > 0);
             $result['pid'] = $pid;
+        } else {
+            // No process found - this is normal if bot was never started
+            $result['running'] = false;
+            $result['pid'] = 0;
+            error_log("No bot process found for {$username} {$botType}. Status output: {$statusOutput}");
         }
         // Get version information if the bot is running
         if ($result['running'] && file_exists($versionFilePath)) {
             $result['version'] = trim(file_get_contents($versionFilePath));
-        } else { $result['version'] = ''; }
-        $result['success'] = true;
+        } else { 
+            $result['version'] = ''; 
+            if (!file_exists($versionFilePath)) {
+                error_log("Version file not found: {$versionFilePath} for {$username} {$botType}");
+            }
+        }
         // Get file details
         $lastModified = "stat -c %Y " . escapeshellarg($botScriptPath);
         $stream = ssh2_exec($connection, $lastModified);
-        if (!$stream) { throw new Exception('Failed to execute SSH command'); }
+        if (!$stream) { 
+            error_log("Failed to get file stats for {$botScriptPath}");
+            throw new Exception('Failed to get bot script information'); 
+        }
         stream_set_blocking($stream, true);
         $output = trim(stream_get_contents($stream));
         fclose($stream);
         // Parse the output to get last modified time
-        if ($output) {
+        if ($output && is_numeric($output)) {
             $result['lastModified'] = $output;
         } else {
             $result['lastModified'] = null;
+            error_log("Invalid file stat output for {$botScriptPath}: {$output}");
         }
         // Close SSH connection
         if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-    } catch (Exception $e) { $result['message'] = $e->getMessage(); }
+        // If we get here, SSH worked fine - set appropriate message based on bot state
+        if (!$result['running'] && empty($result['version'])) {
+            $result['message'] = 'Bot has not been started yet';
+        } else {
+            $result['message'] = 'Bot status retrieved successfully';
+        }
+    } catch (Exception $e) { 
+        // Only set success to false for actual errors, not missing bot processes
+        if (strpos($e->getMessage(), 'SSH') !== false) {
+            $result['success'] = false;
+        }
+        $result['message'] = $e->getMessage(); 
+    }
     return $result;
 }
 
