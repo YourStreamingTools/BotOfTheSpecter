@@ -17,17 +17,17 @@ import aiomysql
 from music_handler import MusicHandler
 
 # Load ENV file
-load_dotenv(find_dotenv("/home/websocket/.env"))
+load_dotenv(find_dotenv("/home/botofthespecter/.env"))
 
 class BotOfTheSpecter_WebsocketServer:
     def __init__(self, logger):
         # Set up Google Cloud credentials
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/home/websocket/service-account-file.json"
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/home/botofthespecter/service-account-file.json"
         # Initialize the WebSocket server.
         self.logger = logger
         self.ip = self.get_own_ip()
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
-        self.tts_dir = "/home/websocket/tts"
+        self.tts_dir = "/home/botofthespecter/tts"
         self.registered_clients = {}
         self.sio = socketio.AsyncServer(
             logger=logger, 
@@ -54,7 +54,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.tts_client = texttospeech.TextToSpeechClient()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
-        ips_file = "/home/websocket/ips.txt"
+        ips_file = "/home/botofthespecter/ips.txt"
         self.allowed_ips = self.load_ips(ips_file)
 
     def load_ips(self, ips_file):
@@ -676,8 +676,8 @@ class BotOfTheSpecter_WebsocketServer:
         letsencrypt_cert = f'/etc/letsencrypt/live/{domain}/fullchain.pem'
         letsencrypt_key = f'/etc/letsencrypt/live/{domain}/privkey.pem'
         # Local certificate paths as fallback
-        local_cert = '/home/websocket/ssl/fullchain.pem'
-        local_key = '/home/websocket/ssl/privkey.pem'
+        local_cert = '/home/botofthespecter/ssl/fullchain.pem'
+        local_key = '/home/botofthespecter/ssl/privkey.pem'
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         # Try Let's Encrypt certificates first
         if os.path.exists(letsencrypt_cert) and os.path.exists(letsencrypt_key):
@@ -724,7 +724,7 @@ class BotOfTheSpecter_WebsocketServer:
         return socket.gethostbyname(hostname)
 
     def save_music_settings(self, code, settings):
-        MUSIC_SETTINGS_DIR = "/home/websocket/music-settings"
+        MUSIC_SETTINGS_DIR = "/home/botofthespecter/music-settings"
         os.makedirs(MUSIC_SETTINGS_DIR, exist_ok=True)
         settings_file = os.path.join(MUSIC_SETTINGS_DIR, f"{code}.json")
         try:
@@ -751,7 +751,7 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.error(f"Failed to save music settings for {code}: {e}")
 
     def load_music_settings(self, code):
-        MUSIC_SETTINGS_DIR = "/home/websocket/music-settings"
+        MUSIC_SETTINGS_DIR = "/home/botofthespecter/music-settings"
         settings_file = os.path.join(MUSIC_SETTINGS_DIR, f"{code}.json")
         try:
             if os.path.exists(settings_file):
