@@ -179,12 +179,8 @@ function checkBotRunning($username, $botType = 'stable') {
         }
         // Close SSH connection
         if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-        // If we get here, SSH worked fine - set appropriate message based on bot state
-        if (!$result['running'] && empty($result['version'])) {
-            $result['message'] = 'Bot has not been started yet';
-        } else {
-            $result['message'] = 'Bot status retrieved successfully';
-        }
+        // If we get here, SSH worked fine
+        $result['message'] = 'Bot status retrieved successfully';
     } catch (Exception $e) { 
         // These are real errors that should set success to false
         $result['success'] = false;
