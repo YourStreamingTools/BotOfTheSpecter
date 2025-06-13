@@ -2,11 +2,10 @@
 $servername = "";
 $username = "";
 $password = "";
-$dbport = '18256';
 $dbname = "website";
 
 // Create a connection
-$conn = new mysqli($servername, $username, $password, $dbname, $dbport);
+$conn = new mysqli($servername, $username, $password, $dbname);
 
 // Check connection
 if ($conn->connect_error) {
