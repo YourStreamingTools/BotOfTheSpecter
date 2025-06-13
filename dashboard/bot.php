@@ -477,9 +477,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const deleteButtons = document.querySelectorAll('.notification .delete');
   deleteButtons.forEach(button => {
     const notification = button.parentNode;
-    button.addEventListener('click', () => {
-      notification.parentNode.removeChild(notification);
-    });
+    button.addEventListener('click', () => { notification.parentNode.removeChild(notification); });
   });
   // Bot control buttons
   let stopBotBtn = document.getElementById('stop-bot-btn');
@@ -519,33 +517,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   attachBotButtonListeners();
-
   // Function to handle bot actions
   function handleStableBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
-    let stopTimeout = null;
-    if (action === 'stop') {
-      stopTimeout = setTimeout(() => {
-        if (btn.disabled) {
-          btn.disabled = false;
-          btn.innerHTML = `<span class="icon"><i class="fas fa-play"></i></span><span><?php echo t('bot_run_bot'); ?></span>`;
-          btn.id = 'run-bot-btn';
-          btn.className = 'button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3';
-          stopBotBtn = null;
-          runBotBtn = btn;
-          attachBotButtonListeners();
-        }
-        updateBotStatus();
-      }, 5000);
-    }
-    let restoreTimeout = setTimeout(() => {
-      btn.innerHTML = originalContent;
-      btn.disabled = false;
-      updateBotStatus();
-    }, 5000);
     fetch('bot_action.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -553,78 +530,29 @@ document.addEventListener('DOMContentLoaded', function() {
     })
       .then(response => response.json())
       .then(data => {
-        clearTimeout(restoreTimeout);
-        if (stopTimeout) clearTimeout(stopTimeout);
         if (data.success) {
           showNotification(`Stable bot ${action}ed successfully`, 'success');
-          if (action === 'run') {
-            if (runBotBtn) runBotBtn.style.display = 'none';
-            if (stopBotBtn) stopBotBtn.style.display = '';
-            if (!stopBotBtn && runBotBtn && runBotBtn.parentNode) {
-              const stopBtn = document.createElement('button');
-              stopBtn.id = 'stop-bot-btn';
-              stopBtn.className = 'button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3';
-              stopBtn.innerHTML = `<span class="icon"><i class="fas fa-stop"></i></span><span>Stop Bot</span>`;
-              runBotBtn.parentNode.insertBefore(stopBtn, runBotBtn.nextSibling);
-              stopBotBtn = stopBtn;
-            }
-          } else if (action === 'stop') {
-            if (runBotBtn) runBotBtn.style.display = '';
-            if (!runBotBtn && stopBotBtn && stopBotBtn.parentNode && !document.getElementById('run-bot-btn')) {
-              const runBtn = document.createElement('button');
-              runBtn.id = 'run-bot-btn';
-              runBtn.className = 'button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3';
-              runBtn.innerHTML = `<span class="icon"><i class="fas fa-play"></i></span><span>Run Bot</span>`;
-              stopBotBtn.parentNode.insertBefore(runBtn, stopBotBtn);
-              runBotBtn = runBtn;
-            }
-            if (stopBotBtn) stopBotBtn.style.display = 'none';
-          }
-          attachBotButtonListeners();
+          // Wait a moment for the bot to actually start/stop, then update status
           setTimeout(() => {
             updateBotStatus();
-          }, 1000);
-        } else {
-          showNotification(`Failed to ${action} stable bot: ${data.message}`, 'danger');
-        }
+          }, 2000);
+        } else { showNotification(`Failed to ${action} stable bot: ${data.message}`, 'danger'); }
         btn.innerHTML = originalContent;
         btn.disabled = false;
       })
       .catch(error => {
-        clearTimeout(restoreTimeout);
-        if (stopTimeout) clearTimeout(stopTimeout);
         console.error('Error:', error);
         showNotification(`Error processing request: ${error}`, 'danger');
         btn.innerHTML = originalContent;
         btn.disabled = false;
       });
   }
-
   function handleBetaBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
-    let stopTimeout = null;
-    if (action === 'stop') {
-      stopTimeout = setTimeout(() => {
-        if (btn.disabled) {
-          btn.disabled = false;
-          btn.innerHTML = `<span class="icon"><i class="fas fa-play"></i></span><span><?php echo t('bot_run_bot'); ?></span>`;
-          btn.id = 'run-bot-btn';
-          btn.className = 'button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3';
-          stopBotBtn = null;
-          runBotBtn = btn;
-          attachBotButtonListeners();
-        }
-        updateBotStatus();
-      }, 5000);
-    }
-    let restoreTimeout = setTimeout(() => {
-      btn.innerHTML = originalContent;
-      btn.disabled = false;
-      updateBotStatus();
-    }, 5000);
+    
     fetch('bot_action.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -632,37 +560,12 @@ document.addEventListener('DOMContentLoaded', function() {
     })
       .then(response => response.json())
       .then(data => {
-        clearTimeout(restoreTimeout);
-        if (stopTimeout) clearTimeout(stopTimeout);
         if (data.success) {
           showNotification(`Beta bot ${action}ed successfully`, 'success');
-          if (action === 'run') {
-            if (runBotBtn) runBotBtn.style.display = 'none';
-            if (stopBotBtn) stopBotBtn.style.display = '';
-            if (!stopBotBtn && runBotBtn && runBotBtn.parentNode) {
-              const stopBtn = document.createElement('button');
-              stopBtn.id = 'stop-bot-btn';
-              stopBtn.className = 'button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3';
-              stopBtn.innerHTML = `<span class="icon"><i class="fas fa-stop"></i></span><span>Stop Bot</span>`;
-              runBotBtn.parentNode.insertBefore(stopBtn, runBotBtn.nextSibling);
-              stopBotBtn = stopBtn;
-            }
-          } else if (action === 'stop') {
-            if (runBotBtn) runBotBtn.style.display = '';
-            if (!runBotBtn && stopBotBtn && stopBotBtn.parentNode && !document.getElementById('run-bot-btn')) {
-              const runBtn = document.createElement('button');
-              runBtn.id = 'run-bot-btn';
-              runBtn.className = 'button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3';
-              runBtn.innerHTML = `<span class="icon"><i class="fas fa-play"></i></span><span>Run Bot</span>`;
-              stopBotBtn.parentNode.insertBefore(runBtn, stopBotBtn);
-              runBotBtn = runBtn;
-            }
-            if (stopBotBtn) stopBotBtn.style.display = 'none';
-          }
-          attachBotButtonListeners();
+          // Wait a moment for the bot to actually start/stop, then update status
           setTimeout(() => {
             updateBotStatus();
-          }, 1000);
+          }, 2000);
         } else {
           showNotification(`Failed to ${action} beta bot: ${data.message}`, 'danger');
         }
@@ -670,40 +573,18 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = false;
       })
       .catch(error => {
-        clearTimeout(restoreTimeout);
-        if (stopTimeout) clearTimeout(stopTimeout);
         console.error('Error:', error);
         showNotification(`Error processing request: ${error}`, 'danger');
         btn.innerHTML = originalContent;
         btn.disabled = false;
       });
   }
-
   function handleDiscordBotAction(action) {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
-    let stopTimeout = null;
-    if (action === 'stop') {
-      stopTimeout = setTimeout(() => {
-        if (btn.disabled) {
-          btn.disabled = false;
-          btn.innerHTML = `<span class="icon"><i class="fas fa-play"></i></span><span><?php echo t('bot_run_bot'); ?></span>`;
-          btn.id = 'run-bot-btn';
-          btn.className = 'button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3';
-          stopBotBtn = null;
-          runBotBtn = btn;
-          attachBotButtonListeners();
-        }
-        updateBotStatus();
-      }, 5000);
-    }
-    let restoreTimeout = setTimeout(() => {
-      btn.innerHTML = originalContent;
-      btn.disabled = false;
-      updateBotStatus();
-    }, 5000);
+    
     fetch('bot_action.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -711,37 +592,12 @@ document.addEventListener('DOMContentLoaded', function() {
     })
       .then(response => response.json())
       .then(data => {
-        clearTimeout(restoreTimeout);
-        if (stopTimeout) clearTimeout(stopTimeout);
         if (data.success) {
           showNotification(`Discord bot ${action}ed successfully`, 'success');
-          if (action === 'run') {
-            if (runBotBtn) runBotBtn.style.display = 'none';
-            if (stopBotBtn) stopBotBtn.style.display = '';
-            if (!stopBotBtn && runBotBtn && runBotBtn.parentNode) {
-              const stopBtn = document.createElement('button');
-              stopBtn.id = 'stop-bot-btn';
-              stopBtn.className = 'button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3';
-              stopBtn.innerHTML = `<span class="icon"><i class="fas fa-stop"></i></span><span>Stop Bot</span>`;
-              runBotBtn.parentNode.insertBefore(stopBtn, runBotBtn.nextSibling);
-              stopBotBtn = stopBtn;
-            }
-          } else if (action === 'stop') {
-            if (runBotBtn) runBotBtn.style.display = '';
-            if (!runBotBtn && stopBotBtn && stopBotBtn.parentNode && !document.getElementById('run-bot-btn')) {
-              const runBtn = document.createElement('button');
-              runBtn.id = 'run-bot-btn';
-              runBtn.className = 'button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3';
-              runBtn.innerHTML = `<span class="icon"><i class="fas fa-play"></i></span><span>Run Bot</span>`;
-              stopBotBtn.parentNode.insertBefore(runBtn, stopBotBtn);
-              runBotBtn = runBtn;
-            }
-            if (stopBotBtn) stopBotBtn.style.display = 'none';
-          }
-          attachBotButtonListeners();
+          // Wait a moment for the bot to actually start/stop, then update status
           setTimeout(() => {
             updateBotStatus();
-          }, 1000);
+          }, 2000);
         } else {
           showNotification(`Failed to ${action} discord bot: ${data.message}`, 'danger');
         }
@@ -749,8 +605,6 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = false;
       })
       .catch(error => {
-        clearTimeout(restoreTimeout);
-        if (stopTimeout) clearTimeout(stopTimeout);
         console.error('Error:', error);
         showNotification(`Error processing request: ${error}`, 'danger');
         btn.innerHTML = originalContent;
@@ -795,7 +649,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (parts.length === 2) return parts.pop().split(';').shift();
     return null;
   }
-
   // Function to update bot status
   function updateBotStatus() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -808,19 +661,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     fetch(`check_bot_status.php?bot=${selectedBot}`)
       .then(async response => {
-        const text = await response.text();
-        try {
+        const text = await response.text();        try {
           const data = JSON.parse(text);
           if (data.success) {
             // Update status icon and text
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
             const statusClass = data.running ? 'success' : 'danger';
-            // Find status indicators and update them
-            const statusElements = document.querySelectorAll('.is-size-5 .has-text-success, .is-size-5 .has-text-danger');
-            statusElements.forEach(element => {
-              element.textContent = statusText;
-              element.className = `has-text-${statusClass}`;
-            });
             // Update the heartbeat icon for the selected bot only
             const heartIconContainer = document.querySelector('.icon.is-large');
             if (heartIconContainer) {
@@ -830,18 +676,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
               }
             }
-            // Show/hide RUN/STOP buttons based on status
-            if (data.running) {
-              if (runBotBtn) runBotBtn.style.display = 'none';
-              if (stopBotBtn) stopBotBtn.style.display = '';
-            } else {
-              if (runBotBtn) runBotBtn.style.display = '';
-              if (stopBotBtn) stopBotBtn.style.display = 'none';
+              // Update status text
+            const statusSpan = document.querySelector('.is-size-5 span[class*="has-text-"]');
+            if (statusSpan) {
+              statusSpan.textContent = statusText;
+              statusSpan.className = `has-text-${statusClass}`;
             }
-            // Re-attach listeners in case DOM changed
-            attachBotButtonListeners();
-            document.getElementById('last-updated').textContent = data.lastModified;
-            document.getElementById('last-run').textContent = data.lastRun;            // Clear any existing error messages since this was successful
+            // Update buttons by replacing the entire button container
+            const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
+            if (buttonContainer) {
+              if (data.running) {
+                // Show Stop button
+                buttonContainer.innerHTML = `
+                  <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
+                    <span class="icon"><i class="fas fa-stop"></i></span>
+                    <span><?php echo addslashes(t('bot_stop')); ?></span>
+                  </button>
+                `;
+              } else {
+                // Show Run button
+                buttonContainer.innerHTML = `
+                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3">
+                    <span class="icon"><i class="fas fa-play"></i></span>
+                    <span><?php echo addslashes(t('bot_run')); ?></span>
+                  </button>
+                `;
+              }
+              // Re-attach event listeners after updating the DOM
+              attachBotButtonListeners();
+            } else {}
+            // Update last modified and last run if elements exist
+            const lastUpdatedElement = document.getElementById('last-updated');
+            if (lastUpdatedElement) {
+              lastUpdatedElement.textContent = data.lastModified;
+            }
+            const lastRunElement = document.getElementById('last-run');
+            if (lastRunElement) {
+              lastRunElement.textContent = data.lastRun;
+            }
+            // Clear any existing error messages since this was successful
             let errorElement = document.querySelector('.bot-status-error');
             if (errorElement) {
               errorElement.style.display = 'none';
@@ -888,8 +761,9 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {
           console.error('Error parsing bot status JSON:', e, text);
         }
-      })
-      .catch(error => console.error('Error fetching bot status:', error));
+      }
+    )
+    .catch(error => console.error('Error fetching bot status:', error));
   }
 
   // Function to update API limits from api_limits.php
@@ -1087,30 +961,12 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
   }
-  attachForceButtons();
-  window.changeBotSelection = function(bot) {
+  attachForceButtons();  window.changeBotSelection = function(bot) {
     const url = new URL(window.location.href);
     url.searchParams.set('bot', bot);
     window.location.href = url.toString();
     updateApiLimits();
   };
-  function fetchAndUpdateChannelStatus() {
-    fetch('check_channel_status.php')
-      .then(r => {
-        if (!r.ok) throw new Error('Network response was not ok');
-        return r.json();
-      })
-      .then(data => {
-        if (typeof data.status !== 'undefined') {
-          updateChannelStatusDisplay(data.status);
-        } else {
-          showNotification(<?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>, 'danger');
-        }
-      })
-      .catch(() => {
-        showNotification(<?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>, 'danger');
-      });
-  }
 });
 </script>
 <?php
