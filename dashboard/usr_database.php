@@ -5,7 +5,7 @@ $dbname = $_SESSION['username'];
 
 try {
     // Create connection
-    $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $dbport);
+    $usrDBconn = new mysqli($db_servername, $db_username, $db_password);
     // Check connection
     if ($usrDBconn->connect_error) {
         die("Connection failed: " . $usrDBconn->connect_error);
@@ -21,7 +21,7 @@ try {
     // Close the connection after creating the database
     $usrDBconn->close();
     // Reconnect to the server specifying the database
-    $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $dbname, $dbport);
+    $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $dbname);
     // Check connection again
     if ($usrDBconn->connect_error) {
         die("Reconnection failed: " . $usrDBconn->connect_error);
