@@ -313,7 +313,7 @@ include_once __DIR__ . '/lang/i18n.php';
     <script src="js/dashboard.js"></script>
     <script src="/js/search.js"></script>
     <?php echo $scripts; ?>
-    <?php include "usr_database.php"; ?>
+    <?php include_once "usr_database.php"; ?>
     <script>
     function setCookie(name, value, days) {
         var d = new Date();
