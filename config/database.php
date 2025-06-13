@@ -2,5 +2,5 @@
 $db_servername = "";
 $db_username = "";
 $db_password = "";
-$dbport = 18256;
+$dbport = '18256';
 ?>
