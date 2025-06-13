@@ -1,11 +1,12 @@
 <?php
-$servername = "sql.botofthespecter.com";
-$username = "";  // CHANGE TO MAKE THIS WORK
-$password = ""; // CHANGE TO MAKE THIS WORK
+$servername = "";
+$username = "";
+$password = "";
+$dbport = 18256;
 $dbname = "website";
 
 // Create a connection
-$conn = new mysqli($servername, $username, $password, $dbname);
+$conn = new mysqli($servername, $username, $password, $dbname, $dbport);
 
 // Check connection
 if ($conn->connect_error) {
