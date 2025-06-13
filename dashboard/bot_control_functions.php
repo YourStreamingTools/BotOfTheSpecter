@@ -32,15 +32,27 @@ function checkBotRunning($username, $botType = 'stable') {
         'lastModified' => null,
         'lastRun' => null,
         'message' => ''
-    ];
-    try {
+    ];    try {
+        // Check if SSH2 extension is loaded
+        if (!extension_loaded('ssh2')) {
+            throw new Exception('SSH2 PHP extension is not loaded');
+        }
+        
+        // Check if SSH credentials are configured
+        if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
+            throw new Exception('SSH credentials not configured. Please check config/ssh.php');
+        }
+        
         // Establish SSH connection
         $connection = ssh2_connect($bots_ssh_host, 22);
-        if (!$connection) { throw new Exception('SSH connection failed'); }
+        if (!$connection) { 
+            throw new Exception("SSH connection failed to {$bots_ssh_host}:22"); 
+        }
+        
         // Authenticate
         if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
             if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
-            throw new Exception('SSH authentication failed');
+            throw new Exception("SSH authentication failed for user {$bots_ssh_username}");
         }
         // Get PID of the running bot
         $command = "python $statusScriptPath -system $botType -channel $username";
