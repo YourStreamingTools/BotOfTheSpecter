@@ -104,8 +104,8 @@ $response = [
   'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : 'Never'
 ];
 
-// Add error message if the operation failed
-if (!$botStatus['success'] && isset($botStatus['message']) && !empty($botStatus['message'])) {
+// Add status message - show helpful messages even when SSH succeeds
+if (isset($botStatus['message']) && !empty($botStatus['message'])) {
   $response['message'] = $botStatus['message'];
 }
 while (ob_get_level()) { ob_end_clean(); }
