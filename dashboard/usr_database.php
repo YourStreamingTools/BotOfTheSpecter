@@ -21,7 +21,7 @@ try {
     // Close the connection after creating the database
     $usrDBconn->close();
     // Reconnect to the server specifying the database
-    $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $dbname);
+    $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $dbname, $dbport);
     // Check connection again
     if ($usrDBconn->connect_error) {
         die("Reconnection failed: " . $usrDBconn->connect_error);
