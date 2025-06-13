@@ -842,6 +842,11 @@ document.addEventListener('DOMContentLoaded', function() {
             attachBotButtonListeners();
             document.getElementById('last-updated').textContent = data.lastModified;
             document.getElementById('last-run').textContent = data.lastRun;
+            // Clear any existing error messages since this was successful
+            let errorElement = document.querySelector('.bot-status-error');
+            if (errorElement) {
+              errorElement.style.display = 'none';
+            }
             // Show informational messages (like "Bot has not been started yet")
             let infoElement = document.querySelector('.bot-status-info');
             if (data.message && (data.message.includes('not been started') || data.message.includes('retrieved successfully'))) {
@@ -858,10 +863,24 @@ document.addEventListener('DOMContentLoaded', function() {
               if (data.message.includes('not been started')) {
                 infoElement.innerHTML = `<strong>Bot Status:</strong> ${data.message}. Click the RUN button to start your bot.`;
                 infoElement.className = 'notification is-warning bot-status-info';
-              } else { if (infoElement && data.running) { infoElement.style.display = 'none'; } }
-            } else if (infoElement) { infoElement.style.display = 'none'; }
+                infoElement.style.display = 'block';
+              } else {
+                // Hide the info message if status was retrieved successfully and bot is running
+                if (data.running) {
+                  infoElement.style.display = 'none';
+                }
+              }
+            } else if (infoElement) {
+              // Hide info element if no relevant message
+              infoElement.style.display = 'none';
+            }
           } else {
             console.error('Bot status API returned error:', data);
+            // Clear any existing info messages since this is an error
+            let infoElement = document.querySelector('.bot-status-info');
+            if (infoElement) {
+              infoElement.style.display = 'none';
+            }
             // Display error message to user if available
             if (data.message) {
               // Try to find an error display element or create one
@@ -876,6 +895,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   statusContainer.parentNode.insertBefore(errorElement, statusContainer.nextSibling);
                 }
               }
+              errorElement.style.display = 'block';
               // Customize error message based on type
               if (data.message.includes('SSH connection failed')) {
                 errorElement.innerHTML = `<strong>Connection Error:</strong> ${data.message}. Please check server connectivity or contact support.`;
