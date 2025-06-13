@@ -23,3 +23,5 @@ discord
 jokeapi
 # Translation
 deep_translator
+# For system monitoring
+psutil
