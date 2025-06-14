@@ -15,6 +15,7 @@ $pageTitle = t('discordbot_page_title');
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
+include '/var/www/config/discord.php';
 include 'userdata.php';
 include 'bot_control.php';
 include "mod_access.php";
@@ -39,6 +40,90 @@ $discord_userSTMT->close();
 
 $buildStatus = "";
 $errorMsg = "";
+$linkingMessage = "";
+$linkingMessageType = "";
+
+// Handle user denial (error=access_denied in query string)
+if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
+    $linkingMessage = "Authorization was denied. Please allow access to link your Discord account.";
+    $linkingMessageType = "is-danger";
+}
+
+// Handle Discord OAuth callback
+if (isset($_GET['code']) && !$is_linked) {
+    $code = $_GET['code'];
+    
+    // Exchange the authorization code for an access token
+    $token_url = 'https://discord.com/api/oauth2/token';
+    $data = array(
+        'client_id' => $client_id,
+        'client_secret' => $client_secret,
+        'grant_type' => 'authorization_code',
+        'code' => $code,
+        'redirect_uri' => 'https://dashboard.botofthespecter.com/discordbot.php',
+        'scope' => 'identify'
+    );
+
+    $options = array(
+        'http' => array(
+            'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+            'method' => 'POST',
+            'content' => http_build_query($data)
+        )
+    );
+
+    $context = stream_context_create($options);
+    $response = file_get_contents($token_url, false, $context);
+    $params = json_decode($response, true);
+
+    // Check if access token was received successfully
+    if (isset($params['access_token'])) {
+        // Get user information using the access token
+        $user_url = 'https://discord.com/api/users/@me';
+        $token = $params['access_token'];
+        $user_options = array(
+            'http' => array(
+                'header' => "Authorization: Bearer $token\r\n",
+                'method' => 'GET'
+            )
+        );
+        $user_context = stream_context_create($user_options);
+        $user_response = file_get_contents($user_url, false, $user_context);
+        $user_data = json_decode($user_response, true);
+        
+        // Save user information to the database
+        if (isset($user_data['id'])) {
+            $discord_id = $user_data['id'];
+            $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
+            $insertStmt = $conn->prepare($sql);
+            $insertStmt->bind_param("is", $user_id, $discord_id);
+            if ($insertStmt->execute()) {
+                $linkingMessage = "Discord account successfully linked!";
+                $linkingMessageType = "is-success";
+                $is_linked = true;
+                // Redirect to refresh page and show linked status
+                header("Location: discordbot.php");
+                exit();
+            } else {
+                $linkingMessage = "Linked, but failed to save Discord information.";
+                $linkingMessageType = "is-warning";
+            }
+            $insertStmt->close();
+        } else {
+            $linkingMessage = "Error: Failed to retrieve user information from Discord API.";
+            $linkingMessageType = "is-danger";
+        }
+    } else {
+        $linkingMessage = "Error: Failed to retrieve access token from Discord API.";
+        $linkingMessageType = "is-danger";
+        if (isset($params['error'])) {
+            $linkingMessage .= " Error: " . htmlspecialchars($params['error']);
+        }
+        if (isset($params['error_description'])) {
+            $linkingMessage .= " Description: " . htmlspecialchars($params['error_description']);
+        }
+    }
+}
 
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
@@ -152,6 +237,21 @@ ob_start();
         <?php } ?>
       </header>
       <div class="card-content">
+        <?php if ($linkingMessage): ?>
+          <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?> is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
+            <span class="icon">
+              <?php if ($linkingMessageType === 'is-danger'): ?>
+                <i class="fas fa-exclamation-triangle"></i>
+              <?php elseif ($linkingMessageType === 'is-success'): ?>
+                <i class="fas fa-check"></i>
+              <?php else: ?>
+                <i class="fas fa-info-circle"></i>
+              <?php endif; ?>
+            </span>
+            <?php echo $linkingMessage; ?>
+          </div>
+        <?php endif; ?>
+        
         <?php if (!$is_linked) { ?>
           <div class="has-text-centered" style="padding: 3rem 2rem;">
             <div class="mb-5">
@@ -340,10 +440,9 @@ ob_start();
     });
   });
 </script>
-<?php if (!$is_linked) { ?>
-  <script>
+<?php if (!$is_linked) { ?>  <script>
     function linkDiscord() {
-      window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscord_auth.php&scope=identify+openid+guilds";
+      window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscordbot.php&scope=identify+openid+guilds";
     }
   </script>
 <?php } else { ?>
