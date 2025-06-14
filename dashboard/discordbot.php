@@ -61,7 +61,7 @@ if ($has_discord_record) {
     $auth_context = stream_context_create($auth_options);
     $auth_response = @file_get_contents($auth_url, false, $auth_context);
     if ($auth_response !== false) {
-      $auth_data = json_decode($auth_response, true);      // Check if token is valid and get user info
+      $auth_data = json_decode($auth_response, true);
       if (isset($auth_data['user'])) {
         // Token is valid, set as properly linked
         $is_linked = true;
