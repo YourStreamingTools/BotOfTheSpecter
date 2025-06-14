@@ -51,9 +51,16 @@ def parse_args():
 # Load environment variables
 load_dotenv()
 
-# Ensure the logging file is saved in the running directory
-current_dir = os.path.dirname(os.path.abspath(__file__))
-log_file = os.path.join(current_dir, "stream_server.log")
+# Parse command line arguments to get server location
+args = parse_args()
+server_location = args.server
+
+# Ensure the logging file is saved in /home/botofthespecter with server location name
+log_dir = "/home/botofthespecter/logs"
+log_file = os.path.join(log_dir, f"{server_location}.txt")
+
+# Create the log directory if it doesn't exist
+os.makedirs(log_dir, exist_ok=True)
 
 # Create the log file if it doesn't exist
 if not os.path.exists(log_file):
@@ -61,10 +68,13 @@ if not os.path.exists(log_file):
         pass
 
 # Logging Configuration
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(formatter)
+
 logging.basicConfig(
-    filename=log_file,
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] - %(message)s",
+    handlers=[file_handler]
 )
 logger = logging.getLogger()
 
