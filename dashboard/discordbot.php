@@ -29,12 +29,55 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Check if the user is already linked with Discord
+// Check if the user is already linked with Discord and validate tokens
 $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
 $discord_userSTMT->bind_param("i", $user_id);
 $discord_userSTMT->execute();
 $discord_userResult = $discord_userSTMT->get_result();
 $is_linked = ($discord_userResult->num_rows > 0);
+$discordData = null;
+$expires_str = '';
+$discord_username = '';
+$discord_discriminator = '';
+$discord_avatar = '';
+
+if ($is_linked) {
+  $discordData = $discord_userResult->fetch_assoc();
+  // Calculate token expiration if expires_in is available
+  if (!empty($discordData['expires_in'])) {
+    $expires_in = (int)$discordData['expires_in'];
+    $days = floor($expires_in / 86400);
+    $hours = floor(($expires_in % 86400) / 3600);
+    $minutes = floor(($expires_in % 3600) / 60);
+    $parts = [];
+    if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
+    if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+    if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+    $expires_str = implode(', ', $parts);
+  }
+  // Fetch Discord user profile if access token is available
+  if (!empty($discordData['access_token'])) {
+    $user_url = 'https://discord.com/api/users/@me';
+    $token = $discordData['access_token'];
+    $user_options = array(
+      'http' => array(
+        'header' => "Authorization: Bearer $token\r\n",
+        'method' => 'GET'
+      )
+    );
+    $user_context = stream_context_create($user_options);
+    $user_response = @file_get_contents($user_url, false, $user_context);
+    if ($user_response !== false) {
+      $user_data = json_decode($user_response, true);
+      if (isset($user_data['username'])) {
+        $discord_username = $user_data['username'];
+        $discord_discriminator = $user_data['discriminator'] ?? '';
+        $discord_avatar = $user_data['avatar'] ?? '';
+      }
+    }
+  }
+}
+
 $discord_userResult->close();
 $discord_userSTMT->close();
 
@@ -94,17 +137,18 @@ if (isset($_GET['code']) && !$is_linked) {
       // Save user information to the database
       if (isset($user_data['id'])) {
         $discord_id = $user_data['id'];
+        $access_token = $params['access_token'];
         $refresh_token = $params['refresh_token'] ?? null;
         $expires_in = $params['expires_in'] ?? null;
         // Store Discord user information with tokens if available
         if ($refresh_token) {
-          $sql = "INSERT INTO discord_users (user_id, discord_id, refresh_token, expires_in) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), refresh_token = VALUES(refresh_token), expires_in = VALUES(expires_in)";
+          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, refresh_token, expires_in) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), refresh_token = VALUES(refresh_token), expires_in = VALUES(expires_in)";
           $insertStmt = $conn->prepare($sql);
-          $insertStmt->bind_param("issi", $user_id, $discord_id, $refresh_token, $expires_in);
+          $insertStmt->bind_param("isssi", $user_id, $discord_id, $access_token, $refresh_token, $expires_in);
         } else {
-          $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
+          $sql = "INSERT INTO discord_users (user_id, discord_id, access_token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token)";
           $insertStmt = $conn->prepare($sql);
-          $insertStmt->bind_param("is", $user_id, $discord_id);
+          $insertStmt->bind_param("iss", $user_id, $discord_id, $access_token);
         }
         if ($insertStmt->execute()) {
           $linkingMessage = "Discord account successfully linked!";
@@ -177,14 +221,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } elseif (isset($_POST['online_text']) && isset($_POST['offline_text'])) {
       $onlineText = $_POST['online_text'];
       $offlineText = $_POST['offline_text'];
-      $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
-      $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
+      $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");      $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
       if ($stmt->execute()) {
         $buildStatus = "Online and Offline Text has been updated successfully";
       } else {
         $errorMsg = "Error updating Online and Offline Text: " . $stmt->error;
       }
-      $stmt->close();
+      $stmt->close();    } elseif (isset($_POST['disconnect_discord'])) {
+      $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token FROM discord_users WHERE user_id = ?");
+      $discord_userSTMT->bind_param("i", $user_id);
+      $discord_userSTMT->execute();
+      $discord_userResult = $discord_userSTMT->get_result();
+      $discord_user_data = $discord_userResult->fetch_assoc();
+      $discord_userSTMT->close();
+      if ($discord_user_data) {
+        if (!empty($discord_user_data['refresh_token'])) {
+          $revoke_success = revokeDiscordToken($discord_user_data['refresh_token'], $client_id, $client_secret, 'refresh_token');
+        } elseif (!empty($discord_user_data['access_token'])) {
+          $revoke_success = revokeDiscordToken($discord_user_data['access_token'], $client_id, $client_secret, 'access_token');
+        }
+      }
+      $deleteStmt = $conn->prepare("DELETE FROM discord_users WHERE user_id = ?");
+      $deleteStmt->bind_param("i", $user_id);
+      if ($deleteStmt->execute()) {
+        $buildStatus = "Discord account successfully disconnected and tokens revoked";
+        $is_linked = false; // Update the linked status
+      } else {
+        $errorMsg = "Error disconnecting Discord account: " . $deleteStmt->error;
+      }
+      $deleteStmt->close();
     }
   } catch (mysqli_sql_exception $e) {
     if (strpos($e->getMessage(), 'Data too long for column') !== false) {
@@ -257,22 +322,72 @@ function refreshDiscordToken($refresh_token, $client_id, $client_secret) {
     }
     return false;
 }
+// Helper function to revoke Discord access or refresh token
+function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint = 'access_token') {
+  $revoke_url = 'https://discord.com/api/oauth2/token/revoke';
+  $data = array(
+    'token' => $token,
+    'token_type_hint' => $token_type_hint
+  );
+  $auth = base64_encode($client_id . ':' . $client_secret);
+  $options = array(
+    'http' => array(
+      'header' => "Content-type: application/x-www-form-urlencoded\r\n" .
+                  "Authorization: Basic $auth\r\n",
+      'method' => 'POST',
+      'content' => http_build_query($data)
+    )
+  );
+  $context = stream_context_create($options);
+  $response = file_get_contents($revoke_url, false, $context);
+  return $response !== false;
+}
 // Start output buffering for layout
 ob_start();
 ?>
 <div class="columns is-centered">
   <div class="column is-fullwidth">
-    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-      <header class="card-header" style="border-bottom: 1px solid #23272f;">
-        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-          <span class="icon mr-2"><i class="fab fa-discord"></i></span>
-          <?php echo t('discordbot_page_title'); ?>
-        </span>
+    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">      <header class="card-header" style="border-bottom: 1px solid #23272f;">
+        <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
+          <span class="card-header-title is-size-4 has-text-white" style="font-weight:700; flex-shrink: 0;">
+            <span class="icon mr-2"><i class="fab fa-discord"></i></span>
+            <?php echo t('discordbot_page_title'); ?>
+          </span>
+          <div class="discord-badges" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-left: 1rem;">
+            <?php if ($is_linked): ?>
+              <?php if ($discord_username): ?>
+                <span class="tag is-info is-light" title="Discord Username">
+                  <i class="fa-regular fa-user" style="margin-right:0.3em;"></i>
+                  <?php echo htmlspecialchars($discord_username); ?><?php if ($discord_discriminator && $discord_discriminator !== '0'): ?>#<?php echo htmlspecialchars($discord_discriminator); ?><?php endif; ?>
+                </span>
+              <?php endif; ?>
+              <?php if ($expires_str): ?>
+                <span class="tag is-success is-light" title="Token Status">
+                  <i class="fa-regular fa-clock" style="margin-right:0.3em;"></i>
+                  Expires in <?php echo htmlspecialchars($expires_str); ?>
+                </span>
+              <?php endif; ?>
+              <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
+                <span class="icon mr-1"><i class="fas fa-check-circle"></i></span>
+                Connected
+              </span>
+            <?php else: ?>
+              <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
+                <span class="icon mr-1"><i class="fas fa-times-circle"></i></span>
+                Not Connected
+              </span>
+            <?php endif; ?>
+          </div>
+        </div>
         <?php if ($is_linked) { ?>
-          <div class="card-header-icon">
+          <div class="card-header-icon" style="display: flex; gap: 0.5rem;">
             <button class="button is-info is-medium" onclick="discordBotDashboard()" style="border-radius: 6px; font-weight: 600;">
               <span class="icon"><i class="fab fa-discord"></i></span>
               <span>Discord Bot Dashboard</span>
+            </button>
+            <button class="button is-danger is-medium" onclick="disconnectDiscord()" style="border-radius: 6px; font-weight: 600;">
+              <span class="icon"><i class="fas fa-unlink"></i></span>
+              <span>Disconnect</span>
             </button>
           </div>
         <?php } ?>
@@ -309,8 +424,7 @@ ob_start();
               <span><?php echo t('discordbot_link_btn'); ?></span>
             </button>
           </div>
-        <?php } else { ?>
-          <div class="has-text-centered mb-5" style="padding: 1rem 2rem;">
+        <?php } else { ?>          <div class="has-text-centered mb-5" style="padding: 1rem 2rem;">
             <h4 class="title is-5 has-text-white mb-3">
               <span class="icon mr-2 has-text-success" style="font-size: 1.2rem;">
                 <i class="fas fa-check-circle"></i>
@@ -320,6 +434,11 @@ ob_start();
             <p class="subtitle is-6 has-text-grey-light mb-4">
               <?php echo t('discordbot_linked_desc'); ?>
             </p>
+            <?php if ($expires_str): ?>
+              <div class="notification is-info is-light" style="border-radius: 8px; max-width: 600px; margin: 0 auto;">
+                <p><strong>Token Status:</strong> Your Discord access token will auto-renew in about <strong><?php echo htmlspecialchars($expires_str) ?></strong>.</p>
+              </div>
+            <?php endif; ?>
           </div>
           
           <?php if ($_SERVER["REQUEST_METHOD"] == "POST") { ?>
@@ -486,10 +605,38 @@ ob_start();
       window.location.href = "<?php echo addslashes($authURL); ?>";
     }
   </script>
-<?php } else { ?>
-  <script>
+<?php } else { ?>  <script>
     function discordBotDashboard() {
       window.open("https://discord.botofthespecter.com/", "_blank");
+    }
+    
+    function disconnectDiscord() {
+      Swal.fire({
+        title: 'Disconnect Discord Account?',
+        text: 'Are you sure you want to disconnect your Discord account? This will revoke all tokens and remove your Discord integration.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Disconnect',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Create a form and submit it
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '';
+          
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'disconnect_discord';
+          input.value = '1';
+          
+          form.appendChild(input);
+          document.body.appendChild(form);
+          form.submit();
+        }
+      });
     }
   </script>
 <?php } ?>
