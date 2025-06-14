@@ -57,6 +57,7 @@ if (!in_array($selectedBot, ['stable', 'beta', 'discord'])) {
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
+include '/var/www/config/discord.php';
 include 'userdata.php';
 include 'bot_control.php';
 include "mod_access.php";
@@ -71,15 +72,53 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Check if Discord is setup for this user
+// Check if Discord is properly setup for this user with valid tokens
 $hasDiscordSetup = false;
-$discordSetupStmt = $conn->prepare("SELECT 1 FROM discord_users WHERE user_id = ? LIMIT 1");
+$discordNeedsRelink = false;
+$discordSetupStmt = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ? LIMIT 1");
 $discordSetupStmt->bind_param("i", $user_id);
 $discordSetupStmt->execute();
-$discordSetupStmt->store_result();
-if ($discordSetupStmt->num_rows > 0) {
-  $hasDiscordSetup = true;
+$discordSetupResult = $discordSetupStmt->get_result();
+if ($discordSetupResult->num_rows > 0) {
+  $discordData = $discordSetupResult->fetch_assoc();
+  // Check if we have ALL required token data: access_token, refresh_token, and expires_in
+  if (!empty($discordData['access_token']) && 
+      !empty($discordData['refresh_token']) && 
+      !empty($discordData['expires_in'])) {
+    // Validate token using /oauth2/@me endpoint
+    $auth_url = 'https://discord.com/api/oauth2/@me';
+    $token = $discordData['access_token'];
+    $auth_options = array(
+      'http' => array(
+        'header' => "Authorization: Bearer $token\r\n",
+        'method' => 'GET'
+      )
+    );
+    $auth_context = stream_context_create($auth_options);
+    $auth_response = @file_get_contents($auth_url, false, $auth_context);
+    if ($auth_response !== false) {
+      $auth_data = json_decode($auth_response, true);
+      if (isset($auth_data['user'])) {
+        // Token is valid, Discord is properly set up
+        $hasDiscordSetup = true;
+      } else {
+        // Token is invalid, needs relink
+        $discordNeedsRelink = true;
+      }
+    } else {
+      // API call failed, token might be invalid, needs relink
+      $discordNeedsRelink = true;
+    }
+  } else {
+    // Missing required token data, needs relink
+    $discordNeedsRelink = true;
+  }
+} else {
+  // No Discord record exists, user has never linked
+  $discordNeedsRelink = false; // This is a new user, not a relink case
 }
+
+$discordSetupResult->close();
 $discordSetupStmt->close();
 
 // Check Beta Access
@@ -319,13 +358,64 @@ ob_start();
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_beta_controls') . " (v{$betaNewVersion} B)"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_beta_description'); ?></p>
-        <?php elseif ($selectedBot === 'discord' && $hasDiscordSetup): ?>
+          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_beta_description'); ?></p>        <?php elseif ($selectedBot === 'discord' && $hasDiscordSetup): ?>
           <h3 class="title is-4 has-text-white has-text-centered mb-2">
             <?php echo t('bot_discord_controls') . " (v{$discordNewVersion})"; ?>
           </h3>
           <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4"><?php echo t('bot_discord_description'); ?></p>
-        <?php endif; ?>
+        <?php elseif ($selectedBot === 'discord' && $discordNeedsRelink): ?>
+          <div class="notification is-warning has-text-black mb-4">
+            <div class="has-text-centered">
+              <h4 class="title is-5 has-text-black mb-3">
+                <span class="icon is-medium">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </span>
+                Discord Account Reconnection Required
+              </h4>
+              <p class="mb-3">
+                Your Discord account connection is missing required authentication tokens or has expired. 
+                The Discord bot cannot operate without valid tokens.
+              </p>
+              <a href="discordbot.php" class="button is-primary is-medium has-text-weight-bold">
+                <span class="icon">
+                  <i class="fab fa-discord"></i>
+                </span>
+                <span>Reconnect Discord Account</span>
+              </a>
+            </div>
+          </div>
+        <?php elseif ($selectedBot === 'discord'): ?>
+          <div class="notification is-info has-text-black mb-4">
+            <div class="has-text-centered">
+              <h4 class="title is-5 has-text-black mb-3">
+                <span class="icon is-medium">
+                  <i class="fab fa-discord"></i>
+                </span>
+                Discord Setup Required
+              </h4>
+              <p class="mb-3">
+                To use the Discord bot, you need to connect your Discord account first. 
+                This allows the bot to interact with your Discord server.
+              </p>
+              <a href="discordbot.php" class="button is-primary is-medium has-text-weight-bold">
+                <span class="icon">
+                  <i class="fab fa-discord"></i>
+                </span>
+                <span>Connect Discord Account</span>
+              </a>
+            </div>
+          </div>        <?php endif; ?>
+        
+        <?php 
+        // Only show bot status and controls if the bot is properly configured
+        $showBotControls = false;
+        if ($selectedBot === 'stable' || $selectedBot === 'beta') {
+          $showBotControls = true;
+        } elseif ($selectedBot === 'discord' && $hasDiscordSetup) {
+          $showBotControls = true;
+        }
+        ?>
+        <?php if ($showBotControls): ?>
         <div class="is-flex is-justify-content-center is-align-items-center mb-4" style="gap: 2rem;">
           <span class="icon is-large">
             <?php
@@ -376,6 +466,7 @@ ob_start();
             }
           ?>
         </div>
+        <?php endif; ?>
       </div>
     </div>
     <!-- System Status Card -->
