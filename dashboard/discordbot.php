@@ -60,15 +60,16 @@ if (isset($_GET['code']) && !$is_linked) {
     $code = $_GET['code'];    // Exchange the authorization code for an access token
     $token_url = 'https://discord.com/api/oauth2/token';
     $data = array(
-      'client_id' => $client_id,
-      'client_secret' => $client_secret,
       'grant_type' => 'authorization_code',
       'code' => $code,
       'redirect_uri' => 'https://dashboard.botofthespecter.com/discordbot.php'
     );
+    // Use HTTP Basic authentication as recommended by Discord
+    $auth = base64_encode($client_id . ':' . $client_secret);
     $options = array(
       'http' => array(
-        'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+        'header' => "Content-type: application/x-www-form-urlencoded\r\n" .
+          "Authorization: Basic $auth\r\n",
         'method' => 'POST',
         'content' => http_build_query($data)
       )
@@ -93,9 +94,18 @@ if (isset($_GET['code']) && !$is_linked) {
       // Save user information to the database
       if (isset($user_data['id'])) {
         $discord_id = $user_data['id'];
-        $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
-        $insertStmt = $conn->prepare($sql);
-        $insertStmt->bind_param("is", $user_id, $discord_id);
+        $refresh_token = $params['refresh_token'] ?? null;
+        $expires_in = $params['expires_in'] ?? null;
+        // Store Discord user information with tokens if available
+        if ($refresh_token) {
+          $sql = "INSERT INTO discord_users (user_id, discord_id, refresh_token, expires_in) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), refresh_token = VALUES(refresh_token), expires_in = VALUES(expires_in)";
+          $insertStmt = $conn->prepare($sql);
+          $insertStmt->bind_param("issi", $user_id, $discord_id, $refresh_token, $expires_in);
+        } else {
+          $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
+          $insertStmt = $conn->prepare($sql);
+          $insertStmt->bind_param("is", $user_id, $discord_id);
+        }
         if ($insertStmt->execute()) {
           $linkingMessage = "Discord account successfully linked!";
           $linkingMessageType = "is-success";
@@ -222,6 +232,31 @@ if (!$is_linked) {
         . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
 }
 
+// Helper function to refresh Discord access token
+function refreshDiscordToken($refresh_token, $client_id, $client_secret) {
+    $token_url = 'https://discord.com/api/oauth2/token';
+    $data = array(
+        'grant_type' => 'refresh_token',
+        'refresh_token' => $refresh_token
+    );
+    // Use HTTP Basic authentication as recommended by Discord
+    $auth = base64_encode($client_id . ':' . $client_secret);
+    $options = array(
+        'http' => array(
+            'header' => "Content-type: application/x-www-form-urlencoded\r\n" .
+                       "Authorization: Basic $auth\r\n",
+            'method' => 'POST',
+            'content' => http_build_query($data)
+        )
+    );
+    $context = stream_context_create($options);
+    $response = file_get_contents($token_url, false, $context);
+    $params = json_decode($response, true);
+    if (isset($params['access_token'])) {
+        return $params;
+    }
+    return false;
+}
 // Start output buffering for layout
 ob_start();
 ?>
