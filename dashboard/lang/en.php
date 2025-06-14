@@ -572,7 +572,7 @@ return [
     'streaming_storage_info_retention' => 'Recorded streams are stored for <strong>24 hours</strong> after the stream ends.',
     'streaming_storage_info_deletion' => 'After 24 hours, recorded files will be automatically removed due to storage limitations.',
     'streaming_server_locations_title' => 'Server Locations:',
-    'streaming_server_locations_current' => 'Current: AU EAST (Sydney), US WEST (Oregon), US EAST (Virginia)',
+    'streaming_server_locations_current' => 'Current: AU EAST (Sydney), US WEST (Seattle, WA), US EAST (Miami, FL)',
     'streaming_server_locations_coming_soon' => 'Coming soon: EU CENTRAL (Nuremberg, Germany)',
     'streaming_rtmps_url_label' => 'RTMPS URL for Selected Server:',
     'streaming_settings_saved_success' => 'Settings have been successfully saved.',
