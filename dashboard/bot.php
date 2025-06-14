@@ -75,51 +75,65 @@ date_default_timezone_set($timezone);
 // Check if Discord is properly setup for this user with valid tokens
 $hasDiscordSetup = false;
 $discordNeedsRelink = false;
-$discordSetupStmt = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ? LIMIT 1");
-$discordSetupStmt->bind_param("i", $user_id);
-$discordSetupStmt->execute();
-$discordSetupResult = $discordSetupStmt->get_result();
-if ($discordSetupResult->num_rows > 0) {
-  $discordData = $discordSetupResult->fetch_assoc();
-  // Check if we have ALL required token data: access_token, refresh_token, and expires_in
-  if (!empty($discordData['access_token']) && 
-      !empty($discordData['refresh_token']) && 
-      !empty($discordData['expires_in'])) {
-    // Validate token using /oauth2/@me endpoint
-    $auth_url = 'https://discord.com/api/oauth2/@me';
-    $token = $discordData['access_token'];
-    $auth_options = array(
-      'http' => array(
-        'header' => "Authorization: Bearer $token\r\n",
-        'method' => 'GET'
-      )
-    );
-    $auth_context = stream_context_create($auth_options);
-    $auth_response = @file_get_contents($auth_url, false, $auth_context);
-    if ($auth_response !== false) {
-      $auth_data = json_decode($auth_response, true);
-      if (isset($auth_data['user'])) {
-        // Token is valid, Discord is properly set up
-        $hasDiscordSetup = true;
+// Override for bot user "botofthespecter" - allow old system
+if (isset($username) && $username === 'botofthespecter') {
+  // For the bot user, use the old simple existence check
+  $discordSetupStmt = $conn->prepare("SELECT 1 FROM discord_users WHERE user_id = ? LIMIT 1");
+  $discordSetupStmt->bind_param("i", $user_id);
+  $discordSetupStmt->execute();
+  $discordSetupStmt->store_result();
+  if ($discordSetupStmt->num_rows > 0) {
+    $hasDiscordSetup = true;
+  }
+  $discordSetupStmt->close();
+} else {
+  // For all other users, use the new robust token validation
+  $discordSetupStmt = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ? LIMIT 1");
+  $discordSetupStmt->bind_param("i", $user_id);
+  $discordSetupStmt->execute();
+  $discordSetupResult = $discordSetupStmt->get_result();
+  if ($discordSetupResult->num_rows > 0) {
+    $discordData = $discordSetupResult->fetch_assoc();
+    // Check if we have ALL required token data: access_token, refresh_token, and expires_in
+    if (!empty($discordData['access_token']) && 
+        !empty($discordData['refresh_token']) && 
+        !empty($discordData['expires_in'])) {
+      // Validate token using /oauth2/@me endpoint
+      $auth_url = 'https://discord.com/api/oauth2/@me';
+      $token = $discordData['access_token'];
+      $auth_options = array(
+        'http' => array(
+          'header' => "Authorization: Bearer $token\r\n",
+          'method' => 'GET'
+        )
+      );
+      $auth_context = stream_context_create($auth_options);
+      $auth_response = @file_get_contents($auth_url, false, $auth_context);
+      if ($auth_response !== false) {
+        $auth_data = json_decode($auth_response, true);
+        if (isset($auth_data['user'])) {
+          // Token is valid, Discord is properly set up
+          $hasDiscordSetup = true;
+        } else {
+          // Token is invalid, needs relink
+          $discordNeedsRelink = true;
+        }
       } else {
-        // Token is invalid, needs relink
+        // API call failed, token might be invalid, needs relink
         $discordNeedsRelink = true;
       }
     } else {
-      // API call failed, token might be invalid, needs relink
+      // Missing required token data, needs relink
       $discordNeedsRelink = true;
     }
   } else {
-    // Missing required token data, needs relink
-    $discordNeedsRelink = true;
+    // No Discord record exists, user has never linked
+    $discordNeedsRelink = false; // This is a new user, not a relink case
   }
-} else {
-  // No Discord record exists, user has never linked
-  $discordNeedsRelink = false; // This is a new user, not a relink case
-}
 
-$discordSetupResult->close();
-$discordSetupStmt->close();
+  $discordSetupResult->close();
+  $discordSetupStmt->close();
+}
 
 // Check Beta Access
 $betaAccess = false;
