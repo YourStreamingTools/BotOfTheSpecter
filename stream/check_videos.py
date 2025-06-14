@@ -43,7 +43,7 @@ async def get_all_usernames():
             await conn.ensure_closed()
 
 async def remove_old_videos():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = "/mnt/s3/bots-stream"
     usernames = await get_all_usernames()
     for username in usernames:
         user_dir = os.path.join(base_dir, username)
