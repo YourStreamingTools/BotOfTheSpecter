@@ -30,11 +30,12 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 // Check if the user is already linked with Discord and validate tokens
-$discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
+$discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ?");
 $discord_userSTMT->bind_param("i", $user_id);
 $discord_userSTMT->execute();
 $discord_userResult = $discord_userSTMT->get_result();
-$is_linked = ($discord_userResult->num_rows > 0);
+$has_discord_record = ($discord_userResult->num_rows > 0);
+$is_linked = false; // Will only be true if all required tokens are present and valid
 $discordData = null;
 $expires_str = '';
 $discord_username = '';
@@ -42,10 +43,12 @@ $discord_discriminator = '';
 $discord_avatar = '';
 $needs_relink = false;
 
-if ($is_linked) {
+if ($has_discord_record) {
   $discordData = $discord_userResult->fetch_assoc();
-  // Check if we have the required token data (new system)
-  if (!empty($discordData['access_token'])) {
+  // Check if we have ALL required token data: access_token, refresh_token, and expires_in
+  if (!empty($discordData['access_token']) && 
+      !empty($discordData['refresh_token']) && 
+      !empty($discordData['expires_in'])) {
     // Validate token and get current authorization info using /oauth2/@me
     $auth_url = 'https://discord.com/api/oauth2/@me';
     $token = $discordData['access_token'];
@@ -58,10 +61,10 @@ if ($is_linked) {
     $auth_context = stream_context_create($auth_options);
     $auth_response = @file_get_contents($auth_url, false, $auth_context);
     if ($auth_response !== false) {
-      $auth_data = json_decode($auth_response, true);
-      // Check if token is valid and get user info
+      $auth_data = json_decode($auth_response, true);      // Check if token is valid and get user info
       if (isset($auth_data['user'])) {
-        // Token is valid, keep linked status
+        // Token is valid, set as properly linked
+        $is_linked = true;
         $discord_username = $auth_data['user']['username'] ?? '';
         $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
         $discord_avatar = $auth_data['user']['avatar'] ?? '';
@@ -105,11 +108,13 @@ if ($is_linked) {
     } else {
       // API call failed, token might be invalid, needs relink
       $needs_relink = true;
-    }
-  } else {
-    // Old system - has discord_id but no access_token, needs relink
+    }  } else {
+    // Missing required token data (access_token, refresh_token, or expires_in), needs relink
     $needs_relink = true;
   }
+} else {
+  // No Discord record exists, user has never linked
+  $needs_relink = false; // This is a new user, not a relink case
 }
 
 $discord_userResult->close();
