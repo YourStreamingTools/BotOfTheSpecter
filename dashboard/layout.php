@@ -40,14 +40,14 @@ include_once __DIR__ . '/lang/i18n.php';
             <button id="cookieDeclineBtn" class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
-    <!-- Maintenance Notice Banner -->
+    <!-- Maintenance Notice Banner 
     <div style="background:rgb(255, 165, 0); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
         <span style="color:rgb(0, 0, 0);">
             <i class="fas fa-tools" style="margin-right: 8px;"></i>
             We're undergoing some scheduled maintenance on our entire system. Please keep an eye on the Discord server for updates.
             <i class="fas fa-tools" style="margin-left: 8px;"></i>
         </span>
-    </div>
+    </div>-->
     <!-- Top Navigation Bar -->
     <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
