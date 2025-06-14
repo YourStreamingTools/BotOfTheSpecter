@@ -51,85 +51,78 @@ if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
 
 // Handle Discord OAuth callback
 if (isset($_GET['code']) && !$is_linked) {
-    $code = $_GET['code'];
-    
-    // Exchange the authorization code for an access token
+  // Validate state parameter for security
+  if (!isset($_GET['state']) || !isset($_SESSION['discord_oauth_state']) || $_GET['state'] !== $_SESSION['discord_oauth_state']) {
+    $linkingMessage = "Invalid state parameter. Please try again.";
+    $linkingMessageType = "is-danger";
+  } else {
+    unset($_SESSION['discord_oauth_state']);
+    $code = $_GET['code'];    // Exchange the authorization code for an access token
     $token_url = 'https://discord.com/api/oauth2/token';
     $data = array(
-        'client_id' => $client_id,
-        'client_secret' => $client_secret,
-        'grant_type' => 'authorization_code',
-        'code' => $code,
-        'redirect_uri' => 'https://dashboard.botofthespecter.com/discordbot.php',
-        'scope' => 'identify'
+      'client_id' => $client_id,
+      'client_secret' => $client_secret,
+      'grant_type' => 'authorization_code',
+      'code' => $code,
+      'redirect_uri' => 'https://dashboard.botofthespecter.com/discordbot.php'
     );
-
     $options = array(
-        'http' => array(
-            'header' => "Content-type: application/x-www-form-urlencoded\r\n",
-            'method' => 'POST',
-            'content' => http_build_query($data)
-        )
+      'http' => array(
+        'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+        'method' => 'POST',
+        'content' => http_build_query($data)
+      )
     );
-
     $context = stream_context_create($options);
     $response = file_get_contents($token_url, false, $context);
     $params = json_decode($response, true);
-
     // Check if access token was received successfully
     if (isset($params['access_token'])) {
-        // Get user information using the access token
-        $user_url = 'https://discord.com/api/users/@me';
-        $token = $params['access_token'];
-        $user_options = array(
-            'http' => array(
-                'header' => "Authorization: Bearer $token\r\n",
-                'method' => 'GET'
-            )
-        );
-        $user_context = stream_context_create($user_options);
-        $user_response = file_get_contents($user_url, false, $user_context);
-        $user_data = json_decode($user_response, true);
-        
-        // Save user information to the database
-        if (isset($user_data['id'])) {
-            $discord_id = $user_data['id'];
-            $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
-            $insertStmt = $conn->prepare($sql);
-            $insertStmt->bind_param("is", $user_id, $discord_id);
-            if ($insertStmt->execute()) {
-                $linkingMessage = "Discord account successfully linked!";
-                $linkingMessageType = "is-success";
-                $is_linked = true;
-                // Redirect to refresh page and show linked status
-                header("Location: discordbot.php");
-                exit();
-            } else {
-                $linkingMessage = "Linked, but failed to save Discord information.";
-                $linkingMessageType = "is-warning";
-            }
-            $insertStmt->close();
+      // Get user information using the access token
+      $user_url = 'https://discord.com/api/users/@me';
+      $token = $params['access_token'];
+      $user_options = array(
+        'http' => array(
+          'header' => "Authorization: Bearer $token\r\n",
+          'method' => 'GET'
+        )
+      );
+      $user_context = stream_context_create($user_options);
+      $user_response = file_get_contents($user_url, false, $user_context);
+      $user_data = json_decode($user_response, true);
+      // Save user information to the database
+      if (isset($user_data['id'])) {
+        $discord_id = $user_data['id'];
+        $sql = "INSERT INTO discord_users (user_id, discord_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id)";
+        $insertStmt = $conn->prepare($sql);
+        $insertStmt->bind_param("is", $user_id, $discord_id);
+        if ($insertStmt->execute()) {
+          $linkingMessage = "Discord account successfully linked!";
+          $linkingMessageType = "is-success";
+          $is_linked = true;
+          // Redirect to refresh page and show linked status
+          header("Location: discordbot.php");
+          exit();
         } else {
-            $linkingMessage = "Error: Failed to retrieve user information from Discord API.";
-            $linkingMessageType = "is-danger";
+          $linkingMessage = "Linked, but failed to save Discord information.";
+          $linkingMessageType = "is-warning";
         }
-    } else {
-        $linkingMessage = "Error: Failed to retrieve access token from Discord API.";
+        $insertStmt->close();
+      } else {
+        $linkingMessage = "Error: Failed to retrieve user information from Discord API.";
         $linkingMessageType = "is-danger";
-        if (isset($params['error'])) {
-            $linkingMessage .= " Error: " . htmlspecialchars($params['error']);
-        }
-        if (isset($params['error_description'])) {
-            $linkingMessage .= " Description: " . htmlspecialchars($params['error_description']);
-        }
+      }
+    } else {
+      $linkingMessage = "Error: Failed to retrieve access token from Discord API.";
+      $linkingMessageType = "is-danger";
+      if (isset($params['error'])) { $linkingMessage .= " Error: " . htmlspecialchars($params['error']); }
+      if (isset($params['error_description'])) { $linkingMessage .= " Description: " . htmlspecialchars($params['error_description']); }
     }
+  }
 }
 
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
-}
-
+if ($db->connect_error) { die('Connection failed: ' . $db->connect_error); }
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   try {
     if (isset($_POST['option']) && isset($_POST['webhook'])) {
@@ -215,6 +208,19 @@ $existingLiveChannelId = $discordData['live_channel_id'] ?? "";
 $existingGuildId = $discordData['guild_id'] ?? "";
 $existingOnlineText = $discordData['online_text'] ?? "";
 $existingOfflineText = $discordData['offline_text'] ?? "";
+
+// Generate auth URL with state parameter for security
+$authURL = '';
+if (!$is_linked) {
+    $state = bin2hex(random_bytes(16));
+    $_SESSION['discord_oauth_state'] = $state;
+    $authURL = "https://discord.com/oauth2/authorize"
+        . "?client_id=1170683250797187132"
+        . "&response_type=code"
+        . "&scope=" . urlencode('identify guilds')
+        . "&state={$state}"
+        . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
+}
 
 // Start output buffering for layout
 ob_start();
@@ -442,7 +448,7 @@ ob_start();
 </script>
 <?php if (!$is_linked) { ?>  <script>
     function linkDiscord() {
-      window.location.href = "https://discord.com/oauth2/authorize?client_id=1170683250797187132&response_type=code&redirect_uri=https%3A%2F%2Fdashboard.botofthespecter.com%2Fdiscordbot.php&scope=identify+openid+guilds";
+      window.location.href = "<?php echo addslashes($authURL); ?>";
     }
   </script>
 <?php } else { ?>
