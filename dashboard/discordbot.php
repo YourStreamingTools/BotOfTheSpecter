@@ -251,17 +251,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       } else {
         $errorMsg = "Error updating Live Channel ID and Guild ID: " . $stmt->error;
       }
-      $stmt->close();
-    } elseif (isset($_POST['online_text']) && isset($_POST['offline_text'])) {
+      $stmt->close();    } elseif (isset($_POST['online_text']) && isset($_POST['offline_text'])) {
       $onlineText = $_POST['online_text'];
       $offlineText = $_POST['offline_text'];
-      $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");      $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
-      if ($stmt->execute()) {
-        $buildStatus = "Online and Offline Text has been updated successfully";
+      // Validate character limits (max 20 characters each)
+      if (strlen($onlineText) > 20) {
+        $errorMsg = "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText);
+      } elseif (strlen($offlineText) > 20) {
+        $errorMsg = "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText);
       } else {
-        $errorMsg = "Error updating Online and Offline Text: " . $stmt->error;
-      }
-      $stmt->close();    } elseif (isset($_POST['disconnect_discord'])) {
+        $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
+        $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
+        if ($stmt->execute()) {
+          $buildStatus = "Online and Offline Text has been updated successfully";
+        } else {
+          $errorMsg = "Error updating Online and Offline Text: " . $stmt->error;
+        }
+        $stmt->close();
+      }} elseif (isset($_POST['disconnect_discord'])) {
       $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token FROM discord_users WHERE user_id = ?");
       $discord_userSTMT->bind_param("i", $user_id);
       $discord_userSTMT->execute();
@@ -601,20 +608,25 @@ ob_start();
                   </p>
                 </header>
                 <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
-                  <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
-                    <div class="field">
-                      <label class="label has-text-white" for="online_text" style="font-weight: 500;"><?php echo t('discordbot_online_text_label'); ?></label>
+                  <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">                    <div class="field">
+                      <label class="label has-text-white" for="online_text" style="font-weight: 500;"><?php echo t('discordbot_online_text_label'); ?> <span class="has-text-grey-light">(Max 20 characters)</span></label>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
                       </div>
+                      <p class="help has-text-grey-light">
+                        <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 characters
+                      </p>
                     </div>
                     <div class="field">
-                      <label class="label has-text-white" for="offline_text" style="font-weight: 500;"><?php echo t('discordbot_offline_text_label'); ?></label>
+                      <label class="label has-text-white" for="offline_text" style="font-weight: 500;"><?php echo t('discordbot_offline_text_label'); ?> <span class="has-text-grey-light">(Max 20 characters)</span></label>
                       <div class="control has-icons-left">
-                        <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                        <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>" required maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                         <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
                       </div>
+                      <p class="help has-text-grey-light">
+                        <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
+                      </p>
                     </div>
                     <div style="flex-grow: 1;"></div>
                     <div class="field">
@@ -640,8 +652,7 @@ $content = ob_get_clean();
 
 ob_start();
 ?>
-<script>
-  $(document).ready(function() {
+<script>  $(document).ready(function() {
     var webhooks = <?php echo json_encode($existingWebhooks); ?>;
     var initialWebhook = webhooks['discord_alert'] || '';
     $('#webhook').val(initialWebhook);
@@ -649,6 +660,26 @@ ob_start();
       var selectedOption = $(this).val();
       $('#webhook').val(webhooks[selectedOption] || '');
     });
+    // Character counters for online/offline text
+    function updateCharCounter(inputId, counterId) {
+      var input = $('#' + inputId);
+      var counter = $('#' + counterId);
+      var maxLength = 20;
+      input.on('input', function() {
+        var currentLength = $(this).val().length;
+        counter.text(currentLength);
+        // Change color based on character count
+        if (currentLength >= maxLength) {
+          counter.css('color', '#ff3860'); // Red when at limit
+        } else if (currentLength >= maxLength * 0.8) {
+          counter.css('color', '#ffdd57'); // Yellow when approaching limit
+        } else {
+          counter.css('color', '#b5b5b5'); // Default grey
+        }
+      });
+    }
+    updateCharCounter('online_text', 'online_text_counter');
+    updateCharCounter('offline_text', 'offline_text_counter');
   });
 </script>
 <?php if (!$is_linked) { ?>  <script>
