@@ -30,95 +30,118 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 // Check if the user is already linked with Discord and validate tokens
-$discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ?");
-$discord_userSTMT->bind_param("i", $user_id);
-$discord_userSTMT->execute();
-$discord_userResult = $discord_userSTMT->get_result();
-$has_discord_record = ($discord_userResult->num_rows > 0);
-$is_linked = false; // Will only be true if all required tokens are present and valid
-$discordData = null;
-$expires_str = '';
-$discord_username = '';
-$discord_discriminator = '';
-$discord_avatar = '';
-$needs_relink = false;
-
-if ($has_discord_record) {
-  $discordData = $discord_userResult->fetch_assoc();
-  // Check if we have ALL required token data: access_token, refresh_token, and expires_in
-  if (!empty($discordData['access_token']) && 
-      !empty($discordData['refresh_token']) && 
-      !empty($discordData['expires_in'])) {
-    // Validate token and get current authorization info using /oauth2/@me
-    $auth_url = 'https://discord.com/api/oauth2/@me';
-    $token = $discordData['access_token'];
-    $auth_options = array(
-      'http' => array(
-        'header' => "Authorization: Bearer $token\r\n",
-        'method' => 'GET'
-      )
-    );
-    $auth_context = stream_context_create($auth_options);
-    $auth_response = @file_get_contents($auth_url, false, $auth_context);
-    if ($auth_response !== false) {
-      $auth_data = json_decode($auth_response, true);
-      if (isset($auth_data['user'])) {
-        // Token is valid, set as properly linked
-        $is_linked = true;
-        $discord_username = $auth_data['user']['username'] ?? '';
-        $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
-        $discord_avatar = $auth_data['user']['avatar'] ?? '';
-        // Get actual expiration from Discord API (more accurate than stored expires_in)
-        if (isset($auth_data['expires'])) {
-          try {
-            $expires_datetime = new DateTime($auth_data['expires']);
-            $now = new DateTime();
-            $diff = $now->diff($expires_datetime);
-            // Calculate time remaining
-            $total_seconds = ($diff->days * 86400) + ($diff->h * 3600) + ($diff->i * 60);
-            if ($total_seconds > 0) {
-              $days = $diff->days;
-              $hours = $diff->h;
-              $minutes = $diff->i;
-              $parts = [];
-              if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
-              if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
-              if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
-              $expires_str = implode(', ', $parts);
-            }
-          } catch (Exception $e) {
-            // Fallback to stored expires_in if datetime parsing fails
-            if (!empty($discordData['expires_in'])) {
-              $expires_in = (int)$discordData['expires_in'];
-              $days = floor($expires_in / 86400);
-              $hours = floor(($expires_in % 86400) / 3600);
-              $minutes = floor(($expires_in % 3600) / 60);
-              $parts = [];
-              if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
-              if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
-              if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
-              $expires_str = implode(', ', $parts);
+if (isset($username) && $username === 'botofthespecter') {
+  // For the bot user, use the old simple existence check
+  $discord_userSTMT = $conn->prepare("SELECT * FROM discord_users WHERE user_id = ?");
+  $discord_userSTMT->bind_param("i", $user_id);
+  $discord_userSTMT->execute();
+  $discord_userResult = $discord_userSTMT->get_result();
+  $has_discord_record = ($discord_userResult->num_rows > 0);
+  $is_linked = $has_discord_record;
+  $discordData = null;
+  $expires_str = '';
+  $discord_username = '';
+  $discord_discriminator = '';
+  $discord_avatar = '';
+  $needs_relink = false;
+  if ($has_discord_record) {
+    $discordData = $discord_userResult->fetch_assoc();
+    $discord_username = $discordData['discord_username'] ?? '';
+    $discord_discriminator = $discordData['discord_discriminator'] ?? '';
+    $discord_avatar = $discordData['discord_avatar'] ?? '';
+  }
+  $discord_userResult->close();
+  $discord_userSTMT->close();
+} else {
+  // For all other users, use the new robust token validation
+  $discord_userSTMT = $conn->prepare("SELECT access_token, refresh_token, expires_in FROM discord_users WHERE user_id = ?");
+  $discord_userSTMT->bind_param("i", $user_id);
+  $discord_userSTMT->execute();
+  $discord_userResult = $discord_userSTMT->get_result();
+  $has_discord_record = ($discord_userResult->num_rows > 0);
+  $is_linked = false; // Will only be true if all required tokens are present and valid
+  $discordData = null;
+  $expires_str = '';
+  $discord_username = '';
+  $discord_discriminator = '';
+  $discord_avatar = '';
+  $needs_relink = false;
+  if ($has_discord_record) {
+    $discordData = $discord_userResult->fetch_assoc();
+    // Check if we have ALL required token data: access_token, refresh_token, and expires_in
+    if (!empty($discordData['access_token']) && 
+        !empty($discordData['refresh_token']) && 
+        !empty($discordData['expires_in'])) {
+      // Validate token and get current authorization info using /oauth2/@me
+      $auth_url = 'https://discord.com/api/oauth2/@me';
+      $token = $discordData['access_token'];
+      $auth_options = array(
+        'http' => array(
+          'header' => "Authorization: Bearer $token\r\n",
+          'method' => 'GET'
+        )
+      );
+      $auth_context = stream_context_create($auth_options);
+      $auth_response = @file_get_contents($auth_url, false, $auth_context);
+      if ($auth_response !== false) {
+        $auth_data = json_decode($auth_response, true);
+        if (isset($auth_data['user'])) {
+          // Token is valid, set as properly linked
+          $is_linked = true;
+          $discord_username = $auth_data['user']['username'] ?? '';
+          $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
+          $discord_avatar = $auth_data['user']['avatar'] ?? '';
+          // Get actual expiration from Discord API (more accurate than stored expires_in)
+          if (isset($auth_data['expires'])) {
+            try {
+              $expires_datetime = new DateTime($auth_data['expires']);
+              $now = new DateTime();
+              $diff = $now->diff($expires_datetime);
+              // Calculate time remaining
+              $total_seconds = ($diff->days * 86400) + ($diff->h * 3600) + ($diff->i * 60);
+              if ($total_seconds > 0) {
+                $days = $diff->days;
+                $hours = $diff->h;
+                $minutes = $diff->i;
+                $parts = [];
+                if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
+                if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+                if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+                $expires_str = implode(', ', $parts);
+              }
+            } catch (Exception $e) {
+              // Fallback to stored expires_in if datetime parsing fails
+              if (!empty($discordData['expires_in'])) {
+                $expires_in = (int)$discordData['expires_in'];
+                $days = floor($expires_in / 86400);
+                $hours = floor(($expires_in % 86400) / 3600);
+                $minutes = floor(($expires_in % 3600) / 60);
+                $parts = [];
+                if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
+                if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+                if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+                $expires_str = implode(', ', $parts);
+              }
             }
           }
+        } else {
+          // Token is invalid, needs relink
+          $needs_relink = true;
         }
       } else {
-        // Token is invalid, needs relink
+        // API call failed, token might be invalid, needs relink
         $needs_relink = true;
-      }
-    } else {
-      // API call failed, token might be invalid, needs relink
+      }    } else {
+      // Missing required token data (access_token, refresh_token, or expires_in), needs relink
       $needs_relink = true;
-    }  } else {
-    // Missing required token data (access_token, refresh_token, or expires_in), needs relink
-    $needs_relink = true;
+    }
+  } else {
+    // No Discord record exists, user has never linked
+    $needs_relink = false; // This is a new user, not a relink case
   }
-} else {
-  // No Discord record exists, user has never linked
-  $needs_relink = false; // This is a new user, not a relink case
+  $discord_userResult->close();
+  $discord_userSTMT->close();
 }
-
-$discord_userResult->close();
-$discord_userSTMT->close();
 
 $buildStatus = "";
 $errorMsg = "";
