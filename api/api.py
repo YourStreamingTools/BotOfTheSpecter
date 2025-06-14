@@ -240,6 +240,15 @@ async def get_mysql_connection():
         db="website"
     )
 
+async def get_mysql_connection_user(username):
+    return await aiomysql.connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        port=SQL_PORT,
+        db=username
+    )
+
 # Check if a host is reachable via ICMP ping
 async def check_icmp_ping(host: str) -> bool:
     try:
@@ -1151,29 +1160,26 @@ async def stream_online(api_key: str = Query(...)):
     username = await verify_api_key(api_key)
     if not username:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    # Path to the online status file
-    status_file_path = f"/var/www/logs/online/{username}.txt"
-    # Check if the file exists via SFTP
+    # Check stream status from database
     try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        sftp = ssh.open_sftp()
+        conn = await get_mysql_connection_user(username)
         try:
-            # Check if the file exists and read its content
-            with sftp.open(status_file_path, 'r') as file:
-                content = file.read().strip()
-                is_online = content.lower() == "true"
-        except FileNotFoundError:
-            # If file doesn't exist, assume stream is offline
-            is_online = False
+            async with conn.cursor() as cur:
+                # Query the stream_status table for the user's status
+                await cur.execute("SELECT status FROM stream_status")
+                result = await cur.fetchone()
+                if result:
+                    # Convert status string to boolean
+                    is_online = result[0].lower() == "true"
+                else:
+                    # If no record found, assume stream is offline
+                    is_online = False
         finally:
-            sftp.close()
-            ssh.close()
+            conn.close()
         # Return just the online status
         return {"online": is_online}
     except Exception as e:
-        logging.error(f"Error checking stream online status: {e}")
+        logging.error(f"Error checking stream online status from database: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking stream online status: {str(e)}")
 
 # Any root request go to the docs page
