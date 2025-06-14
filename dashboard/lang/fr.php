@@ -572,7 +572,7 @@ return [
     'streaming_storage_info_retention' => 'Les streams enregistrés sont conservés pendant <strong>24 heures</strong> après la fin du stream.',
     'streaming_storage_info_deletion' => 'Après 24 heures, les fichiers enregistrés seront automatiquement supprimés en raison des limitations de stockage.',
     'streaming_server_locations_title' => 'Emplacements des serveurs :',
-    'streaming_server_locations_current' => 'Actuel : AU EAST (Sydney), US WEST (Oregon), US EAST (Virginie)',
+    'streaming_server_locations_current' => 'Actuel : AU EAST (Sydney), US WEST (Seattle, WA), US EAST (Miami, FL)',
     'streaming_server_locations_coming_soon' => 'Bientôt disponible : EU CENTRAL (Nuremberg, Allemagne)',
     'streaming_rtmps_url_label' => 'URL RTMPS du serveur sélectionné :',
     'streaming_settings_saved_success' => 'Paramètres enregistrés avec succès.',
