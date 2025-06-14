@@ -43,37 +43,65 @@ $discord_avatar = '';
 
 if ($is_linked) {
   $discordData = $discord_userResult->fetch_assoc();
-  // Calculate token expiration if expires_in is available
-  if (!empty($discordData['expires_in'])) {
-    $expires_in = (int)$discordData['expires_in'];
-    $days = floor($expires_in / 86400);
-    $hours = floor(($expires_in % 86400) / 3600);
-    $minutes = floor(($expires_in % 3600) / 60);
-    $parts = [];
-    if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
-    if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
-    if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
-    $expires_str = implode(', ', $parts);
-  }
-  // Fetch Discord user profile if access token is available
+  // Validate token and get current authorization info using /oauth2/@me
   if (!empty($discordData['access_token'])) {
-    $user_url = 'https://discord.com/api/users/@me';
+    $auth_url = 'https://discord.com/api/oauth2/@me';
     $token = $discordData['access_token'];
-    $user_options = array(
+    $auth_options = array(
       'http' => array(
         'header' => "Authorization: Bearer $token\r\n",
         'method' => 'GET'
       )
     );
-    $user_context = stream_context_create($user_options);
-    $user_response = @file_get_contents($user_url, false, $user_context);
-    if ($user_response !== false) {
-      $user_data = json_decode($user_response, true);
-      if (isset($user_data['username'])) {
-        $discord_username = $user_data['username'];
-        $discord_discriminator = $user_data['discriminator'] ?? '';
-        $discord_avatar = $user_data['avatar'] ?? '';
+    $auth_context = stream_context_create($auth_options);
+    $auth_response = @file_get_contents($auth_url, false, $auth_context);
+    if ($auth_response !== false) {
+      $auth_data = json_decode($auth_response, true);
+      // Check if token is valid and get user info
+      if (isset($auth_data['user'])) {
+        $discord_username = $auth_data['user']['username'] ?? '';
+        $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
+        $discord_avatar = $auth_data['user']['avatar'] ?? '';
+        // Get actual expiration from Discord API (more accurate than stored expires_in)
+        if (isset($auth_data['expires'])) {
+          try {
+            $expires_datetime = new DateTime($auth_data['expires']);
+            $now = new DateTime();
+            $diff = $now->diff($expires_datetime);
+            // Calculate time remaining
+            $total_seconds = ($diff->days * 86400) + ($diff->h * 3600) + ($diff->i * 60);
+            if ($total_seconds > 0) {
+              $days = $diff->days;
+              $hours = $diff->h;
+              $minutes = $diff->i;
+              $parts = [];
+              if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
+              if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+              if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+              $expires_str = implode(', ', $parts);
+            }
+          } catch (Exception $e) {
+            // Fallback to stored expires_in if datetime parsing fails
+            if (!empty($discordData['expires_in'])) {
+              $expires_in = (int)$discordData['expires_in'];
+              $days = floor($expires_in / 86400);
+              $hours = floor(($expires_in % 86400) / 3600);
+              $minutes = floor(($expires_in % 3600) / 60);
+              $parts = [];
+              if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
+              if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+              if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+              $expires_str = implode(', ', $parts);
+            }
+          }
+        }
+      } else {
+        // Token is invalid, mark as not linked
+        $is_linked = false;
       }
+    } else {
+      // API call failed, token might be invalid
+      $is_linked = false;
     }
   }
 }
@@ -360,11 +388,10 @@ ob_start();
                   <i class="fa-regular fa-user" style="margin-right:0.3em;"></i>
                   <?php echo htmlspecialchars($discord_username); ?><?php if ($discord_discriminator && $discord_discriminator !== '0'): ?>#<?php echo htmlspecialchars($discord_discriminator); ?><?php endif; ?>
                 </span>
-              <?php endif; ?>
-              <?php if ($expires_str): ?>
-                <span class="tag is-success is-light" title="Token Status">
+              <?php endif; ?>              <?php if ($expires_str): ?>
+                <span class="tag is-success is-light" title="Current Token Status">
                   <i class="fa-regular fa-clock" style="margin-right:0.3em;"></i>
-                  Expires in <?php echo htmlspecialchars($expires_str); ?>
+                  Active for <?php echo htmlspecialchars($expires_str); ?>
                 </span>
               <?php endif; ?>
               <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
@@ -433,10 +460,9 @@ ob_start();
             </h4>
             <p class="subtitle is-6 has-text-grey-light mb-4">
               <?php echo t('discordbot_linked_desc'); ?>
-            </p>
-            <?php if ($expires_str): ?>
+            </p>            <?php if ($expires_str): ?>
               <div class="notification is-info is-light" style="border-radius: 8px; max-width: 600px; margin: 0 auto;">
-                <p><strong>Token Status:</strong> Your Discord access token will auto-renew in about <strong><?php echo htmlspecialchars($expires_str) ?></strong>.</p>
+                <p><strong>Token Status:</strong> Your current active Discord token will remain valid for <strong><?php echo htmlspecialchars($expires_str) ?></strong> until it automatically renews.</p>
               </div>
             <?php endif; ?>
           </div>
