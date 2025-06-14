@@ -40,11 +40,13 @@ $expires_str = '';
 $discord_username = '';
 $discord_discriminator = '';
 $discord_avatar = '';
+$needs_relink = false;
 
 if ($is_linked) {
   $discordData = $discord_userResult->fetch_assoc();
-  // Validate token and get current authorization info using /oauth2/@me
+  // Check if we have the required token data (new system)
   if (!empty($discordData['access_token'])) {
+    // Validate token and get current authorization info using /oauth2/@me
     $auth_url = 'https://discord.com/api/oauth2/@me';
     $token = $discordData['access_token'];
     $auth_options = array(
@@ -59,6 +61,7 @@ if ($is_linked) {
       $auth_data = json_decode($auth_response, true);
       // Check if token is valid and get user info
       if (isset($auth_data['user'])) {
+        // Token is valid, keep linked status
         $discord_username = $auth_data['user']['username'] ?? '';
         $discord_discriminator = $auth_data['user']['discriminator'] ?? '';
         $discord_avatar = $auth_data['user']['avatar'] ?? '';
@@ -96,13 +99,16 @@ if ($is_linked) {
           }
         }
       } else {
-        // Token is invalid, mark as not linked
-        $is_linked = false;
+        // Token is invalid, needs relink
+        $needs_relink = true;
       }
     } else {
-      // API call failed, token might be invalid
-      $is_linked = false;
+      // API call failed, token might be invalid, needs relink
+      $needs_relink = true;
     }
+  } else {
+    // Old system - has discord_id but no access_token, needs relink
+    $needs_relink = true;
   }
 }
 
@@ -434,24 +440,43 @@ ob_start();
             <?php echo $linkingMessage; ?>
           </div>
         <?php endif; ?>
-        
-        <?php if (!$is_linked) { ?>
-          <div class="has-text-centered" style="padding: 3rem 2rem;">
-            <div class="mb-5">
-              <span class="icon is-large has-text-primary mb-3" style="font-size: 4rem;">
-                <i class="fab fa-discord"></i>
-              </span>
+          <?php if (!$is_linked) { ?>
+          <?php if ($needs_relink) { ?>
+            <!-- User needs to relink their Discord account -->
+            <div class="has-text-centered" style="padding: 3rem 2rem;">
+              <div class="mb-5">
+                <span class="icon is-large has-text-warning mb-3" style="font-size: 4rem;">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </span>
+              </div>
+              <h3 class="title is-4 has-text-white mb-3">Discord Account Needs Reconnection</h3>
+              <p class="subtitle is-6 has-text-grey-light mb-5" style="max-width: 600px; margin: 0 auto;">
+                Your Discord account was linked using our old system and needs to be reconnected to access the new features. Please click the button below to relink your Discord account with updated permissions and token management.
+              </p>
+              <button class="button is-warning is-large" onclick="linkDiscord()" style="border-radius: 8px; font-weight: 600;">
+                <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                <span>Reconnect Discord Account</span>
+              </button>
             </div>
-            <h3 class="title is-4 has-text-white mb-3"><?php echo t('discordbot_link_title'); ?></h3>
-            <p class="subtitle is-6 has-text-grey-light mb-5" style="max-width: 500px; margin: 0 auto;">
-              <?php echo t('discordbot_link_desc'); ?>
-            </p>
-            <button class="button is-primary is-large" onclick="linkDiscord()" style="border-radius: 8px; font-weight: 600;">
-              <span class="icon"><i class="fab fa-discord"></i></span>
-              <span><?php echo t('discordbot_link_btn'); ?></span>
-            </button>
-          </div>
-        <?php } else { ?>          <div class="has-text-centered mb-5" style="padding: 1rem 2rem;">
+          <?php } else { ?>
+            <!-- User has never linked Discord -->
+            <div class="has-text-centered" style="padding: 3rem 2rem;">
+              <div class="mb-5">
+                <span class="icon is-large has-text-primary mb-3" style="font-size: 4rem;">
+                  <i class="fab fa-discord"></i>
+                </span>
+              </div>
+              <h3 class="title is-4 has-text-white mb-3"><?php echo t('discordbot_link_title'); ?></h3>
+              <p class="subtitle is-6 has-text-grey-light mb-5" style="max-width: 500px; margin: 0 auto;">
+                <?php echo t('discordbot_link_desc'); ?>
+              </p>
+              <button class="button is-primary is-large" onclick="linkDiscord()" style="border-radius: 8px; font-weight: 600;">
+                <span class="icon"><i class="fab fa-discord"></i></span>
+                <span><?php echo t('discordbot_link_btn'); ?></span>
+              </button>
+            </div>
+          <?php } ?>
+        <?php } else { ?><div class="has-text-centered mb-5" style="padding: 1rem 2rem;">
             <h4 class="title is-5 has-text-white mb-3">
               <span class="icon mr-2 has-text-success" style="font-size: 1.2rem;">
                 <i class="fas fa-check-circle"></i>
