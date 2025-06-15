@@ -35,10 +35,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $dbcommand = $_POST['command'];
         $status = $_POST['status'];
         $updateQuery = $db->prepare("UPDATE custom_commands SET status = ? WHERE command = ?");
+        if (!$updateQuery) { error_log("MySQL prepare failed: " . $db->error); }
         $updateQuery->bind_param('ss', $status, $dbcommand);
-        $updateQuery->execute();
+        $result = $updateQuery->execute();
+        if (!$result) { error_log("MySQL execute failed: " . $updateQuery->error); }
+        $affected_rows = $updateQuery->affected_rows;
         $updateQuery->close();
-        $dataUpdated = true;
+        $dataUpdated = $result;
+        // For AJAX requests, return JSON response
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            if ($result && $affected_rows > 0) {
+                echo json_encode([
+                    'success' => true, 
+                    'message' => 'Status updated successfully', 
+                    'affected_rows' => $affected_rows,
+                    'database' => $db->host_info,
+                    'database_name' => $_SESSION['username'] ?? 'unknown',
+                    'command' => $dbcommand,
+                    'new_status' => $status
+                ]);
+            }else {
+                echo json_encode(['success' => false, 'message' => 'No rows were updated', 'affected_rows' => $affected_rows]);
+            }
+            exit;
+        }
     }
     if (isset($_POST['remove_command'])) {
         $commandToRemove = $_POST['remove_command'];
@@ -107,11 +128,10 @@ ob_start();
                                             <span class="tag is-medium <?php echo ($command['status'] == 'Enabled') ? 'is-success' : 'is-danger'; ?>">
                                                 <?php echo t($command['status'] == 'Enabled' ? 'builtin_commands_status_enabled' : 'builtin_commands_status_disabled'); ?>
                                             </span>
-                                        </td>
-                                        <td class="has-text-centered is-narrow" style="vertical-align: middle;">
+                                        </td>                                        <td class="has-text-centered is-narrow" style="vertical-align: middle;">
                                             <label class="checkbox" style="cursor:pointer;">
                                                 <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked, this)" style="display:none;">
-                                                <span class="icon is-medium" onclick="this.previousElementSibling.click();">
+                                                <span class="icon is-medium" onclick="event.preventDefault(); event.stopPropagation(); this.previousElementSibling.click();">
                                                     <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
                                                 </span>
                                             </label>
@@ -176,15 +196,59 @@ function setupRemoveButtons() {
 }
 
 function toggleStatus(command, isChecked, elem) {
+    // Prevent multiple rapid calls
+    if (elem.dataset.processing === 'true') {
+        return;
+    }
+    elem.dataset.processing = 'true';
+    
     var icon = elem.parentElement.querySelector('i');
+    var statusSpan = elem.closest('tr').querySelector('.tag');
     icon.className = "fa-solid fa-spinner fa-spin";
     var status = isChecked ? 'Enabled' : 'Disabled';
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function() {
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
-            location.reload();
+            if (xhr.status === 200) {
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    console.log('Server response:', response);
+                    if (response.success) {
+                        // Update the toggle icon
+                        icon.className = isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                        // Update the status tag
+                        if (statusSpan) {
+                            statusSpan.className = "tag is-medium " + (isChecked ? "is-success" : "is-danger");
+                            statusSpan.textContent = isChecked ? "<?php echo t('builtin_commands_status_enabled'); ?>" : "<?php echo t('builtin_commands_status_disabled'); ?>";
+                        }
+                        if (response.affected_rows === 0) {
+                            console.warn('No rows were affected by the update');
+                            alert('Warning: Command may not exist in database');
+                        }
+                    } else {
+                        // On error, revert the checkbox
+                        elem.checked = !isChecked;
+                        icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                        alert('Error: ' + response.message);
+                    }
+                } catch (e) {
+                    console.error('Error parsing response:', e);
+                    console.log('Raw response:', xhr.responseText);
+                    // On error, revert the checkbox
+                    elem.checked = !isChecked;
+                    icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                    alert('Error parsing server response');
+                }            } else {
+                // On error, revert the checkbox
+                elem.checked = !isChecked;
+                icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
+                alert('HTTP Error: ' + xhr.status);
+            }
+            
+            // Reset processing flag in all cases
+            elem.dataset.processing = 'false';
         }
     };
     xhr.send("command=" + encodeURIComponent(command) + "&status=" + status);
