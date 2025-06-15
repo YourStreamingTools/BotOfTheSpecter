@@ -10,48 +10,31 @@ include '/var/www/config/twitch.php';
 include_once "/var/www/config/ssh.php";
 function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!function_exists('ssh2_connect')) {
-      return ['error' => 'SSH2 extension not installed'];
-    }
+    if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect($bots_ssh_host, 22);
     if (!$connection) return ['error' => 'Could not connect to SSH server'];
-    if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) {
-      return ['error' => 'SSH authentication failed'];
-    }
+    if (!ssh2_auth_password($connection, $bots_ssh_username, $bots_ssh_password)) { return ['error' => 'SSH authentication failed']; }
     // Check if file exists
     $cmd_exists = "test -f " . escapeshellarg($remote_path) . " && echo 1 || echo 0";
     $stream = ssh2_exec($connection, $cmd_exists);
     stream_set_blocking($stream, true);
     $exists = trim(stream_get_contents($stream));
     fclose($stream);
-    if ($exists !== "1") {
-      return ['error' => 'not_found'];
-    }
+    if ($exists !== "1") { return ['error' => 'not_found']; }
     // Count total lines
     $cmd_count = "wc -l < " . escapeshellarg($remote_path);
     $stream = ssh2_exec($connection, $cmd_count);
     stream_set_blocking($stream, true);
     $linesTotal = (int)trim(stream_get_contents($stream));
     fclose($stream);
-    if ($linesTotal === 0) {
-      return [
-        'linesTotal' => 0,
-        'logContent' => '',
-        'empty' => true
-      ];
-    }
-    if ($startLine === null) {
-      $startLine = max(0, $linesTotal - $lines);
-    }
+    if ($linesTotal === 0) { return ['linesTotal' => 0,'logContent' => '','empty' => true]; }
+    if ($startLine === null) { $startLine = max(0, $linesTotal - $lines); }
     $cmd = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($remote_path) . " | head -n $lines";
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
     $logContent = stream_get_contents($stream);
     fclose($stream);
-    return [
-      'linesTotal' => $linesTotal,
-      'logContent' => $logContent
-    ];
+    return ['linesTotal' => $linesTotal,'logContent' => $logContent];
 }
 
 // Helper function to highlight log dates in a string, add <br> at end of each line, and reverse order
@@ -79,11 +62,8 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     $logPath = "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
     $result = read_log_over_ssh($logPath, 200, $since);
     if (isset($result['error'])) {
-        if ($result['error'] === 'not_found') {
-            echo json_encode(['error' => 'not_found']);
-        } else {
-            echo json_encode(['error' => 'connection_failed']);
-        }
+        if ($result['error'] === 'not_found') { echo json_encode(['error' => 'not_found']); }
+        else { echo json_encode(['error' => 'connection_failed']); }
         exit();
     }
     if (isset($result['empty']) && $result['empty']) {
@@ -100,9 +80,7 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
 // Fetch all users for dropdown
 $users = [];
 $res = $conn->query("SELECT username FROM users ORDER BY username ASC");
-while ($row = $res->fetch_assoc()) {
-    $users[] = $row['username'];
-}
+while ($row = $res->fetch_assoc()) { $users[] = $row['username']; }
 ob_start();
 ?>
 <div class="box">
