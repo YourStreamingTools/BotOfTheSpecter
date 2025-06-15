@@ -2,10 +2,14 @@
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
+
+// Clean output buffer
+while (ob_get_level()) { ob_end_clean(); }
 ob_start();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
+  ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Authentication required']);
   exit();
@@ -13,6 +17,7 @@ if (!isset($_SESSION['access_token'])) {
 
 // Check for required parameters
 if (!isset($_POST['action']) || !isset($_POST['bot'])) {
+  ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
   exit();
@@ -23,12 +28,14 @@ $bot = $_POST['bot'];
 
 // Validate action and bot type
 if (!in_array($action, ['run', 'stop'])) {
+  ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid action']);
   exit();
 }
 
 if (!in_array($bot, ['stable', 'beta', 'discord'])) {
+  ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
   exit();
@@ -58,6 +65,9 @@ $params = [
 
 // Perform the bot action
 $result = performBotAction($actionMap[$action], $bot, $params);
+
+// Add some debugging information
+error_log("Bot action performed - Bot: $bot, Action: $action, Result: " . json_encode($result));
 
 // Return response
 ob_clean(); // Clear any accidental output
