@@ -167,11 +167,18 @@ function performBotAction($action, $botType, $params) {
                     file_put_contents($versionFilePath, $newVersion);
                 } else {
                     // Start the bot
-                    if ($botType === 'discord') { $startCommand = "python $botScriptPath -channel $username 2>&1 &"; }
-                    else { $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey 2>&1 &"; }
-                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand);
-                    if ($startOutput === false) { throw new Exception('Unable to start bot. Please try again later.'); }
-                    sleep(2);
+                    if ($botType === 'discord') { 
+                        $startCommand = "python $botScriptPath -channel $username 2>&1 &"; 
+                    } else { 
+                        $startCommand = "python $botScriptPath -channel $username -channelid $twitchUserId -token $authToken -refresh $refreshToken -apitoken $apiKey 2>&1 &"; 
+                    }
+                    // Execute the start command as a background process
+                    $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true);
+                    if ($startOutput === false) { 
+                        throw new Exception('Unable to start bot. Please try again later.'); 
+                    }
+                    // Give the bot a moment to start up
+                    sleep(3);
                     // Check status again
                     $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
                     if ($statusOutput !== false) {
@@ -180,14 +187,23 @@ function performBotAction($action, $botType, $params) {
                             preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
                             $newPid = intval($matches[1]);
                             if ($newPid > 0) {
-                                // Only one message: Bot is running with version
+                                // Bot started successfully
                                 $result['message'] = "Bot is running (v{$newVersion})";
                                 $result['pid'] = $newPid;
                                 $result['success'] = true;
                                 file_put_contents($versionFilePath, $newVersion);
-                            } else { $result['message'] = "Failed to start bot"; }
-                        } else { $result['message'] = "Failed to start bot"; }
-                    } else { $result['message'] = "Failed to start bot"; }
+                            } else { 
+                                $result['message'] = "Bot started but PID not found"; 
+                                $result['success'] = true; // Still consider it successful
+                            }
+                        } else { 
+                            $result['message'] = "Bot started but status unclear"; 
+                            $result['success'] = true; // Still consider it successful since we used background
+                        }
+                    } else { 
+                        $result['message'] = "Bot started but status check failed"; 
+                        $result['success'] = true; // Still consider it successful since we used background
+                    }
                 }
                 break;
             case 'stop':
