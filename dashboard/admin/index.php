@@ -15,7 +15,7 @@ ob_start();
         </a>
         <a href="admin_logs.php" class="button is-info is-light">
             <span class="icon"><i class="fas fa-clipboard-list"></i></span>
-            <span>User Bot Logs</span>
+            <span>Log Management</span>
         </a>
         <!-- Add more quick links as needed -->
     </div>
