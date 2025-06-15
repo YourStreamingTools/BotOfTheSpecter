@@ -646,11 +646,21 @@ document.addEventListener('DOMContentLoaded', function() {
       })
         .then(response => response.json())
         .then(data => {
+          console.log('Stable bot action response:', data);
           if (data.success) {
             showNotification(`Stable bot ${action} command executed successfully`, 'success');
-            // Start polling for status changes more frequently after run command
+            // For run action, check if we already have a PID from the response
             if (action === 'run') {
-              startPollingBotStatus('stable', 15); // Poll for up to 15 times (15 seconds)
+              if (data.pid && parseInt(data.pid) > 0) {
+                // Bot started successfully and we have a PID
+                showNotification(`Stable bot is now running with PID ${data.pid}!`, 'success');
+                updateBotStatus();
+                botRunOperationInProgress = false;
+                currentBotBeingStarted = null;
+              } else {
+                // Bot might be starting, poll for status
+                startPollingBotStatus('stable', 20); // Increase attempts to 20
+              }
             } else {
               // For stop action, check status after a brief delay
               setTimeout(() => {
@@ -705,11 +715,21 @@ document.addEventListener('DOMContentLoaded', function() {
       })
         .then(response => response.json())
         .then(data => {
+          console.log('Beta bot action response:', data);
           if (data.success) {
             showNotification(`Beta bot ${action} command executed successfully`, 'success');
-            // Start polling for status changes more frequently after run command
+            // For run action, check if we already have a PID from the response
             if (action === 'run') {
-              startPollingBotStatus('beta', 15); // Poll for up to 15 times (15 seconds)
+              if (data.pid && parseInt(data.pid) > 0) {
+                // Bot started successfully and we have a PID
+                showNotification(`Beta bot is now running with PID ${data.pid}!`, 'success');
+                updateBotStatus();
+                botRunOperationInProgress = false;
+                currentBotBeingStarted = null;
+              } else {
+                // Bot might be starting, poll for status
+                startPollingBotStatus('beta', 20); // Increase attempts to 20
+              }
             } else {
               // For stop action, check status after a brief delay
               setTimeout(() => {
@@ -764,11 +784,21 @@ document.addEventListener('DOMContentLoaded', function() {
       })
         .then(response => response.json())
         .then(data => {
+          console.log('Discord bot action response:', data);
           if (data.success) {
             showNotification(`Discord bot ${action} command executed successfully`, 'success');
-            // Start polling for status changes more frequently after run command
+            // For run action, check if we already have a PID from the response
             if (action === 'run') {
-              startPollingBotStatus('discord', 15); // Poll for up to 15 times (15 seconds)
+              if (data.pid && parseInt(data.pid) > 0) {
+                // Bot started successfully and we have a PID
+                showNotification(`Discord bot is now running with PID ${data.pid}!`, 'success');
+                updateBotStatus();
+                botRunOperationInProgress = false;
+                currentBotBeingStarted = null;
+              } else {
+                // Bot might be starting, poll for status
+                startPollingBotStatus('discord', 20); // Increase attempts to 20
+              }
             } else {
               // For stop action, check status after a brief delay
               setTimeout(() => {
@@ -801,7 +831,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 10); // Small delay to prevent UI blocking
   }
-  
   // Non-blocking polling function using setInterval instead of recursion
   function startPollingBotStatus(botType, maxAttempts) {
     let currentAttempt = 0;
@@ -813,7 +842,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Check if we've exceeded max attempts
       if (currentAttempt > maxAttempts) {
         clearInterval(pollInterval);
-        showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot status check timed out. Bot may still be starting - please wait and check manually.`, 'warning');
+        showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot status check timed out. Please refresh the page to check current status.`, 'warning');
         // Reset the global flag even on timeout
         if (currentBotBeingStarted === botType) {
           botRunOperationInProgress = false;
@@ -822,33 +851,51 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       // Show progress every few attempts to avoid spam
-      if (currentAttempt % 3 === 0) {
+      if (currentAttempt % 4 === 0) {
         showNotification(`Checking ${botType} bot status... (${currentAttempt}/${maxAttempts})`, 'info');
       }
       // Make the status check request
-      fetch(`check_bot_status.php?bot=${botType}`)
+      fetch(`check_bot_status.php?bot=${botType}&_t=${Date.now()}`)
         .then(async response => {
           const text = await response.text();
+          console.log(`Bot status check attempt ${currentAttempt} for ${botType}:`, text);
           try {
             const data = JSON.parse(text);
-            if (data.success && data.running && data.pid && data.pid > 0) {
-              // Bot is now running with a valid PID - success!
-              clearInterval(pollInterval);
-              showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot is now running with PID ${data.pid}!`, 'success');
-              updateBotStatus();
-              // Reset the global flag and clean up persistent notifications
-              if (currentBotBeingStarted === botType) {
-                botRunOperationInProgress = false;
-                currentBotBeingStarted = null;
-                // Remove any persistent bot operation notifications
-                document.querySelectorAll('.notification.bot-operation-persistent').forEach(n => {
-                  if (n.parentNode) n.parentNode.removeChild(n);
-                });
+            console.log('Parsed bot status data:', data);
+            // Check if the bot is running - be more lenient with the checks
+            if (data.success) {
+              if (data.running && data.pid && parseInt(data.pid) > 0) {
+                // Bot is now running with a valid PID - success!
+                clearInterval(pollInterval);
+                showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot is now running with PID ${data.pid}!`, 'success');
+                updateBotStatus();
+                // Reset the global flag and clean up persistent notifications
+                if (currentBotBeingStarted === botType) {
+                  botRunOperationInProgress = false;
+                  currentBotBeingStarted = null;
+                  // Remove any persistent bot operation notifications
+                  document.querySelectorAll('.notification.bot-operation-persistent').forEach(n => {
+                    if (n.parentNode) n.parentNode.removeChild(n);
+                  });
+                }
+                return;
+              }
+              // If on attempt 5 or later and we have success but no PID, show alternative success
+              if (currentAttempt >= 5 && data.message && (data.message.includes('running') || data.message.includes('started'))) {
+                clearInterval(pollInterval);
+                showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot appears to be running! Refreshing status...`, 'success');
+                updateBotStatus();
+                // Reset the global flag
+                if (currentBotBeingStarted === botType) {
+                  botRunOperationInProgress = false;
+                  currentBotBeingStarted = null;
+                }
+                return;
               }
             }
             // If not running yet, continue polling (interval will handle the next attempt)
           } catch (e) {
-            console.error('Error parsing bot status JSON:', e);
+            console.error('Error parsing bot status JSON:', e, 'Raw response:', text);
             // Continue polling on parse error
           }
         })
@@ -922,11 +969,13 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedBot = urlParams.get('bot');
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
     if (!selectedBot) { selectedBot = 'stable'; }
-    fetch(`check_bot_status.php?bot=${selectedBot}`)
+    fetch(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`)
       .then(async response => {
         const text = await response.text();
+        console.log('updateBotStatus response text:', text);
         try {
           const data = JSON.parse(text);
+          console.log('updateBotStatus parsed data:', data);
           if (data.success) {
             // Update status icon and text
             const statusText = data.running ? 'ONLINE' : 'OFFLINE';
