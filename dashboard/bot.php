@@ -658,8 +658,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 botRunOperationInProgress = false;
                 currentBotBeingStarted = null;
               } else {
-                // Bot might be starting, poll for status
-                startPollingBotStatus('stable', 20); // Increase attempts to 20
+                // Bot started successfully but no immediate PID - this is normal for background processes
+                showNotification(`Stable bot startup initiated successfully! Checking status...`, 'success');
+                // Start polling with shorter timeout since we know it started
+                startPollingBotStatus('stable', 10); // Reduce to 10 attempts (10 seconds)
               }
             } else {
               // For stop action, check status after a brief delay
@@ -727,8 +729,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 botRunOperationInProgress = false;
                 currentBotBeingStarted = null;
               } else {
-                // Bot might be starting, poll for status
-                startPollingBotStatus('beta', 20); // Increase attempts to 20
+                // Bot started successfully but no immediate PID - this is normal for background processes
+                showNotification(`Beta bot startup initiated successfully! Checking status...`, 'success');
+                // Start polling with shorter timeout since we know it started
+                startPollingBotStatus('beta', 10); // Reduce to 10 attempts (10 seconds)
               }
             } else {
               // For stop action, check status after a brief delay
@@ -796,8 +800,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 botRunOperationInProgress = false;
                 currentBotBeingStarted = null;
               } else {
-                // Bot might be starting, poll for status
-                startPollingBotStatus('discord', 20); // Increase attempts to 20
+                // Bot started successfully but no immediate PID - this is normal for background processes
+                showNotification(`Discord bot startup initiated successfully! Checking status...`, 'success');
+                // Start polling with shorter timeout since we know it started
+                startPollingBotStatus('discord', 10); // Reduce to 10 attempts (10 seconds)
               }
             } else {
               // For stop action, check status after a brief delay
