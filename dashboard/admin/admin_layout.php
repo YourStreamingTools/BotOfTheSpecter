@@ -135,7 +135,7 @@ ob_start();
                 </a>
                 <a class="navbar-item" href="admin_logs.php">
                     <span class="icon"><i class="fas fa-clipboard-list"></i></span>
-                    <span>User Bot Logs</span>
+                    <span>Log Management</span>
                 </a>
             </div>
             <div class="navbar-end">
