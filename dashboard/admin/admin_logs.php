@@ -83,6 +83,67 @@ function highlight_log_dates($text) {
     return implode("<br>", $lines);
 }
 
+// Helper function to highlight Apache2 logs with proper formatting
+function highlight_apache2_logs($text, $logType) {
+    $escaped = htmlspecialchars($text);
+    $lines = explode("\n", $escaped);
+    $lines = array_reverse($lines);
+    // Define styles
+    $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
+    $ipStyle = 'style="color: #3498db; font-weight: bold;"';
+    $localhostStyle = 'style="color: #9b59b6; font-weight: bold;"';
+    $errorStyle = 'style="color: #e74c3c; font-weight: bold;"';
+    foreach ($lines as &$line) {
+        if (strpos($logType, 'access') !== false) {
+            // Apache2 Access Log Format: IP - - [date] ...
+            // Handle IPv6 localhost (::1)
+            $line = preg_replace(
+                '/^(::1)/',
+                '<span ' . $localhostStyle . '>$1 (localhost IPv6)</span>',
+                $line
+            );
+            // Handle IPv4 localhost (127.0.0.1)
+            $line = preg_replace(
+                '/^(127\.0\.0\.1)/',
+                '<span ' . $localhostStyle . '>$1 (localhost)</span>',
+                $line
+            );
+            // Handle other IP addresses (IPv4)
+            $line = preg_replace(
+                '/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/',
+                '<span ' . $ipStyle . '>$1</span>',
+                $line
+            );
+            // Handle other IPv6 addresses
+            $line = preg_replace(
+                '/^([0-9a-fA-F:]+)(?!\s*\(localhost)/',
+                '<span ' . $ipStyle . '>$1</span>',
+                $line
+            );
+            // Highlight dates in access logs [15/Jun/2025:00:23:04 +1000]
+            $line = preg_replace(
+                '/\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2}\s[+-]\d{4})\]/',
+                '[<span ' . $dateStyle . '>$1</span>]',
+                $line
+            );
+        } elseif (strpos($logType, 'error') !== false) {
+            // Highlight dates in error logs [Sun Jun 15 00:00:03.003748 2025]
+            $line = preg_replace(
+                '/\[(\w{3}\s\w{3}\s\d{2}\s\d{2}:\d{2}:\d{2}\.\d+\s\d{4})\]/',
+                '[<span ' . $dateStyle . '>$1</span>]',
+                $line
+            );
+            // Highlight error levels
+            $line = preg_replace(
+                '/\[(error|warn|notice|info|debug|crit|alert|emerg)\]/',
+                '[<span ' . $errorStyle . '>$1</span>]',
+                $line
+            );
+        }
+    }
+    return implode("<br>", $lines);
+}
+
 // Handle AJAX log fetch for admin (always via SSH)
 if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     header('Content-Type: application/json');
@@ -264,7 +325,6 @@ if (isset($_GET['admin_system_log_type'])) {
             $result = read_log_over_ssh($logPath, 200, $since);
             break;
     }
-    
     if (isset($result['error'])) {
         if ($result['error'] === 'not_found') { 
             echo json_encode(['error' => 'not_found']);
@@ -281,7 +341,11 @@ if (isset($_GET['admin_system_log_type'])) {
     }
     $logContent = $result['logContent'];
     $linesTotal = $result['linesTotal'];
-    $logContent = highlight_log_dates($logContent);
+    // Apply appropriate highlighting based on log type
+    if (strpos($logType, 'apache2-') === 0 || strpos($logType, '_access') !== false || strpos($logType, '_error') !== false || $logType === 'other_vhosts_access') {
+        // This is an Apache2 log, use specialized highlighting
+        $logContent = highlight_apache2_logs($logContent, $logType);
+    } else { $logContent = highlight_log_dates($logContent); }
     echo json_encode(['last_line' => $linesTotal, 'data' => $logContent]);
     exit();
 }
@@ -336,12 +400,43 @@ ob_start();
                     <div class="select">
                         <select id="admin-system-log-type-select" disabled>
                             <option value="">Select System Log Type</option>
-                            <option value="application">Application Log</option>
-                            <option value="error">Error Log</option>
-                            <option value="access">Access Log</option>
-                            <option value="security">Security Log</option>
-                            <option value="database">Database Log</option>
-                            <option value="performance">Performance Log</option>
+                            <optgroup label="Standard Apache2 Logs">
+                                <option value="apache2-access">Apache2 Access Log</option>
+                                <option value="apache2-error">Apache2 Error Log</option>
+                                <option value="other_vhosts_access">Other VHosts Access Log</option>
+                            </optgroup>
+                            <optgroup label="Virtual Host Access Logs">
+                                <option value="beta.dashboard.botofthespecter.com_access">Beta Dashboard Access</option>
+                                <option value="botofthespecter.com_access">Main Site Access</option>
+                                <option value="cdn.botofthespecter.com_access">CDN Access</option>
+                                <option value="dashboard.botofthespecter.com_access">Dashboard Access</option>
+                                <option value="members.botofthespecter.com_access">Members Access</option>
+                                <option value="overlay.botofthespecter.com_access">Overlay Access</option>
+                                <option value="soundalerts.botofthespecter.com_access">Sound Alerts Access</option>
+                                <option value="tts.botofthespecter.com_access">TTS Access</option>
+                                <option value="videoalerts.botofthespecter.com_access">Video Alerts Access</option>
+                                <option value="walkons.botofthespecter.com_access">Walkons Access</option>
+                            </optgroup>
+                            <optgroup label="Virtual Host Error Logs">
+                                <option value="beta.dashboard.botofthespecter.com_error">Beta Dashboard Error</option>
+                                <option value="botofthespecter.com_error">Main Site Error</option>
+                                <option value="cdn.botofthespecter.com_error">CDN Error</option>
+                                <option value="dashboard.botofthespecter.com_error">Dashboard Error</option>
+                                <option value="members.botofthespecter.com_error">Members Error</option>
+                                <option value="overlay.botofthespecter.com_error">Overlay Error</option>
+                                <option value="soundalerts.botofthespecter.com_error">Sound Alerts Error</option>
+                                <option value="tts.botofthespecter.com_error">TTS Error</option>
+                                <option value="videoalerts.botofthespecter.com_error">Video Alerts Error</option>
+                                <option value="walkons.botofthespecter.com_error">Walkons Error</option>
+                            </optgroup>
+                            <optgroup label="Custom System Logs">
+                                <option value="application">Application Log</option>
+                                <option value="error">Error Log</option>
+                                <option value="access">Access Log</option>
+                                <option value="security">Security Log</option>
+                                <option value="database">Database Log</option>
+                                <option value="performance">Performance Log</option>
+                            </optgroup>
                         </select>
                     </div>
                 </div>
