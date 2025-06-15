@@ -411,7 +411,8 @@ categorySelect.addEventListener('change', function() {
         // For system logs, use the user dropdown to select system log type directly
         userSelect.disabled = false;
         userLogTypeControl.style.display = 'none';
-        systemLogTypeControl.style.display = 'none';        // Change user dropdown to show system log types
+        systemLogTypeControl.style.display = 'none';
+        // Change user dropdown to show system log types
         userSelect.innerHTML = '<option value="">Choose System Log Type</option>' +
             '<optgroup label="Standard Apache2 Logs">' +
             '<option value="apache2-access">Apache2 Access Log (Combined)</option>' +
