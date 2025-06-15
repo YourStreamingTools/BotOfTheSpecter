@@ -112,15 +112,25 @@ if (!class_exists('SSHConnectionManager')) {
                 self::closeConnection($key);
             }
         }
-        public static function executeCommand($connection, $command) {
+        public static function executeCommand($connection, $command, $isBackground = false) {
             $stream = ssh2_exec($connection, $command);
             if (!$stream) {
                 return false;
             }
-            stream_set_blocking($stream, true);
-            $output = stream_get_contents($stream);
-            fclose($stream);
-            return $output;
+            if ($isBackground) {
+                // For background processes, don't block - just return immediately
+                stream_set_blocking($stream, false);
+                // Give it a brief moment to start
+                usleep(100000); // 0.1 seconds
+                fclose($stream);
+                return "Background process started";
+            } else {
+                // For regular commands, block and wait for output
+                stream_set_blocking($stream, true);
+                $output = stream_get_contents($stream);
+                fclose($stream);
+                return $output;
+            }
         }
     }
 }
