@@ -31,23 +31,56 @@ date_default_timezone_set($timezone);
 $logContent = t('logs_please_select_type');
 $logType = '';  // Default log type
 
-$logPath = "/var/www/logs";
-// Helper function to read log file locally
+$logPath = "/home/botofthespecter/logs/logs";
+
+// Include SSH configuration
+include_once "/var/www/config/ssh.php";
+
+// Helper function to read log file via SSH
 function read_log_file($file_path, $lines = 200, $startLine = null) {
-    if (!file_exists($file_path)) {
-        return ['error' => 'Log file not found'];
+  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+  try {
+    // Use SSH connection manager for persistent connections
+    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+    // Check if file exists using escapeshellarg for safety
+    $checkCommand = "test -f " . escapeshellarg($file_path) . " && echo '1' || echo '0'";
+    $checkResult = SSHConnectionManager::executeCommand($connection, $checkCommand);
+    if (trim($checkResult) !== '1') {
+      // Also check if directory exists for debugging
+      $dirname = dirname($file_path);
+      $dirCheckCommand = "test -d " . escapeshellarg($dirname) . " && echo '1' || echo '0'";
+      $dirCheckResult = SSHConnectionManager::executeCommand($connection, $dirCheckCommand);
+      if (trim($dirCheckResult) !== '1') {
+        return ['error' => "Log directory not found: $dirname"];
+      }
+      return ['error' => "Log file not found: $file_path"];
     }
-    $file_lines = file($file_path, FILE_IGNORE_NEW_LINES);
-    $linesTotal = count($file_lines);
-    // Calculate start line
+    // Get total line count
+    $countCommand = "wc -l < " . escapeshellarg($file_path);
+    $lineCountResult = SSHConnectionManager::executeCommand($connection, $countCommand);
+    $linesTotal = intval(trim($lineCountResult));
+    if ($linesTotal === 0) {
+      return [
+        'linesTotal' => 0,
+        'logContent' => '',
+        'empty' => true
+      ];
+    }
+    // Calculate start line (using 0-based indexing like admin function)
     if ($startLine === null) {
-        $startLine = max(0, $linesTotal - $lines);
+      $startLine = max(0, $linesTotal - $lines);
     }
-    $logContent = array_slice($file_lines, $startLine, $lines);
+    // Use tail and head for efficient reading
+    $readCommand = "tail -n +" . ($startLine + 1) . " " . escapeshellarg($file_path) . " | head -n $lines";
+    $logContent = SSHConnectionManager::executeCommand($connection, $readCommand);
+    if ($logContent === false) {
+      return ['error' => 'Failed to read log file'];
+    }
     return [
-        'linesTotal' => $linesTotal,
-        'logContent' => implode("\n", $logContent)
+      'linesTotal' => $linesTotal,
+      'logContent' => $logContent
     ];
+  } catch (Exception $e) { return ['error' => 'SSH connection failed: ' . $e->getMessage()]; }
 }
 
 // Helper function to highlight log dates in a string and add <br> at end of each line, with reverse order
@@ -72,10 +105,9 @@ if (isset($_GET['log'])) {
   error_reporting(E_ERROR | E_PARSE);
   header('Content-Type: application/json');
   $logType = $_GET['log'];
-  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
-  $currentUser = $_SESSION['username'] ?? '';
+  $since = isset($_GET['since']) ? (int)$_GET['since'] : 0;  $currentUser = $_SESSION['username'] ?? '';
   $log = "$logPath/$logType/$currentUser.txt";
-  // Read the log file locally
+  // Read the log file via SSH
   $result = read_log_file($log, 200, $since);
   if (isset($result['error'])) {
     echo json_encode(['error' => $result['error']]);
@@ -89,16 +121,14 @@ if (isset($_GET['log'])) {
 }
 
 if (isset($_GET['logType'])) {
-  $logType = $_GET['logType'];
-  $currentUser = $_SESSION['username'] ?? '';
+  $logType = $_GET['logType'];  $currentUser = $_SESSION['username'] ?? '';
   $log = "$logPath/$logType/$currentUser.txt";
-  // Read the log file locally
-  $result = read_log_file($log, 200);
-  if (isset($result['error'])) {
+  // Read the log file via SSH
+  $result = read_log_file($log, 200);  if (isset($result['error'])) {
     $logContent = "Error: " . $result['error'];
   } else {
     $logContent = $result['logContent'];
-    if (trim($logContent) === '') {
+    if (trim($logContent) === '' || isset($result['empty'])) {
       $logContent = "Nothing has been logged yet.";
     }
   }
@@ -210,24 +240,28 @@ async function fetchLogData(logname, loadMore = false) {
   if (currentLogName !== logname) {
     currentLogName = logname;
   }
-
   // Prevent negative line counts
   if (loadMore && last_line <= 0) {
     console.log(<?php echo json_encode(t('logs_no_more_lines')); ?>);
     return;
   }
-
   // Load more lines or reset
   if (loadMore) {
     last_line -= 200;
   } else {
     last_line = 0;
   }
-
   try {
     const response = await fetch(`logs.php?log=${logname}&since=${last_line}`);
     const json = await response.json();
-    if (json["data"].length === 0) {
+      // Check for errors first
+    if (json.error) {
+      logHtml.innerHTML = `<span style="color: #ff6b6b;">Error: ${json.error}</span>`;
+      toggleButtonsContainer(true);
+      return;
+    }
+    // Check if file is empty
+    if (json.empty || json["data"].length === 0 || json["data"].trim() === '') {
       logHtml.innerHTML = "(log is empty)";
     } else {
       last_line = json["last_line"];
@@ -240,6 +274,7 @@ async function fetchLogData(logname, loadMore = false) {
     toggleButtonsContainer(true);
   } catch (error) {
     console.error(<?php echo json_encode(t('logs_error_fetching')); ?>, error);
+    logHtml.innerHTML = `<span style="color: #ff6b6b;">Network error: Failed to fetch log data</span>`;
   }
 }
 
@@ -248,10 +283,16 @@ async function autoUpdateLog() {
     try {
       const response = await fetch(`logs.php?log=${currentLogName}`);
       const json = await response.json();
+      // Check for errors
+      if (json.error) {
+        logHtml.innerHTML = `<span style="color: #ff6b6b;">Error: ${json.error}</span>`;
+        return;
+      }
       last_line = json["last_line"];
       logHtml.innerHTML = json["data"];
     } catch (error) {
       console.error(<?php echo json_encode(t('logs_error_fetching_auto_refresh')); ?>, error);
+      logHtml.innerHTML = `<span style="color: #ff6b6b;">Auto-refresh error: Failed to fetch log data</span>`;
     }
   }
 }
