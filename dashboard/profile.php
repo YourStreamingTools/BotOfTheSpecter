@@ -99,16 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'update_timezone') {
         $timezone = $_POST['timezone'] ?? 'UTC';
-        $updateQuery = "UPDATE profile SET timezone = ? WHERE user_id = ?";
+        $updateQuery = "UPDATE profile SET timezone = ?";
         $stmt = mysqli_prepare($db, $updateQuery);
-        mysqli_stmt_bind_param($stmt, 'si', $timezone, $userId);
+        mysqli_stmt_bind_param($stmt, 's', $timezone);
         if (mysqli_stmt_execute($stmt)) {
             $message = t('timezone_updated_success');
             $alertClass = 'is-success';
             $_SESSION['timezone'] = $timezone;
             // Reload profile data
             $stmt = mysqli_prepare($db, $profileQuery);
-            mysqli_stmt_bind_param($stmt, 'i', $userId);
             mysqli_stmt_execute($stmt);
             $result = mysqli_stmt_get_result($stmt);
             $profileData = mysqli_fetch_assoc($result);
@@ -118,15 +117,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'update_weather_location') {
         $weatherLocation = $_POST['weather_location'] ?? '';
-        $updateQuery = "UPDATE profile SET weather_location = ? WHERE user_id = ?";
+        $updateQuery = "UPDATE profile SET weather_location = ?";
         $stmt = mysqli_prepare($db, $updateQuery);
-        mysqli_stmt_bind_param($stmt, 'si', $weatherLocation, $userId);
+        mysqli_stmt_bind_param($stmt, 's', $weatherLocation);
         if (mysqli_stmt_execute($stmt)) {
             $message = t('weather_location_updated_success');
             $alertClass = 'is-success';
             // Reload profile data
             $stmt = mysqli_prepare($db, $profileQuery);
-            mysqli_stmt_bind_param($stmt, 'i', $userId);
             mysqli_stmt_execute($stmt);
             $result = mysqli_stmt_get_result($stmt);
             $profileData = mysqli_fetch_assoc($result);
@@ -213,16 +211,14 @@ $timezoneOptions = DateTimeZone::listIdentifiers();
 
 // Check if Discord is linked
 $discordLinked = false;
-$discord_userSTMT = $conn->prepare("SELECT 1 FROM discord_users WHERE user_id = ?");
-$discord_userSTMT->bind_param("i", $userId);
+$discord_userSTMT = $conn->prepare("SELECT 1 FROM discord_users");
 $discord_userSTMT->execute();
 $discord_userResult = $discord_userSTMT->get_result();
 $discordLinked = ($discord_userResult->num_rows > 0);
 
 // Check if Spotify is linked
 $spotifyLinked = false;
-$spotifySTMT = $conn->prepare("SELECT 1 FROM spotify_tokens WHERE user_id = ?");
-$spotifySTMT->bind_param("i", $userId);
+$spotifySTMT = $conn->prepare("SELECT 1 FROM spotify_tokens");
 $spotifySTMT->execute();
 $spotifyResult = $spotifySTMT->get_result();
 $spotifyLinked = ($spotifyResult->num_rows > 0);
