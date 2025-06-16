@@ -3,7 +3,6 @@ import aiohttp
 import aiomysql
 import random
 import json
-import paramiko
 import uvicorn
 import datetime
 import logging
@@ -35,9 +34,6 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
     raise ValueError(f"Missing required database environment variables: {missing_vars}")
 
 ADMIN_KEY = os.getenv('ADMIN_KEY')
-SFTP_HOST = "10.240.0.169"
-SFTP_USER = os.getenv("SFPT_USERNAME")
-SFTP_PASSWORD = os.getenv("SFPT_PASSWORD")
 WEATHER_API = os.getenv('WEATHER_API')
 
 # Setup Logger
@@ -126,7 +122,7 @@ async def get_api_count(count_type):
     finally:
         conn.close()
 
-# Function to update API count in database and sync with text file
+# Function to update API count in database
 async def update_api_count(count_type, new_count):
     conn = await get_mysql_connection()
     try:
@@ -138,19 +134,7 @@ async def update_api_count(count_type, new_count):
                 WHERE type = %s AND (count != %s OR count = %s)
             """, (new_count, count_type, new_count, new_count))
             await conn.commit()
-        # Update the corresponding text file
-        base_dir = "/home/botofthespecter" if os.path.exists("/home/botofthespecter") else "/home/fastapi"
-        file_path = f"{base_dir}/{count_type}_requests.txt"
-        with open(file_path, "w") as file:
-            file.write(str(new_count))
-        # Transfer the updated file to the bot's server via SFTP
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        sftp = ssh.open_sftp()
-        sftp.put(file_path, f"/var/www/api/{count_type}.txt")
-        sftp.close()
-        ssh.close()
+            logging.info(f"Successfully updated {count_type} count to {new_count}")
     except Exception as e:
         logging.error(f"Error updating API count for {count_type}: {e}")
         raise
@@ -185,8 +169,8 @@ async def midnight():
             finally:
                 conn.close()
         except Exception as e:
-            # Handle any errors during the reset and SFTP transfer
-            logging.error(f"Failed to reset API request files or transfer via SFTP: {e}")
+            # Handle any errors during the reset
+            logging.error(f"Failed to reset API request counts: {e}")
         # Sleep for 60 seconds before checking again
         await asyncio.sleep(60)
 
@@ -940,27 +924,10 @@ async def websocket_walkon(api_key: str = Query(...), user: str = Query(...)):
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     channel = valid
-    walkon_file_path = f"/var/www/walkons/{channel}/{user}.mp3"
-    # Check if the file exists via SFTP
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=SFTP_HOST, port=22, username=SFTP_USER, password=SFTP_PASSWORD)
-        sftp = ssh.open_sftp()
-        try:
-            # Check if the file exists
-            sftp.stat(walkon_file_path)
-        except FileNotFoundError:
-            raise HTTPException(status_code=404, detail=f"Walkon file for user '{user}' does not exist.")
-        finally:
-            sftp.close()
-            ssh.close()
-        # Trigger the WebSocket event
-        params = {"event": "WALKON", "channel": channel, "user": user}
-        await websocket_notice("WALKON", params, api_key)
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error checking Walkon file: {e}")
+    # Trigger the WebSocket event
+    params = {"event": "WALKON", "channel": channel, "user": user}
+    await websocket_notice("WALKON", params, api_key)
+    return {"status": "success"}
 
 # WebSocket Deaths Trigger
 @app.get(
